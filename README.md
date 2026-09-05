@@ -33,7 +33,7 @@ Open the local URL printed by the server. Local sign-in is simulated by the Site
 
 ## Integration boundaries
 
-The connectors are runnable local commands with file import/export in the app. Notion and Claude require your own credentials; the release has not been tested against real provider accounts. Grok Bot uses a documented command/file adapter, not an assumed proprietary API. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Generated claims still require your review.
+The connectors are runnable local commands with file import/export in the app. Notion and Claude require your own credentials. Real Notion records were retrieved read-only through the connected Notion tool; that does not validate the standalone Notion command connector. Claude live access has not been tested. Grok Bot uses a documented command/file adapter, not an assumed proprietary API. A draft was exchanged with the installed Bot, transcribed into a validated file, then loaded in the browser; fully automatic Bot file transfer is not validated. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Generated claims still require your review. Production deployment has not been validated.
 
 ## Checks
 
@@ -46,7 +46,7 @@ node tests/api.test.mjs
 
 For an existing local database already on migration 0001, apply only 0002 from the setup commands. It preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
-The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. The optional browser WebMCP tools have not been validated in a supported agent browser.
+The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. User acceptance and post-acceptance reimport are pending.
 
 ## Hosting and privacy
 

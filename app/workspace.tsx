@@ -136,7 +136,9 @@ export default function Workspace() {
           ? 'Saved. Your review is preserved.'
           : body.action === 'replay'
             ? 'Replay complete. No records changed.'
-            : 'Workspace updated.',
+            : body.action === 'preview'
+              ? 'Preview complete. No records were imported.'
+              : 'Workspace updated.',
       );
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Unable to save.');
@@ -355,6 +357,30 @@ export default function Workspace() {
             </div>
           </section>
         )}
+        {report && (
+          <section className="report">
+            <div>
+              <b>Research check</b>
+              <button className="textbutton" onClick={() => setReport(null)}>
+                Dismiss
+              </button>
+            </div>
+            <p>
+              <strong>{report.new}</strong> new to this workspace ·{' '}
+              <strong>{report.known}</strong> already known ·{' '}
+              <strong>{report.submitted}</strong> already submitted
+            </p>
+            <details>
+              <summary>See {report.items.length} results</summary>
+              {report.items.map((i, n: number) => (
+                <p key={n}>
+                  {i.name}
+                  <span className={'badge ' + i.kind}>{i.kind}</span>
+                </p>
+              ))}
+            </details>
+          </section>
+        )}
         {jobs.length > 0 && (
           <>
             <section className="replay">
@@ -374,33 +400,6 @@ export default function Workspace() {
                 Check examples <ArrowRight size={16} />
               </button>
             </section>
-            {report && (
-              <section className="report">
-                <div>
-                  <b>Research check</b>
-                  <button
-                    className="textbutton"
-                    onClick={() => setReport(null)}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-                <p>
-                  <strong>{report.new}</strong> new to this workspace ·{' '}
-                  <strong>{report.known}</strong> already known ·{' '}
-                  <strong>{report.submitted}</strong> already submitted
-                </p>
-                <details>
-                  <summary>See {report.items.length} results</summary>
-                  {report.items.map((i, n: number) => (
-                    <p key={n}>
-                      {i.name}
-                      <span className={'badge ' + i.kind}>{i.kind}</span>
-                    </p>
-                  ))}
-                </details>
-              </section>
-            )}
             <div className="workgrid">
               <section className="queue">
                 <div className="queuehead">

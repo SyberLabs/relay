@@ -4,6 +4,7 @@ import {
   classify,
   displayName,
   importedBlocker,
+  importedJobStatus,
   jobKey,
   validateRows,
   validateEdit,
@@ -53,11 +54,7 @@ export async function POST(request: Request) {
       now = new Date().toISOString();
     if (['bootstrap', 'import', 'preview', 'replay'].includes(b.action)) {
       const rows = validateRows(
-        b.action === 'bootstrap'
-          ? seed
-          : b.action === 'replay'
-            ? seed
-            : b.rows,
+        b.action === 'bootstrap' ? seed : b.action === 'replay' ? seed : b.rows,
       );
       const existing = await db
         .prepare('SELECT job_key,status FROM jobs WHERE owner=?')
@@ -71,7 +68,7 @@ export async function POST(request: Request) {
         statements.push(
           db
             .prepare(
-              `INSERT INTO jobs (id,owner,job_key,name,url,status,blocker,draft,updated) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,job_key) DO UPDATE SET status=CASE WHEN jobs.status='Submitted' OR excluded.status='Submitted' THEN 'Submitted' WHEN jobs.status='Live loop' OR excluded.status='Live loop' THEN 'Live loop' ELSE jobs.status END, blocker=CASE WHEN jobs.blocker='' AND jobs.status NOT IN ('Ready','Submitted','Live loop') THEN excluded.blocker ELSE jobs.blocker END, accepted_draft=CASE WHEN excluded.status IN ('Submitted','Live loop') THEN NULL ELSE jobs.accepted_draft END, version=jobs.version+1, updated=excluded.updated`,
+              `INSERT INTO jobs (id,owner,job_key,name,url,status,blocker,draft,updated) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,job_key) DO UPDATE SET status=CASE WHEN jobs.status='Live loop' OR excluded.status='Live loop' THEN 'Live loop' WHEN jobs.status='Submitted' OR excluded.status='Submitted' THEN 'Submitted' ELSE jobs.status END, blocker=CASE WHEN jobs.blocker='' AND jobs.status NOT IN ('Ready','Submitted','Live loop') THEN excluded.blocker ELSE jobs.blocker END, accepted_draft=CASE WHEN excluded.status IN ('Submitted','Live loop') THEN NULL ELSE jobs.accepted_draft END, version=jobs.version+1, updated=excluded.updated`,
             )
             .bind(
               crypto.randomUUID(),
@@ -79,7 +76,7 @@ export async function POST(request: Request) {
               key,
               displayName(r.Name),
               r.Job,
-              r.Status,
+              importedJobStatus(r.Status),
               importedBlocker(r.Notes) ||
                 (b.action === 'bootstrap' ? packets[key]?.blocker || '' : ''),
               b.action === 'bootstrap' ? packets[key]?.draft || '' : '',

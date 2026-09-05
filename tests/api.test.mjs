@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 const base = process.env.RELAY_TEST_URL || 'http://localhost:3000';
+
+// Only run against a local development server, which uses mock authentication.
+if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname))
+  throw Error('API test is local-only.');
 const signIn = await fetch(base + '/signin-with-chatgpt?return_to=/', {
   redirect: 'manual',
 });
@@ -13,9 +17,6 @@ async function call(body, h = headers) {
   return { status: r.status, data: await r.json() };
 }
 
-// Only run against a local development server, which uses mock authentication.
-if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname))
-  throw Error('API test is local-only.');
 const boot = await call({ action: 'bootstrap' });
 assert.equal(boot.status, 200, JSON.stringify(boot.data));
 const a = (await call()).data;

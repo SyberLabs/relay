@@ -41,6 +41,15 @@ export function importedBlocker(n: string | null) {
     ? 'Prior attempt or restriction recorded. Read source history before continuing.'
     : '';
 }
+export function importedJobStatus(status: string) {
+  return status === 'Ready' ? 'Held' : status;
+}
+export function mergeJobStatus(existing: string | undefined, incoming: string) {
+  if (!existing) return importedJobStatus(incoming);
+  if (existing === 'Live loop' || incoming === 'Live loop') return 'Live loop';
+  if (existing === 'Submitted' || incoming === 'Submitted') return 'Submitted';
+  return existing;
+}
 export function classify(
   rows: SourceRow[],
   existing: { job_key: string; status: string }[],
@@ -58,7 +67,7 @@ export function classify(
       kind = s === 'Submitted' ? 'submitted' : s ? 'known' : 'new';
     out[kind]++;
     out.items.push({ name: displayName(r.Name), kind, key });
-    if (!s) known.set(key, r.Status);
+    known.set(key, mergeJobStatus(s, r.Status));
   }
   return out;
 }
@@ -76,7 +85,8 @@ export function validateRows(v: unknown): SourceRow[] {
       !states.includes(r.Status) ||
       !(r.Job === null || typeof r.Job === 'string') ||
       !(r.Notes == null || typeof r.Notes === 'string') ||
-      (r.Notes?.length || 0) > 20000
+      (r.Notes?.length || 0) > 20000 ||
+      !(r.createdTime == null || typeof r.createdTime === 'string')
     )
       throw Error('Each record needs url, Name, Job, Status and Notes.');
     jobKey(r.Job, r.url);

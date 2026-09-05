@@ -15,6 +15,13 @@
       "when": 1788641024760,
       "tag": "0001_careless_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788642000000,
+      "tag": "0002_job_key_observations",
+      "breakpoints": true
     }
   ]
 }

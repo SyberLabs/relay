@@ -36,6 +36,7 @@ export const observations = sqliteTable(
   (t) => [
     uniqueIndex('observations_owner_source').on(
       t.owner,
+      t.job_key,
       t.source_url,
       t.name,
       t.status,

@@ -1,0 +1,37 @@
+[
+  {
+    "url": "https://example.com/research/0",
+    "Name": "Northstar Example \u2014 Backend Engineer",
+    "Job": "https://example.com/jobs/backend",
+    "Status": "Held",
+    "Notes": "Fictional example. Confirm job requirements before applying."
+  },
+  {
+    "url": "https://example.com/research/1",
+    "Name": "Northstar Example \u2014 Backend Engineer",
+    "Job": "https://example.com/jobs/backend",
+    "Status": "Held",
+    "Notes": "Fictional second research record for the same job."
+  },
+  {
+    "url": "https://example.com/research/2",
+    "Name": "Harbor Example \u2014 Platform Engineer",
+    "Job": "https://example.com/jobs/platform",
+    "Status": "Submitted",
+    "Notes": "Fictional submitted application. Preserve status on rediscovery."
+  },
+  {
+    "url": "https://example.com/research/3",
+    "Name": "Harbor Example \u2014 Platform Engineer",
+    "Job": "https://example.com/jobs/platform",
+    "Status": "Held",
+    "Notes": "Fictional repeat research; earlier submission must be retained."
+  },
+  {
+    "url": "https://example.com/research/4",
+    "Name": "Cedar Example \u2014 Software Engineer",
+    "Job": "https://example.com/jobs/software",
+    "Status": "Live loop",
+    "Notes": "Fictional interview process. Notes and follow-up drafts remain editable."
+  }
+]

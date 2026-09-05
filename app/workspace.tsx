@@ -4,7 +4,7 @@ import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
-
+import { TrackerImport } from './tracker-import';
 import {
   acknowledgeSave,
   applyLoadedDraft,
@@ -316,7 +316,7 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
-
+        {!signedOut && loaded && <TrackerImport onImported={refresh} />}
         {!signedOut && (
           <Connections
             current={

@@ -29,7 +29,7 @@ const handoff = {
   version: 7,
 };
 
-test('Obsidian properties and Markdown are preserved without following links', () => {
+void test('Obsidian properties and Markdown are preserved without following links', () => {
   const note =
     obsidianExample.replace(
       'Example Company — Platform Engineer',
@@ -45,7 +45,7 @@ test('Obsidian properties and Markdown are preserved without following links', (
   assert.deepEqual(row, obsidianRow(note));
 });
 
-test('note status, draft and acceptance properties never become Relay actions', () => {
+void test('note status, draft and acceptance properties never become Relay actions', () => {
   for (const status of ['Ready', 'Submitted', 'Live loop', 'Unknown']) {
     const note = obsidianExample.replace(
       'relay_id:',
@@ -58,7 +58,7 @@ test('note status, draft and acceptance properties never become Relay actions', 
   }
 });
 
-test('missing identity, invalid URLs and malformed properties reject the note', () => {
+void test('missing identity, invalid URLs and malformed properties reject the note', () => {
   for (const note of [
     '# Plain note',
     obsidianExample.replace(
@@ -89,7 +89,7 @@ test('missing identity, invalid URLs and malformed properties reject the note', 
     assert.throws(() => obsidianRow(note));
 });
 
-test('aliases and oversized input are bounded', () => {
+void test('aliases and oversized input are bounded', () => {
   assert.throws(
     () =>
       obsidianRow(
@@ -117,7 +117,7 @@ test('aliases and oversized input are bounded', () => {
   );
 });
 
-test('context exports source history and literal drafts without becoming importable research', () => {
+void test('context exports source history and literal drafts without becoming importable research', () => {
   const job = {
     id: 'job-123',
     name: 'Example: "Role"\nstatus: Ready',
@@ -147,7 +147,7 @@ test('context exports source history and literal drafts without becoming importa
   assert.throws(() => loadObsidian(exported), /reference only/);
 });
 
-test('each workflow creates a research note tied to the selected posting', () => {
+void test('each workflow creates a research note tied to the selected posting', () => {
   for (const workflow of Object.keys(obsidianWorkflows)) {
     const row = obsidianRow(
       obsidianResearchNote(handoff, workflow, `note-${workflow}`),
@@ -159,7 +159,7 @@ test('each workflow creates a research note tied to the selected posting', () =>
   }
 });
 
-test('batch import rejects duplicate IDs and any malformed note without returning partial data', () => {
+void test('batch import rejects duplicate IDs and any malformed note without returning partial data', () => {
   const notes = [
     { name: 'one.md', text: obsidianExample },
     {
@@ -190,7 +190,7 @@ test('batch import rejects duplicate IDs and any malformed note without returnin
   assert.throws(() => obsidianResearchBatch(large), /too large/);
 });
 
-test('draft round trip stages exact wording only for its job and version', () => {
+void test('draft round trip stages exact wording only for its job and version', () => {
   const result = loadObsidian(
     obsidianDraftNote(handoff, 'Edited in Obsidian.'),
   );
@@ -250,7 +250,7 @@ test('draft round trip stages exact wording only for its job and version', () =>
   );
 });
 
-test('file loading supports Markdown batches, individual drafts and existing JSON handoffs', async () => {
+void test('file loading supports Markdown batches, individual drafts and existing JSON handoffs', async () => {
   const file = (name, text) => ({
     name,
     size: new TextEncoder().encode(text).length,
@@ -285,7 +285,7 @@ test('file loading supports Markdown batches, individual drafts and existing JSO
   );
 });
 
-test('CLI creates a draft note without facts or credentials and converts it back for review', async () => {
+void test('CLI creates a draft note without facts or credentials and converts it back for review', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'relay-obsidian-draft-'));
   try {
     const packet = join(folder, 'packet.json');
@@ -330,7 +330,7 @@ test('CLI creates a draft note without facts or credentials and converts it back
   }
 });
 
-test('command reads only the selected note, leaves it intact, and refuses overwrite', async () => {
+void test('command reads only the selected note, leaves it intact, and refuses overwrite', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'relay-obsidian-'));
   try {
     const input = join(folder, 'selected.md');

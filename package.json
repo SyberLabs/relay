@@ -12,7 +12,7 @@
     "lint": "oxlint app lib db tests",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
-    "test": "node --disable-warning=ExperimentalWarning --test tests/domain.test.mjs tests/connectors.test.mjs tests/import.test.mjs tests/editor.test.mjs tests/obsidian.test.mjs",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/domain.test.mjs tests/connectors.test.mjs tests/import.test.mjs tests/editor.test.mjs tests/obsidian.test.mjs tests/workspace-refresh.test.mjs",
     "relay": "node integrations/relay.mjs"
   },
   "dependencies": {

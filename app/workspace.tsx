@@ -1,19 +1,21 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
 
 import {
-  acknowledgeSave,
   applyLoadedDraft,
   canSave,
   loadEditor,
-  reconcileEditor,
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
+import {
+  editorAfterRefresh,
+  expiredPrivateWorkspace,
+} from '../lib/workspace-refresh';
 import {
   ArrowUpRight,
   Search,
@@ -80,6 +82,21 @@ export default function Workspace() {
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false);
+  const refreshSeq = useRef(0);
+  const expireSession = useCallback(() => {
+    refreshSeq.current += 1;
+    const next = expiredPrivateWorkspace();
+    setJobs(next.jobs);
+    setSources(next.sources);
+    setEvents(next.events);
+    setEditor(next.editor);
+    setImportText(next.importText);
+    setPreviewedImport(next.previewedImport);
+    setReport(next.report);
+    setShowImport(next.showImport);
+    setSignedOut(next.signedOut);
+    setLoaded(next.loaded);
+  }, []);
   const researchRows = useMemo(() => {
     try {
       return validateRows(JSON.parse(importText));
@@ -96,27 +113,26 @@ export default function Workspace() {
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
     );
-  const refresh = useCallback(async (saved?: SaveSnapshot) => {
-    const r = await fetch('/api/workspace');
-    const data = (await r.json()) as Reply;
-    if (r.status === 401) {
-      setSignedOut(true);
+  const refresh = useCallback(
+    async (saved?: SaveSnapshot) => {
+      const ticket = ++refreshSeq.current;
+      const r = await fetch('/api/workspace');
+      const data = (await r.json()) as Reply;
+      if (ticket !== refreshSeq.current) return;
+      if (r.status === 401) {
+        expireSession();
+        return;
+      }
+      if (!r.ok) throw Error(data.error);
+      setJobs(data.jobs);
+      setSources(data.sources);
+      setEvents(data.events);
+      setEditor((e) => editorAfterRefresh(e, data.jobs, saved));
+      setSignedOut(false);
       setLoaded(true);
-      return;
-    }
-    if (!r.ok) throw Error(data.error);
-    setJobs(data.jobs);
-    setSources(data.sources);
-    setEvents(data.events);
-    setEditor((e) => {
-      const next = e && saved ? acknowledgeSave(e, saved) : e;
-      return reconcileEditor(
-        next,
-        data.jobs.find((j) => j.id === next?.jobId),
-      );
-    });
-    setLoaded(true);
-  }, []);
+    },
+    [expireSession],
+  );
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
@@ -135,6 +151,10 @@ export default function Workspace() {
         body: JSON.stringify(body),
       });
       const data = (await r.json()) as Reply;
+      if (r.status === 401) {
+        expireSession();
+        return;
+      }
       if (!r.ok) {
         if (saved && r.status === 409) await refresh();
         throw Error(data.error);
@@ -342,7 +362,7 @@ export default function Workspace() {
             openImport={() => setShowImport(true)}
           />
         )}
-        {showImport && (
+        {showImport && !signedOut && (
           <section className="import">
             <h2>Import research</h2>
             <p>
@@ -400,7 +420,7 @@ export default function Workspace() {
             </div>
           </section>
         )}
-        {report && (
+        {report && !signedOut && (
           <section className="report">
             <div>
               <b>Research check</b>
@@ -424,7 +444,7 @@ export default function Workspace() {
             </details>
           </section>
         )}
-        {jobs.length > 0 && (
+        {jobs.length > 0 && !signedOut && (
           <>
             <section className="replay">
               <GitMerge size={20} />

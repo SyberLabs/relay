@@ -1,0 +1,53 @@
+name: App checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm lint
+      - run: pnpm build
+      - name: Apply local database migrations
+        run: |
+          for migration in drizzle/*.sql; do
+            pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file "$migration"
+          done
+      - name: Verify local API workflows
+        env:
+          RELAY_TEST_URL: http://127.0.0.1:3102
+        run: |
+          pnpm exec vinext dev --host 127.0.0.1 --port 3102 > /tmp/relay-dev.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true; cat /tmp/relay-dev.log' EXIT
+          ready=false
+          for attempt in {1..60}; do
+            if curl --fail --silent --max-time 5 "$RELAY_TEST_URL/" > /dev/null; then
+              ready=true
+              break
+            fi
+            kill -0 "$server_pid"
+            sleep 1
+          done
+          test "$ready" = true
+          node tests/api.test.mjs

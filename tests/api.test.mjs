@@ -40,6 +40,9 @@ let result = await call({
 assert.equal(result.status, 200, JSON.stringify(result.data));
 let fresh = (await call()).data.jobs.find((j) => j.id === job.id);
 assert.equal(fresh.accepted_draft, 'A reviewed answer.');
+const beforeStale = (await call()).data;
+const beforeJob = beforeStale.jobs.find((j) => j.id === job.id);
+const beforeEvents = beforeStale.events.filter((e) => e.job_id === job.id);
 result = await call({
   action: 'save',
   id: job.id,
@@ -48,7 +51,17 @@ result = await call({
   draft: 'stale',
   blocker: '',
 });
-assert.notEqual(result.status, 200);
+assert.equal(result.status, 409, JSON.stringify(result.data));
+const afterStale = (await call()).data;
+const afterJob = afterStale.jobs.find((j) => j.id === job.id);
+assert.equal(afterJob.draft, beforeJob.draft);
+assert.equal(afterJob.accepted_draft, beforeJob.accepted_draft);
+assert.equal(afterJob.status, beforeJob.status);
+assert.equal(afterJob.version, beforeJob.version);
+assert.deepEqual(
+  afterStale.events.filter((e) => e.job_id === job.id),
+  beforeEvents,
+);
 await call({
   action: 'save',
   id: fresh.id,

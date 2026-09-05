@@ -109,6 +109,11 @@ export async function POST(request: Request) {
         .bind(b.id, user)
         .first<{ status: string; version: number }>();
       if (!job) return reply({ error: 'Record not found.' }, 404);
+      if (b.version !== job.version)
+        return reply(
+          { error: 'This record changed. Reload before saving.' },
+          409,
+        );
       validateEdit(job, b);
       const result = await db.batch([
         db

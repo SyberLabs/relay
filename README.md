@@ -44,7 +44,7 @@ pnpm lint
 node tests/api.test.mjs
 ```
 
-The last command needs a running local server and writes only fictional test records. Domain and connector tests cover status preservation, duplicate matching, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. The optional browser WebMCP tools have not been validated in a supported agent browser.
+The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. The optional browser WebMCP tools have not been validated in a supported agent browser.
 
 ## Hosting and privacy
 

@@ -4,6 +4,15 @@ import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
 import {
+  acknowledgeSave,
+  applyLoadedDraft,
+  canSave,
+  loadEditor,
+  reconcileEditor,
+  type Editor,
+  type SaveSnapshot,
+} from '../lib/editor';
+import {
   ArrowUpRight,
   Search,
   Check,
@@ -58,11 +67,9 @@ export default function Workspace() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [sources, setSources] = useState<Source[]>([]),
     [events, setEvents] = useState<ReviewEvent[]>([]),
-    [selected, setSelected] = useState(''),
+    [editor, setEditor] = useState<Editor | null>(null),
     [filter, setFilter] = useState('Held'),
     [search, setSearch] = useState(''),
-    [draft, setDraft] = useState(''),
-    [blocker, setBlocker] = useState(''),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [signedOut, setSignedOut] = useState(false),
@@ -70,13 +77,16 @@ export default function Workspace() {
     [report, setReport] = useState<Report | null>(null),
     [importText, setImportText] = useState(''),
     [showImport, setShowImport] = useState(false);
-  const current = jobs.find((j) => j.id === selected),
+  const selected = editor?.jobId ?? '',
+    draft = editor?.draft ?? '',
+    blocker = editor?.blocker ?? '',
+    current = jobs.find((j) => j.id === selected),
     visible = jobs.filter(
       (j) =>
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
     );
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (saved?: SaveSnapshot) => {
     const r = await fetch('/api/workspace');
     const data = (await r.json()) as Reply;
     if (r.status === 401) {
@@ -88,17 +98,24 @@ export default function Workspace() {
     setJobs(data.jobs);
     setSources(data.sources);
     setEvents(data.events);
+    setEditor((e) => {
+      const next = e && saved ? acknowledgeSave(e, saved) : e;
+      return reconcileEditor(
+        next,
+        data.jobs.find((j) => j.id === next?.jobId),
+      );
+    });
     setLoaded(true);
   }, []);
   useEffect(() => {
     void Promise.resolve()
-      .then(refresh)
+      .then(() => refresh())
       .catch((e) => {
         setMessage(e.message);
         setLoaded(true);
       });
   }, [refresh]);
-  async function run(body: Record<string, unknown>) {
+  async function run(body: Record<string, unknown>, saved?: SaveSnapshot) {
     setBusy(true);
     setMessage('');
     try {
@@ -108,9 +125,12 @@ export default function Workspace() {
         body: JSON.stringify(body),
       });
       const data = (await r.json()) as Reply;
-      if (!r.ok) throw Error(data.error);
+      if (!r.ok) {
+        if (saved && r.status === 409) await refresh();
+        throw Error(data.error);
+      }
       if (data.items) setReport(data);
-      await refresh();
+      await refresh(saved);
       setMessage(
         body.action === 'save'
           ? 'Saved. Your review is preserved.'
@@ -126,7 +146,29 @@ export default function Workspace() {
   }
   useRelayTools(refresh);
   const protectedState =
-    current && ['Submitted', 'Live loop'].includes(current.status);
+      current && ['Submitted', 'Live loop'].includes(current.status),
+    blocked = busy || !editor || !canSave(editor);
+  function save(status: string) {
+    if (!editor || !canSave(editor)) return;
+    const saved: SaveSnapshot = {
+      jobId: editor.jobId,
+      session: editor.session,
+      version: editor.version,
+      draft: editor.draft,
+      blocker: editor.blocker,
+    };
+    void run(
+      {
+        action: 'save',
+        id: saved.jobId,
+        version: saved.version,
+        draft: saved.draft,
+        blocker: saved.blocker,
+        status,
+      },
+      saved,
+    );
+  }
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -156,7 +198,7 @@ export default function Workspace() {
             key={v}
             onClick={() => {
               setFilter(v);
-              setSelected('');
+              setEditor(null);
             }}
           >
             <Icon size={18} />
@@ -261,9 +303,19 @@ export default function Workspace() {
         ) : null}
         {!signedOut && (
           <Connections
-            current={current}
+            current={
+              current && editor
+                ? {
+                    ...current,
+                    version: editor.version,
+                    session: editor.session,
+                  }
+                : current
+            }
             draft={draft}
-            onDraft={setDraft}
+            onDraft={(value, started) => {
+              setEditor((e) => applyLoadedDraft(e, value, started));
+            }}
             onImport={setImportText}
             openImport={() => setShowImport(true)}
           />
@@ -377,11 +429,7 @@ export default function Workspace() {
                     <button
                       key={j.id}
                       className={'job ' + (selected === j.id ? 'selected' : '')}
-                      onClick={() => {
-                        setSelected(j.id);
-                        setDraft(j.draft);
-                        setBlocker(j.blocker);
-                      }}
+                      onClick={() => setEditor(loadEditor(j))}
                     >
                       <span className="companyicon">{j.name[0]}</span>
                       <span className="jobtext">
@@ -427,11 +475,26 @@ export default function Workspace() {
                         status.
                       </div>
                     )}
+                    {editor?.conflict && (
+                      <div className="notice">
+                        This record changed. Reload before saving.
+                        <button
+                          className="textbutton"
+                          onClick={() => setEditor(loadEditor(current))}
+                        >
+                          Reload this record
+                        </button>
+                      </div>
+                    )}
                     <label className="field">
                       Blocker or missing fact
                       <textarea
                         value={blocker}
-                        onChange={(e) => setBlocker(e.target.value)}
+                        onChange={(e) =>
+                          setEditor((ed) =>
+                            ed ? { ...ed, blocker: e.target.value } : ed,
+                          )
+                        }
                         placeholder={
                           protectedState
                             ? 'Interview notes, next steps, or missing information…'
@@ -444,7 +507,11 @@ export default function Workspace() {
                       <textarea
                         className="draft"
                         value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
+                        onChange={(e) =>
+                          setEditor((ed) =>
+                            ed ? { ...ed, draft: e.target.value } : ed,
+                          )
+                        }
                         placeholder={
                           protectedState
                             ? 'Prepare a follow-up draft. Saving preserves your application status.'
@@ -456,17 +523,8 @@ export default function Workspace() {
                       <div className="actions">
                         <button
                           className="primary"
-                          disabled={busy}
-                          onClick={() =>
-                            run({
-                              action: 'save',
-                              id: current.id,
-                              version: current.version,
-                              draft,
-                              blocker,
-                              status: current.status,
-                            })
-                          }
+                          disabled={blocked}
+                          onClick={() => save(current.status)}
                         >
                           Save notes and draft
                         </button>
@@ -476,50 +534,25 @@ export default function Workspace() {
                       <div className="actions">
                         <button
                           className="secondary"
-                          disabled={busy}
-                          onClick={() =>
-                            run({
-                              action: 'save',
-                              id: current.id,
-                              version: current.version,
-                              draft,
-                              blocker,
-                              status: 'Held',
-                            })
-                          }
+                          disabled={blocked}
+                          onClick={() => save('Held')}
                         >
                           Save draft
                         </button>
                         <button
                           className="primary"
-                          disabled={busy || !draft.trim() || !!blocker.trim()}
-                          onClick={() =>
-                            run({
-                              action: 'save',
-                              id: current.id,
-                              version: current.version,
-                              draft,
-                              blocker,
-                              status: 'Ready',
-                            })
+                          disabled={
+                            blocked || !draft.trim() || !!blocker.trim()
                           }
+                          onClick={() => save('Ready')}
                         >
                           <Check size={16} />
                           Accept exact draft
                         </button>
                         <button
                           className="textbutton"
-                          disabled={busy}
-                          onClick={() =>
-                            run({
-                              action: 'save',
-                              id: current.id,
-                              version: current.version,
-                              draft,
-                              blocker,
-                              status: 'Skip',
-                            })
-                          }
+                          disabled={blocked}
+                          onClick={() => save('Skip')}
                         >
                           Set aside
                         </button>

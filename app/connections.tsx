@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { jobKey } from '../lib/domain';
+import { type EditorTarget } from '../lib/editor';
 
 export function Connections({
   current,
@@ -17,9 +18,10 @@ export function Connections({
     url: string;
     version: number;
     status: string;
+    session?: string;
   };
   draft: string;
-  onDraft: (value: string) => void;
+  onDraft: (value: string, started: EditorTarget | undefined) => void;
   onImport: (value: string) => void;
   openImport: () => void;
 }) {
@@ -89,6 +91,15 @@ export function Connections({
                 if (!file) return;
                 if (file.size > 2000000)
                   throw Error('Choose a file smaller than 2 MB.');
+                const started = current?.session
+                  ? {
+                      jobId: current.id,
+                      session: current.session,
+                      version: current.version,
+                      draft,
+                      job_key: current.job_key,
+                    }
+                  : undefined;
                 const value = JSON.parse(await file.text());
                 if (Array.isArray(value)) {
                   onImport(JSON.stringify(value, null, 2));
@@ -104,17 +115,17 @@ export function Connections({
                   )
                     throw Error('Choose a Relay draft or a research array.');
                   if (
-                    !current ||
-                    value.job?.key !== current.job_key ||
-                    value.job?.version !== current.version ||
-                    jobKey(value.job.url, '') !== current.job_key
+                    !started ||
+                    value.job?.key !== started.job_key ||
+                    value.job?.version !== started.version ||
+                    jobKey(value.job.url, '') !== started.job_key
                   )
                     throw Error(
                       'Select the matching job. If it has changed, download a new packet.',
                     );
-                  onDraft(value.draft);
+                  onDraft(value.draft, started);
                   setNote(
-                    'Draft loaded for review. Check its claims, then save it. Nothing has been sent.',
+                    'File checked. Review the visible draft before saving; if your selection or draft changed while reading, load the file again.',
                   );
                 }
               } catch (error) {

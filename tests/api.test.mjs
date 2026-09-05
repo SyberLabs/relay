@@ -1,4 +1,11 @@
 import assert from 'node:assert/strict';
+import {
+  obsidianRow,
+  obsidianExample,
+  obsidianDraftNote,
+  loadObsidian,
+} from '../lib/obsidian.ts';
+import { draftFromResult } from '../lib/integration-files.ts';
 const base = process.env.RELAY_TEST_URL || 'http://localhost:3000';
 
 // Only run against a local development server, which uses mock authentication.
@@ -99,11 +106,76 @@ for (const key of [
   });
   assert.notEqual(result.status, 200);
 }
+const obsidian = obsidianRow(
+  obsidianExample.replace(
+    'https://example.com/jobs/platform-engineer',
+    'https://example.com/jobs/software',
+  ),
+);
+const beforeNote = (await call()).data;
+const activeBefore = beforeNote.jobs.find((j) => j.job_key === obsidian.Job);
+result = await call({ action: 'preview', rows: [obsidian] });
+assert.equal(result.status, 200);
+assert.deepEqual((await call()).data, beforeNote);
+for (let repeat = 0; repeat < 2; repeat++) {
+  result = await call({ action: 'import', rows: [obsidian] });
+  assert.equal(result.status, 200, JSON.stringify(result.data));
+}
+const afterNote = (await call()).data;
+const activeAfter = afterNote.jobs.find((j) => j.id === activeBefore.id);
+assert.equal(activeAfter.status, activeBefore.status);
+assert.equal(activeAfter.draft, activeBefore.draft);
+assert.equal(activeAfter.accepted_draft, activeBefore.accepted_draft);
+const importedNotes = afterNote.sources.filter(
+  (s) =>
+    s.job_key === obsidian.Job &&
+    s.source_url === obsidian.url &&
+    s.notes === obsidian.Notes,
+);
+assert.equal(importedNotes.length, 1);
+const draftNote = obsidianDraftNote(
+  { ...activeAfter, key: activeAfter.job_key },
+  'Obsidian follow-up for review.',
+);
+const draftResult = loadObsidian(draftNote);
+const target = {
+  jobId: activeAfter.id,
+  job_key: activeAfter.job_key,
+  version: activeAfter.version,
+  session: 'local-test',
+  draft: activeAfter.draft,
+};
+const staged = draftFromResult(draftResult, target);
+assert.deepEqual(
+  (await call()).data,
+  afterNote,
+  'Loading an Obsidian draft alone writes nothing',
+);
+result = await call({
+  action: 'save',
+  id: activeAfter.id,
+  version: activeAfter.version,
+  status: activeAfter.status,
+  draft: staged,
+  blocker: activeAfter.blocker,
+});
+assert.equal(result.status, 200, JSON.stringify(result.data));
+const savedObsidian = (await call()).data.jobs.find(
+  (j) => j.id === activeAfter.id,
+);
+assert.equal(savedObsidian.draft, staged);
+assert.equal(savedObsidian.status, activeAfter.status);
+assert.equal(savedObsidian.accepted_draft, null);
+assert.throws(
+  () =>
+    draftFromResult(draftResult, { ...target, version: savedObsidian.version }),
+  /matching job/,
+);
 result = await call(undefined, {
   'oai-authenticated-user-id': 'spoof',
   'oai-authenticated-user-email': 'other@example.com',
 });
 assert.equal(result.status, 401);
 console.log(
-  'PASS: imports, duplicate history, exact acceptance, stale edits, editable interview drafts, preserved status and authentication.',
+  'PASS: imports, Obsidian preview and repeated import, duplicate history, exact acceptance, stale edits, editable interview drafts, preserved status and authentication.',
 );

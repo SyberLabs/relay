@@ -40,8 +40,8 @@ export default function About() {
         <div>
           <b>Bring your assistant</b>
           <p>
-            Import Notion research and exchange draft packets with Grok Bot or
-            Claude.
+            Import Obsidian or Notion research and exchange draft packets with
+            Grok Bot or Claude.
           </p>
         </div>
       </section>
@@ -54,8 +54,10 @@ export default function About() {
       <h2>What’s available today</h2>
       <p>
         A working review workspace, duplicate detection, source history, and
-        local command integrations. Notion imports are read-only. Claude uses
-        your API credentials. Grok Bot uses a documented file handoff in its VM.
+        local command integrations. Obsidian notes can be selected for import,
+        and job snapshots downloaded into your vault. Notion imports are
+        read-only. Claude uses your API credentials. Grok Bot uses a documented
+        file handoff in its VM.
       </p>
       <p>
         Relay does not yet run an autonomous job hunt or send applications. Live

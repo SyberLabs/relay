@@ -10,9 +10,17 @@ Create a Notion internal integration with read access and share the intended dat
 node integrations/relay.mjs notion-pull private-data/notion-page-1.json
 ```
 
-Upload the resulting JSON with **Connect Grok Bot, Notion & Claude → Load research or draft**, then preview and import. The source needs `Name` (title), `Job` (URL), `Status` (status/select), and `Notes` (rich text). Accepted statuses: Held, Ready, Submitted, Skip, Live loop. Unknown statuses stop the import; map them deliberately in your source first.
+Upload the resulting JSON with **Connect Obsidian, Grok Bot, Notion & Claude → Load research or draft**, then preview and import. The source needs `Name` (title), `Job` (URL), `Status` (status/select), and `Notes` (rich text). Accepted statuses: Held, Ready, Submitted, Skip, Live loop. Unknown statuses stop the import; map them deliberately in your source first.
 
 For different property names, set `RELAY_NOTION_FIELDS` to a JSON object such as `{"name":"Company","job":"Posting","status":"Stage","notes":"Research"}`. Each command fetches at most 100 source records. If more exist, the command prints a continuation cursor: set `NOTION_CURSOR`, use a new output filename, and repeat until no cursor is printed. No automatic polling or Notion writes occur.
+
+## Obsidian ↔ Relay
+
+Create job-specific research, interview and follow-up notes; import selected Markdown notes together with a readable preview; and edit a version-bound draft in Obsidian before returning it to Relay for review. Download job context with its source observations as a reference snapshot. Research cannot change existing status or approval, and snapshots cannot be reimported.
+
+Open Relay's connection panel to start. No Obsidian plugin, credentials, vault scanning or background sync is required. The browser supports Markdown directly; local commands also support `obsidian-pull note.md [another.md ...] output.json` and `obsidian-draft packet.json output.md`.
+
+See [Obsidian workflows](OBSIDIAN.md) for the complete setup, formats, review steps, limits and recovery. See [architecture](../ARCHITECTURE.md) for data ownership and trust boundaries. Automated tests use fictional notes; an installed Obsidian app and Sync round trip remain unverified.
 
 ## Claude → a reviewable draft
 

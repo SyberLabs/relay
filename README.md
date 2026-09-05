@@ -10,6 +10,7 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 - Edit notes and follow-up drafts on submitted jobs and active interviews without resetting their status.
 - Accept an exact draft; changing it returns it to review.
 - Import Notion research through a read-only command connector.
+- Use Obsidian for role research, interview notes and follow-up planning; preview selected notes together, return drafts to their original job version, and export job context with source history.
 - Prepare drafts through the Claude API using your verified facts and your own credentials.
 - Exchange validated research and draft files with Grok Bot in its VM.
 - Explore fictional example records. No real applicant data is included.
@@ -21,6 +22,14 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector with their source instructions, profiles, public bot links, and behavior checks. Use a specialist when its purpose fits the task. These templates do not connect to Relay or grant access to application records automatically; the [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts.
 
 This is a pinned copy of the separately maintained, MIT-licensed [GrokCell project](https://github.com/sdcarlson/grokcell). Propose template improvements upstream, then refresh the copy following [its source record](grokcell/UPSTREAM.md).
+
+## Obsidian workflow
+
+Select a job, open **Connect Obsidian, Grok Bot, Notion & Claude**, choose the note purpose and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay, review its contents and preview matches before importing. New jobs can start from the downloadable example. Several research notes can be imported together.
+
+Use **Edit draft in Obsidian** for an application or follow-up draft that returns to the same job version for review. **Download job context** includes source history as a reference snapshot. Research preserves existing status and approval; loading a draft never accepts or sends it. This is an explicit file handoff, with no plugin, vault scanning or background synchronization.
+
+[Complete Obsidian guide](integrations/OBSIDIAN.md) | [Architecture and data ownership](ARCHITECTURE.md)
 
 ## Run locally
 

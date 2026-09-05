@@ -1,8 +1,10 @@
 'use client';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
+
 import {
   acknowledgeSave,
   applyLoadedDraft,
@@ -76,7 +78,15 @@ export default function Workspace() {
     [loaded, setLoaded] = useState(false),
     [report, setReport] = useState<Report | null>(null),
     [importText, setImportText] = useState(''),
+    [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false);
+  const researchRows = useMemo(() => {
+    try {
+      return validateRows(JSON.parse(importText));
+    } catch {
+      return [];
+    }
+  }, [importText]);
   const selected = editor?.jobId ?? '',
     draft = editor?.draft ?? '',
     blocker = editor?.blocker ?? '',
@@ -130,6 +140,9 @@ export default function Workspace() {
         throw Error(data.error);
       }
       if (data.items) setReport(data);
+      if (body.action === 'preview')
+        setPreviewedImport(JSON.stringify(body.rows));
+      if (body.action === 'import') setPreviewedImport('');
       await refresh(saved);
       setMessage(
         body.action === 'save'
@@ -303,6 +316,7 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
+
         {!signedOut && (
           <Connections
             current={
@@ -315,10 +329,16 @@ export default function Workspace() {
                 : current
             }
             draft={draft}
+            notes={blocker}
+            sources={sources.filter((s) => s.job_key === current?.job_key)}
             onDraft={(value, started) => {
               setEditor((e) => applyLoadedDraft(e, value, started));
             }}
-            onImport={setImportText}
+            onImport={(value) => {
+              setImportText(value);
+              setPreviewedImport('');
+              setReport(null);
+            }}
             openImport={() => setShowImport(true)}
           />
         )}
@@ -326,20 +346,43 @@ export default function Workspace() {
           <section className="import">
             <h2>Import research</h2>
             <p>
-              Paste a JSON array with url, Name, Job, Status and Notes. Preview
-              checks the existing queue before saving.
+              Review the selected research below, then preview its matches
+              before saving. Importing adds these notes to your Relay workspace.
             </p>
-            <textarea
-              aria-label="Research JSON"
-              value={importText}
-              onChange={(e) => setImportText(e.target.value)}
-              placeholder='[{"url":"source-record-id","Name":"Company — Role","Job":"https://…","Status":"Held","Notes":"…"}]'
-            />
+            {researchRows.map((row, index) => (
+              <details key={index} className="source">
+                <summary>{row.Name}</summary>
+                <p>{row.Job}</p>
+                <pre
+                  style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                >
+                  {row.Notes || 'No source notes recorded.'}
+                </pre>
+              </details>
+            ))}
+            <details open={!researchRows.length}>
+              <summary>Paste or edit import data</summary>
+              <textarea
+                aria-label="Research JSON"
+                value={importText}
+                onChange={(e) => {
+                  setImportText(e.target.value);
+                  setPreviewedImport('');
+                  setReport(null);
+                }}
+                placeholder='[{"url":"source-record-id","Name":"Company — Role","Job":"https://…","Status":"Held","Notes":"…"}]'
+              />
+            </details>
             <div className="actions">
               {['preview', 'import'].map((action) => (
                 <button
                   className={action === 'import' ? 'primary' : 'secondary'}
-                  disabled={busy}
+                  disabled={
+                    busy ||
+                    !researchRows.length ||
+                    (action === 'import' &&
+                      previewedImport !== JSON.stringify(researchRows))
+                  }
                   key={action}
                   onClick={() => {
                     try {
@@ -569,6 +612,12 @@ export default function Workspace() {
                           <b>{s.name}</b>
                           <span className="badge">{s.status}</span>
                           <p>{s.notes || 'No source notes recorded.'}</p>
+                          {s.source_url.startsWith('obsidian:') && (
+                            <small className="muted">
+                              Obsidian note ·{' '}
+                              {s.source_url.slice('obsidian:'.length)}
+                            </small>
+                          )}
                           {s.source_url.startsWith('https://') && (
                             <a
                               href={s.source_url}

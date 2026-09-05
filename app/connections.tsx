@@ -1,12 +1,33 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { jobKey } from '../lib/domain';
 import { type EditorTarget } from '../lib/editor';
+import {
+  obsidianNote,
+  obsidianExample,
+  obsidianDraftNote,
+  obsidianResearchNote,
+  type obsidianWorkflows,
+} from '../lib/obsidian';
+import {
+  readIntegrationFiles,
+  draftFromResult,
+} from '../lib/integration-files';
+
+function downloadFile(content: string, filename: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function Connections({
   current,
   draft,
+  notes,
+  sources,
   onDraft,
   onImport,
   openImport,
@@ -21,12 +42,22 @@ export function Connections({
     session?: string;
   };
   draft: string;
+  notes: string;
+  sources: {
+    name: string;
+    notes: string;
+    status: string;
+    source_url: string;
+  }[];
   onDraft: (value: string, started: EditorTarget | undefined) => void;
   onImport: (value: string) => void;
   openImport: () => void;
 }) {
   const [facts, setFacts] = useState('');
   const [note, setNote] = useState('');
+  const [workflow, setWorkflow] =
+    useState<keyof typeof obsidianWorkflows>('research');
+  const [loading, setLoading] = useState(false);
   function download() {
     if (!current) return;
     const packet = {
@@ -42,14 +73,11 @@ export function Connections({
       facts,
       draft,
     };
-    const url = URL.createObjectURL(
-      new Blob([JSON.stringify(packet, null, 2)], { type: 'application/json' }),
+    downloadFile(
+      JSON.stringify(packet, null, 2),
+      'relay-packet.json',
+      'application/json',
     );
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'relay-packet.json';
-    a.click();
-    URL.revokeObjectURL(url);
     setNote(
       'Packet downloaded. It includes only this job, the visible draft, and the facts you supplied.',
     );
@@ -57,15 +85,114 @@ export function Connections({
   return (
     <details className="import">
       <summary>
-        <b>Connect Grok Bot, Notion & Claude</b>
+        <b>Connect Obsidian, Grok Bot, Notion & Claude</b>
       </summary>
       <p>
-        Bring research from Notion or Grok Bot, and review a draft prepared by
-        Claude. These are file handoffs through the Relay command tool; accounts
-        are not connected automatically.
+        Bring research from Obsidian, Notion or Grok Bot, and review a draft
+        prepared by Claude. Load Obsidian notes directly; other integrations use
+        the Relay command tool. Accounts are not connected automatically.
       </p>
       <p>
         <Link href="/about">About Relay and integration setup ↗</Link>
+      </p>
+      <h3>Obsidian notes</h3>
+      <p>
+        Create a note for the selected job, edit it in your vault, then load it
+        here. Select several research notes together to preview one import.
+        Linked notes and attachments stay in your vault. Research preserves
+        existing status and draft approval.
+      </p>
+      <label className="field">
+        Note purpose
+        <select
+          value={workflow}
+          onChange={(e) =>
+            setWorkflow(e.target.value as keyof typeof obsidianWorkflows)
+          }
+        >
+          <option value="research">Role research</option>
+          <option value="interview">Interview preparation and notes</option>
+          <option value="followup">Follow-up planning</option>
+        </select>
+      </label>
+      <div className="actions">
+        <button
+          className="secondary"
+          disabled={!current?.url}
+          onClick={() => {
+            if (!current) return;
+            const id = crypto.randomUUID();
+            downloadFile(
+              obsidianResearchNote(current, workflow, id),
+              `relay-${workflow}-${id}.md`,
+              'text/markdown',
+            );
+            setNote(
+              'Research note downloaded with this job’s details. Keep its properties when editing in Obsidian, then load the note here for preview.',
+            );
+          }}
+        >
+          Create note for selected job
+        </button>
+        <button
+          className="secondary"
+          onClick={() =>
+            downloadFile(
+              obsidianExample,
+              'relay-note-example.md',
+              'text/markdown',
+            )
+          }
+        >
+          Download example note
+        </button>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => {
+            if (!current) return;
+            downloadFile(
+              obsidianNote(current, draft, notes, sources),
+              `relay-context-${current.id}.md`,
+              'text/markdown',
+            );
+            setNote(
+              'Job context downloaded with this job’s source history, visible notes and draft, including unsaved edits. Keep it in your vault as a reference; it cannot be imported. Verified facts and review events are not included.',
+            );
+          }}
+        >
+          Download job context
+        </button>
+        <button
+          className="secondary"
+          disabled={!current?.url}
+          onClick={() => {
+            if (!current) return;
+            try {
+              downloadFile(
+                obsidianDraftNote({ ...current, key: current.job_key }, draft),
+                `relay-draft-${current.id}.md`,
+                'text/markdown',
+              );
+              setNote(
+                'Draft note downloaded. Edit only the body in Obsidian and keep its properties. Load it individually here, review the wording, then save or accept it. If the job changes, download a fresh draft note.',
+              );
+            } catch (error) {
+              setNote(
+                error instanceof Error
+                  ? error.message
+                  : 'Unable to export draft.',
+              );
+            }
+          }}
+        >
+          Edit draft in Obsidian
+        </button>
+      </div>
+      <p>
+        Draft notes return wording for review on the same job version. Job
+        context is a reference snapshot. Neither file grants approval or sends
+        an application.
       </p>
       <label className="field">
         Verified facts for this draft
@@ -84,13 +211,14 @@ export function Connections({
           <input
             aria-label="Load integration result"
             type="file"
-            accept="application/json,.json"
+            multiple
+            disabled={loading}
+            accept="application/json,.json,text/markdown,.md"
             onChange={async (e) => {
               try {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                if (file.size > 2000000)
-                  throw Error('Choose a file smaller than 2 MB.');
+                const files = Array.from(e.target.files || []);
+                if (!files.length) return;
+                setLoading(true);
                 const started = current?.session
                   ? {
                       jobId: current.id,
@@ -100,30 +228,15 @@ export function Connections({
                       job_key: current.job_key,
                     }
                   : undefined;
-                const value = JSON.parse(await file.text());
+                const value = await readIntegrationFiles(files);
                 if (Array.isArray(value)) {
                   onImport(JSON.stringify(value, null, 2));
                   openImport();
                   setNote(
-                    'Research loaded into the import form. Preview matches before importing.',
+                    `${value.length} research note(s) loaded. Preview matches before importing.`,
                   );
                 } else {
-                  if (
-                    value.schema !== 'relay.draft.v1' ||
-                    typeof value.draft !== 'string' ||
-                    value.draft.length > 20000
-                  )
-                    throw Error('Choose a Relay draft or a research array.');
-                  if (
-                    !started ||
-                    value.job?.key !== started.job_key ||
-                    value.job?.version !== started.version ||
-                    jobKey(value.job.url, '') !== started.job_key
-                  )
-                    throw Error(
-                      'Select the matching job. If it has changed, download a new packet.',
-                    );
-                  onDraft(value.draft, started);
+                  onDraft(draftFromResult(value, started), started);
                   setNote(
                     'File checked. Review the visible draft before saving; if your selection or draft changed while reading, load the file again.',
                   );
@@ -134,12 +247,15 @@ export function Connections({
                     ? error.message
                     : 'Unable to read file.',
                 );
+              } finally {
+                setLoading(false);
+                e.target.value = '';
               }
-              e.target.value = '';
             }}
           />
         </label>
       </div>
+      {loading && <output>Reading selected files…</output>}
       {note && <output>{note}</output>}
     </details>
   );

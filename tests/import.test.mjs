@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { obsidianRow, obsidianExample } from '../lib/obsidian.ts';
 import {
   classify,
   displayName,
@@ -14,6 +15,40 @@ import {
   validateEdit,
 } from '../lib/domain.ts';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+test('Obsidian reimports preserve active jobs and accepted drafts while keeping note revisions', () => {
+  const db = open();
+  try {
+    for (const status of ['Held', 'Ready', 'Submitted', 'Skip', 'Live loop']) {
+      const owner = 'obsidian-' + status;
+      const row = obsidianRow(obsidianExample);
+      importRow(db, owner, row);
+      db.prepare(
+        'UPDATE jobs SET status=?,draft=?,accepted_draft=?,version=5 WHERE owner=?',
+      ).run(
+        status,
+        'Reviewed draft',
+        status === 'Ready' ? 'Reviewed draft' : null,
+        owner,
+      );
+      const before = jobOf(db, owner, row.Job);
+      importRow(db, owner, row);
+      assert.equal(observationsOf(db, owner).length, 1);
+      importRow(
+        db,
+        owner,
+        obsidianRow(obsidianExample + '\nInterview notes updated.'),
+      );
+      const after = jobOf(db, owner, row.Job);
+      assert.equal(after.status, before.status);
+      assert.equal(after.draft, before.draft);
+      assert.equal(after.accepted_draft, before.accepted_draft);
+      assert.equal(observationsOf(db, owner).length, 2);
+    }
+  } finally {
+    db.close();
+  }
+});
 const drizzle = join(root, 'drizzle');
 const routeSrc = readFileSync(join(root, 'app/api/workspace/route.ts'), 'utf8');
 function applyMigrations(

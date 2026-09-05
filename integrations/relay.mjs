@@ -5,6 +5,8 @@ import { pullNotion, draftClaude, validatePacket } from './connectors.mjs';
 import { validateRows } from '../lib/domain.ts';
 import { obsidianDraftNote } from '../lib/obsidian.ts';
 import { readIntegrationFiles } from '../lib/integration-files.ts';
+import { assistantPrompt, assistantResult } from '../lib/assistant-handoff.ts';
+import { draftCodex } from './codex.mjs';
 const [command, input, output] = process.argv.slice(2);
 async function read(path) {
   if (!path) throw Error('An input file is required.');
@@ -23,7 +25,7 @@ async function save(path, data, markdown = false) {
   );
   console.log(
     markdown
-      ? 'Saved. Edit the draft body in Obsidian, then load the note in Relay for review.'
+      ? 'Saved. Follow the selected integration guide, then return the result to Relay for review.'
       : 'Saved. Import the output in Relay for review.',
   );
 }
@@ -73,6 +75,35 @@ try {
       packet: await read(input),
     });
     await save(output, result);
+  } else if (command === 'chatgpt-prompt' || command === 'codex-prompt') {
+    await save(
+      output,
+      assistantPrompt(
+        await read(input),
+        command === 'chatgpt-prompt' ? 'chatgpt' : 'codex',
+      ),
+      true,
+    );
+  } else if (command === 'codex-run') {
+    if (!output) throw Error('Usage: codex-run packet.json output.json');
+    try {
+      await stat(output);
+      throw Error('Output already exists. Choose a new filename.');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    await save(output, await draftCodex(await read(input)));
+  } else if (command === 'chatgpt-draft' || command === 'codex-draft') {
+    if (!input || !output || !process.argv[5])
+      throw Error(`Usage: ${command} packet.json draft.txt output.json`);
+    await save(
+      process.argv[5],
+      assistantResult(
+        await read(input),
+        await readFile(output, 'utf8'),
+        command === 'chatgpt-draft' ? 'chatgpt' : 'codex',
+      ),
+    );
   } else if (command === 'grok-research') {
     await save(output, validateRows(await read(input)));
   } else if (command === 'grok-draft') {
@@ -91,7 +122,7 @@ try {
     });
   } else {
     console.log(
-      'Relay integrations\n  notion-pull output.json\n  obsidian-pull note.md [another.md ...] output.json\n  obsidian-draft packet.json output.md\n  claude-draft packet.json output.json\n  grok-research rows.json output.json\n  grok-draft packet.json draft.txt output.json\nCredentials are read from environment variables. See integrations/README.md.',
+      'Relay integrations\n  notion-pull output.json\n  obsidian-pull note.md [another.md ...] output.json\n  obsidian-draft packet.json output.md\n  claude-draft packet.json output.json\n  chatgpt-prompt packet.json output.md\n  codex-prompt packet.json output.md\n  codex-run packet.json output.json\n  chatgpt-draft packet.json draft.txt output.json\n  codex-draft packet.json draft.txt output.json\n  grok-research rows.json output.json\n  grok-draft packet.json draft.txt output.json\nCredentials are read from environment variables or Codex CLI sign-in. See integrations/README.md.',
     );
     if (command && command !== '--help') process.exitCode = 1;
   }

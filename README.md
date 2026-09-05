@@ -1,21 +1,34 @@
 # Relay by SyberLabs
 
+<!-- relay:public:start -->
 **Your job search should remember what you've done.**
 
-Relay is a job-search review workspace for people working with AI assistants. Bring research from multiple sources into one job history, prepare exact drafts, and keep interview follow-ups alongside the application.
+A job-search review workspace that keeps research, application history, and exact accepted drafts together across your tools.
+
+**Lead engineer: [Seth Carlson](https://github.com/sdcarlson).**
 
 ## Available in this early release
 
-- Consolidate repeated posting URLs and preserve research history.
-- Edit notes and follow-up drafts on submitted jobs and active interviews without resetting their status.
-- Accept an exact draft; changing it returns it to review.
-- Import Notion research through a read-only command connector.
-- Use Obsidian for role research, interview notes and follow-up planning; preview selected notes together, return drafts to their original job version, and export job context with source history.
-- Prepare drafts through the Claude API using your verified facts and your own credentials.
-- Exchange validated research and draft files with Grok Bot in its VM.
-- Explore fictional example records. No real applicant data is included.
+- Consolidate repeated posting URLs while preserving source history.
+- Keep interview notes and follow-ups without resetting application status.
+- Accept an exact draft; changing the wording requires review again.
+- Explore fictional example records; no real applicant data is included.
 
-[Integration setup](integrations/README.md) | [Grok Bot instructions](integrations/GROK_BOT.md) | [Launch copy](LAUNCH.md)
+## Integrations
+
+- **[ChatGPT](integrations/OPENAI.md)**: Prepared prompts and JSON file handoffs for draft review.
+- **[Codex](integrations/OPENAI.md)**: Prepared prompts, validated draft files, or local drafting through the signed-in Codex CLI.
+- **[Obsidian](integrations/OBSIDIAN.md)**: Selected research notes, version-bound draft notes, and job context exports.
+- **[Notion](integrations/README.md)**: Read-only research import through the local command connector.
+- **[Claude](integrations/README.md)**: Draft preparation through the Claude API with your own credentials.
+- **[Grok Bot](integrations/GROK_BOT.md)**: Validated research and draft file exchange in the Bot's VM.
+
+Integrations require explicit setup or file handoffs. Returned drafts require human review. No automatic application sending or background account sync is included.
+
+ChatGPT uses a prompt/file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection.
+
+[Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)
+<!-- relay:public:end -->
 
 ## GrokCell bot templates
 
@@ -25,11 +38,19 @@ This is a pinned copy of the separately maintained, MIT-licensed [GrokCell proje
 
 ## Obsidian workflow
 
-Select a job, open **Connect Obsidian, Grok Bot, Notion & Claude**, choose the note purpose and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay, review its contents and preview matches before importing. New jobs can start from the downloadable example. Several research notes can be imported together.
+Select a job, open **Connect your tools**, choose the note purpose and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay, review its contents and preview matches before importing. New jobs can start from the downloadable example. Several research notes can be imported together.
 
 Use **Edit draft in Obsidian** for an application or follow-up draft that returns to the same job version for review. **Download job context** includes source history as a reference snapshot. Research preserves existing status and approval; loading a draft never accepts or sends it. This is an explicit file handoff, with no plugin, vault scanning or background synchronization.
 
 [Complete Obsidian guide](integrations/OBSIDIAN.md) | [Architecture and data ownership](ARCHITECTURE.md)
+
+## ChatGPT and Codex
+
+Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Connect your tools**, share the selected prompt, and return the JSON result for review. Codex can also prepare drafts through its signed-in CLI. [Complete setup and boundaries](integrations/OPENAI.md).
+
+## Keeping public pages current
+
+The project, organization, personal profile and website share one [maintained product description](docs/public-copy.json). [Public-copy process](docs/PUBLIC-COPY.md) explains generation, checks and automatic refreshes.
 
 ## Run locally
 

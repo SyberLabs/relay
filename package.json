@@ -12,8 +12,10 @@
     "lint": "oxlint app lib db tests",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
-    "test": "node --disable-warning=ExperimentalWarning --test tests/domain.test.mjs tests/connectors.test.mjs tests/import.test.mjs tests/editor.test.mjs tests/obsidian.test.mjs",
-    "relay": "node integrations/relay.mjs"
+    "test": "node --disable-warning=ExperimentalWarning --test tests/domain.test.mjs tests/connectors.test.mjs tests/import.test.mjs tests/editor.test.mjs tests/obsidian.test.mjs tests/assistant.test.mjs tests/public-copy.test.mjs",
+    "relay": "node integrations/relay.mjs",
+    "public-copy:sync": "node scripts/sync-public-copy.mjs --target project --root .",
+    "public-copy:check": "node scripts/sync-public-copy.mjs --target project --root . --check"
   },
   "dependencies": {
     "react": "19.2.6",

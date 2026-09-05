@@ -1,7 +1,7 @@
 import { sites } from '@openai/sites-vite-plugin';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
-import { defineConfig } from 'vite';
+import { defineConfig, type ViteDevServer } from 'vite';
 import hostingConfig from './.openai/hosting.json';
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
@@ -75,7 +75,7 @@ export default defineConfig(async () => {
       }),
       {
         name: 'relay-dev-url',
-        configureServer(server) {
+        configureServer(server: ViteDevServer) {
           const httpServer = server.httpServer;
           httpServer?.once('listening', () => {
             const address = httpServer.address();

@@ -4,10 +4,10 @@ Maintained source for four published Grok Bot templates. Each package includes t
 
 ## Bots
 
-- [First Principles](bots/first-principles/README.md) — clarify the problem, question assumptions, and choose a next step.
-- [Product Ideation](bots/product-ideation/README.md) — turn customer problems into ideas and inexpensive demand tests.
-- [Red Flag](bots/red-flag/README.md) — check plans, code, and AI answers for consequential failures and unsupported claims.
-- [Garbage Collector](bots/garbage-collector/README.md) — simplify code while preserving required behavior.
+- [First Principles](bots/first-principles/README.md) - clarify the problem, question assumptions, and choose a next step.
+- [Product Ideation](bots/product-ideation/README.md) - turn customer problems into ideas and inexpensive demand tests.
+- [Red Flag](bots/red-flag/README.md) - check plans, code, and AI answers for consequential failures and unsupported claims.
+- [Garbage Collector](bots/garbage-collector/README.md) - simplify code while preserving required behavior.
 
 Use the [Bot guide](bots/README.md) to choose, set up, and check a template. See [Contributing](CONTRIBUTING.md) to propose an improvement.
 

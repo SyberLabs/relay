@@ -42,6 +42,6 @@ test('website product data is escaped before rendering', () => {
     { ...copy, stage: '<script>alert(1)</script>' },
     'website',
   );
-  assert.doesNotMatch(content, /<script>/);
+  assert.doesNotMatch(content, /<script\b/i);
   assert.match(content, /&lt;script&gt;/);
 });

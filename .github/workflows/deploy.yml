@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+concurrency:
+  group: relay-delivery
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    uses: ./.github/workflows/release-environment.yml
+    with:
+      environment: staging
+      release_sha: ${{ github.event.workflow_run.head_sha }}
+      run_id: ${{ github.event.workflow_run.id }}
+    secrets: inherit
+
+  production:
+    needs: staging
+    uses: ./.github/workflows/release-environment.yml
+    with:
+      environment: production
+      release_sha: ${{ github.event.workflow_run.head_sha }}
+      run_id: ${{ github.event.workflow_run.id }}
+    secrets: inherit

@@ -1,0 +1,142 @@
+name: Release environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      release_sha:
+        type: string
+        required: true
+      run_id:
+        type: number
+        required: true
+      rollback:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+jobs:
+  release:
+    name: Release ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.DEPLOY_URL }}
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+      WORKER_NAME: relay-${{ inputs.environment }}
+      DEPLOY_URL: ${{ vars.DEPLOY_URL }}
+      ACCESS_ISSUER: ${{ vars.ACCESS_ISSUER }}
+      ACCESS_AUD: ${{ vars.ACCESS_AUD }}
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - name: Verify trusted, successful main-branch CI provenance
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          SOURCE_RUN: ${{ inputs.run_id }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          ROLLBACK: ${{ inputs.rollback }}
+        with:
+          script: |
+            const sha = process.env.RELEASE_SHA;
+            if (!/^[a-f0-9]{40}$/.test(sha) || !['staging', 'production'].includes(process.env.TARGET_ENVIRONMENT)) {
+              throw new Error('Invalid release inputs');
+            }
+            const { data: run } = await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(process.env.SOURCE_RUN) });
+            if (run.head_sha !== sha || run.head_branch !== 'main' || run.event !== 'push' ||
+                run.conclusion !== 'success' || run.path !== '.github/workflows/ci.yml' ||
+                run.head_repository.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              throw new Error('Release must come from successful CI on this repository main');
+            }
+            if (process.env.ROLLBACK !== 'true') {
+              const { data: branch } = await github.rest.repos.getBranch({ ...context.repo, branch: 'main' });
+              if (branch.commit.sha !== sha) throw new Error('A newer main commit exists; refusing stale release');
+            } else {
+              const deployments = await github.paginate(github.rest.repos.listDeployments, {
+                ...context.repo, sha, environment: 'production', task: 'relay-release', per_page: 100,
+              });
+              let knownGood = false;
+              for (const deployment of deployments) {
+                const payload = typeof deployment.payload === 'string' ? JSON.parse(deployment.payload) : deployment.payload;
+                if (payload?.release_sha !== sha || payload?.source_ci_run !== Number(process.env.SOURCE_RUN)) continue;
+                const { data: statuses } = await github.rest.repos.listDeploymentStatuses({ ...context.repo, deployment_id: deployment.id });
+                if (statuses.some(status => status.state === 'success')) knownGood = true;
+              }
+              if (!knownGood) throw new Error('Rollback target has no successful production deployment');
+            }
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.release_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Download the exact CI artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: relay-release-${{ inputs.release_sha }}
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+      - name: Verify every release file and generate validated target bindings
+        run: |
+          node scripts/release/artifact.mjs verify
+          node scripts/release/config.mjs
+      - name: Refuse rollback across database schema changes
+        if: inputs.rollback
+        run: git diff --exit-code "$RELEASE_SHA" origin/main -- drizzle/
+      - name: Check provider and protected smoke credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCESS_CLIENT_ID: ${{ secrets.ACCESS_CLIENT_ID }}
+          ACCESS_CLIENT_SECRET: ${{ secrets.ACCESS_CLIENT_SECRET }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Cloudflare API token is required'; exit 1; }
+          test -n "$ACCESS_CLIENT_ID" && test -n "$ACCESS_CLIENT_SECRET" || { echo 'Access smoke credentials are required'; exit 1; }
+          pnpm exec wrangler whoami
+      - name: Record database recovery bookmark
+        if: inputs.environment == 'production' && !inputs.rollback
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler d1 time-travel info DB --config wrangler.release.json --json >> "$GITHUB_STEP_SUMMARY"
+      - name: Apply forward migrations
+        if: '!inputs.rollback'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.release.json
+      - name: Publish verified application
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler deploy --config wrangler.release.json
+      - name: Verify release, database readiness, and service identity isolation
+        env:
+          ACCESS_CLIENT_ID: ${{ secrets.ACCESS_CLIENT_ID }}
+          ACCESS_CLIENT_SECRET: ${{ secrets.ACCESS_CLIENT_SECRET }}
+        run: node scripts/release/smoke.mjs
+      - name: Record release evidence
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          SOURCE_RUN: ${{ inputs.run_id }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+        with:
+          script: |
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              ...context.repo, ref: process.env.RELEASE_SHA, task: 'relay-release',
+              environment: process.env.TARGET_ENVIRONMENT, auto_merge: false, required_contexts: [],
+              payload: { release_sha: process.env.RELEASE_SHA, source_ci_run: Number(process.env.SOURCE_RUN) },
+              description: 'Verified immutable release; protected readiness checks passed',
+            });
+            if (!deployment.id) throw new Error('Release evidence creation failed');
+            await github.rest.repos.createDeploymentStatus({ ...context.repo, deployment_id: deployment.id,
+              state: 'success', environment_url: process.env.DEPLOY_URL,
+              log_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              auto_inactive: false,
+            });
+            await core.summary.addRaw(`Released ${process.env.RELEASE_SHA} to ${process.env.TARGET_ENVIRONMENT}. Protected readiness checks passed.`).write();

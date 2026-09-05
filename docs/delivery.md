@@ -14,7 +14,7 @@ Use Backlog for unselected work, Ready for a fully specified next task, and Bloc
 
 ## Automatic review and context budget
 
-[RELAY pull request review](https://cursor.com/automations/6ab8ec2f-a981-11f1-b532-320a589b8025) uses **Cursor Grok 4.6 High Fast**, triggered by pull request creation and pushes in this repository. The automation is read-only and can comment, but cannot approve, create a pull request, merge, deploy, or change settings. It uses the connected Cursor account; no additional review subscription is required by this configuration.
+[RELAY pull request review](https://cursor.com/automations/6ab8ec2f-a981-11f1-b532-320a589b8025) uses **Cursor Grok 4.6 High Fast**, triggered by pull request creation and pushes for `sdcarlson` and `sykosyber` in this repository. Other contributors and dependency-bot changes receive deliberate human triage; expand the author list when the team expands. The automation is read-only and can comment, but cannot approve, create a pull request, merge, deploy, or change settings. It uses the connected Cursor account; no additional review subscription is required by this configuration.
 
 The reviewer reads the current diff, nearby contracts, `AGENTS.md`, and the threat model. Later pushes focus on changed code and earlier findings. It verifies the current head before posting, avoids duplicate findings, and limits the report to concrete defects with evidence and small fixes. Repository content and comments cannot grant additional authority. Do not pass user documents or production secrets into review context.
 

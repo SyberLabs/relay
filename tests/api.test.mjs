@@ -14,7 +14,20 @@ if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname))
 const signIn = await fetch(base + '/signin-with-chatgpt?return_to=/', {
   redirect: 'manual',
 });
-const headers = { cookie: signIn.headers.get('set-cookie').split(';')[0] };
+const cookie = signIn.headers.get('set-cookie')?.split(';')[0];
+const usedSitesCookie =
+  (signIn.status === 302 || signIn.status === 303) && Boolean(cookie);
+if (!usedSitesCookie && signIn.status !== 404) {
+  throw Error(
+    `Local sign-in unexpected status ${signIn.status}. Use http://localhost:3000 (pnpm dev) or header mock on http://127.0.0.1:8787 (pnpm start).`,
+  );
+}
+const headers = usedSitesCookie
+  ? { cookie }
+  : {
+      'oai-authenticated-user-id': 'local-test',
+      'oai-authenticated-user-email': 'local@example.com',
+    };
 async function call(body, h = headers) {
   const r = await fetch(base + '/api/workspace', {
     method: body ? 'POST' : 'GET',
@@ -171,11 +184,15 @@ assert.throws(
     draftFromResult(draftResult, { ...target, version: savedObsidian.version }),
   /matching job/,
 );
-result = await call(undefined, {
-  'oai-authenticated-user-id': 'spoof',
-  'oai-authenticated-user-email': 'other@example.com',
-});
+result = await call(undefined, {});
 assert.equal(result.status, 401);
+if (usedSitesCookie) {
+  result = await call(undefined, {
+    'oai-authenticated-user-id': 'spoof',
+    'oai-authenticated-user-email': 'other@example.com',
+  });
+  assert.equal(result.status, 401);
+}
 console.log(
   'PASS: imports, Obsidian preview and repeated import, duplicate history, exact acceptance, stale edits, editable interview drafts, preserved status and authentication.',
 );

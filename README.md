@@ -33,9 +33,16 @@ Use **Edit draft in Obsidian** for an application or follow-up draft that return
 
 ## Run locally
 
-Node 24 and pnpm are required. From the repository root:
+Node 24+ (`package.json` `engines`) and pnpm are required. Put Node 24 first on `PATH`, then invoke `pnpm` — do not hardcode `/absolute/path/to/node` or wrangler.
 
 ```sh
+# .nvmrc / .node-version are `24`
+nvm install && nvm use          # or: fnm install && fnm use
+# mise use node@24
+# asdf install nodejs 24 && asdf set nodejs 24
+
+bash scripts/ensure-node.sh     # checks `node -v` and prints install help
+node -v                         # must be >= 24
 pnpm install --frozen-lockfile
 pnpm build
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_sticky_robbie_robertson.sql
@@ -44,7 +51,37 @@ pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --pe
 pnpm dev
 ```
 
-Open the local URL printed by the server. Local sign-in is simulated by the Sites development plugin; do not expose this development server to the internet. Load fictional examples or import your own records. The product introduction is at `/about`.
+`pnpm dev` binds **http://localhost:3000/** (Vite `strictPort`). Use that URL. Miniflare/workerd may also print an internal `127.0.0.1:NNNN` bind — ignore it for the browser and curl.
+
+`pnpm start` (after `pnpm build`) binds the built Worker at **http://127.0.0.1:8787/**.
+
+Do not expose either server to the internet. Load fictional examples or import your own records. The product introduction is at `/about`.
+
+### Local sign-in
+
+On `pnpm dev`, the Sites Vite plugin mocks ChatGPT sign-in on the Vite URL only:
+
+- Browser: **Sign in with ChatGPT** → `/signin-with-chatgpt?return_to=/`
+- Mock identity: `local_seedy` / `seedy@sites.test`
+
+`/signin-with-chatgpt` is not a Worker route. `pnpm start` and any workerd-only port return 404 for it. Send Sites identity headers instead (fictional values only):
+
+```sh
+curl -sS http://127.0.0.1:8787/api/workspace \
+  -H 'oai-authenticated-user-id: local-dev' \
+  -H 'oai-authenticated-user-email: local@example.com'
+```
+
+The Sites plugin on `pnpm dev` strips caller-supplied `oai-authenticated-user-*` headers and injects the mock user only after the sign-in cookie. Header mock is for the built Worker. Production must use a trusted gateway; this repository does not ship one.
+
+### Claude draft (optional)
+
+Local `claude-draft` reads credentials from the environment only. Do not commit values.
+
+- `ANTHROPIC_API_KEY`
+- `RELAY_CLAUDE_MODEL`
+
+See [integration setup](integrations/README.md).
 
 ## Integration boundaries
 

@@ -6,9 +6,12 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "vinext dev",
+    "ensure-node": "bash scripts/ensure-node.sh",
+    "predev": "bash scripts/ensure-node.sh",
+    "dev": "vinext dev --port 3000",
     "build": "vinext build",
-    "start": "wrangler dev --config dist/server/wrangler.json",
+    "prestart": "bash scripts/ensure-node.sh",
+    "start": "wrangler dev --config dist/server/wrangler.json --ip 127.0.0.1 --port 8787 --persist-to .wrangler/state",
     "lint": "oxlint app lib db tests",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",

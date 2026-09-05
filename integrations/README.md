@@ -24,7 +24,12 @@ See [Obsidian workflows](OBSIDIAN.md) for the complete setup, formats, review st
 
 ## Claude → a reviewable draft
 
-Select a job, enter verified facts in the connection panel, and download the packet. Set `ANTHROPIC_API_KEY` and `RELAY_CLAUDE_MODEL` to a model available to your API account. Run:
+Local checklist (env var names only; never commit values or put keys in the repo):
+
+1. Download a job packet from the connection panel (verified facts filled in).
+2. Export `ANTHROPIC_API_KEY` for your Anthropic API account.
+3. Export `RELAY_CLAUDE_MODEL` to a model that account can call.
+4. Run the command below. Load the result in Relay; loading is not acceptance.
 
 ```sh
 node integrations/relay.mjs claude-draft relay-packet.json private-data/claude-draft.json

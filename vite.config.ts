@@ -12,6 +12,12 @@ const { d1, r2 } = hostingConfig;
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
 
+const parsedDevPort = Number.parseInt(process.env.PORT || '3000', 10);
+const DEV_PORT =
+  Number.isInteger(parsedDevPort) && parsedDevPort > 0 && parsedDevPort < 65536
+    ? parsedDevPort
+    : 3000;
+
 const localBindingConfig = {
   main: 'vinext/server/fetch-handler',
   compatibility_flags: ['nodejs_compat'],
@@ -46,16 +52,41 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      host: 'localhost',
+      port: DEV_PORT,
+      strictPort: true,
+      ...(isCodexSeatbeltSandbox
+        ? { watch: { useFsEvents: false, usePolling: true } }
+        : {}),
+    },
+    preview: {
+      host: 'localhost',
+      port: DEV_PORT,
+      strictPort: true,
+    },
     plugins: [
       vinext(),
       sites(),
       cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
         config: localBindingConfig,
+        persistState: { path: '.wrangler/state' },
       }),
+      {
+        name: 'relay-dev-url',
+        configureServer(server) {
+          const httpServer = server.httpServer;
+          httpServer?.once('listening', () => {
+            const address = httpServer.address();
+            const port =
+              typeof address === 'object' && address ? address.port : DEV_PORT;
+            server.config.logger.info(
+              `Relay: http://localhost:${port}/  (Vite URL. Ignore any workerd 127.0.0.1:NNNN bind.)`,
+            );
+          });
+        },
+      },
     ],
   };
 });

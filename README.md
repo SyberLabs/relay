@@ -14,7 +14,7 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 - Exchange validated research and draft files with Grok Bot in its VM.
 - Explore fictional example records. No real applicant data is included.
 
-[Integration setup](integrations/README.md) · [Grok Bot instructions](integrations/GROK_BOT.md) · [Launch copy](LAUNCH.md)
+[Integration setup](integrations/README.md) | [Grok Bot instructions](integrations/GROK_BOT.md) | [Launch copy](LAUNCH.md)
 
 ## Run locally
 
@@ -43,6 +43,8 @@ pnpm exec tsc --noEmit
 pnpm lint
 node tests/api.test.mjs
 ```
+
+For an existing local database already on migration 0001, apply only 0002 from the setup commands. It preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
 The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. The optional browser WebMCP tools have not been validated in a supported agent browser.
 

@@ -16,6 +16,12 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 
 [Integration setup](integrations/README.md) | [Grok Bot instructions](integrations/GROK_BOT.md) | [Launch copy](LAUNCH.md)
 
+## GrokCell bot templates
+
+The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector with their source instructions, profiles, public bot links, and behavior checks. Use a specialist when its purpose fits the task. These templates do not connect to Relay or grant access to application records automatically; the [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts.
+
+This is a pinned copy of the separately maintained, MIT-licensed [GrokCell project](https://github.com/sdcarlson/grokcell). Propose template improvements upstream, then refresh the copy following [its source record](grokcell/UPSTREAM.md).
+
 ## Run locally
 
 Node 24 and pnpm are required. From the repository root:
@@ -54,4 +60,4 @@ React/Vinext on Cloudflare Workers with D1 persistence and Sites authentication.
 
 Keep real imports, packets and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, personal records and the original development Git history are excluded from this release.
 
-Maintained by SyberLabs. Early release: no hiring outcomes, reliability targets or throughput improvements have been established. No open-source license is granted in this release; contact SyberLabs for licensing.
+Maintained by SyberLabs. Early release: no hiring outcomes, reliability targets or throughput improvements have been established. The bundled `grokcell/` templates are covered by their [MIT license](grokcell/LICENSE). No open-source license is granted for the rest of Relay in this release; contact SyberLabs for licensing.

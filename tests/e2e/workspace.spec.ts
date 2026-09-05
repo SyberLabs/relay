@@ -46,6 +46,9 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
   await page
     .getByRole('textbox', { name: 'Research JSON' })
     .fill(JSON.stringify(research));
+  await expect(
+    page.getByRole('button', { name: 'Import into workspace' }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: 'Preview matches' }).click();
   await expect(
     page.getByText('Preview complete. No records were imported.'),
@@ -94,6 +97,13 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
   await page
     .getByRole('textbox', { name: 'Research JSON' })
     .fill(JSON.stringify(research));
+  await expect(
+    page.getByRole('button', { name: 'Import into workspace' }),
+  ).toBeDisabled();
+  await page.getByRole('button', { name: 'Preview matches' }).click();
+  await expect(
+    page.getByText('Preview complete. No records were imported.'),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Import into workspace' }).click();
   await expect(page.getByText('Workspace updated.')).toBeVisible();
   workspace = await (await page.request.get('/api/workspace')).json();

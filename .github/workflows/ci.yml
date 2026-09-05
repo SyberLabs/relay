@@ -37,7 +37,7 @@ jobs:
         env:
           RELAY_TEST_URL: http://127.0.0.1:3102
         run: |
-          pnpm exec vinext dev --host 127.0.0.1 --port 3102 > /tmp/relay-dev.log 2>&1 &
+          pnpm exec vinext dev --hostname 127.0.0.1 --port 3102 > /tmp/relay-dev.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true; cat /tmp/relay-dev.log' EXIT
           ready=false

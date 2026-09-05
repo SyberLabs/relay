@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadEditor } from '../lib/editor.ts';
-import { receiveRefresh } from '../lib/workspace-refresh.ts';
+import { expireWorkspace, receiveRefresh } from '../lib/workspace-refresh.ts';
 
 function job(id, extra = {}) {
   return {
@@ -91,6 +91,9 @@ function session(initial = privateWorkspace()) {
         workspace = receiveRefresh(ticket, seq, workspace, response, saved);
       });
     },
+    expire() {
+      workspace = expireWorkspace(seq);
+    },
   };
 }
 
@@ -137,6 +140,29 @@ test('older 200 cannot restore private records after a newer 401', async () => {
     }),
   );
   await pendingOlder;
+  assert.equal(ws.get().signedOut, true);
+  assert.deepEqual(ws.get().jobs, []);
+  assert.deepEqual(ws.get().sources, []);
+  assert.deepEqual(ws.get().events, []);
+  assert.equal(ws.get().editor, null);
+  assert.equal(ws.get().importText, '');
+});
+
+test('expiry invalidates an in-flight refresh so a deferred 200 cannot restore records', async () => {
+  const ws = session();
+  const inFlight = deferred();
+  const pending = ws.refresh(inFlight.promise);
+  ws.expire();
+  assert.equal(ws.get().signedOut, true);
+  assert.deepEqual(ws.get().jobs, []);
+  inFlight.resolve(
+    ok({
+      jobs: [job('leaked')],
+      sources: [source('leaked')],
+      events: [event('leaked')],
+    }),
+  );
+  await pending;
   assert.equal(ws.get().signedOut, true);
   assert.deepEqual(ws.get().jobs, []);
   assert.deepEqual(ws.get().sources, []);
@@ -281,7 +307,7 @@ test('workspace refresh callback uses the same expiry and ordering helpers', () 
     'utf8',
   );
   assert.match(src, /from '\.\.\/lib\/workspace-refresh'/);
-  assert.match(src, /expiredPrivateWorkspace/);
+  assert.match(src, /expireWorkspace/);
   assert.match(src, /editorAfterRefresh/);
   assert.match(src, /ticket !== refreshSeq\.current/);
   assert.match(src, /r\.status === 401/);

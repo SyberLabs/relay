@@ -73,6 +73,11 @@ export function expiredPrivateWorkspace(): ExpiredPrivateWorkspace {
   };
 }
 
+export function expireWorkspace(seq: RefreshSeq): ExpiredPrivateWorkspace {
+  seq.current += 1;
+  return expiredPrivateWorkspace();
+}
+
 export function receiveRefresh<J extends JobFields, S, E, R>(
   ticket: number,
   seq: RefreshSeq,
@@ -81,9 +86,7 @@ export function receiveRefresh<J extends JobFields, S, E, R>(
   saved?: SaveSnapshot,
 ): PrivateWorkspace<J, S, E, R> {
   if (ticket !== seq.current) return workspace;
-  if (response.status === 401) {
-    return { ...workspace, ...expiredPrivateWorkspace() };
-  }
+  if (response.status === 401) return expireWorkspace(seq);
   if (response.status !== 200) return workspace;
   const jobs = response.jobs ?? [];
   return {

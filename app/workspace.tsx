@@ -12,10 +12,7 @@ import {
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
-import {
-  editorAfterRefresh,
-  expiredPrivateWorkspace,
-} from '../lib/workspace-refresh';
+import { editorAfterRefresh, expireWorkspace } from '../lib/workspace-refresh';
 import {
   ArrowUpRight,
   Search,
@@ -83,9 +80,10 @@ export default function Workspace() {
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false);
   const refreshSeq = useRef(0);
+  const sessionLive = useRef(true);
   const expireSession = useCallback(() => {
-    refreshSeq.current += 1;
-    const next = expiredPrivateWorkspace();
+    const next = expireWorkspace(refreshSeq);
+    sessionLive.current = false;
     setJobs(next.jobs);
     setSources(next.sources);
     setEvents(next.events);
@@ -96,6 +94,7 @@ export default function Workspace() {
     setShowImport(next.showImport);
     setSignedOut(next.signedOut);
     setLoaded(next.loaded);
+    setMessage('');
   }, []);
   const researchRows = useMemo(() => {
     try {
@@ -128,6 +127,7 @@ export default function Workspace() {
       setSources(data.sources);
       setEvents(data.events);
       setEditor((e) => editorAfterRefresh(e, data.jobs, saved));
+      sessionLive.current = true;
       setSignedOut(false);
       setLoaded(true);
     },
@@ -164,6 +164,7 @@ export default function Workspace() {
         setPreviewedImport(JSON.stringify(body.rows));
       if (body.action === 'import') setPreviewedImport('');
       await refresh(saved);
+      if (!sessionLive.current) return;
       setMessage(
         body.action === 'save'
           ? 'Saved. Your review is preserved.'

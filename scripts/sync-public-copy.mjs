@@ -23,6 +23,18 @@ const escapeHtml = (text) =>
 export function render(copy, target) {
   if (!Object.hasOwn(targets, target))
     throw Error('Unknown public-copy target.');
+  for (const value of [copy.repository, copy.leadProfile]) {
+    const url = new URL(value);
+    if (
+      url.protocol !== 'https:' ||
+      url.hostname !== 'github.com' ||
+      url.username ||
+      url.password
+    )
+      throw Error(
+        'Public repository and profile links must use HTTPS on github.com without credentials.',
+      );
+  }
   const guide = `${copy.repository}/blob/main/integrations/OPENAI.md`;
   const integrations = copy.integrations.map((item) => item.name).join(', ');
   const credit = `**Lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).**`;

@@ -45,3 +45,16 @@ test('website product data is escaped before rendering', () => {
   assert.doesNotMatch(content, /<script\b/i);
   assert.match(content, /&lt;script&gt;/);
 });
+
+test('public links reject executable schemes, other hosts and embedded credentials', () => {
+  for (const field of ['repository', 'leadProfile']) {
+    for (const value of [
+      'javascript:alert(1)',
+      'data:text/html,test',
+      'https://example.com/relay',
+      'https://user:pass@github.com/SyberLabs/relay',
+    ]) {
+      assert.throws(() => render({ ...copy, [field]: value }, 'website'));
+    }
+  }
+});

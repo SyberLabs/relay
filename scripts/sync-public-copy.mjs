@@ -74,12 +74,13 @@ export function replaceBlock(source, content) {
   const first = source.indexOf(start),
     last = source.indexOf(end);
   if (last < first) throw Error('RELAY markers are reversed.');
+  const newline = source.includes('\r\n') ? '\r\n' : '\n';
   return (
     source.slice(0, first) +
     start +
-    '\n' +
-    content +
-    '\n' +
+    newline +
+    content.replace(/\r?\n/g, newline) +
+    newline +
     end +
     source.slice(last + end.length)
   );

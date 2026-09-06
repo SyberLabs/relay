@@ -1,6 +1,12 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import {
+  beginPageWork,
+  createPageSession,
+  pageWorkIsLive,
+  readAuthorizedJson,
+} from '../../lib/page-session';
 import {
   ArrowLeft,
   BadgeCheck,
@@ -34,35 +40,56 @@ export default function Profile() {
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [signedOut, setSignedOut] = useState(false);
+  const sessionRef = useRef(createPageSession());
+  const applyExpired = useCallback(() => {
+    setFacts([]);
+    setRules([]);
+    setVersion(1);
+    setUsable(0);
+    setResume('');
+    setCandidates([]);
+    setChosen(new Set());
+    setExpiry({});
+    setRule('');
+    setScope('global');
+    setBusy(false);
+    setMessage('');
+    setSignedOut(true);
+  }, []);
   const refresh = useCallback(async () => {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     const r = await fetch('/api/profile');
-    const data = (await r.json()) as {
+    const reply = await readAuthorizedJson<{
       facts: Fact[];
       rules: Rule[];
       version: number;
       usable: number;
       error?: string;
-    };
-    if (r.status === 401) {
-      setFacts([]);
-      setRules([]);
-      setCandidates([]);
-      setResume('');
-      setSignedOut(true);
+    }>(sessionRef.current, started, r, 'Unable to load profile.');
+    if (reply.kind === 'expired') {
+      applyExpired();
       return;
     }
-    if (!r.ok) throw Error(data.error);
-    setFacts(data.facts);
-    setRules(data.rules);
-    setVersion(data.version);
-    setUsable(data.usable);
-  }, []);
+    if (reply.kind === 'ignore') return;
+    if (reply.kind === 'error') throw Error(reply.error);
+    if (!pageWorkIsLive(sessionRef.current, started)) return;
+    setFacts(reply.body.facts);
+    setRules(reply.body.rules);
+    setVersion(reply.body.version);
+    setUsable(reply.body.usable);
+  }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
-      .catch((e: Error) => setMessage(e.message));
+      .catch((e: Error) => {
+        if (sessionRef.current.expired) return;
+        setMessage(e.message);
+      });
   }, [refresh]);
   async function run(body: Record<string, unknown>, note: string) {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     setBusy(true);
     setMessage('');
     try {
@@ -71,20 +98,35 @@ export default function Profile() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await r.json()) as { error?: string };
-      if (!r.ok) throw Error(data.error);
+      const reply = await readAuthorizedJson<{ error?: string }>(
+        sessionRef.current,
+        started,
+        r,
+        'Unable to complete request.',
+      );
+      if (reply.kind === 'expired') {
+        applyExpired();
+        return;
+      }
+      if (reply.kind === 'ignore') return;
+      if (reply.kind === 'error') throw Error(reply.error);
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       await refresh();
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(note);
-      return data;
+      return reply.body;
     } catch (e) {
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(
         e instanceof Error ? e.message : 'Unable to complete request.',
       );
     } finally {
-      setBusy(false);
+      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
     }
   }
   async function extract() {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     setBusy(true);
     setMessage('');
     try {
@@ -93,20 +135,28 @@ export default function Profile() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'extract', text: resume }),
       });
-      const data = (await r.json()) as {
+      const reply = await readAuthorizedJson<{
         candidates?: Candidate[];
         error?: string;
-      };
-      if (!r.ok) throw Error(data.error);
-      setCandidates(data.candidates!);
-      setChosen(new Set(data.candidates!.map((_, i) => i)));
+      }>(sessionRef.current, started, r, 'Unable to read resume.');
+      if (reply.kind === 'expired') {
+        applyExpired();
+        return;
+      }
+      if (reply.kind === 'ignore') return;
+      if (reply.kind === 'error') throw Error(reply.error);
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
+      const next = reply.body.candidates!;
+      setCandidates(next);
+      setChosen(new Set(next.map((_, i) => i)));
       setMessage(
-        `${data.candidates!.length} candidate facts found. Nothing is saved until you add them, and nothing is usable until you verify it.`,
+        `${next.length} candidate facts found. Nothing is saved until you add them, and nothing is usable until you verify it.`,
       );
     } catch (e) {
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(e instanceof Error ? e.message : 'Unable to read resume.');
     } finally {
-      setBusy(false);
+      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
     }
   }
   const proposed = facts.filter((f) => f.status === 'Proposed'),
@@ -199,6 +249,7 @@ export default function Profile() {
                   },
                   `${chosen.size} facts added. Verify each one before the agent can cite it.`,
                 );
+                if (sessionRef.current.expired) return;
                 setCandidates([]);
                 setResume('');
               }}
@@ -365,6 +416,7 @@ export default function Profile() {
                 { action: 'rule-add', rule, scope: scope || 'global' },
                 'Rule added to the style card.',
               );
+              if (sessionRef.current.expired) return;
               setRule('');
             }}
           >

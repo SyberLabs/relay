@@ -198,7 +198,7 @@ The project, organization, personal profile, and website share one [maintained p
 
 For an existing local database still on migration 0001, apply 0002, then 0003 and 0004. From 0002, apply 0003 then 0004. From 0003, apply only 0004. Migration 0003 adds the fact ledger, style rules and draft-review tables. Migration 0004 adds preference, choice and outcome tables and defaulted posting columns on `jobs`; existing rows stay. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
-Domain, import, editor, profile, selection, and API tests cover status preservation, duplicate matching, exact acceptance, citation refusal, terminal outcomes that cannot be reopened by import, stale edits, and authentication rejection.
+Domain, import, editor, profile, selection, and API tests cover status preservation, duplicate matching, exact acceptance, citation refusal, terminal outcomes that cannot be reopened by import, stale edits, and authentication rejection. A 401 on `/profile`, `/preferences`, `/review`, or `/track` expires that mounted page session before the response body is read, clears private state and edit controls, and shows the existing signed-out screen. Older in-flight reads and mutations cannot restore it. Sign-in is top-level navigation; these pages do not reauthenticate in place. Workspace expiry is unchanged.
 
 ## Hosting and privacy
 

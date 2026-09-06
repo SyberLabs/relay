@@ -1,0 +1,25 @@
+name: Test product value
+description: Test a falsifiable user-value hypothesis before building more features.
+labels: ["type:experiment", "area:product"]
+body:
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: User, workflow, and hypothesis
+      description: Who has this problem and why do existing tools fail them? State what would disprove the hypothesis.
+    validations:
+      required: true
+  - type: textarea
+    id: test
+    attributes:
+      label: Test and evidence
+      description: Smallest real workflow test, owner, number of participants, evidence collected with consent, and time or effort bound.
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Continue, change, or stop
+      description: Define decision thresholds before observing results. Voluntary repeat use matters more than compliments.
+    validations:
+      required: true

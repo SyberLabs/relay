@@ -17,6 +17,8 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 
 [Integration setup](integrations/README.md) | [Grok Bot instructions](integrations/GROK_BOT.md) | [Launch copy](LAUNCH.md)
 
+[Development workflow](CONTRIBUTING.md) | [Delivery and review](docs/delivery.md) | [Team board](https://github.com/orgs/SyberLabs/projects/1)
+
 ## GrokCell bot templates
 
 The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector with their source instructions, profiles, public bot links, and behavior checks. Use a specialist when its purpose fits the task. These templates do not connect to Relay or grant access to application records automatically; the [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts.
@@ -102,7 +104,7 @@ The last command needs a running local server and writes only fictional test rec
 
 ## Hosting and privacy
 
-React/Vinext on Cloudflare Workers with D1 persistence and Sites authentication. The checked-in hosting manifest declares logical bindings only; it includes no owner's project ID. A production deployment needs its own Sites project and trusted authentication gateway. The app reads identity headers supplied by that gateway; deploying the raw Worker without equivalent trusted authentication is unsafe. This repository does not contain a public hosted service.
+React/Vinext on Cloudflare Workers with D1 persistence. Local development uses Sites authentication. The production delivery process uses separate staging and production databases with a verified Cloudflare Access gateway; see [hosting and recovery](docs/hosting.md). The checked-in Sites manifest declares logical bindings only. Deploy only the verified release artifact through the protected workflows. Account provisioning, live authentication, and the first production release still require verification before inviting users.
 
 Keep real imports, packets and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, personal records and the original development Git history are excluded from this release.
 

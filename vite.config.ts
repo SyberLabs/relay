@@ -69,9 +69,11 @@ export default defineConfig(async () => {
       vinext(),
       sites(),
       cloudflare({
+        persistState: process.env.RELAY_CI_STATE
+          ? { path: process.env.RELAY_CI_STATE }
+          : { path: '.wrangler/state' },
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
         config: localBindingConfig,
-        persistState: { path: '.wrangler/state' },
       }),
       {
         name: 'relay-dev-url',

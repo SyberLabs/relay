@@ -7,6 +7,12 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { releaseConfig } from '../release/config.mjs';
+import {
+  describeUnexpectedResponse,
+  finishProductionServer,
+  processSnapshot,
+  readBoundedBody,
+} from './production-diagnostics.mjs';
 
 // Only the test entry supplies a local verification key. The compiled app,
 // authentication handler, assets and SQL migrations are the release versions.
@@ -123,6 +129,25 @@ let startupError;
 server.on('error', (error) => {
   startupError = error;
 });
+async function expectStatus(response, expected, operation) {
+  if (response.status === expected) return response;
+  const body = await readBoundedBody(response);
+  const detail = describeUnexpectedResponse({
+    operation,
+    status: response.status,
+    body: body.text,
+    truncated: body.truncated,
+    timedOut: body.timedOut,
+    bodyBytes: body.bytes,
+    headers: response.headers,
+    processState: processSnapshot(server),
+  });
+  await new Promise((accept, reject) => {
+    log.write(detail, (error) => (error ? reject(error) : accept()));
+  });
+  assert.equal(response.status, expected, detail);
+  return response;
+}
 
 try {
   const deadline = Date.now() + 120_000;
@@ -163,34 +188,40 @@ try {
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
-  assert.equal(
-    (
-      await call(null, undefined, {
-        'oai-authenticated-user-id': 'cloudflare:owner-a',
-      })
-    ).status,
+  await expectStatus(
+    await call(null, undefined, {
+      'oai-authenticated-user-id': 'cloudflare:owner-a',
+    }),
     401,
+    'spoofed identity header without Access token',
   );
   const htmlResponse = await fetch(base, {
     headers: { 'Cf-Access-Jwt-Assertion': first },
   });
-  assert.equal(htmlResponse.status, 200, await htmlResponse.clone().text());
+  await expectStatus(htmlResponse, 200, 'authenticated document');
   const html = await htmlResponse.text();
   assert.match(html, /Make your next move/);
   const scriptPath = html.match(/<script[^>]+src="([^"]+\.js[^"]*)"/)?.[1];
   assert.ok(scriptPath, 'Compiled page must load its client JavaScript');
-  assert.equal(
-    (await fetch(new URL(scriptPath, base))).status,
+  await expectStatus(
+    await fetch(new URL(scriptPath, base)),
     401,
-    'Assets must pass through authentication',
+    'unauthenticated asset',
   );
-  const script = await fetch(new URL(scriptPath, base), {
-    headers: { 'Cf-Access-Jwt-Assertion': first },
-  });
-  assert.equal(script.status, 200);
+  const script = await expectStatus(
+    await fetch(new URL(scriptPath, base), {
+      headers: { 'Cf-Access-Jwt-Assertion': first },
+    }),
+    200,
+    'authenticated asset',
+  );
   assert.match(script.headers.get('content-type'), /javascript/);
   assert.deepEqual((await (await call(first)).json()).jobs, []);
-  assert.equal((await call(first, { action: 'bootstrap' })).status, 200);
+  await expectStatus(
+    await call(first, { action: 'bootstrap' }),
+    200,
+    'owner-a bootstrap',
+  );
   const firstWorkspace = await (await call(first)).json();
   assert.equal(firstWorkspace.jobs.length, 3);
   assert.deepEqual(
@@ -209,23 +240,18 @@ try {
     draft: 'A fictional draft verified through the built application.',
     blocker: '',
   };
-  assert.equal(
-    (await call(second, update)).status,
+  await expectStatus(
+    await call(second, update),
     404,
-    'Second owner cannot mutate the first owner record',
+    'owner-b save of owner-a record',
   );
-  assert.equal(
-    (await call(first, update, { origin: 'https://untrusted.example.com' }))
-      .status,
+  await expectStatus(
+    await call(first, update, { origin: 'https://untrusted.example.com' }),
     403,
+    'owner-a save with untrusted origin',
   );
-  assert.equal((await call(first, update)).status, 200);
-  const stale = await call(first, update);
-  assert.equal(
-    stale.status,
-    409,
-    `Stale writes must fail in the actual worker: ${await stale.text()}`,
-  );
+  await expectStatus(await call(first, update), 200, 'owner-a save');
+  await expectStatus(await call(first, update), 409, 'owner-a stale save');
   const saved = await (
     await call(first, undefined, {
       'oai-authenticated-user-id': 'cloudflare:owner-b',
@@ -248,27 +274,5 @@ try {
     'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, forged headers, request origin, exact acceptance and stale-write integrity.',
   );
 } finally {
-  if (server.pid && server.exitCode === null) {
-    if (process.platform === 'win32') {
-      await new Promise((accept) => {
-        const stop = spawn(
-          'taskkill',
-          ['/pid', String(server.pid), '/T', '/F'],
-          { windowsHide: true, stdio: 'ignore' },
-        );
-        stop.on('exit', accept);
-        stop.on('error', accept);
-      });
-    } else {
-      try {
-        process.kill(-server.pid, 'SIGTERM');
-      } catch (error) {
-        if (error.code !== 'ESRCH') {
-          console.error('Unable to stop test worker:', error);
-          process.exitCode = 1;
-        }
-      }
-    }
-  }
-  log.end();
+  await finishProductionServer(server, log);
 }

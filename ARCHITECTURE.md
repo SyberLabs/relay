@@ -6,7 +6,7 @@ Relay is a review workspace for job research and drafts. It stores opportunity h
 
 The React interface runs through Vinext. The server runs on Cloudflare Workers with D1 persistence. `app/chatgpt-auth.ts` resolves the identity supplied by the trusted Sites authentication gateway. `/api/workspace` scopes reads and mutations to that owner. The local development sign-in is simulated and must not be exposed publicly.
 
-`jobs` stores canonical posting identity, status, draft, accepted text, blockers and version. `observations` preserves imported source records and revisions. `events` records workspace review actions. Initial workspace reads return at most 200 recent events. Selecting a job loads that job's events with the same bound, so older accepted-draft history stays retrievable. Database declarations are in `db/schema.ts`; ordered SQL migrations are in `drizzle/`. Obsidian adds no tables or migrations.
+`jobs` stores canonical posting identity, status, draft, accepted text, blockers and version. `observations` preserves imported source records and revisions. `events` records workspace review actions. Database declarations are in `db/schema.ts`; ordered SQL migrations are in `drizzle/`. Obsidian adds no tables or migrations.
 
 The application has no server-side access to a local Obsidian vault and requires no new provider credentials for Markdown handoffs. The repository's `.openai/hosting.json` declares logical storage bindings only; publishing to GitHub does not create a hosted Relay service.
 
@@ -33,7 +33,7 @@ flowchart LR
 
 Obsidian research notes own their editable source text. Relay owns the imported observations, application status and acceptance record. A downloaded context file is a dated reference copy, never a second live status authority.
 
-`lib/domain.ts` validates imported rows and canonicalizes job URLs. Known Greenhouse aliases match; tracking parameters are removed from other posting identities. Different job-board URLs are not universally deduplicated. Jobs without a posting URL keep a source-based identity (`source:<source url>`). Packets and draft results must match that identity; they cannot claim a posting URL for a source-identity job. An Obsidian note uses `obsidian:<relay_id>` for source identity and its posting URL for job identity. Duplicate observation identity also includes owner, job, name, source status and note text; edited notes retain earlier observations.
+`lib/domain.ts` validates imported rows and canonicalizes job URLs. Known Greenhouse aliases match; tracking parameters are removed from other posting identities. Different job-board URLs are not universally deduplicated. An Obsidian note uses `obsidian:<relay_id>` for source identity and its posting URL for job identity. Duplicate observation identity also includes owner, job, name, source status and note text; edited notes retain earlier observations.
 
 All Obsidian research rows enter with source status Held regardless of status-like properties. Existing job status, draft and exact acceptance are preserved by the established import rules. New jobs start Held. Existing import operations advance job versions, so reimported research can invalidate an outstanding draft packet even when no new observation is created.
 

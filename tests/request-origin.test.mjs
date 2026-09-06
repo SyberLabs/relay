@@ -82,9 +82,11 @@ void test('untrusted origin 403s an oversized body without buffering the remaind
   );
   const response = await refuseUntrustedOrigin(request);
   assert.equal(response.status, 403);
+  // 2MB plus at most one crossing chunk and one stream prefetch.
+  const maxPulled = 2_000_000 + 2 * chunk.byteLength;
   assert.ok(
-    pulled < total,
-    `origin refusal buffered ${pulled} bytes of ${total}`,
+    pulled <= maxPulled,
+    `origin refusal buffered ${pulled} bytes; 2MB drain allows at most ${maxPulled}`,
   );
 });
 

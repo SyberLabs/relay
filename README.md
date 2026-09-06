@@ -30,6 +30,8 @@ ChatGPT uses a prompt/file handoff; Codex also supports a local CLI adapter. Thi
 [Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)
 <!-- relay:public:end -->
 
+Tracker CSV imports are also available through explicit column mapping and preview. Source statuses remain research; existing Relay status and accepted drafts are preserved. [Tracker CSV setup](integrations/README.md#tracker-csv--relay).
+
 [Development workflow](CONTRIBUTING.md) | [Delivery and review](docs/delivery.md) | [Team board](https://github.com/orgs/SyberLabs/projects/1)
 
 ## GrokCell bot templates
@@ -74,6 +76,16 @@ Open the local URL printed by the server. Local sign-in is simulated by the Site
 ## Integration boundaries
 
 The connectors are runnable local commands with file import/export in the app. Notion and Claude require your own credentials. A local assisted trial retrieved real Notion records read-only through the connected Notion tool; that does not validate the standalone Notion command connector. Claude live access has not been tested. Grok Bot uses a documented command/file adapter, not an assumed proprietary API. Bot JSON was transcribed by hand into a validated file and loaded in the browser; fully automatic Bot file transfer is not validated. Browser acceptance, reload, and reimport kept the accepted draft, Ready status, two observations (deduplicated), and review history. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Generated claims still require your review. Production deployment has not been validated. This validates a local assisted workflow, not independent user adoption or unattended production.
+
+## Where Relay fits with existing tools
+
+Use your preferred discovery and application tools alongside Relay. [Simplify](https://simplify.jobs/) already offers job matching, autofill, resume tailoring, and tracking. Its [Gmail integration](https://help.simplify.jobs/articles/0236686-email-integration) also includes reviewed AI emails and suggested status changes. Relay's focus is preserving research and exact draft decisions across tool handoffs.
+
+**First compatibility path: tracker CSV → Relay preview.** Simplify documents [CSV import and export](https://help.simplify.jobs/en/articles/2140179-using-the-job-tracker). In Relay, open **Import a tracker CSV**, choose your file, confirm the company, role and employer posting URL columns, and preview before saving. Optional status and notes columns are preserved as research. Every new job starts Held; source statuses never approve a draft or synchronize the application pipeline. Other columns are explicitly listed as omitted.
+
+This is a file importer, not a Simplify account connection or partnership. CSV handling is tested with fictional fixtures and a Chromium journey covering column selection, preview, import, acceptance, repeat import and reload; a real Simplify export has not yet been validated. Files need posting URLs, comma-separated columns and at most 200 opportunity rows. See the [CSV setup guide](integrations/README.md#tracker-csv--relay) and [fictional example](tests/fixtures/tracker-example.csv).
+
+Huntr and Teal export compatibility are further candidates, after the first handoff proves useful. Current working integrations and their verification limits are documented in the [setup guide](integrations/README.md). Market positioning was reviewed against vendor documentation on September 5, 2026; repeat use and willingness to pay remain unvalidated.
 
 ## Checks
 

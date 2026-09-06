@@ -12,13 +12,13 @@ const recentSql =
 const jobSql =
   'SELECT * FROM events WHERE owner=? AND job_id=? ORDER BY created DESC LIMIT 200';
 
-test('workspace route keeps initial event reads bounded and job history owner-scoped', () => {
+await test('workspace route keeps initial event reads bounded and job history owner-scoped', () => {
   assert.equal(routeSrc.includes(recentSql), true);
   assert.equal(routeSrc.includes(jobSql), true);
   assert.match(routeSrc, /searchParams\.get\('job'\)/);
 });
 
-test('selected-job history remains retrievable after 200 newer unrelated events', () => {
+await test('selected-job history remains retrievable after 200 newer unrelated events', () => {
   const db = new DatabaseSync(':memory:');
   try {
     for (const name of readdirSync(join(root, 'drizzle'))

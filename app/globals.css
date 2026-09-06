@@ -703,3 +703,35 @@ footer {
   max-width: 100%;
   margin-top: 0.5rem;
 }
+
+.tracker-fields {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.tracker-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.tracker-fields input:not([type='file']),
+.tracker-fields select {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: inherit;
+  font: inherit;
+}
+.tracker-preview {
+  max-height: 440px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+.tracker-preview p,
+.tracker-preview pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

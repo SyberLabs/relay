@@ -6,6 +6,11 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 
 ## Available in this early release
 
+- Keep a verified fact ledger and a learned style card that direct a writing agent.
+- Seed the ledger from pasted resume text, then verify each candidate line before it can be cited.
+- Let an agent log drafts unattended; a claim not traceable to a verified fact is refused, not queued.
+- Review logged drafts in batches, correcting habits once instead of per letter.
+- Earn autonomy per role cluster: a proven cluster stages its own drafts, and still never accepts or sends one.
 - Consolidate repeated posting URLs and preserve research history.
 - Edit notes and follow-up drafts on submitted jobs and active interviews without resetting their status.
 - Accept an exact draft; changing it returns it to review.
@@ -22,6 +27,22 @@ The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ide
 
 This is a pinned copy of the separately maintained, MIT-licensed [GrokCell project](https://github.com/sdcarlson/grokcell). Propose template improvements upstream, then refresh the copy following [its source record](grokcell/UPSTREAM.md).
 
+## Autonomy and review
+
+Relay separates what an agent may do freely from what only you may do. The split is enforced in the API, not in a prompt.
+
+The **fact ledger** (`/profile`) holds claims you have verified. Paste resume text to propose candidates; extraction writes nothing and marks nothing verified. A fact can carry an expiry for anything that goes stale, such as a current title or a headcount.
+
+The **style card** holds the voice rules learned from your corrections. The agent reads both through `relay_read_profile` and never writes either.
+
+A writing agent logs drafts through `relay_log_draft` at whatever volume it likes. Each sentence that asserts something checkable must cite a verified fact id, and every number must appear in a cited fact. A draft that fails either rule is refused at the API and is never written, so an invented achievement cannot reach a review queue. An agent short of a fact is expected to log with `confidence: "low"` rather than guess.
+
+Logged drafts accumulate until review is worth your time (`/review`). A session opens on the first draft in an unseen role cluster, on style drift within a proven one, on enough low-confidence drafts, or on a full batch — in that order. The session groups repeated habits so one decision covers several drafts, flags near-identical letters, and turns your corrections into style rules. Closing a session with no rules changes nothing about the next batch.
+
+Autonomy is then earned per role cluster. After enough reviewed drafts come back close to unchanged, a cluster graduates and its later drafts are placed into the matching job record unattended. Staging is not acceptance: status is untouched, `accepted_draft` is not set, and accepting an exact draft remains a human action in the workspace. A correction or an expired fact returns the cluster to full review.
+
+Relay still does not send applications. Nothing here submits, emails or messages anyone.
+
 ## Run locally
 
 Node 24 and pnpm are required. From the repository root:
@@ -32,6 +53,7 @@ pnpm build
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_sticky_robbie_robertson.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_careless_leader.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_job_key_observations.sql
+pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_profile_calibration.sql
 pnpm dev
 ```
 
@@ -39,7 +61,7 @@ Open the local URL printed by the server. Local sign-in is simulated by the Site
 
 ## Integration boundaries
 
-The connectors are runnable local commands with file import/export in the app. Notion and Claude require your own credentials. Real Notion records were retrieved read-only through the connected Notion tool; that does not validate the standalone Notion command connector. Claude live access has not been tested. Grok Bot uses a documented command/file adapter, not an assumed proprietary API. A draft was exchanged with the installed Bot, transcribed into a validated file, then loaded in the browser; fully automatic Bot file transfer is not validated. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Generated claims still require your review. Production deployment has not been validated.
+The connectors are runnable local commands with file import/export in the app. Notion and Claude require your own credentials. Real Notion records were retrieved read-only through the connected Notion tool; that does not validate the standalone Notion command connector. Claude live access has not been tested. Grok Bot uses a documented command/file adapter, not an assumed proprietary API. A draft was exchanged with the installed Bot, transcribed into a validated file, then loaded in the browser; fully automatic Bot file transfer is not validated. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Agents may log and, for a graduated cluster, stage drafts; they cannot accept one or change an application status. Citation enforcement checks that a claim traces to a fact you verified, which is not the same as checking that the surrounding wording is true, so generated text still requires your review. Production deployment has not been validated.
 
 ## Checks
 
@@ -48,11 +70,12 @@ pnpm test
 pnpm exec tsc --noEmit
 pnpm lint
 node tests/api.test.mjs
+node tests/calibration.test.mjs
 ```
 
-For an existing local database already on migration 0001, apply only 0002 from the setup commands. It preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
+For an existing local database already on migration 0002, apply only 0003 from the setup commands; it only adds the profile, draft and review tables and leaves existing rows untouched. For one still on migration 0001, apply 0002 and then 0003. It preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
-The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. User acceptance and post-acceptance reimport are pending.
+The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. Profile tests cover claim detection, citation support, resume extraction, review triggers and cluster graduation. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Calibration checks run the whole loop against a local server: extraction writing nothing, an unverified citation and an unsupported claim both refused without a row being written, a correction proposing rules, a closed session advancing the profile version, a cluster graduating into unattended staging that leaves status and acceptance alone, and a retired fact blocking further citation. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. User acceptance and post-acceptance reimport are pending.
 
 ## Hosting and privacy
 

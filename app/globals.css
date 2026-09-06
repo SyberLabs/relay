@@ -704,3 +704,132 @@ footer {
   max-width: 100%;
   margin-top: 0.5rem;
 }
+
+.backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.productpage .import h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  font-size: 20px;
+}
+.checkrow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.checkrow small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.factrow {
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+  font-size: 14px;
+}
+.factrow > b {
+  margin-right: 8px;
+}
+.factrow small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+.factrow .actions {
+  margin-top: 8px;
+  align-items: center;
+}
+.factrow input[type='date'],
+.actions input {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 7px 9px;
+  background: #fff;
+}
+.actions .grow {
+  flex: 1;
+  min-width: 180px;
+}
+.draftrow {
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.drafthead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.drafthead small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.draftrow pre {
+  white-space: pre-wrap;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 12px;
+  font:
+    13px/1.6 Arial,
+    sans-serif;
+  max-height: 260px;
+  overflow: auto;
+}
+.draftrow textarea {
+  width: 100%;
+  min-height: 90px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 8px;
+}
+.proposals {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: 14px;
+}
+.proposals b {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.proposals .actions {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.proposals .actions span {
+  flex: 1;
+}
+.report.warn {
+  border-color: #b0743a;
+  background: #fdf6ec;
+}
+.report.warn b {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.badge.warnbadge {
+  background: #fdf6ec;
+  border-color: #b0743a;
+  color: #8a541f;
+}

@@ -24,6 +24,8 @@ import {
   BriefcaseBusiness,
   Upload,
   ChevronRight,
+  FileText,
+  Sparkles,
 } from 'lucide-react';
 type Job = {
   id: string;
@@ -212,6 +214,15 @@ export default function Workspace() {
             </span>
           </button>
         ))}
+        <div className="navlabel">AUTONOMY</div>
+        <Link className="nav" href="/profile">
+          <FileText size={18} />
+          Profile
+        </Link>
+        <Link className="nav" href="/review">
+          <Sparkles size={18} />
+          Review drafts
+        </Link>
         <div className="sidebottom">
           <div className="dot" /> History stays with the job.
           <p>

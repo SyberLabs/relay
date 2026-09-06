@@ -42,6 +42,14 @@ node integrations/relay.mjs grok-draft relay-packet.json draft.txt private-data/
 
 Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; that path has not been tested in a Grok Bot session.
 
+## Profile, drafts and review
+
+The fact ledger and style card live in the app at `/profile`, and review sessions at `/review`. Neither needs a connector or credentials: extraction runs locally on text you paste, and no resume file leaves your machine.
+
+A browser exposing WebMCP gives an assistant `relay_read_profile`, `relay_log_draft` and `relay_review_status` alongside the existing workspace tools. Logging enforces that claims trace to verified facts; it does not accept drafts or change application status. This path has not been tested in a Grok Bot session.
+
+The `claude-draft` command remains a file handoff and does not use the fact ledger. Facts you type into a packet are still ephemeral and unsaved.
+
 ## Privacy and operation
 
 Use the ignored `private-data/` folder for real packets and responses. Keep credentials in environment variables, never in prompts, committed files, or screenshots. The browser does not store API keys. Commands do not send messages, submit applications, or silently approve drafts. Do not expose the local development server publicly: its sign-in is a development mock.

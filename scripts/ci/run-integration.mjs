@@ -9,10 +9,11 @@ const nodeSuites = {
   api: 'tests/api.test.mjs',
   calibration: 'tests/calibration.test.mjs',
   orchestration: 'tests/orchestration.test.mjs',
+  cli: 'tests/cli-live.test.mjs',
 };
 const suite = process.argv[2];
 if (!(suite in nodeSuites) && suite !== 'browser')
-  throw Error('Choose api, calibration, orchestration, or browser.');
+  throw Error('Choose api, calibration, orchestration, cli, or browser.');
 const root = process.cwd();
 await mkdir(resolve(root, '.wrangler'), { recursive: true });
 const state = await mkdtemp(resolve(root, '.wrangler', `ci-${suite}-`));

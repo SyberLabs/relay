@@ -80,6 +80,47 @@ node integrations/relay.mjs board-pull lever <company> private-data/board.json
 
 The board identifier is the one in the public URL. Load the output with **Load research or draft**, preview, then import. Postings normalise onto the same job identity as everything else, so a role found on several boards stays one record, and every row arrives Held. Compensation is parsed from the posting text when published and left unknown otherwise; unknown is scored neutrally, never as zero.
 
+## The `relay` command line
+
+The connectors above produce files. These commands talk to a running local Relay and are what an agent uses to work through the citation gate. They need `pnpm dev` running.
+
+```sh
+node integrations/relay.mjs login                 # cache a local session
+node integrations/relay.mjs plan                  # this week, with ids and reasons
+node integrations/relay.mjs brief <job_id> --json # facts you may cite + style rules
+node integrations/relay.mjs log <job_id> draft.txt --cite f1,f2
+node integrations/relay.mjs draft <job_id> [--out file] [--force]
+node integrations/relay.mjs status                # cluster trust, review due
+node integrations/relay.mjs outcome <job_id> submitted --receipt "confirmation #A-88"
+```
+
+**Local only.** `RELAY_URL` must point at `localhost` or `127.0.0.1`. Production identity comes from a trusted gateway the CLI cannot present, so there is nothing safe to aim it at yet. The session is cached in the ignored `private-data/.session` at mode 600.
+
+### Exit codes
+
+An unattended agent relies on these. The distinction that matters is 3 against 4.
+
+| Code | Meaning                      | What to do                                |
+| ---- | ---------------------------- | ----------------------------------------- |
+| 0    | Success                      | Continue                                  |
+| 1    | Usage or configuration error | Stop; a human misconfigured it            |
+| 2    | Not signed in                | Run `login`, once                         |
+| 3    | Refused by a domain rule     | **Fix the input. Never retry unchanged.** |
+| 4    | Server or network failure    | Retry with backoff                        |
+| 5    | Nothing to do                | Stop cleanly                              |
+
+A refused draft prints the offending sentence and writes nothing, including `--out`. `relay draft --out` writes that file only after the draft is logged. An existing file is left untouched unless `--force` is passed.
+
+`--json` prints one object on stdout and sends every diagnostic to stderr.
+
+Recording an outcome sends the current job `version`. A stale version is a refusal (exit 3), not a retryable server failure.
+
+### What the command line will not do
+
+It can do anything except exercise taste or authorise an irreversible act. It cannot accept a draft, verify a fact, close a review with rules, or answer a preference pair — those stay in the browser, where a person is looking. It cannot submit an application, because no write plane exists. Terminal outcomes need `--yes`, since they close a job permanently.
+
+`relay draft` writes against the verified fact ledger and logs through the citation gate. The older `claude-draft` packet flow still takes facts you typed by hand and bypasses both.
+
 ## Profile, drafts and review
 
 The fact ledger and style card live in the app at `/profile`, and review sessions at `/review`. Neither needs a connector or credentials: extraction runs locally on text you paste, and no resume file leaves your machine.

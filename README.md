@@ -18,6 +18,7 @@ SyberLabs' job-search product: a private review workspace that remembers the rol
 - Choose between real postings to set preferences, then plan the week to maximise the expected value of the best single offer.
 - Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.
 - Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.
+- Drive the citation-gated draft loop from a local command line. Domain refusals exit 3 and write nothing. The CLI cannot accept drafts, verify facts, or submit applications.
 - Explore fictional example records; no real applicant data is included.
 
 ## Integrations
@@ -26,7 +27,7 @@ SyberLabs' job-search product: a private review workspace that remembers the rol
 - **[Codex](integrations/OPENAI.md)**: The same packet, plus optional local drafting through the signed-in Codex CLI.
 - **[Obsidian](integrations/OBSIDIAN.md)**: Selected research notes, version-bound draft edits, and job-context exports from your vault.
 - **[Notion](integrations/README.md)**: Read-only research import through a local command you run with your own credentials.
-- **[Claude](integrations/README.md)**: Draft preparation from your verified facts through the Claude API, using your own key.
+- **[Claude](integrations/README.md)**: Draft preparation from your verified facts through the Claude API, using your own key. The local relay CLI can log those drafts through the citation gate.
 - **[Grok Bot](integrations/GROK_BOT.md)**: Validated research and draft file exchange inside the Bot's VM.
 - **[Tracker CSV](integrations/README.md)**: Map columns, preview rows, and import a local tracker file as research.
 - **[Greenhouse](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
@@ -190,11 +191,12 @@ pnpm public-copy:check
 node tests/api.test.mjs
 pnpm test:calibration
 pnpm test:orchestration
+pnpm test:cli
 ```
 
 The project, organization, personal profile, and website share one [maintained product description](docs/public-copy.json). [Public-copy process](docs/PUBLIC-COPY.md) explains generation, checks, and automatic refreshes.
 
-`pnpm test` is the unit gate. The API, calibration, and orchestration live suites each get a dedicated freshly migrated database via `pnpm test:api`, `pnpm test:calibration`, and `pnpm test:orchestration`. Do not run calibration and orchestration against the same D1: calibration graduates clusters and retires facts. Connector tests mock vendor responses; they do not prove live account access.
+`pnpm test` is the unit gate. The API, calibration, orchestration, and CLI live suites each get a dedicated freshly migrated database via `pnpm test:api`, `pnpm test:calibration`, `pnpm test:orchestration`, and `pnpm test:cli`. Do not run those live suites against the same D1: calibration graduates clusters and retires facts. Connector tests mock vendor responses; they do not prove live account access.
 
 For an existing local database still on migration 0001, apply 0002, then 0003 and 0004. From 0002, apply 0003 then 0004. From 0003, apply only 0004. Migration 0003 adds the fact ledger, style rules and draft-review tables. Migration 0004 adds preference, choice and outcome tables and defaulted posting columns on `jobs`; existing rows stay. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 

@@ -369,6 +369,28 @@ export function validateRule(v: unknown): { rule: string; scope: string } {
   if (scope.length > 40) throw Error('Use a shorter rule scope.');
   return { rule: r.rule.trim(), scope };
 }
+export const refusalReasons = [
+  'unsupported_claim',
+  'unverified_fact',
+  'unknown_fact',
+] as const;
+// A refusal the system should count. Malformed requests are ordinary errors and
+// are deliberately not RefusalErrors: they say nothing about whether the
+// citation gate is calibrated, and counting them would flatter the rate.
+export class RefusalError extends Error {
+  reason: (typeof refusalReasons)[number];
+  sentence: string;
+  constructor(
+    message: string,
+    reason: (typeof refusalReasons)[number],
+    sentence = '',
+  ) {
+    super(message);
+    this.name = 'RefusalError';
+    this.reason = reason;
+    this.sentence = sentence;
+  }
+}
 // The agent may log a draft, never accept one. A draft carrying an unsupported
 // claim is refused outright: it must not reach a batch where a tired reviewer
 // might wave it through.
@@ -390,17 +412,24 @@ export function validateDraftLog(
   const used: Fact[] = [];
   for (const id of cited as string[]) {
     const fact = known.get(id);
-    if (!fact) throw Error(`Cited fact ${id} does not exist.`);
+    if (!fact)
+      throw new RefusalError(
+        `Cited fact ${id} does not exist.`,
+        'unknown_fact',
+      );
     if (!usableFact(fact, now))
-      throw Error(
+      throw new RefusalError(
         `Fact ${id} is not verified or has expired. Verify it before citing it.`,
+        'unverified_fact',
       );
     used.push(fact);
   }
   const unsupported = unsupportedClaims(d.body, used);
   if (unsupported.length)
-    throw Error(
+    throw new RefusalError(
       `Unsupported claim: "${unsupported[0]}". Cite a verified fact or remove the claim.`,
+      'unsupported_claim',
+      unsupported[0],
     );
   return { body: d.body, cited: cited as string[], confidence };
 }

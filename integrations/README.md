@@ -115,6 +115,30 @@ A refused draft prints the offending sentence and writes nothing, including `--o
 
 Recording an outcome sends the current job `version`. A stale version is a refusal (exit 3), not a retryable server failure.
 
+### Readiness
+
+`relay hunt --readiness` reports whether an unattended run would be allowed, and at what scale. The driver itself is a separate change; this reports and stops.
+
+```sh
+node integrations/relay.mjs hunt --readiness
+```
+
+Four gates decide it: a closed review session, a graduated cluster, twenty receipted submissions, and a citation refusal rate under 10% over at least ten attempts. Readiness does not decide *whether* a run happens, only how many drafts it may write:
+
+```
+allowance = min(attention budget, drafts you have reviewed, --max-drafts)
+```
+
+never below one. An unproven profile is still allowed a single supervised draft, which is how the first review session comes to exist — so running the driver is a way to satisfy the gates rather than a way around them. Full readiness removes the reviewed-drafts cap and leaves the budget in charge.
+
+The governing rule is that Relay never generates more unreviewed work than you have shown you will review. A reviewer facing forty drafts stops reviewing and starts approving.
+
+### Refused drafts are counted, not stored
+
+A refused draft is still never stored. What is now recorded is that a refusal happened, its reason, and the single clause that failed - never the draft body. Without it Relay could not tell an appropriately strict citation gate from one that is unusable on real prose, and the refusal-rate gate above would have nothing to read.
+
+Refusal records are not drafts: they never enter the review queue, are never citable, and never count toward graduation. The server is the only judge of a refusal and the only place one is recorded, so a client cannot shape its own rate.
+
 ### What the command line will not do
 
 It can do anything except exercise taste or authorise an irreversible act. It cannot accept a draft, verify a fact, close a review with rules, or answer a preference pair — those stay in the browser, where a person is looking. It cannot submit an application, because no write plane exists. Terminal outcomes need `--yes`, since they close a job permanently.

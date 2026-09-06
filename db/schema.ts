@@ -156,3 +156,16 @@ export const outcomes = sqliteTable(
   },
   (t) => [index('outcomes_owner_job').on(t.owner, t.job_id)],
 );
+// A refusal record is not a draft. It never enters the review queue, is never
+// citable and never counts toward graduation. It exists so the citation gate's
+// real strictness can be measured instead of guessed at; the refused draft body
+// is still never stored.
+export const refusals = sqliteTable('refusals', {
+  id: text('id').primaryKey(),
+  owner: text('owner').notNull(),
+  job_id: text('job_id').notNull(),
+  reason: text('reason').notNull(),
+  sentence: text('sentence').notNull().default(''),
+  cited: text('cited').notNull().default(''),
+  created: text('created').notNull(),
+});

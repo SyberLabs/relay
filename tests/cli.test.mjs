@@ -238,7 +238,12 @@ void test('a malformed successful body stays a retryable server failure', async 
   );
 });
 
-void test('a refused generated draft does not overwrite an existing --out file', async () => {
+// The refusal now reaches the server on purpose. An earlier client-side
+// pre-check kept it local, which meant those refusals were never counted and
+// the refusal-rate readiness gate was measured from a biased sample. Letting
+// the client report its own refusals instead would let a client shape its own
+// rate, so the server is the sole judge and the sole recorder.
+void test('a refused generated draft reaches the log API and keeps the --out file', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'relay-cli-'));
   const outPath = join(dir, 'reviewed.txt');
   const kept = 'reviewed artifact — do not replace\n';
@@ -317,8 +322,16 @@ void test('a refused generated draft does not overwrite an existing --out file',
     });
     assert.equal(code, EXIT.refused);
     assert.match(stderr.join(''), /refused — nothing was written/);
-    assert.equal(logged, false, 'a refused draft must not reach the log API');
-    assert.equal(readFileSync(outPath, 'utf8'), kept);
+    assert.equal(
+      logged,
+      true,
+      'the server must see the attempt so the refusal can be counted',
+    );
+    assert.equal(
+      readFileSync(outPath, 'utf8'),
+      kept,
+      'a refused draft still never replaces reviewed work on disk',
+    );
   } finally {
     process.stderr.write = writeErr;
     if (previousKey === undefined) delete process.env.ANTHROPIC_API_KEY;

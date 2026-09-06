@@ -108,3 +108,24 @@ export async function loadJobs(db: D1Database, user: string) {
     .all<JobRow>();
   return r.results;
 }
+export async function loadRefusals(db: D1Database, user: string) {
+  const r = await db
+    .prepare('SELECT * FROM refusals WHERE owner=? ORDER BY created')
+    .bind(user)
+    .all<{
+      id: string;
+      job_id: string;
+      reason: string;
+      sentence: string;
+      cited: string;
+      created: string;
+    }>();
+  return r.results;
+}
+export async function loadBatches(db: D1Database, user: string) {
+  const r = await db
+    .prepare('SELECT * FROM review_batches WHERE owner=? ORDER BY opened')
+    .bind(user)
+    .all<{ id: string; closed: string | null }>();
+  return r.results;
+}

@@ -244,7 +244,7 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
   expect(errors).toEqual([]);
 });
 
-test('a dirty editor asks before opening profile or review screens', async ({
+test('a dirty editor asks before opening the saved facts screen', async ({
   page,
 }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
@@ -261,13 +261,13 @@ test('a dirty editor asks before opening profile or review screens', async ({
     .getByRole('textbox', { name: 'Application answer or outreach draft' })
     .fill(draft);
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('link', { name: 'Profile' }).click();
+  await page.getByRole('link', { name: 'Your facts' }).click();
   await expect(page).not.toHaveURL(/\/profile/);
   await expect(
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('link', { name: 'Profile' }).click();
+  await page.getByRole('link', { name: 'Your facts' }).click();
   await expect(
     page.getByRole('heading', { name: 'Your profile' }),
   ).toBeVisible();

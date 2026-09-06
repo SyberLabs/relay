@@ -711,6 +711,9 @@ footer {
   font-size: 13px;
   color: var(--muted);
 }
+.backlink + .backlink {
+  margin-left: 1rem;
+}
 .productpage .import h2 {
   display: flex;
   align-items: center;

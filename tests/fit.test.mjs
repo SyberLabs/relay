@@ -322,11 +322,13 @@ void test('markdown requirements headings still extract bullets', () => {
   );
 });
 
-void test('the selected job shows posting gates without calling them a score', () => {
+void test('the selected job labels heuristic evidence without judging qualifications', () => {
   const src = readFileSync(new URL('../app/workspace.tsx', import.meta.url), 'utf8');
   const fit = readFileSync(new URL('../lib/fit.ts', import.meta.url), 'utf8');
-  assert.match(src, /Posting vs verified facts/);
-  assert.match(src, /Not an\s+employer score/);
+  assert.match(src, /Evidence matches/);
+  assert.match(src, /Heuristic word and number matches/);
+  assert.match(src, /These do not assess your qualifications/);
+  assert.match(src, /No matching evidence found/);
   assert.match(src, /assessJob/);
   assert.match(
     src,

@@ -197,7 +197,7 @@ export default function Review() {
   if (signedOut)
     return (
       <main className="productpage">
-        <h1>Review</h1>
+        <h1>Batch review</h1>
         <p className="lead">Sign in to open your review sessions.</p>
         {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
         <a
@@ -214,10 +214,18 @@ export default function Review() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
-      <h1>Review</h1>
+      <Link className="backlink" href="/advanced">
+        Advanced
+      </Link>
+      <h1>Batch review</h1>
       <p className="lead">
-        Edit logged drafts and save style rules so the next batch is written
-        without the same habit.
+        Experimental agent batches. Review logged drafts and save style rules
+        for later drafts.
+      </p>
+      <p>
+        Logging checks selected claim patterns for word and number overlap with
+        cited facts. It can miss unsupported claims. Review every claim and
+        correction; batch review does not accept the job’s exact draft.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -253,7 +261,7 @@ export default function Review() {
             <p>
               {trigger
                 ? `${pending.length} drafts are waiting. Opening a session groups them so one decision can fix a repeated habit.`
-                : 'Drafts accumulate until an unseen role type, style drift, low agent confidence, or a full batch makes review worthwhile.'}
+                : 'A session opens for a new role type, style drift, low agent confidence, or a full batch. Workspace drafts still need your review.'}
             </p>
           </div>
           <button
@@ -356,11 +364,11 @@ export default function Review() {
                     onClick={() =>
                       run(
                         { action: 'accept', id: d.id },
-                        'Accepted as written.',
+                        'Marked reviewed as written. Accept the exact job draft in the workspace.',
                       )
                     }
                   >
-                    <Check size={15} /> Fine as written
+                    <Check size={15} /> Mark reviewed as written
                   </button>
                 </div>
                 {proposals[d.id]?.length > 0 && (
@@ -430,9 +438,10 @@ export default function Review() {
       <section className="import">
         <h2>Role types</h2>
         <p>
-          A graduated role type places its drafts in the workspace without a
-          review session. It still never accepts or sends a draft. A correction
-          or an expired fact returns it to full review.
+          Graduation uses recent edit sizes to enable automatic staging in the
+          workspace. It does not establish factual accuracy or accept text.
+          Changes in review history or expired facts can return a role type to
+          batch review.
         </p>
         {Object.values(trust).length === 0 && (
           <p className="empty">No drafts logged yet.</p>

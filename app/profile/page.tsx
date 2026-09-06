@@ -150,7 +150,7 @@ export default function Profile() {
       setCandidates(next);
       setChosen(new Set(next.map((_, i) => i)));
       setMessage(
-        `${next.length} candidate facts found. Nothing is saved until you add them, and nothing is usable until you verify it.`,
+        `${next.length} candidate facts found. Add the lines you want to keep, then confirm each one.`,
       );
     } catch (e) {
       if (!pageWorkIsLive(sessionRef.current, started)) return;
@@ -183,14 +183,14 @@ export default function Profile() {
       </Link>
       <h1>Your profile</h1>
       <p className="lead">
-        A draft may only claim a verified fact from this ledger. Style rules
-        come from corrections you save during review.
+        Save candidate facts for reuse and confirm their accuracy yourself.
+        Relay records your confirmation; it does not independently verify facts.
       </p>
       <section className="stats">
         <div>
-          <span>Verified and usable</span>
+          <span>Confirmed and unexpired</span>
           <strong>{usable.toString().padStart(2, '0')}</strong>
-          <small>Citable by the writing agent</small>
+          <small>Available for agent citations</small>
         </div>
         <div>
           <span>Awaiting your check</span>
@@ -205,7 +205,7 @@ export default function Profile() {
         <div>
           <span>Profile version</span>
           <strong>{version.toString().padStart(2, '0')}</strong>
-          <small>Stamped on every draft</small>
+          <small>Recorded on agent draft logs</small>
         </div>
       </section>
       {message && (
@@ -218,8 +218,8 @@ export default function Profile() {
           <FileText size={18} /> Seed the ledger from a resume
         </h2>
         <p>
-          Extraction runs locally and proposes candidate lines only. It never
-          marks anything verified.
+          Extraction proposes candidate lines only. Check each line before
+          saving it to your ledger.
         </p>
         <textarea
           aria-label="Resume text"
@@ -245,7 +245,7 @@ export default function Profile() {
                     action: 'propose',
                     facts: candidates.filter((_, i) => chosen.has(i)),
                   },
-                  `${chosen.size} facts added. Verify each one before the agent can cite it.`,
+                  `${chosen.size} facts added. Confirm each one before the agent can cite it.`,
                 );
                 if (sessionRef.current.expired) return;
                 setCandidates([]);
@@ -280,12 +280,12 @@ export default function Profile() {
       {proposed.length > 0 && (
         <section className="import">
           <h2>
-            <CircleAlert size={18} /> Verify before use ({proposed.length})
+            <CircleAlert size={18} /> Confirm before use ({proposed.length})
           </h2>
           <p>
-            A proposed fact cannot be cited. Confirm the wording is true, then
-            verify it. Add an expiry for anything that goes stale, such as a
-            current title or a headcount.
+            Check the wording and evidence before confirming. Agent draft logs
+            require confirmed, unexpired citations. Add an expiry for a current
+            title or a headcount.
           </p>
           {proposed.map((f) => (
             <article className="factrow" key={f.id}>
@@ -311,11 +311,11 @@ export default function Profile() {
                         id: f.id,
                         expires: expiry[f.id] || null,
                       },
-                      'Verified. The agent may now cite this fact.',
+                      'Confirmed by you. The agent may now cite this fact.',
                     )
                   }
                 >
-                  <BadgeCheck size={15} /> Verify
+                  <BadgeCheck size={15} /> Confirm fact
                 </button>
                 <button
                   className="textbutton"
@@ -333,12 +333,12 @@ export default function Profile() {
       )}
       <section className="import">
         <h2>
-          <BadgeCheck size={18} /> Verified ledger ({verified.length})
+          <BadgeCheck size={18} /> Confirmed by you ({verified.length})
         </h2>
         {verified.length === 0 && (
           <p className="empty">
-            Nothing verified yet. Until a fact is verified here, any draft
-            claiming it is refused.
+            No confirmed facts yet. Add candidate facts above, then check their
+            wording and evidence.
           </p>
         )}
         {verified.map((f) => (
@@ -358,7 +358,7 @@ export default function Profile() {
                 onClick={() =>
                   run(
                     { action: 'retire', id: f.id },
-                    'Fact retired. Drafts can no longer cite it.',
+                    'Fact retired. New agent draft logs cannot cite it.',
                   )
                 }
               >

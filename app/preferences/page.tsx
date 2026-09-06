@@ -152,10 +152,14 @@ export default function Preferences() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
+      <Link className="backlink" href="/advanced">
+        Advanced
+      </Link>
       <h1>Preferences</h1>
       <p className="lead">
-        Pick the job you would rather have. Those choices set the weights used
-        to rank roles on This week.
+        Pick the job you would rather have. These choices fit experimental
+        preference weights for This week; they do not assess your
+        qualifications.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -170,7 +174,9 @@ export default function Preferences() {
             <small className="of">/{target}</small>
           </strong>
           <small>
-            {ready ? 'Enough to rank your pool' : 'A few more sharpens it'}
+            {ready
+              ? 'Comparison target reached'
+              : 'Toward the comparison target'}
           </small>
         </div>
         <div>

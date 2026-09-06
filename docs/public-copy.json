@@ -1,24 +1,24 @@
 {
   "name": "RELAY",
   "tagline": "Your job search should remember what you've done.",
-  "summary": "SyberLabs' job-search product: a private review workspace that remembers the roles you researched, the drafts you accepted, and the interviews you started. Assistants help you write; Relay keeps the record.",
+  "summary": "SyberLabs' invited-pilot workspace for one job at a time: keep candidate facts for reuse, hand context to your assistant, review returned wording, and accept exact text. Relay preserves research and review history for later use.",
   "repository": "https://github.com/SyberLabs/relay",
   "leadEngineer": "Seth Carlson",
   "leadProfile": "https://github.com/sdcarlson",
   "peerEngineer": "Mateo",
   "peerProfile": "https://github.com/sykosyber",
-  "stage": "Early release",
+  "stage": "Invited pilot",
   "capabilities": [
     "One history per job: matching posting URLs join the same record, and earlier research stays visible.",
     "Exact draft acceptance: you approve specific wording; changing it requires review again.",
     "Interview notes and follow-ups that do not reset a submitted or live-loop application.",
     "Import a tracker CSV through column mapping and a record preview. Imported statuses stay research; existing Relay status and accepted drafts are preserved.",
-    "A verified fact ledger and learned style rules that gate agent drafts at the API. Unsupported claims are refused, not queued.",
-    "Batch review of logged drafts. Staging a draft does not accept it or send an application.",
-    "Choose between real postings to set preferences, then plan the week to maximise the expected value of the best single offer.",
+    "A reusable candidate fact ledger: you confirm accuracy. Agent draft logs check selected claim patterns using word and number overlap with cited facts; unsupported claims can still pass.",
+    "Browser draft loading checks format, job identity and version. It does not check citations or factual accuracy; workspace saves do not run the agent citation check.",
+    "Advanced tools preserve experimental agent batch review, preference fitting and weekly planning. Planning uses estimated reply rates, not offer probabilities. Staging never accepts or sends a draft.",
     "Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.",
     "Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.",
-    "Drive the citation-gated draft loop from a local command line. Domain refusals exit 3 and write nothing. The CLI cannot accept drafts, verify facts, or submit applications."
+    "Drive agent draft logging from a local command line with heuristic citation checks. Domain refusals exit 3 without saving a draft. The CLI cannot accept drafts, confirm facts, or submit applications."
   ],
   "integrations": [
     {
@@ -43,7 +43,7 @@
     },
     {
       "name": "Claude",
-      "description": "Draft preparation from your verified facts through the Claude API, using your own key. The local relay CLI can log those drafts through the citation gate.",
+      "description": "Draft preparation from facts you supply through the Claude API, using your own key. The local relay CLI can log drafts against saved, user-confirmed facts with heuristic citation checks.",
       "guide": "integrations/README.md"
     },
     {
@@ -67,6 +67,6 @@
       "guide": "integrations/README.md"
     }
   ],
-  "boundary": "You stay in control. Integrations are explicit file and command handoffs. Every returned draft needs human review. Agents cannot accept a draft or submit an application. Public board pulls are read-only. Relay does not send applications or sync accounts in the background.",
+  "boundary": "Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations are explicit file and command handoffs; Relay does not send applications or sync accounts in the background.",
   "openaiBoundary": "ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection."
 }

@@ -15,9 +15,9 @@ export type FitReason = 'notes' | 'facts' | 'compared';
 const limit = 20;
 const cue = /\b(must|required|minimum|need to|at least)\b/i;
 const requiredHead =
-  /^(requirements?|qualifications?|must haves|basic qualifications|minimum qualifications|what you.?ll need)$/i;
+  /^(requirements?|qualifications?|must haves?|required skills?|basic qualifications|minimum qualifications|what you.?ll need)$/i;
 const otherHead =
-  /^(benefits?|about the (?:role|team|company|us)|about us|responsibilities|what you.?ll do|nice to have|preferred|perks)$/i;
+  /^(benefits?|about the (?:role|team|company|us)|about us|responsibilities|what you.?ll do|nice to haves?|preferred(?: qualifications| skills)?|perks)$/i;
 const filler = new Set([
   'must',
   'required',
@@ -57,12 +57,17 @@ export function extractRequirements(text: string): string[] {
   const seen = new Set<string>();
   let inSection = false;
   for (const raw of postingLines(text)) {
-    const line = raw.replace(/^[\s*–—>-]+/, '').trim();
+    let line = raw.replace(/^[\s*–—>-]+/, '').trim();
     if (!line) continue;
-    const kind = heading(line);
+    const inline = line.match(/^([^:]{1,59}):\s+(\S.*)$/);
+    let kind = heading(line);
+    if (!kind && inline) {
+      kind = heading(inline[1]);
+      if (kind) line = inline[2].trim();
+    }
     if (kind) {
       inSection = kind === 'required';
-      continue;
+      if (!inline || kind !== 'required') continue;
     }
     if (!(inSection || cue.test(line))) continue;
     if (line.length < 8 || line.length > 400) continue;

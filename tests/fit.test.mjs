@@ -56,6 +56,53 @@ void test('preferred headings are not required sections', () => {
   assert.deepEqual(lines, []);
 });
 
+void test('Must have and Required skills colons open a required section', () => {
+  assert.deepEqual(
+    extractRequirements(
+      ['Must have:', '• Kubernetes production experience'].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+  assert.deepEqual(
+    extractRequirements(
+      ['Required skills:', '• Kubernetes production experience'].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+});
+
+void test('a same-line Requirements heading still extracts the skill', () => {
+  assert.deepEqual(
+    extractRequirements('Requirements: Kubernetes production experience'),
+    ['Kubernetes production experience'],
+  );
+});
+
+void test('Preferred qualifications closes a required section', () => {
+  assert.deepEqual(
+    extractRequirements(
+      [
+        'Requirements',
+        '• Kubernetes production experience',
+        'Preferred qualifications',
+        '• GraphQL federated gateway experience',
+      ].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+});
+
+void test('a preferred skill bullet is not treated as a heading', () => {
+  assert.deepEqual(
+    extractRequirements(
+      ['Requirements', '• Preferred Kubernetes experience in production'].join(
+        '\n',
+      ),
+    ),
+    ['Preferred Kubernetes experience in production'],
+  );
+});
+
 void test('a Kubernetes fact hits a must-have Kubernetes line', () => {
   const { gates, reason } = assessPosting(
     'Must have Kubernetes.',

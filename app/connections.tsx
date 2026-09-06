@@ -328,7 +328,7 @@ export function Connections({
         For ChatGPT or Codex, enter verified facts, download the prepared
         prompt, and share it with that assistant. Save its JSON response as a
         .json file and load it here. Codex can also prepare a draft through the
-        local command tool.         Returned wording needs review; loading never accepts
+        local command tool. Returned wording needs review; loading never accepts
         or sends it.
       </p>
       <label className="field">

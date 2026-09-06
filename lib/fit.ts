@@ -89,9 +89,12 @@ export function extractRequirements(text: string): string[] {
   const seen = new Set<string>();
   let inSection = false;
   for (const raw of postingLines(text)) {
-    let line = raw.replace(/^[\s#*–—>-]+/, '').trim();
+    let line = raw
+      .replace(/^[\s#*–—>-]+/, '')
+      .trim()
+      .replace(/[`*_]+$/, '');
     if (!line) continue;
-    const inline = line.match(/^([^:]{1,59}):\s+(\S.*)$/);
+    const inline = line.match(/^([^:]{1,59}):[*_`]*\s+(\S.*)$/);
     let kind = heading(line);
     if (!kind && inline) {
       kind = heading(inline[1]);

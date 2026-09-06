@@ -320,6 +320,21 @@ void test('markdown requirements headings still extract bullets', () => {
     ),
     ['Kubernetes production experience'],
   );
+  assert.deepEqual(
+    extractRequirements(
+      [
+        'Requirements',
+        '• Kubernetes production experience',
+        '**Location:**',
+        'Remote US only',
+      ].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+  assert.deepEqual(
+    extractRequirements('**Requirements:** Kubernetes production experience'),
+    ['Kubernetes production experience'],
+  );
 });
 
 void test('the selected job shows posting gates without calling them a score', () => {

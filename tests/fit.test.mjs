@@ -244,7 +244,13 @@ void test('a later observation does not inherit an open requirements section', (
 });
 
 void test('short cue titles open a section instead of becoming gates', () => {
-  for (const title of ['Required:', 'Minimum requirements:', 'Required']) {
+  for (const title of [
+    'Required:',
+    'Minimum requirements:',
+    'Required',
+    'Required experience:',
+    'Experience required:',
+  ]) {
     assert.deepEqual(
       extractRequirements(
         [title, '• Kubernetes production experience'].join('\n'),

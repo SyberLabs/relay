@@ -42,6 +42,9 @@ const headingNouns = new Set([
   'need',
   'needed',
   'basic',
+  'experience',
+  'candidate',
+  'candidates',
 ]);
 function heading(line: string): 'required' | 'other' | null {
   const title = line.replace(/[:\s]+$/, '');

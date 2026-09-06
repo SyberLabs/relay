@@ -122,14 +122,21 @@ export function describeUnexpectedResponse({
   return `${lines.join('\n')}\n`;
 }
 
-function hasStopped(server) {
-  return !server || server.exitCode !== null || server.signalCode !== null;
+function stdioOpen(server) {
+  return [server?.stdout, server?.stderr].some(
+    (stream) => stream && !stream.destroyed && !stream.readableEnded,
+  );
 }
 
 function waitForClose(server, timeoutMs) {
-  if (hasStopped(server)) return Promise.resolve();
+  if (!server) return Promise.resolve();
+  if (
+    !stdioOpen(server) &&
+    (server.exitCode !== null || server.signalCode !== null)
+  ) {
+    return Promise.resolve();
+  }
   return new Promise((accept) => {
-    const timer = setTimeout(accept, timeoutMs);
     let settled = false;
     const done = () => {
       if (settled) return;
@@ -137,13 +144,19 @@ function waitForClose(server, timeoutMs) {
       clearTimeout(timer);
       accept();
     };
+    const timer = setTimeout(done, timeoutMs);
     server.once('close', done);
-    if (hasStopped(server)) done();
+    if (
+      !stdioOpen(server) &&
+      (server.exitCode !== null || server.signalCode !== null)
+    ) {
+      done();
+    }
   });
 }
 
 async function signalGroup(server, posixSignal) {
-  if (!server?.pid || hasStopped(server)) return;
+  if (!server?.pid) return;
   if (process.platform === 'win32') {
     await new Promise((accept) => {
       const stop = spawn('taskkill', ['/pid', String(server.pid), '/T', '/F'], {
@@ -173,7 +186,7 @@ export async function finishProductionServer(
   const closed = waitForClose(server, timeoutMs);
   await signalGroup(server, 'SIGTERM');
   await closed;
-  if (server?.pid && !hasStopped(server)) {
+  if (server?.pid && stdioOpen(server)) {
     const last = waitForClose(server, timeoutMs);
     await signalGroup(server, 'SIGKILL');
     await last;

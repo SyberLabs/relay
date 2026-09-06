@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
+import { once } from 'node:events';
+import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -252,3 +253,71 @@ test('teardown still finishes when the leader ignores SIGTERM', async () => {
     }
   }
 });
+
+function posixTerminated(pid) {
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    if (error.code === 'ESRCH') return true;
+    throw error;
+  }
+  try {
+    const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z');
+  } catch {
+    return true;
+  }
+}
+
+test(
+  'exited group leader does not skip TERM/KILL of a TERM-ignoring descendant',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'relay-prod-group-'));
+    const logPath = resolve(directory, 'production-server.log');
+    const log = createWriteStream(logPath);
+    const descendant =
+      "process.on('SIGTERM',()=>{process.stdout.write('GRANDCHILD_TERM_STDOUT\\n');process.stderr.write('GRANDCHILD_TERM_STDERR\\n');});setInterval(()=>{},1000);process.send('ready');";
+    const leader =
+      "const {spawn}=require('node:child_process'); const c=spawn(process.execPath,['-e'," +
+      JSON.stringify(descendant) +
+      "],{stdio:['ignore','inherit','inherit','ipc']});c.once('message',()=>process.stdout.write('grandchild='+c.pid+'\\n',()=>process.exit(0)));";
+    const child = spawn(process.execPath, ['-e', leader], {
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    let output = '';
+    let closed = false;
+    const closePromise = once(child, 'close').then(() => {
+      closed = true;
+    });
+    child.stdout.on('data', (chunk) => {
+      output += chunk;
+    });
+    child.stdout.pipe(log, { end: false });
+    child.stderr.pipe(log, { end: false });
+    let grandchild;
+    try {
+      await once(child, 'exit');
+      grandchild = Number(output.match(/grandchild=(\d+)/)?.[1]);
+      assert.ok(grandchild, `nested child pid missing: ${output}`);
+      assert.equal(child.exitCode, 0);
+      assert.equal(closed, false);
+      await finishProductionServer(child, log, { timeoutMs: 100 });
+      assert.equal(closed, true);
+      const text = await readFile(logPath, 'utf8');
+      assert.match(text, /GRANDCHILD_TERM_STDOUT/);
+      assert.match(text, /GRANDCHILD_TERM_STDERR/);
+      assert.equal(posixTerminated(grandchild), true);
+    } finally {
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        /* Best-effort group cleanup after the assertion. */
+      }
+      await closePromise;
+      if (!log.writableEnded) log.end();
+    }
+  },
+);

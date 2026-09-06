@@ -37,6 +37,8 @@ Obsidian research notes own their editable source text. Relay owns the imported 
 
 All Obsidian research rows enter with source status Held regardless of status-like properties. Existing job status, draft and exact acceptance are preserved by the established import rules. New jobs start Held. Import advances the job version only when the upsert would change that row (merged status, blocker, accepted text, or posting fields). Exact-repeat research and new observations alone do not invalidate an outstanding draft packet. Rediscovery does not replace a stored effort estimate.
 
+The selected job derives hit/miss/unknown coverage of required lines in source notes against verified, unexpired facts. That comparison is not stored, does not change status or acceptance, and is not an employer score.
+
 Draft imports stage proposed text, without persisting or accepting it. `lib/editor.ts` binds an editor to its loaded job version and session and rejects late file results after selection, session, version or draft changes. Server writes use version checks; stale writes return a conflict. Changing accepted wording requires another explicit review. Submitted and Live loop records allow follow-up edits without resetting their status. Nothing in this flow submits applications or sends messages.
 
 ## Obsidian module boundaries

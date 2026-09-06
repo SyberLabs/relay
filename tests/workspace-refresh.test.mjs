@@ -10,6 +10,7 @@ import {
   createWorkspaceSession,
   editorForJobs,
   mutationIsLive,
+  expiredPrivateWorkspace,
   processMutation,
   processRefresh,
 } from '../lib/workspace-refresh.ts';
@@ -79,6 +80,36 @@ function deferred() {
   });
   return { promise, resolve };
 }
+
+void test('expiry clears facts with the rest of the private workspace', () => {
+  assert.deepEqual(expiredPrivateWorkspace().facts, []);
+});
+
+void test('refresh records include usable facts and default them to empty', async () => {
+  const session = createWorkspaceSession();
+  const withFacts = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(
+      200,
+      records({
+        facts: [{ id: 'f1', claim: 'Built a Kubernetes platform at Northstar' }],
+      }),
+    ),
+  );
+  assert.equal(withFacts.type, 'records');
+  assert.deepEqual(withFacts.facts, [
+    { id: 'f1', claim: 'Built a Kubernetes platform at Northstar' },
+  ]);
+  const session2 = createWorkspaceSession();
+  const without = await processRefresh(
+    session2,
+    beginRefresh(session2.gate),
+    http(200, records()),
+  );
+  assert.equal(without.type, 'records');
+  assert.deepEqual(without.facts, []);
+});
 
 void test('plain Unauthorized 401 expires without parsing JSON', async () => {
   const session = createWorkspaceSession();
@@ -340,6 +371,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     'jobs',
     'sources',
     'events',
+    'facts',
     'editor',
     'importText',
     'previewedImport',
@@ -415,6 +447,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
     'jobs',
     'sources',
     'events',
+    'facts',
     'editor',
     'importText',
     'previewedImport',
@@ -506,6 +539,7 @@ void test('history JSON that expires during parse cannot restore events', async 
     'jobs',
     'sources',
     'events',
+    'facts',
     'editor',
     'importText',
     'previewedImport',

@@ -27,11 +27,32 @@ const filler = new Set([
   'ability',
   'strong',
 ]);
+const headingNouns = new Set([
+  'must',
+  'have',
+  'haves',
+  'required',
+  'requirement',
+  'requirements',
+  'minimum',
+  'qualification',
+  'qualifications',
+  'skill',
+  'skills',
+  'need',
+  'needed',
+  'basic',
+]);
 function heading(line: string): 'required' | 'other' | null {
   const title = line.replace(/[:\s]+$/, '');
   if (title.length >= 60) return null;
   if (requiredHead.test(title)) return 'required';
   if (otherHead.test(title)) return 'other';
+  if (title.length < 40 && cue.test(title)) {
+    const leftover = contentWords(title);
+    for (const w of headingNouns) leftover.delete(w);
+    if (!leftover.size) return 'required';
+  }
   if (title.length < 40 && line.endsWith(':') && !cue.test(line)) return 'other';
   return null;
 }
@@ -57,7 +78,7 @@ export function extractRequirements(text: string): string[] {
   const seen = new Set<string>();
   let inSection = false;
   for (const raw of postingLines(text)) {
-    let line = raw.replace(/^[\s*–—>-]+/, '').trim();
+    let line = raw.replace(/^[\s#*–—>-]+/, '').trim();
     if (!line) continue;
     const inline = line.match(/^([^:]{1,59}):\s+(\S.*)$/);
     let kind = heading(line);

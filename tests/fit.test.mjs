@@ -243,6 +243,33 @@ void test('a later observation does not inherit an open requirements section', (
   );
 });
 
+void test('short cue titles open a section instead of becoming gates', () => {
+  for (const title of ['Required:', 'Minimum requirements:', 'Required']) {
+    assert.deepEqual(
+      extractRequirements(
+        [title, '• Kubernetes production experience'].join('\n'),
+      ),
+      ['Kubernetes production experience'],
+      title,
+    );
+  }
+});
+
+void test('markdown requirements headings still extract bullets', () => {
+  assert.deepEqual(
+    extractRequirements(
+      ['## Requirements', '• Kubernetes production experience'].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+  assert.deepEqual(
+    extractRequirements(
+      ['## Must have', '• Kubernetes production experience'].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+});
+
 void test('the selected job shows posting gates without calling them a score', () => {
   const src = readFileSync(new URL('../app/workspace.tsx', import.meta.url), 'utf8');
   assert.match(src, /Posting vs verified facts/);

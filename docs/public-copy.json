@@ -1,0 +1,24 @@
+{
+  "name": "RELAY",
+  "tagline": "Your job search should remember what you've done.",
+  "summary": "A job-search review workspace that keeps research, application history, and exact accepted drafts together across your tools.",
+  "repository": "https://github.com/SyberLabs/relay",
+  "leadEngineer": "Seth Carlson",
+  "leadProfile": "https://github.com/sdcarlson",
+  "stage": "Early release",
+  "capabilities": [
+    "Consolidate repeated posting URLs while preserving source history.",
+    "Keep interview notes and follow-ups without resetting application status.",
+    "Accept an exact draft; changing the wording requires review again."
+  ],
+  "integrations": [
+    { "name": "ChatGPT", "description": "Prepared prompts and JSON file handoffs for draft review.", "guide": "integrations/OPENAI.md" },
+    { "name": "Codex", "description": "Prepared prompts, validated draft files, or local drafting through the signed-in Codex CLI.", "guide": "integrations/OPENAI.md" },
+    { "name": "Obsidian", "description": "Selected research notes, version-bound draft notes, and job context exports.", "guide": "integrations/OBSIDIAN.md" },
+    { "name": "Notion", "description": "Read-only research import through the local command connector.", "guide": "integrations/README.md" },
+    { "name": "Claude", "description": "Draft preparation through the Claude API with your own credentials.", "guide": "integrations/README.md" },
+    { "name": "Grok Bot", "description": "Validated research and draft file exchange in the Bot's VM.", "guide": "integrations/GROK_BOT.md" }
+  ],
+  "boundary": "Integrations require explicit setup or file handoffs. Returned drafts require human review. No automatic application sending or background account sync is included.",
+  "openaiBoundary": "ChatGPT uses a prompt/file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection."
+}

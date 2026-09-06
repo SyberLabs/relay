@@ -299,4 +299,6 @@ void test('reverting after a Ready conflict does not label stale text accepted',
     accepted_draft: 'Exact v2',
   };
   assert.equal(showsExactAcceptance(current, editor), false);
+  assert.notEqual(jobQueueHint(current, editor), 'Exact draft accepted');
+  assert.equal(jobQueueHint(current, editor), 'Review fit & prepare draft');
 });

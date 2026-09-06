@@ -58,7 +58,7 @@ export function draftFromResult(
     schema?: string;
     draft?: unknown;
     provider?: string;
-    job?: { id?: string; key?: string; url?: string; version?: number };
+    job?: { id?: string; key?: string; url?: string | null; version?: number };
   } | null,
   started: (EditorTarget & { job_key: string }) | undefined,
 ) {

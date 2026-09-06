@@ -6,9 +6,7 @@ import { spawn } from 'node:child_process';
 const files = (await readdir('tests'))
   .filter(
     (name) =>
-      name.endsWith('.test.mjs') &&
-      name !== 'api.test.mjs' &&
-      name !== 'calibration.test.mjs',
+      name.endsWith('.test.mjs') && name !== 'api.test.mjs',
   )
   .sort()
   .map((name) => `tests/${name}`);

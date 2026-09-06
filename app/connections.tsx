@@ -165,10 +165,14 @@ export function Connections({
           className="secondary"
           disabled={!current?.url}
           onClick={() => {
-            if (!current) return;
+            if (!current?.url) return;
             const id = crypto.randomUUID();
             downloadFile(
-              obsidianResearchNote(current, workflow, id),
+              obsidianResearchNote(
+                { ...current, url: current.url },
+                workflow,
+                id,
+              ),
               `relay-${workflow}-${id}.md`,
               'text/markdown',
             );
@@ -212,10 +216,13 @@ export function Connections({
           className="secondary"
           disabled={!current?.url}
           onClick={() => {
-            if (!current) return;
+            if (!current?.url) return;
             try {
               downloadFile(
-                obsidianDraftNote({ ...current, key: current.job_key }, draft),
+                obsidianDraftNote(
+                  { ...current, key: current.job_key, url: current.url },
+                  draft,
+                ),
                 `relay-draft-${current.id}.md`,
                 'text/markdown',
               );

@@ -56,16 +56,6 @@ The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ide
 
 This is a pinned copy of the separately maintained, MIT-licensed [GrokCell project](https://github.com/sdcarlson/grokcell). Propose template improvements upstream, then refresh the copy following [its source record](grokcell/UPSTREAM.md).
 
-## Autonomy and review
-
-Relay separates what an agent may do freely from what only you may do. The split is enforced in the API, not in a prompt.
-
-The **fact ledger** (`/profile`) holds claims you have verified. Paste resume text to propose candidates; extraction writes nothing and marks nothing verified. A fact can carry an expiry for anything that goes stale, such as a current title or a headcount.
-
-The **style card** holds the voice rules learned from your corrections. The agent reads both through `relay_read_profile` and never writes either.
-
-A writing agent logs drafts through `relay_log_draft` at whatever volume it likes. Each sentence that asserts something checkable must cite a verified fact id, and every number must appear in a cited fact. A draft that fails either rule is refused at the API and is never written. Logged drafts accumulate until review is worth your time (`/review`). Staging a graduated cluster's draft is not acceptance: status is untouched and accepting an exact draft remains a human action in the workspace. Relay still does not send applications.
-
 ## Obsidian workflow
 
 Select a job, open **Connect your tools**, choose the note purpose and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay, review its contents and preview matches before importing. New jobs can start from the downloadable example. Several research notes can be imported together.
@@ -99,7 +89,6 @@ pnpm build
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_sticky_robbie_robertson.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_careless_leader.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_job_key_observations.sql
-pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_profile_calibration.sql
 pnpm dev
 ```
 
@@ -149,7 +138,7 @@ pnpm lint
 node tests/api.test.mjs
 ```
 
-For an existing local database already on migration 0002, apply only 0003 from the setup commands; it only adds the profile, draft and review tables and leaves existing rows untouched. For one still on migration 0001, apply 0002 and then 0003. Migration 0002 preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
+For an existing local database still on migration 0001, apply 0002 from the setup commands. Migration 0002 preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
 The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. Browser acceptance, reload, and post-acceptance reimport preserved the exact accepted draft, Ready status, two observations, and history. The assisted trial ran on `3b1efd7`; a read-only reopen after fast-forward still showed the accepted record on `59ec7ac`.
 

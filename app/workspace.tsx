@@ -27,6 +27,7 @@ import {
   mutationIsLive,
   processMutation,
   processRefresh,
+  refreshIsLive,
 } from '../lib/workspace-refresh';
 import {
   mergeReviewEvents,
@@ -42,8 +43,7 @@ import {
   History,
   BriefcaseBusiness,
   Upload,
-  FileText,
-  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 type Job = {
   id: string;
@@ -128,10 +128,10 @@ export default function Workspace() {
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
     );
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+  const selectedRef = useRef('');
   const loadJobHistory = useCallback(
     async (jobId: string, before?: string | null) => {
+      const started = { epoch: sessionRef.current.gate.epoch };
       const r = await fetch('/api/workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,10 +148,12 @@ export default function Workspace() {
         return;
       }
       if (!r.ok) return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       const data = (await r.json()) as {
         events?: ReviewEvent[];
         next?: string | null;
       };
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       setEvents((prev) => mergeReviewEvents(prev, data.events || []));
       setHistoryNext((prev) => ({ ...prev, [jobId]: data.next || null }));
     },
@@ -168,6 +170,7 @@ export default function Workspace() {
         return;
       }
       if (outcome.type === 'ignore') return;
+      if (!refreshIsLive(sessionRef.current.gate, started)) return;
       if (outcome.type === 'error') throw Error(outcome.error);
       setJobs(outcome.jobs as Job[]);
       setSources(outcome.sources as Source[]);
@@ -179,11 +182,6 @@ export default function Workspace() {
     },
     [applyExpired, loadJobHistory],
   );
-  const selectedJobId = selected;
-  useEffect(() => {
-    if (!selectedJobId || signedOut) return;
-    void loadJobHistory(selectedJobId);
-  }, [selectedJobId, signedOut, loadJobHistory]);
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
@@ -213,6 +211,7 @@ export default function Workspace() {
         return;
       }
       if (outcome.type === 'ignore') return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       if (outcome.type === 'error') {
         if (saved && outcome.status === 409) await refresh();
         if (!mutationIsLive(sessionRef.current.gate, started)) return;
@@ -251,11 +250,14 @@ export default function Workspace() {
   function chooseJob(job: Job) {
     if (keepEditorOnReselect(editor, job.id)) return;
     if (editorIsDirty(editor) && !discardUnsaved()) return;
+    selectedRef.current = job.id;
     setEditor(loadEditor(job));
+    void loadJobHistory(job.id);
   }
   function chooseFilter(value: string) {
     if (value === filter) return;
     if (editorIsDirty(editor) && !discardUnsaved()) return;
+    selectedRef.current = '';
     setFilter(value);
     setEditor(null);
   }
@@ -318,15 +320,6 @@ export default function Workspace() {
             </span>
           </button>
         ))}
-        <div className="navlabel">AUTONOMY</div>
-        <Link className="nav" href="/profile">
-          <FileText size={18} />
-          Profile
-        </Link>
-        <Link className="nav" href="/review">
-          <Sparkles size={18} />
-          Review drafts
-        </Link>
         <div className="sidebottom">
           <div className="dot" /> History stays with the job.
           <p>

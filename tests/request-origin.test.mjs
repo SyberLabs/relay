@@ -50,3 +50,29 @@ void test('untrusted origin refuses without granting the write and consumes the 
   assert.equal(request.bodyUsed, true);
   assert.ok(pulls > 0, 'origin refusal must read the POST body, not abort it');
 });
+
+void test('untrusted origin 403s an oversized body without buffering the remainder', async () => {
+  const chunk = new Uint8Array(64 * 1024);
+  const total = 4 * 1024 * 1024;
+  let pulled = 0;
+  const request = post(
+    'http://127.0.0.1:8787/api/workspace',
+    'https://untrusted.example.com',
+    new ReadableStream({
+      pull(controller) {
+        if (pulled >= total) {
+          controller.close();
+          return;
+        }
+        pulled += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    }),
+  );
+  const response = await refuseUntrustedOrigin(request);
+  assert.equal(response.status, 403);
+  assert.ok(
+    pulled <= 2_000_000 + chunk.byteLength,
+    `origin refusal buffered ${pulled} bytes`,
+  );
+});

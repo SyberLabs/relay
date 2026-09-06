@@ -174,6 +174,12 @@ Relay still does not submit applications. There are no write-plane adapters in t
 
 Connectors are local commands and explicit file import/export. Notion and Claude use your credentials. ChatGPT is a prompt/file handoff; Codex also supports a local CLI adapter; Grok Bot uses a documented command/file adapter. Agents may log and, for a graduated cluster, stage drafts; they cannot accept one or change an application status. Board pulls read public endpoints only and use no account identity. A recorded submission is your own report of something you did elsewhere and needs a receipt. Citation enforcement checks that a claim traces to a fact you verified; generated text still requires review. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Production deployment and independent user adoption remain separate from this local workflow.
 
+See [Local assisted browser trial](REVIEW.md#local-assisted-browser-trial) for the earlier `3b1efd7` read-only Notion, hand-transcribed Bot file, and browser acceptance, reload, and reimport evidence, still shown on a read-only reopen at `59ec7ac`.
+
+On `7cfec262`, a later fictional trial copied a Relay packet into the installed Grok Bot and manually pasted the returned JSON into Relay. Paste staged the draft without saving; an explicit save and reload preserved its exact text while the record remained Held and unaccepted. Automatic Bot file transfer and the Bot VM command environment remain unverified.
+
+On `e9e6030`, a later three-record trial imported three distinct Held jobs from historical Notion research through the connected Notion tool (read-only) into isolated local browser storage. Three actual context packets were copied into the installed native Grok Bot; the three observed JSON replies were transcribed by hand and loaded as files. Load staged drafts without persistence; an explicit save and reload preserved the exact text; stale original replies were rejected; a repeat import deduplicated. All three jobs stayed Held with no accepted draft. This is connected Notion read-only plus manually returned installed-Bot JSON, not automatic transfer or the standalone Notion command connector. See [Three-record Notion and native Bot trial](REVIEW.md#three-record-notion-and-native-bot-trial-2026-09-06).
+
 ## Checks
 
 ```sh

@@ -294,10 +294,27 @@ void test('markdown requirements headings still extract bullets', () => {
   );
   assert.deepEqual(
     extractRequirements(
+      ['**Requirements:**', '• Kubernetes production experience'].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+  assert.deepEqual(
+    extractRequirements(
       [
         'Requirements',
         '• Kubernetes production experience',
         '**Benefits**',
+        'Unlimited snacks',
+      ].join('\n'),
+    ),
+    ['Kubernetes production experience'],
+  );
+  assert.deepEqual(
+    extractRequirements(
+      [
+        'Requirements',
+        '• Kubernetes production experience',
+        '**Benefits:**',
         'Unlimited snacks',
       ].join('\n'),
     ),

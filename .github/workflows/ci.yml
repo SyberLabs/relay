@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  CI: 'true'
+  WRANGLER_SEND_METRICS: 'false'
+  WRANGLER_WRITE_LOGS: 'false'
+
+jobs:
+  quality:
+    name: Quality and release build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm public-copy:check
+      - run: pnpm build
+      - name: Bundle the production gateway with the built application
+        run: node scripts/release/prepare.mjs
+      - name: Seal the release artifact
+        run: node scripts/release/artifact.mjs create
+      - name: Preserve immutable release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: relay-release-${{ github.sha }}
+          path: |
+            dist/
+            deploy/
+            drizzle/
+            release-manifest.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+
+  integration:
+    name: Integration (${{ matrix.suite }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [api, browser, production]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Install browser and system libraries
+        if: matrix.suite == 'browser'
+        run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: Migrate a new database and exercise the running application
+        if: matrix.suite != 'production'
+        run: node scripts/ci/run-integration.mjs "${SUITE}"
+        env:
+          SUITE: ${{ matrix.suite }}
+      - name: Exercise the compiled application through its production gateway
+        if: matrix.suite == 'production'
+        run: node scripts/ci/run-production.mjs
+      - name: Preserve failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: integration-${{ matrix.suite }}-${{ github.run_attempt }}
+          path: |
+            outputs/ci/
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: warn
+
+  dependencies:
+    name: Dependency security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: Reject high and critical dependency advisories
+        run: pnpm audit --audit-level high
+
+  templates:
+    name: Bundled agent contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Validate bundled templates and examples
+        working-directory: grokcell
+        run: |
+          python3 scripts/validate_templates.py
+          python3 bots/garbage-collector/eval/verify.py
+          python3 bots/garbage-collector/eval/check_structure.py
+
+  security:
+    name: Security
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    uses: ./.github/workflows/security.yml
+
+  required:
+    name: CI
+    if: always()
+    needs: [quality, integration, dependencies, templates, security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every check to succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const jobs = JSON.parse(process.env.RESULTS); const failed = Object.entries(jobs).filter(([, job]) => job.result !== "success"); if (failed.length) { console.error("Required checks did not succeed:", failed.map(([name, job]) => `${name}: ${job.result}`).join(", ")); process.exit(1); } console.log("Every required check succeeded.");'

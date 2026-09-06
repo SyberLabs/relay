@@ -1,0 +1,39 @@
+name: Deliver a user outcome
+description: Scope a feature or engineering task around a concrete result.
+title: ""
+labels: ["type:feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User and problem
+      description: Name the user or segment, their task, current workaround, and evidence of friction. No private applicant data.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Smallest useful outcome
+      description: What observable result solves the problem? What is deliberately excluded?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List verifiable behavior, failure paths, and data/security constraints.
+      value: "- [ ] "
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification and release
+      description: How will we test it and know it helped? Include migration and rollback needs.
+    validations:
+      required: true
+  - type: input
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Link blocking issues, or write None. Assign exactly one owner before marking Ready.

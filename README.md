@@ -32,8 +32,6 @@ ChatGPT uses a prompt/file handoff; Codex also supports a local CLI adapter. Thi
 
 [Development workflow](CONTRIBUTING.md) | [Delivery and review](docs/delivery.md) | [Team board](https://github.com/orgs/SyberLabs/projects/1)
 
-[Development workflow](CONTRIBUTING.md) | [Delivery and review](docs/delivery.md) | [Team board](https://github.com/orgs/SyberLabs/projects/1)
-
 ## GrokCell bot templates
 
 The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector with their source instructions, profiles, public bot links, and behavior checks. Use a specialist when its purpose fits the task. These templates do not connect to Relay or grant access to application records automatically; the [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts.

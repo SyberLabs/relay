@@ -16,6 +16,7 @@ import {
   loadPreferences,
   toPosting,
 } from '../../../lib/store';
+import { refuseUntrustedOrigin } from '../../../lib/request-origin';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -65,9 +66,8 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = (await getChatGPTUser())?.userId;
   if (!user) return reply({ error: 'Sign in first.' }, 401);
-  const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin)
-    return reply({ error: 'Invalid request origin.' }, 403);
+  const denied = await refuseUntrustedOrigin(request);
+  if (denied) return denied;
   try {
     const b = JSON.parse(await request.text()),
       db = database(),

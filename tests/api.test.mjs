@@ -171,6 +171,54 @@ assert.throws(
     draftFromResult(draftResult, { ...target, version: savedObsidian.version }),
   /matching job/,
 );
+const unnamed = await call({
+  action: 'import',
+  rows: [
+    {
+      url: 'https://example.com/research/no-url',
+      Name: 'Source identity role',
+      Job: null,
+      Status: 'Held',
+      Notes: 'No posting URL',
+    },
+  ],
+});
+assert.equal(unnamed.status, 200, JSON.stringify(unnamed.data));
+const sourceJob = (await call()).data.jobs.find((j) =>
+  j.job_key.startsWith('source:'),
+);
+assert.equal(sourceJob.url, null);
+result = await call({
+  action: 'save',
+  id: sourceJob.id,
+  version: sourceJob.version,
+  status: 'Ready',
+  draft: 'Accepted without a posting URL.',
+  blocker: '',
+});
+assert.equal(result.status, 200, JSON.stringify(result.data));
+const scoped = await fetch(base + '/api/workspace?job=' + sourceJob.id, {
+  headers,
+});
+const scopedData = await scoped.json();
+assert.equal(scoped.status, 200);
+assert.equal(
+  scopedData.jobs.find((j) => j.id === sourceJob.id).accepted_draft,
+  'Accepted without a posting URL.',
+);
+assert.equal(
+  scopedData.events.filter((e) => e.kind === 'Draft accepted').length,
+  1,
+);
+assert.equal(
+  JSON.parse(scopedData.events.find((e) => e.kind === 'Draft accepted').detail)
+    .draft,
+  'Accepted without a posting URL.',
+);
+assert.equal(
+  (await fetch(base + '/api/workspace?job=../secret', { headers })).status,
+  400,
+);
 result = await call(undefined, {
   'oai-authenticated-user-id': 'spoof',
   'oai-authenticated-user-email': 'other@example.com',

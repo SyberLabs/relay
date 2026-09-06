@@ -1,5 +1,5 @@
 import { loadObsidian, obsidianResearchBatch } from './obsidian.ts';
-import { jobKey } from './domain.ts';
+import { matchesJobKey } from './domain.ts';
 import { type EditorTarget } from './editor.ts';
 
 export function draftFromResult(
@@ -7,7 +7,7 @@ export function draftFromResult(
     schema?: string;
     draft?: unknown;
     provider?: string;
-    job?: { id?: string; key?: string; url?: string; version?: number };
+    job?: { id?: string; key?: string; url?: string | null; version?: number };
   } | null,
   started: (EditorTarget & { job_key: string }) | undefined,
 ) {
@@ -24,8 +24,7 @@ export function draftFromResult(
     (value.provider === 'obsidian' && value.job?.id !== started.jobId) ||
     value.job?.key !== started.job_key ||
     value.job?.version !== started.version ||
-    typeof value.job?.url !== 'string' ||
-    jobKey(value.job.url, '') !== started.job_key
+    !matchesJobKey(value.job?.url, started.job_key)
   )
     throw Error(
       'Select the matching job. If it has changed, download a new packet or draft note.',

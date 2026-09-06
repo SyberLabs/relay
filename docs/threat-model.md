@@ -25,4 +25,4 @@ The production Worker normalizes identity only after verification; all reads and
 
 ## Known limits
 
-The first pilot uses an invite-oriented access gateway. Public self-service account lifecycle, billing, retention/deletion controls, live provider integrations, recovery targets, and product-market fit require separate evidence. GitHub issues track the verified existing client refresh/history/handoff defects. Do not describe untested controls or a green static scan as proof of production security.
+The first pilot uses an invite-oriented access gateway. Public self-service account lifecycle, billing, retention/deletion controls, live provider integrations, recovery targets, and product-market fit require separate evidence. Do not describe untested controls or a green static scan as proof of production security.

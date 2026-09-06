@@ -1,19 +1,29 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
 
 import {
-  acknowledgeSave,
   applyLoadedDraft,
   canSave,
   loadEditor,
-  reconcileEditor,
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
+import {
+  applyAcceptedSave,
+  beginMutation,
+  beginRefresh,
+  createWorkspaceSession,
+  editorForJobs,
+  expiredPrivateWorkspace,
+  mutationIsLive,
+  processMutation,
+  processRefresh,
+  refreshIsLive,
+} from '../lib/workspace-refresh';
 import {
   ArrowUpRight,
   Search,
@@ -31,7 +41,7 @@ type Job = {
   id: string;
   job_key: string;
   name: string;
-  url: string;
+  url: string | null;
   status: string;
   blocker: string;
   draft: string;
@@ -59,12 +69,6 @@ type Report = {
   submitted: number;
   items: { name: string; kind: string; key: string }[];
 };
-type Reply = {
-  jobs: Job[];
-  sources: Source[];
-  events: ReviewEvent[];
-  error?: string;
-} & Report;
 export default function Workspace() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [sources, setSources] = useState<Source[]>([]),
@@ -80,6 +84,22 @@ export default function Workspace() {
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false);
+  const sessionRef = useRef(createWorkspaceSession());
+  const selectedRef = useRef('');
+  const applyExpired = useCallback(() => {
+    const next = expiredPrivateWorkspace();
+    setJobs(next.jobs);
+    setSources(next.sources);
+    setEvents(next.events);
+    setEditor(next.editor);
+    setImportText(next.importText);
+    setPreviewedImport(next.previewedImport);
+    setReport(next.report);
+    setShowImport(next.showImport);
+    setSignedOut(next.signedOut);
+    setLoaded(next.loaded);
+    setMessage('');
+  }, []);
   const researchRows = useMemo(() => {
     try {
       return validateRows(JSON.parse(importText));
@@ -96,27 +116,34 @@ export default function Workspace() {
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
     );
-  const refresh = useCallback(async (saved?: SaveSnapshot) => {
-    const r = await fetch('/api/workspace');
-    const data = (await r.json()) as Reply;
-    if (r.status === 401) {
-      setSignedOut(true);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
+  const refresh = useCallback(
+    async (
+      saved?: SaveSnapshot,
+      jobId = saved?.jobId ?? selectedRef.current,
+    ) => {
+      const started = beginRefresh(sessionRef.current.gate);
+      const query = jobId ? `?job=${encodeURIComponent(jobId)}` : '';
+      const r = await fetch('/api/workspace' + query);
+      const outcome = await processRefresh(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
+      }
+      if (outcome.type === 'ignore') return;
+      if (!refreshIsLive(sessionRef.current.gate, started)) return;
+      if (outcome.type === 'error') throw Error(outcome.error);
+      setJobs(outcome.jobs as Job[]);
+      setSources(outcome.sources as Source[]);
+      setEvents(outcome.events as ReviewEvent[]);
+      setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      setSignedOut(false);
       setLoaded(true);
-      return;
-    }
-    if (!r.ok) throw Error(data.error);
-    setJobs(data.jobs);
-    setSources(data.sources);
-    setEvents(data.events);
-    setEditor((e) => {
-      const next = e && saved ? acknowledgeSave(e, saved) : e;
-      return reconcileEditor(
-        next,
-        data.jobs.find((j) => j.id === next?.jobId),
-      );
-    });
-    setLoaded(true);
-  }, []);
+    },
+    [applyExpired],
+  );
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
@@ -126,6 +153,7 @@ export default function Workspace() {
       });
   }, [refresh]);
   async function run(body: Record<string, unknown>, saved?: SaveSnapshot) {
+    const started = beginMutation(sessionRef.current.gate);
     setBusy(true);
     setMessage('');
     try {
@@ -134,16 +162,30 @@ export default function Workspace() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await r.json()) as Reply;
-      if (!r.ok) {
-        if (saved && r.status === 409) await refresh();
-        throw Error(data.error);
+      const outcome = await processMutation(
+        sessionRef.current,
+        started,
+        r,
+        saved,
+      );
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
       }
-      if (data.items) setReport(data);
+      if (outcome.type === 'ignore') return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      if (outcome.type === 'error') {
+        if (saved && outcome.status === 409) await refresh();
+        if (!mutationIsLive(sessionRef.current.gate, started)) return;
+        throw Error(outcome.error);
+      }
+      setEditor((e) => applyAcceptedSave(e, saved));
+      if (outcome.body.items) setReport(outcome.body as Report);
       if (body.action === 'preview')
         setPreviewedImport(JSON.stringify(body.rows));
       if (body.action === 'import') setPreviewedImport('');
       await refresh(saved);
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       setMessage(
         body.action === 'save'
           ? 'Saved. Your review is preserved.'
@@ -192,9 +234,10 @@ export default function Workspace() {
         </Link>
         <div className="studio">SYBERLABS / PRIVATE WORKSPACE</div>
         <div className="owner">
-          <span className="avatar">S</span>
+          <span className="avatar">{signedOut ? '?' : '•'}</span>
           <div>
-            Your next move<small>Career workspace</small>
+            {signedOut ? 'Signed out' : 'Signed in'}
+            <small>Private to this account</small>
           </div>
         </div>
         <div className="navlabel">WORKSPACE</div>
@@ -225,6 +268,16 @@ export default function Workspace() {
             </span>
           </button>
         ))}
+        {!signedOut && (
+          // oxlint-disable-next-line next/no-html-link-for-pages -- Sites and Access logout need top-level navigation.
+          <a
+            className="nav"
+            href="/signout-with-chatgpt?return_to=/"
+            target="_top"
+          >
+            Sign out
+          </a>
+        )}
         <div className="sidebottom">
           <div className="dot" /> History stays with the job.
           <p>
@@ -241,43 +294,47 @@ export default function Workspace() {
             <h1>Make your next move.</h1>
             <p>One opportunity. One history. A clear next action.</p>
           </div>
-          <button
-            className="secondary"
-            onClick={() => setShowImport(!showImport)}
-          >
-            <Upload size={16} />
-            Import research
-          </button>
+          {!signedOut && (
+            <button
+              className="secondary"
+              onClick={() => setShowImport(!showImport)}
+            >
+              <Upload size={16} />
+              Import research
+            </button>
+          )}
         </header>
-        <section className="stats">
-          <div>
-            <span>Opportunities</span>
-            <strong>{jobs.length.toString().padStart(2, '0')}</strong>
-            <small>Unique job records</small>
-          </div>
-          <div>
-            <span>Ready for your review</span>
-            <strong>
-              {jobs
-                .filter((j) => j.status === 'Held')
-                .length.toString()
-                .padStart(2, '0')}
-            </strong>
-            <small>Evidence before action</small>
-          </div>
-          <div>
-            <span>History preserved</span>
-            <strong>
-              {(sources.length - jobs.length).toString().padStart(2, '0')}
-            </strong>
-            <small>Repeat records consolidated</small>
-          </div>
-          <div className="stataccent">
-            <ShieldCheck size={22} />
-            <b>Decisions carry forward.</b>
-            <small>Rediscovery never resets a submitted job.</small>
-          </div>
-        </section>
+        {!signedOut && (
+          <section className="stats">
+            <div>
+              <span>Opportunities</span>
+              <strong>{jobs.length.toString().padStart(2, '0')}</strong>
+              <small>Unique job records</small>
+            </div>
+            <div>
+              <span>Ready for your review</span>
+              <strong>
+                {jobs
+                  .filter((j) => j.status === 'Held')
+                  .length.toString()
+                  .padStart(2, '0')}
+              </strong>
+              <small>Evidence before action</small>
+            </div>
+            <div>
+              <span>History preserved</span>
+              <strong>
+                {(sources.length - jobs.length).toString().padStart(2, '0')}
+              </strong>
+              <small>Repeat records consolidated</small>
+            </div>
+            <div className="stataccent">
+              <ShieldCheck size={22} />
+              <b>Decisions carry forward.</b>
+              <small>Rediscovery never resets a submitted job.</small>
+            </div>
+          </section>
+        )}
         {message && (
           <div className="notice" aria-live="polite">
             {message}
@@ -342,7 +399,7 @@ export default function Workspace() {
             openImport={() => setShowImport(true)}
           />
         )}
-        {showImport && (
+        {showImport && !signedOut && (
           <section className="import">
             <h2>Import research</h2>
             <p>
@@ -400,7 +457,7 @@ export default function Workspace() {
             </div>
           </section>
         )}
-        {report && (
+        {report && !signedOut && (
           <section className="report">
             <div>
               <b>Research check</b>
@@ -424,7 +481,7 @@ export default function Workspace() {
             </details>
           </section>
         )}
-        {jobs.length > 0 && (
+        {jobs.length > 0 && !signedOut && (
           <>
             <section className="replay">
               <GitMerge size={20} />
@@ -471,7 +528,10 @@ export default function Workspace() {
                     <button
                       key={j.id}
                       className={'job ' + (selected === j.id ? 'selected' : '')}
-                      onClick={() => setEditor(loadEditor(j))}
+                      onClick={() => {
+                        setEditor(loadEditor(j));
+                        void refresh(undefined, j.id);
+                      }}
                     >
                       <span className="companyicon">{j.name[0]}</span>
                       <span className="jobtext">

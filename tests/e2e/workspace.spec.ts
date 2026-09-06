@@ -115,10 +115,12 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
     accepted_draft: draft,
   });
 
+  await expect(page.getByRole('link', { name: 'Sign out' })).toBeVisible();
   await page.goto('/signout-with-chatgpt?return_to=/');
   await expect(
     page.getByRole('heading', { name: 'Your private workspace' }),
   ).toBeVisible();
+  await expect(page.getByText(draft)).toHaveCount(0);
   expect((await page.request.get('/api/workspace')).status()).toBe(401);
   expect(errors).toEqual([]);
 });

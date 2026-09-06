@@ -36,7 +36,7 @@ export function Connections({
     id: string;
     job_key: string;
     name: string;
-    url: string;
+    url: string | null;
     version: number;
     status: string;
     session?: string;
@@ -120,10 +120,14 @@ export function Connections({
           className="secondary"
           disabled={!current?.url}
           onClick={() => {
-            if (!current) return;
+            if (!current?.url) return;
             const id = crypto.randomUUID();
             downloadFile(
-              obsidianResearchNote(current, workflow, id),
+              obsidianResearchNote(
+                { name: current.name, url: current.url },
+                workflow,
+                id,
+              ),
               `relay-${workflow}-${id}.md`,
               'text/markdown',
             );
@@ -165,7 +169,7 @@ export function Connections({
         </button>
         <button
           className="secondary"
-          disabled={!current?.url}
+          disabled={!current}
           onClick={() => {
             if (!current) return;
             try {

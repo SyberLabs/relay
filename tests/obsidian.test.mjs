@@ -250,6 +250,68 @@ test('draft round trip stages exact wording only for its job and version', () =>
   );
 });
 
+test('draft handoffs work for valid jobs without a posting URL', () => {
+  const sourceJob = {
+    id: 'job-123',
+    key: 'source:https://example.com/research/no-url',
+    name: 'Example role',
+    url: null,
+    version: 7,
+  };
+  const result = loadObsidian(
+    obsidianDraftNote(sourceJob, 'Reviewed without a posting URL.'),
+  );
+  assert.equal(result.job.key, sourceJob.key);
+  const target = {
+    jobId: sourceJob.id,
+    version: sourceJob.version,
+    session: 'session-1',
+    draft: 'Original',
+    job_key: sourceJob.key,
+  };
+  assert.equal(
+    draftFromResult(result, target),
+    'Reviewed without a posting URL.',
+  );
+  assert.equal(
+    draftFromResult(
+      {
+        schema: 'relay.draft.v1',
+        draft: 'Assistant wording',
+        job: { key: sourceJob.key, url: null, version: 7 },
+      },
+      target,
+    ),
+    'Assistant wording',
+  );
+  assert.throws(
+    () =>
+      draftFromResult(
+        {
+          schema: 'relay.draft.v1',
+          draft: 'Wrong job',
+          job: {
+            key: sourceJob.key,
+            url: 'https://example.com/jobs/a',
+            version: 7,
+          },
+        },
+        target,
+      ),
+    /matching job/,
+  );
+  assert.throws(
+    () => draftFromResult(result, { ...target, version: 8 }),
+    /matching job/,
+  );
+  assert.throws(() =>
+    obsidianDraftNote(
+      { ...sourceJob, url: 'https://example.com/jobs/a' },
+      'Body',
+    ),
+  );
+});
+
 test('file loading supports Markdown batches, individual drafts and existing JSON handoffs', async () => {
   const file = (name, text) => ({
     name,

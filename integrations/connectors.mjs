@@ -1,4 +1,4 @@
-import { validateRows, jobKey } from '../lib/domain.ts';
+import { validateRows, matchesJobKey } from '../lib/domain.ts';
 
 const text = (value) =>
   (value || [])
@@ -77,11 +77,8 @@ export function validatePacket(packet) {
     throw Error('Choose a valid Relay packet with verified facts.');
   if (!packet.facts.trim())
     throw Error('Add verified facts before requesting a draft.');
-  if (
-    typeof packet.job.url !== 'string' ||
-    jobKey(packet.job.url, '') !== packet.job.key
-  )
-    throw Error('Packet job identity does not match its URL.');
+  if (!matchesJobKey(packet.job.url, packet.job.key))
+    throw Error('Packet job identity does not match its posting.');
   return packet;
 }
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   jobKey,
+  matchesJobKey,
   classify,
   validateRows,
   validateEdit,
@@ -128,5 +129,38 @@ test('acceptance requires exact text, no blocker, and current version', () => {
       { version: 1, status: 'Held' },
       { version: 1, status: 'Ready', draft: 'Approved answer', blocker: '' },
     ),
+  );
+});
+test('missing posting URL uses source identity and cannot impersonate a posting', () => {
+  assert.equal(
+    jobKey(null, 'https://example.com/research/a'),
+    'source:https://example.com/research/a',
+  );
+  assert.notEqual(
+    jobKey(null, 'https://example.com/research/a'),
+    jobKey(null, 'https://example.com/research/b'),
+  );
+  const [row] = validateRows([
+    {
+      url: 'https://example.com/research/a',
+      Name: 'Role',
+      Job: null,
+      Status: 'Held',
+      Notes: '',
+    },
+  ]);
+  const key = jobKey(row.Job, row.url);
+  assert.equal(key, 'source:https://example.com/research/a');
+  assert.equal(matchesJobKey(null, key), true);
+  assert.equal(matchesJobKey('', key), true);
+  assert.equal(matchesJobKey('https://example.com/jobs/a', key), false);
+  assert.equal(
+    matchesJobKey('https://example.com/jobs/a', 'https://example.com/jobs/a'),
+    true,
+  );
+  assert.equal(matchesJobKey(null, 'https://example.com/jobs/a'), false);
+  assert.equal(
+    matchesJobKey('https://example.com/jobs/b', 'https://example.com/jobs/a'),
+    false,
   );
 });

@@ -10,7 +10,7 @@ Create a Notion internal integration with read access and share the intended dat
 node integrations/relay.mjs notion-pull private-data/notion-page-1.json
 ```
 
-Upload the resulting JSON with **Connect Obsidian, Grok Bot, Notion & Claude → Load research or draft**, then preview and import. The source needs `Name` (title), `Job` (URL), `Status` (status/select), and `Notes` (rich text). Accepted statuses: Held, Ready, Submitted, Skip, Live loop. Unknown statuses stop the import; map them deliberately in your source first.
+Upload the resulting JSON with **Connect Obsidian, Grok Bot, Notion & Claude → Load research or draft**, then preview and import. The source needs `Name` (title), `Job` (posting URL, or empty/null when the source has none), `Status` (status/select), and `Notes` (rich text). Jobs without a posting URL keep a source-based identity so packets and draft results still match. Accepted statuses: Held, Ready, Submitted, Skip, Live loop. Unknown statuses stop the import; map them deliberately in your source first.
 
 For different property names, set `RELAY_NOTION_FIELDS` to a JSON object such as `{"name":"Company","job":"Posting","status":"Stage","notes":"Research"}`. Each command fetches at most 100 source records. If more exist, the command prints a continuation cursor: set `NOTION_CURSOR`, use a new output filename, and repeat until no cursor is printed. No automatic polling or Notion writes occur.
 

@@ -14,9 +14,13 @@ import { packets } from '../../../lib/packets';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
-export async function GET() {
+const JOB_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
+export async function GET(request: Request) {
   const user = (await getChatGPTUser())?.userId;
   if (!user) return reply({ error: 'Sign in to open your workspace.' }, 401);
+  const jobId = new URL(request.url).searchParams.get('job') || '';
+  if (jobId && !JOB_ID.test(jobId))
+    return reply({ error: 'Invalid job.' }, 400);
   const db = database();
   const jobs = await db
     .prepare('SELECT * FROM jobs WHERE owner=? ORDER BY updated DESC,name')
@@ -26,12 +30,19 @@ export async function GET() {
     .prepare('SELECT * FROM observations WHERE owner=? ORDER BY created')
     .bind(user)
     .all();
-  const events = await db
-    .prepare(
-      'SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT 200',
-    )
-    .bind(user)
-    .all();
+  const events = jobId
+    ? await db
+        .prepare(
+          'SELECT * FROM events WHERE owner=? AND job_id=? ORDER BY created DESC LIMIT 200',
+        )
+        .bind(user, jobId)
+        .all()
+    : await db
+        .prepare(
+          'SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT 200',
+        )
+        .bind(user)
+        .all();
   return reply({
     jobs: jobs.results,
     sources: sources.results,

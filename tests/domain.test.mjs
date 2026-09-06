@@ -20,11 +20,11 @@ function row(status, job = 'https://example.com/jobs/a', notes = '') {
 const rows = JSON.parse(
   readFileSync(new URL('../lib/seed.json', import.meta.url), 'utf8'),
 );
-test('fictional research finds repeats and earlier submissions', () => {
+void test('fictional research finds repeats and earlier submissions', () => {
   const r = classify(rows, []);
   assert.deepEqual([r.new, r.known, r.submitted], [3, 1, 1]);
 });
-test('interview and submitted drafts can be edited without resetting status', () => {
+void test('interview and submitted drafts can be edited without resetting status', () => {
   for (const status of ['Submitted', 'Live loop']) {
     assert.doesNotThrow(() =>
       validateEdit(
@@ -40,7 +40,7 @@ test('interview and submitted drafts can be edited without resetting status', ()
     );
   }
 });
-test('Greenhouse aliases match; employer identity remains distinct', () => {
+void test('Greenhouse aliases match; employer identity remains distinct', () => {
   assert.equal(
     jobKey('https://boards.greenhouse.io/a/jobs/123?utm_source=x', ''),
     jobKey('https://job-boards.greenhouse.io/a/jobs/123/', ''),
@@ -50,7 +50,7 @@ test('Greenhouse aliases match; employer identity remains distinct', () => {
     jobKey('https://boards.greenhouse.io/b/jobs/123', ''),
   );
 });
-test('rejects script URLs and invalid records', () => {
+void test('rejects script URLs and invalid records', () => {
   assert.throws(() => jobKey('javascript:alert(1)', ''));
   assert.throws(() =>
     validateRows([
@@ -58,19 +58,19 @@ test('rejects script URLs and invalid records', () => {
     ]),
   );
 });
-test('submitted state cannot become a fresh application', () =>
+void test('submitted state cannot become a fresh application', () =>
   assert.throws(() =>
     validateEdit(
       { version: 1, status: 'Submitted' },
       { version: 1, status: 'Held', draft: 'x', blocker: '' },
     ),
   ));
-test('preview merge reports a later Held row as already submitted', () => {
+void test('preview merge reports a later Held row as already submitted', () => {
   const r = classify([row('Held'), row('Submitted'), row('Held')], []);
   assert.equal(r.items.at(-1).kind, 'submitted');
   assert.deepEqual([r.new, r.known, r.submitted], [1, 1, 1]);
 });
-test('preview keeps Live loop above Submitted for both import orders', () => {
+void test('preview keeps Live loop above Submitted for both import orders', () => {
   const forward = classify([row('Live loop'), row('Submitted')], []);
   assert.equal(forward.items[1].kind, 'known');
   assert.equal(forward.submitted, 0);
@@ -78,12 +78,12 @@ test('preview keeps Live loop above Submitted for both import orders', () => {
   assert.equal(reverse.items[0].kind, 'new');
   assert.equal(reverse.items[1].kind, 'submitted');
 });
-test('imported Ready is Held locally and source Ready stays Ready', () => {
+void test('imported Ready is Held locally and source Ready stays Ready', () => {
   assert.equal(importedJobStatus('Ready'), 'Held');
   for (const status of ['Held', 'Submitted', 'Skip', 'Live loop'])
     assert.equal(importedJobStatus(status), status);
 });
-test('rejects a non-string source timestamp', () => {
+void test('rejects a non-string source timestamp', () => {
   assert.throws(() =>
     validateRows([
       {
@@ -109,7 +109,7 @@ test('rejects a non-string source timestamp', () => {
     ]),
   );
 });
-test('acceptance requires exact text, no blocker, and current version', () => {
+void test('acceptance requires exact text, no blocker, and current version', () => {
   for (const patch of [{ draft: '' }, { blocker: 'captcha' }, { version: 0 }])
     assert.throws(() =>
       validateEdit(

@@ -6,6 +6,11 @@ import {
   loadObsidian,
 } from '../lib/obsidian.ts';
 import { draftFromResult } from '../lib/integration-files.ts';
+import {
+  readTrackerCsv,
+  suggestTrackerMapping,
+  trackerRows,
+} from '../lib/tracker-csv.ts';
 const base = process.env.RELAY_TEST_URL || 'http://localhost:3000';
 
 // Only run against a local development server, which uses mock authentication.
@@ -170,6 +175,52 @@ assert.throws(
   () =>
     draftFromResult(draftResult, { ...target, version: savedObsidian.version }),
   /matching job/,
+);
+// The tracker handoff uses the real route and database, including Ready and active jobs.
+const tracker = readTrackerCsv(
+  'Company,Role,URL,Status,Notes\nExample,Backend,https://example.com/jobs/backend,Rejected,CSV research\nExample,Software,https://example.com/jobs/software,Offer,CSV interview research',
+);
+const trackerMapping = suggestTrackerMapping(tracker.headers);
+const trackerResearch = trackerRows(
+  tracker,
+  trackerMapping,
+  'Fictional tracker API check',
+);
+const reviewed = (await call()).data.jobs.find((j) => j.id === job.id);
+result = await call({
+  action: 'save',
+  id: reviewed.id,
+  version: reviewed.version,
+  status: 'Ready',
+  draft: 'Exact CSV review draft',
+  blocker: '',
+});
+assert.equal(result.status, 200);
+const beforeTracker = (await call()).data;
+result = await call({ action: 'preview', rows: trackerResearch });
+assert.equal(result.status, 200);
+assert.equal(result.data.new, 0);
+assert.deepEqual((await call()).data, beforeTracker);
+for (let repeat = 0; repeat < 2; repeat++) {
+  result = await call({ action: 'import', rows: trackerResearch });
+  assert.equal(result.status, 200, JSON.stringify(result.data));
+}
+const afterTracker = (await call()).data;
+for (const research of trackerResearch) {
+  const before = beforeTracker.jobs.find((j) => j.url === research.Job);
+  const after = afterTracker.jobs.find((j) => j.id === before.id);
+  assert.equal(after.status, before.status);
+  assert.equal(after.draft, before.draft);
+  assert.equal(after.accepted_draft, before.accepted_draft);
+  assert.equal(
+    afterTracker.sources.filter(
+      (s) => s.source_url === research.url && s.notes === research.Notes,
+    ).length,
+    1,
+  );
+}
+console.log(
+  'PASS: tracker CSV preview has no writes; repeated imports preserve acceptance, active status and source history.',
 );
 result = await call(undefined, {
   'oai-authenticated-user-id': 'spoof',

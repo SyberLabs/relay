@@ -23,7 +23,7 @@ function target(editor) {
     draft: editor.draft,
   };
 }
-test('refresh during editing keeps unsaved text on the loaded version', () => {
+void test('refresh during editing keeps unsaved text on the loaded version', () => {
   let editor = loadEditor(job('A'));
   editor = { ...editor, draft: 'local edits' };
   editor = reconcileEditor(editor, job('A'));
@@ -31,7 +31,7 @@ test('refresh during editing keeps unsaved text on the loaded version', () => {
   assert.equal(editor.conflict, false);
   assert.equal(editor.version, 1);
 });
-test('external update while editing requires reload before save', () => {
+void test('external update while editing requires reload before save', () => {
   let editor = loadEditor(job('A'));
   editor = { ...editor, draft: 'stale buffer' };
   const server = job('A', { version: 2, draft: 'agent draft' });
@@ -45,7 +45,7 @@ test('external update while editing requires reload before save', () => {
   assert.equal(editor.conflict, false);
   assert.equal(editor.version, 2);
 });
-test('clean editor adopts a newer refresh', () => {
+void test('clean editor adopts a newer refresh', () => {
   let editor = loadEditor(job('A'));
   editor = reconcileEditor(
     editor,
@@ -55,7 +55,7 @@ test('clean editor adopts a newer refresh', () => {
   assert.equal(editor.version, 2);
   assert.equal(editor.conflict, false);
 });
-test('stale save ack after A to B to A does not bless the reloaded editor', () => {
+void test('stale save ack after A to B to A does not bless the reloaded editor', () => {
   const old = job('A');
   const original = loadEditor(old);
   const submitted = { ...original, draft: 'intentionally saved' };
@@ -76,7 +76,7 @@ test('stale save ack after A to B to A does not bless the reloaded editor', () =
   assert.equal(result.conflict, false);
   assert.notEqual(result.session, submitted.session);
 });
-test('save acknowledgement ignores a job switched during the request', () => {
+void test('save acknowledgement ignores a job switched during the request', () => {
   const submitted = loadEditor(job('A'));
   let editor = loadEditor(job('B', { version: 2, draft: 'draft-B' }));
   editor = acknowledgeSave(editor, submitted);
@@ -84,7 +84,7 @@ test('save acknowledgement ignores a job switched during the request', () => {
   assert.equal(editor.version, 2);
   assert.equal(editor.draft, 'draft-B');
 });
-test('edits made while a save is in flight stay unsaved on that editor session', () => {
+void test('edits made while a save is in flight stay unsaved on that editor session', () => {
   let editor = loadEditor(job('A'));
   const submitted = { ...editor, draft: 'saved snapshot' };
   editor = { ...editor, draft: 'typed during save' };
@@ -95,7 +95,7 @@ test('edits made while a save is in flight stay unsaved on that editor session',
   assert.notEqual(editor.draft, editor.baseDraft);
   assert.equal(editor.session, submitted.session);
 });
-test('delayed save ack cannot bless an editor already on a newer base', () => {
+void test('delayed save ack cannot bless an editor already on a newer base', () => {
   const original = loadEditor(job('A'));
   const submitted = { ...original, draft: 'intentionally saved' };
   let editor = reconcileEditor(
@@ -108,7 +108,7 @@ test('delayed save ack cannot bless an editor already on a newer base', () => {
   assert.equal(editor.baseDraft, 'from server');
   assert.notEqual(editor.session, submitted.session);
 });
-test('rejected stale save refreshes into a conflict that reload can resolve', () => {
+void test('rejected stale save refreshes into a conflict that reload can resolve', () => {
   let editor = loadEditor(job('A'));
   editor = { ...editor, draft: 'unsaved after 409' };
   const server = job('A', { version: 2, draft: 'newer record' });
@@ -123,7 +123,7 @@ test('rejected stale save refreshes into a conflict that reload can resolve', ()
   assert.equal(editor.conflict, false);
   assert.equal(canSave(editor), true);
 });
-test('file load rejects a changed session, version, or typed draft', () => {
+void test('file load rejects a changed session, version, or typed draft', () => {
   const started = loadEditor(job('A'));
   assert.equal(fileLoadApplies(target(started), target(started)), true);
   assert.equal(
@@ -137,7 +137,7 @@ test('file load rejects a changed session, version, or typed draft', () => {
   const typed = { ...started, draft: 'typed while reading' };
   assert.equal(fileLoadApplies(target(started), target(typed)), false);
 });
-test('queued editor updater still applies a matching file load without a boolean', () => {
+void test('queued editor updater still applies a matching file load without a boolean', () => {
   const editor = loadEditor(job('A'));
   const started = target(editor);
   const queue = [];
@@ -148,7 +148,7 @@ test('queued editor updater still applies a matching file load without a boolean
   assert.equal(queue.length, 1);
   assert.equal(queue[0](editor).draft, 'from file');
 });
-test('stale file-load snapshot cannot overwrite a later editor', () => {
+void test('stale file-load snapshot cannot overwrite a later editor', () => {
   const started = loadEditor(job('A'));
   const laterB = loadEditor(job('B', { draft: 'keep B' }));
   const skippedB = applyLoadedDraft(

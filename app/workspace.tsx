@@ -4,7 +4,7 @@ import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
-
+import { TrackerImport } from './tracker-import';
 import {
   applyLoadedDraft,
   canSave,
@@ -19,6 +19,7 @@ import {
   createWorkspaceSession,
   editorForJobs,
   expiredPrivateWorkspace,
+  expireSession,
   mutationIsLive,
   processMutation,
   processRefresh,
@@ -85,6 +86,7 @@ export default function Workspace() {
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false);
   const sessionRef = useRef(createWorkspaceSession());
+  const workspaceEpoch = sessionRef.current.gate.epoch;
   const applyExpired = useCallback(() => {
     const next = expiredPrivateWorkspace();
     setJobs(next.jobs);
@@ -351,7 +353,19 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
-
+        {!signedOut && loaded && (
+          <TrackerImport
+            onImported={() =>
+              mutationIsLive(sessionRef.current.gate, { epoch: workspaceEpoch })
+                ? refresh()
+                : Promise.resolve()
+            }
+            onUnauthorized={() => {
+              expireSession(sessionRef.current);
+              applyExpired();
+            }}
+          />
+        )}
         {!signedOut && (
           <Connections
             current={

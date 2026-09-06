@@ -20,8 +20,10 @@ type Preview = { rows: SourceRow[]; kinds: string[] };
 
 export function TrackerImport({
   onImported,
+  onUnauthorized,
 }: {
   onImported: () => Promise<void>;
+  onUnauthorized: () => void;
 }) {
   const [csv, setCsv] = useState<TrackerCsv | null>(null);
   const [mapping, setMapping] = useState<TrackerMapping>({
@@ -51,6 +53,10 @@ export function TrackerImport({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, rows }),
       });
+      if (response.status === 401) {
+        onUnauthorized();
+        return;
+      }
       const result = (await response.json()) as {
         error?: string;
         items: { kind: string }[];

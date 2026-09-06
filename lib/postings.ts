@@ -87,12 +87,66 @@ function decodeHtmlEntities(text: string): string {
   );
 }
 
+function tagNameEndsAt(html: string, nameEnd: number): boolean {
+  if (nameEnd >= html.length) return true;
+  const c = html.charCodeAt(nameEnd);
+  // `>`, `/`, or whitespace/control — browsers also accept `</script\t\n bar>`.
+  return c === 62 || c === 47 || c <= 32;
+}
+
+function dropElement(html: string, tag: string): string {
+  const open = `<${tag}`;
+  const close = `</${tag}`;
+  const lower = html.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < html.length) {
+    const start = lower.indexOf(open, i);
+    if (start === -1) {
+      out += html.slice(i);
+      break;
+    }
+    if (!tagNameEndsAt(html, start + open.length)) {
+      out += html.slice(i, start + open.length);
+      i = start + open.length;
+      continue;
+    }
+    out += html.slice(i, start);
+    const openGt = html.indexOf('>', start + open.length);
+    if (openGt === -1) break;
+    let end = lower.indexOf(close, openGt + 1);
+    while (end !== -1 && !tagNameEndsAt(html, end + close.length))
+      end = lower.indexOf(close, end + close.length);
+    if (end === -1) break;
+    const closeGt = html.indexOf('>', end + close.length);
+    if (closeGt === -1) break;
+    out += ' ';
+    i = closeGt + 1;
+  }
+  return out;
+}
+
+function dropTags(html: string): string {
+  let out = '';
+  let i = 0;
+  while (i < html.length) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) {
+      out += html.slice(i);
+      break;
+    }
+    out += html.slice(i, lt);
+    const gt = html.indexOf('>', lt + 1);
+    if (gt === -1) break;
+    out += ' ';
+    i = gt + 1;
+  }
+  return out;
+}
+
 export function stripHtml(html: string): string {
   return decodeHtmlEntities(
-    html
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
-      .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
-      .replace(/<[^>]+>/g, ' '),
+    dropTags(dropElement(dropElement(html, 'script'), 'style')),
   )
     .replace(/\s+/g, ' ')
     .trim();

@@ -296,6 +296,10 @@ void test('markup is stripped without swallowing the text', () => {
   );
   assert.equal(stripHtml('<p>Keep</p><script>alert(1)</script >'), 'Keep');
   assert.equal(
+    stripHtml('<p>Keep</p><script>alert(1)</script\t\n bar>'),
+    'Keep',
+  );
+  assert.equal(
     stripHtml('<style type="text/css">x{}</style >Visible'),
     'Visible',
   );

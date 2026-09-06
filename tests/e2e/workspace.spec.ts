@@ -248,6 +248,9 @@ test('a dirty editor asks before opening profile or review screens', async ({
   page,
 }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
+  await expect(
+    page.getByRole('heading', { name: 'Make your next move.' }),
+  ).toBeVisible();
   const research = [
     {
       url: 'https://example.com/research/ci-dirty-nav',
@@ -260,6 +263,7 @@ test('a dirty editor asks before opening profile or review screens', async ({
   await page
     .getByRole('button', { name: 'Import research', exact: true })
     .click();
+  await expect(page.getByRole('textbox', { name: 'Research JSON' })).toBeVisible();
   await page
     .getByRole('textbox', { name: 'Research JSON' })
     .fill(JSON.stringify(research));

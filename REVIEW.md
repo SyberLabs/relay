@@ -68,3 +68,7 @@ The historical 55-test / 19-advisory / no-overrides snapshot above describes `8b
 ## Coverage limits
 
 Original code review (base `6f88ea2`) did not include browser interactions or real-provider accounts; connector responses were mocked. The later local assisted trial above does not validate live Claude, production deployment, independent user adoption, unattended production, or external submissions. Lost observations need source reimport. Acceptance repair is limited to missing/mismatched accepted text. No deployment was performed. Ignored implementation and verification logs remain under `work/`.
+
+## Native Bot copy/paste trial (2026-09-06)
+
+On `7cfec262e02a2d255e233b0f335e056cab24a13e`, 2026-09-06 01:41:19–01:43:01 UTC, an isolated fictional Relay UI packet was copied into the installed native Grok Bot, and the observed JSON reply was pasted into Relay by hand. Paste staged the exact text without saving; an explicit save and reload preserved it. The record stayed Held, unaccepted, and unsubmitted. Automatic Bot file transfer and the Bot VM command environment remain unverified. This was a narrow local check on fictional isolated data.

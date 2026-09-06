@@ -131,6 +131,10 @@ The Sites plugin on `pnpm dev` strips caller-supplied `oai-authenticated-user-*`
 
 Connectors are local commands and explicit file import/export. Notion and Claude use your credentials. ChatGPT is a prompt/file handoff; Codex also supports a local CLI adapter; Grok Bot uses a documented command/file adapter. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Generated claims still require review. Production deployment and independent user adoption remain separate from this local workflow.
 
+See [Local assisted browser trial](REVIEW.md#local-assisted-browser-trial) for the earlier `3b1efd7` read-only Notion, hand-transcribed Bot file, and browser acceptance, reload, and reimport evidence, still shown on a read-only reopen at `59ec7ac`.
+
+On `7cfec262`, a later fictional trial copied a Relay packet into the installed Grok Bot and manually pasted the returned JSON into Relay. Paste staged the draft without saving; an explicit save and reload preserved its exact text while the record remained Held and unaccepted. Automatic Bot file transfer and the Bot VM command environment remain unverified.
+
 ## Checks
 
 ```sh

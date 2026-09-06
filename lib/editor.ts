@@ -42,6 +42,56 @@ export function loadEditor(job: JobFields): Editor {
 export function canSave(editor: Editor) {
   return !editor.conflict;
 }
+export function editorIsDirty(editor: Editor | null) {
+  return (
+    !!editor &&
+    (editor.draft !== editor.baseDraft || editor.blocker !== editor.baseBlocker)
+  );
+}
+export function keepEditorOnReselect(editor: Editor | null, jobId: string) {
+  return !!editor && editor.jobId === jobId;
+}
+export function showsExactAcceptance(
+  job:
+    | {
+        id: string;
+        version: number;
+        status: string;
+        accepted_draft: string | null;
+      }
+    | null
+    | undefined,
+  editor: Editor | null,
+) {
+  return (
+    !!job &&
+    !!editor &&
+    !editor.conflict &&
+    job.status === 'Ready' &&
+    job.id === editor.jobId &&
+    job.version === editor.version &&
+    editor.draft === job.accepted_draft &&
+    !editorIsDirty(editor)
+  );
+}
+export function jobQueueHint(
+  job: {
+    id: string;
+    version: number;
+    status: string;
+    blocker: string;
+    accepted_draft: string | null;
+  },
+  editor: Editor | null,
+) {
+  const local = editor?.jobId === job.id ? editor : null;
+  if (local ? local.blocker : job.blocker) return 'Needs attention';
+  if (local ? showsExactAcceptance(job, local) : job.status === 'Ready')
+    return 'Exact draft accepted';
+  if (job.status === 'Held' || job.status === 'Ready')
+    return 'Review fit & prepare draft';
+  return job.status;
+}
 export function fileLoadApplies(
   started: EditorTarget | undefined,
   current: EditorTarget | undefined,
@@ -62,9 +112,7 @@ export function reconcileEditor(
   if (!editor) return null;
   if (!job || job.id !== editor.jobId) return editor;
   if (job.version === editor.version) return { ...editor, conflict: false };
-  const dirty =
-    editor.draft !== editor.baseDraft || editor.blocker !== editor.baseBlocker;
-  if (!dirty) return loadEditor(job);
+  if (!editorIsDirty(editor)) return loadEditor(job);
   return { ...editor, conflict: true };
 }
 export function acknowledgeSave(

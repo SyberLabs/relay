@@ -41,13 +41,7 @@ function requirementWords(text: string) {
   return words;
 }
 function postingLines(text: string): string[] {
-  const prepared = text.replace(/[•·▪◦]/g, '\n').replace(
-    /(^|[.\n!?]\s+)(requirements?|qualifications?|must haves|basic qualifications|minimum qualifications|what you.?ll need|benefits?|responsibilities|preferred|perks)\b/gi,
-    '$1\n$2\n',
-  ).replace(
-    /\b(about the (?:role|team|company|us)|about us|nice to have|what you.?ll (?:need|do))\b/gi,
-    '\n$&\n',
-  );
+  const prepared = text.replace(/[•·▪◦]/g, '\n');
   const out: string[] = [];
   for (const raw of prepared.split(/\r?\n/)) {
     const piece = raw.trim();

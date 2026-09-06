@@ -131,14 +131,13 @@ void test('posting text is the job name plus that job’s source notes', () => {
   );
 });
 
-void test('flattened board notes still extract a requirements section', () => {
-  const lines = extractRequirements(
-    'Northstar Backend Engineer About the role Build inventory services. Requirements Kubernetes production experience. PostgreSQL and Redis. Benefits Unlimited snacks',
+void test('flattened board notes do not invent a requirements section', () => {
+  assert.deepEqual(
+    extractRequirements(
+      'Northstar Backend Engineer About the role Build inventory services. Requirements Kubernetes production experience. PostgreSQL and Redis. Benefits Unlimited snacks',
+    ),
+    [],
   );
-  assert.deepEqual(lines, [
-    'Kubernetes production experience.',
-    'PostgreSQL and Redis.',
-  ]);
 });
 
 void test('in-sentence about does not split a required bullet', () => {
@@ -148,6 +147,24 @@ void test('in-sentence about does not split a required bullet', () => {
     ),
     ['Passionate about Kubernetes'],
   );
+});
+
+void test('in-sentence benefits and preferred do not split required lines', () => {
+  assert.deepEqual(
+    extractRequirements(
+      [
+        'Requirements',
+        '• Experience with employee benefits administration',
+        '• Kubernetes',
+      ].join('\n'),
+    ),
+    ['Experience with employee benefits administration', 'Kubernetes'],
+  );
+  const lines = extractRequirements(
+    'Candidates must have preferred Kubernetes experience in production.',
+  );
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /Kubernetes/);
 });
 
 void test('must-cue lines keep about as a content word', () => {

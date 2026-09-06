@@ -55,6 +55,7 @@ function heading(line: string): 'required' | 'other' | null {
     const leftover = contentWords(title);
     for (const w of headingNouns) leftover.delete(w);
     if (!leftover.size) return 'required';
+    if (line.endsWith(':')) return 'required';
   }
   if (title.length < 40 && line.endsWith(':') && !cue.test(line)) return 'other';
   return null;

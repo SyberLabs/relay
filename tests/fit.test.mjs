@@ -250,6 +250,7 @@ void test('short cue titles open a section instead of becoming gates', () => {
     'Required',
     'Required experience:',
     'Experience required:',
+    'Required background:',
   ]) {
     assert.deepEqual(
       extractRequirements(

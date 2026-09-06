@@ -16,6 +16,8 @@ import {
   INITIAL_EVENT_LIMIT,
 } from '../../../lib/workspace-events';
 import { refuseUntrustedOrigin } from '../../../lib/request-origin';
+import { usableFact } from '../../../lib/profile';
+import { loadFacts } from '../../../lib/store';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -34,6 +36,7 @@ export async function GET() {
   const user = (await getChatGPTUser())?.userId;
   if (!user) return reply({ error: 'Sign in to open your workspace.' }, 401);
   const db = database();
+  const now = new Date().toISOString();
   const jobs = await db
     .prepare('SELECT * FROM jobs WHERE owner=? ORDER BY updated DESC,name')
     .bind(user)
@@ -48,10 +51,12 @@ export async function GET() {
     )
     .bind(user, INITIAL_EVENT_LIMIT)
     .all();
+  const facts = (await loadFacts(db, user)).filter((f) => usableFact(f, now));
   return reply({
     jobs: jobs.results,
     sources: sources.results,
     events: events.results,
+    facts,
   });
 }
 export async function POST(request: Request) {

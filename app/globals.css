@@ -469,6 +469,20 @@ a.primary,
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.gates {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 18px;
+}
+.gates li {
+  font-size: 14px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.gates .badge {
+  margin-right: 8px;
+}
 .detailintro {
   padding: 55px 22px;
   max-width: 430px;

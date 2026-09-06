@@ -36,6 +36,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       'jobs',
       'sources',
       'events',
+      'facts',
       'editor',
       'importText',
       'previewedImport',

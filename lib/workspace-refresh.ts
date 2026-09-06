@@ -20,6 +20,7 @@ export type WorkspaceReply = {
   jobs?: JobFields[];
   sources?: unknown[];
   events?: unknown[];
+  facts?: unknown[];
   error?: string;
   items?: unknown;
 };
@@ -42,6 +43,7 @@ export type RefreshOutcome =
       jobs: JobFields[];
       sources: unknown[];
       events: unknown[];
+      facts: unknown[];
     };
 
 export type MutationOutcome =
@@ -54,6 +56,7 @@ export type ExpiredPrivateWorkspace = {
   jobs: [];
   sources: [];
   events: [];
+  facts: [];
   editor: null;
   importText: '';
   previewedImport: '';
@@ -89,6 +92,7 @@ export function expiredPrivateWorkspace(): ExpiredPrivateWorkspace {
     jobs: [],
     sources: [],
     events: [],
+    facts: [],
     editor: null,
     importText: '',
     previewedImport: '',
@@ -158,6 +162,7 @@ export async function processRefresh(
     jobs: reply.body.jobs ?? [],
     sources: reply.body.sources ?? [],
     events: reply.body.events ?? [],
+    facts: reply.body.facts ?? [],
   };
 }
 

@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { validateRows } from '../lib/domain';
 import { isTerminal } from '../lib/outcomes';
+import { type Fact } from '../lib/profile';
+import { assessJob } from '../lib/fit';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
@@ -90,6 +92,7 @@ export default function Workspace() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [sources, setSources] = useState<Source[]>([]),
     [events, setEvents] = useState<ReviewEvent[]>([]),
+    [facts, setFacts] = useState<Fact[]>([]),
     [editor, setEditor] = useState<Editor | null>(null),
     [filter, setFilter] = useState('Held'),
     [search, setSearch] = useState(''),
@@ -111,6 +114,7 @@ export default function Workspace() {
     setJobs(next.jobs);
     setSources(next.sources);
     setEvents(next.events);
+    setFacts(next.facts);
     setEditor(next.editor);
     setImportText(next.importText);
     setPreviewedImport(next.previewedImport);
@@ -136,7 +140,15 @@ export default function Workspace() {
       (j) =>
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
-    );
+    ),
+    fit = current
+      ? assessJob(
+          current,
+          sources.filter((s) => s.job_key === current.job_key),
+          facts,
+          new Date().toISOString(),
+        )
+      : null;
   const selectedRef = useRef('');
   const loadJobHistory = useCallback(
     async (jobId: string, before?: string | null) => {
@@ -184,6 +196,7 @@ export default function Workspace() {
       setJobs(outcome.jobs as Job[]);
       setSources(outcome.sources as Source[]);
       setEvents(outcome.events as ReviewEvent[]);
+      setFacts(outcome.facts as Fact[]);
       setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
       setSignedOut(false);
       setLoaded(true);
@@ -748,6 +761,41 @@ export default function Workspace() {
                       Acceptance saves this version. It does not send or submit
                       anything.
                     </small>
+                    <h3>Posting vs verified facts</h3>
+                    <small className="muted">
+                      Coverage of source notes by facts you verified. Not an
+                      employer score, and it does not change status.
+                    </small>
+                    {fit?.reason === 'notes' && (
+                      <p className="muted">
+                        No required lines found in source notes. Import the
+                        posting text as research before comparing.
+                      </p>
+                    )}
+                    {fit?.reason === 'facts' && (
+                      <p className="muted">
+                        Verify facts on Profile to compare them with this
+                        posting. Proposed facts are not used.
+                      </p>
+                    )}
+                    {fit && fit.gates.length > 0 && (
+                      <ul className="gates">
+                        {fit.gates.map((gate) => (
+                          <li key={gate.text}>
+                            <span className="badge">
+                              {gate.status[0].toUpperCase() + gate.status.slice(1)}
+                            </span>
+                            {gate.text}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {fit?.gates.some((gate) => gate.status === 'miss') && (
+                      <small className="muted">
+                        A miss is a reason to set this job aside or to verify a
+                        real fact, not to invent a skill.
+                      </small>
+                    )}
                     <h3>Source history</h3>
                     <small className="muted">
                       Imported source status is research evidence. Exact draft

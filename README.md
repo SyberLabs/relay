@@ -127,6 +127,7 @@ pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --pe
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_job_key_observations.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_profile_calibration.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_selection_and_outcomes.sql
+pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_record_refusals.sql
 pnpm dev
 ```
 
@@ -198,7 +199,7 @@ The project, organization, personal profile, and website share one [maintained p
 
 `pnpm test` is the unit gate. The API, calibration, orchestration, and CLI live suites each get a dedicated freshly migrated database via `pnpm test:api`, `pnpm test:calibration`, `pnpm test:orchestration`, and `pnpm test:cli`. Do not run those live suites against the same D1: calibration graduates clusters and retires facts. Connector tests mock vendor responses; they do not prove live account access.
 
-For an existing local database still on migration 0001, apply 0002, then 0003 and 0004. From 0002, apply 0003 then 0004. From 0003, apply only 0004. Migration 0003 adds the fact ledger, style rules and draft-review tables. Migration 0004 adds preference, choice and outcome tables and defaulted posting columns on `jobs`; existing rows stay. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
+For an existing local database, apply every migration after the one it is already on, in order, up to the highest number in `drizzle/`. Enumerating per-version paths goes stale the moment a migration is added, so follow the rule rather than a list. Migration 0002 rebuilds the observation index. Migration 0003 adds the fact ledger, style rules and draft-review tables. Migration 0004 adds preference, choice and outcome tables and defaulted posting columns on `jobs`; existing rows stay. Migration 0005 adds the refusals table and changes no existing row. Skipping 0005 leaves `/api/readiness` and every citation refusal hitting a missing table. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
 Domain, import, editor, profile, selection, and API tests cover status preservation, duplicate matching, exact acceptance, citation refusal, terminal outcomes that cannot be reopened by import, stale edits, and authentication rejection. A 401 on `/profile`, `/preferences`, `/review`, or `/track` expires that mounted page session before the response body is read, clears private state and edit controls, and shows the existing signed-out screen. Older in-flight reads and mutations cannot restore it. Sign-in is top-level navigation; these pages do not reauthenticate in place. Workspace expiry is unchanged.
 

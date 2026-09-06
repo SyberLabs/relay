@@ -111,7 +111,7 @@ writeFileSync(
 );
 r = relay('log', job.id, 'private-data/cli-bad.txt', '--cite', verified.id);
 assert.equal(r.code, EXIT.refused, r.err);
-assert.match(r.err, /refused — nothing was written/);
+assert.match(r.err, /refused — no draft stored, no text kept/);
 assert.match(r.err, /cut infrastructure spend by 40%/, 'names the sentence');
 assert.equal(
   (await api('/api/drafts')).data.drafts.length,
@@ -179,6 +179,52 @@ assert.equal(
   'a draft must be accepted before submission',
 );
 assert.match(r.err, /Accept the exact draft/);
+
+/* -- a refusal is now counted, while the draft still is not --------------- */
+function readinessNow() {
+  const res = relay('hunt', '--readiness', '--json');
+  assert.equal(res.code, EXIT.ok, res.err);
+  return JSON.parse(res.out);
+}
+const counted = readinessNow();
+assert.ok(counted.refusals.refused >= 1, 'the earlier refusals were recorded');
+assert.ok(
+  counted.refusals.attempts > counted.refusals.refused,
+  'accepted drafts count as attempts too',
+);
+const beforeRefusal = readinessNow().refusals.refused;
+const draftsBefore = (await api('/api/drafts')).data.drafts.length;
+writeFileSync(
+  'private-data/cli-bad2.txt',
+  'I led a team of 6 engineers. I also raised revenue by 80%.',
+);
+r = relay('log', job.id, 'private-data/cli-bad2.txt', '--cite', verified.id);
+assert.equal(r.code, EXIT.refused, r.err);
+assert.equal(
+  readinessNow().refusals.refused,
+  beforeRefusal + 1,
+  'the refusal is counted so the gate can be measured',
+);
+assert.equal(
+  (await api('/api/drafts')).data.drafts.length,
+  draftsBefore,
+  'and the refused draft is still not stored',
+);
+rmSync('private-data/cli-bad2.txt', { force: true });
+
+/* -- readiness reports gates without running anything --------------------- */
+const gates = readinessNow();
+assert.equal(gates.gates.length, 4);
+assert.deepEqual(
+  gates.gates.map((g) => g.id),
+  ['supervised_run', 'graduated_cluster', 'receipted_outcomes', 'refusal_rate'],
+);
+assert.equal(gates.ready, false, 'a fresh workspace is not ready');
+assert.ok(gates.allowance >= 1, 'but is still allowed a supervised draft');
+
+r = relay('hunt');
+assert.equal(r.code, EXIT.usage, 'the driver is not implemented yet');
+assert.match(r.err, /not implemented yet/);
 
 /* -- usage errors are distinguishable from refusals ------------------------ */
 assert.equal(relay('log', job.id).code, EXIT.usage);

@@ -1,12 +1,7 @@
 import { access, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { EXIT, RelayError, login, request } from './client.mjs';
-import {
-  clusterOf,
-  profileBrief,
-  unsupportedClaims,
-  usableFact,
-} from '../lib/profile.ts';
+import { clusterOf, profileBrief } from '../lib/profile.ts';
 
 let io = { fetchImpl: fetch, claudeFetch: fetch, session: undefined };
 function api(path, body) {
@@ -79,30 +74,10 @@ async function buildBrief(jobId) {
     ),
   };
 }
-// Refuse locally before spending a round trip. The server still enforces this;
-// a client-side check is a convenience and must never be mistaken for the
-// invariant.
-function precheck(body, cited, facts, now) {
-  const known = new Map(facts.map((f) => [f.id, f]));
-  for (const id of cited) {
-    const fact = known.get(id);
-    if (!fact)
-      throw new RelayError(`Cited fact ${id} does not exist.`, EXIT.refused);
-    if (!usableFact(fact, now))
-      throw new RelayError(
-        `Fact ${id} is not verified or has expired. Verify it in the browser first.`,
-        EXIT.refused,
-      );
-  }
-  const used = cited.map((id) => known.get(id));
-  const unsupported = unsupportedClaims(body, used);
-  if (unsupported.length)
-    throw new RelayError(
-      `Unsupported claim: "${unsupported[0]}"`,
-      EXIT.refused,
-      { unsupported },
-    );
-}
+// The server is the only judge of a refusal and the only place one is
+// recorded. An earlier client-side pre-check saved a round trip but refused
+// without the server ever seeing it, so those refusals went uncounted and the
+// refusal rate — a readiness gate — was measured from a biased sample.
 const commands = {
   async login() {
     await login(io.fetchImpl);
@@ -147,8 +122,6 @@ const commands = {
       throw new RelayError(`Cannot read ${file}.`, EXIT.usage);
     }
     if (!body.trim()) throw new RelayError(`${file} is empty.`, EXIT.usage);
-    const profile = await api('/api/profile');
-    precheck(body, cited, profile.facts, new Date().toISOString());
     const result = await api('/api/drafts', {
       action: 'log',
       job_id: id,
@@ -191,7 +164,7 @@ const commands = {
         if (error?.code !== 'ENOENT') throw error;
       }
     }
-    const { job, brief, profile } = await buildBrief(id);
+    const { job, brief } = await buildBrief(id);
     if (!brief.facts.length)
       throw new RelayError(
         'No verified facts to cite. Verify some in the browser first.',
@@ -200,12 +173,6 @@ const commands = {
     const written = await askClaude(
       { token, model, job, brief },
       io.claudeFetch,
-    );
-    precheck(
-      written.draft,
-      written.cited,
-      profile.facts,
-      new Date().toISOString(),
     );
     const result = await api('/api/drafts', {
       action: 'log',
@@ -289,6 +256,34 @@ const commands = {
     for (const [i, t] of clusters.entries())
       out(
         `${i === 0 ? 'clusters' : '        '} ${t.cluster} ${t.state} (${t.reviewed} reviewed, ${Math.round(t.edit * 100)}% median edit)`,
+      );
+  },
+
+  // Ticket 1 ships readiness only. The driver is a separate change, so the
+  // command reports what it would be allowed to do and stops there rather than
+  // pretending to a capability that does not exist.
+  async hunt(_, flags) {
+    if (!flags.readiness)
+      throw new RelayError(
+        'The unattended driver is not implemented yet. Use `relay hunt --readiness` to see what it would be allowed to do.',
+        EXIT.usage,
+      );
+    const query = flags['max-drafts']
+      ? `?max=${Number(flags['max-drafts'])}`
+      : '';
+    const state = await api('/api/readiness' + query);
+    if (flags.json) return json(state);
+    out(
+      `readiness   ${state.passed} of ${state.gates.length} · allowance ${state.allowance} draft${state.allowance === 1 ? '' : 's'}`,
+    );
+    for (const gate of state.gates)
+      out(
+        `  ${gate.passed ? '+' : '-'} ${gate.label.padEnd(20)}${gate.detail}`,
+      );
+    out(`cap         ${state.cap} · ${state.reviewed} drafts reviewed so far`);
+    if (!state.ready)
+      out(
+        'not ready   a run would be capped to the supervised scale above, not blocked',
       );
   },
 
@@ -409,7 +404,7 @@ async function invoke(argv) {
   } catch (error) {
     if (error instanceof RelayError) {
       if (error.code === EXIT.refused) {
-        note('refused — nothing was written');
+        note('refused — no draft stored, no text kept');
         note(`  ${error.message}`);
         if (error.detail?.unsupported)
           note('  Cite a verified fact, or remove the claim.');

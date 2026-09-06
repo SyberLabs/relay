@@ -7,6 +7,7 @@ import {
   reviewTrigger,
   trustMap,
   validateDraftLog,
+  RefusalError,
   validateRule,
 } from '../../../lib/profile';
 import {
@@ -78,7 +79,33 @@ export async function POST(request: Request) {
         }>();
       if (!job) return reply({ error: 'Record not found.' }, 404);
       const facts = await loadFacts(db, user);
-      const entry = validateDraftLog(b, facts, now);
+      let entry;
+      try {
+        entry = validateDraftLog(b, facts, now);
+      } catch (refusal) {
+        // Count the refusal so the gate's real strictness is measurable.
+        // Only a one-way signature of the failing clause is written -- no text
+        // from the draft reaches the database -- and only for refusals the
+        // gate itself raised.
+        if (refusal instanceof RefusalError)
+          await db
+            .prepare(
+              'INSERT INTO refusals (id,owner,job_id,reason,trigger_kind,numbers,words,employer_ref,created) VALUES (?,?,?,?,?,?,?,?,?)',
+            )
+            .bind(
+              crypto.randomUUID(),
+              user,
+              job.id,
+              refusal.reason,
+              refusal.signature?.trigger ?? 'other',
+              refusal.signature?.numbers ?? 0,
+              refusal.signature?.words ?? 0,
+              refusal.signature?.employer_ref ?? 0,
+              now,
+            )
+            .run();
+        throw refusal;
+      }
       const cluster = clusterOf(job.name),
         version = await profileVersion(db, user),
         existing = await loadDrafts(db, user);

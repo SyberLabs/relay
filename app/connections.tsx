@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { assistantPrompt, type Assistant } from '../lib/assistant-handoff';
 import { type EditorTarget } from '../lib/editor';
 import {
   obsidianNote,
@@ -58,7 +59,7 @@ export function Connections({
   const [workflow, setWorkflow] =
     useState<keyof typeof obsidianWorkflows>('research');
   const [loading, setLoading] = useState(false);
-  function download() {
+  function download(assistant?: Assistant) {
     if (!current) return;
     const packet = {
       schema: 'relay.packet.v1',
@@ -73,6 +74,23 @@ export function Connections({
       facts,
       draft,
     };
+    if (assistant) {
+      try {
+        downloadFile(
+          assistantPrompt(packet, assistant),
+          `relay-${assistant}-prompt.md`,
+          'text/markdown',
+        );
+        setNote(
+          'Prompt downloaded. Share it with your chosen assistant, save its JSON response, then load that file here for review. Only this job, the visible draft and supplied facts are included.',
+        );
+      } catch (error) {
+        setNote(
+          error instanceof Error ? error.message : 'Unable to prepare handoff.',
+        );
+      }
+      return;
+    }
     downloadFile(
       JSON.stringify(packet, null, 2),
       'relay-packet.json',
@@ -85,12 +103,12 @@ export function Connections({
   return (
     <details className="import">
       <summary>
-        <b>Connect Obsidian, Grok Bot, Notion & Claude</b>
+        <b>Connect your tools</b>
       </summary>
       <p>
-        Bring research from Obsidian, Notion or Grok Bot, and review a draft
-        prepared by Claude. Load Obsidian notes directly; other integrations use
-        the Relay command tool. Accounts are not connected automatically.
+        Bring research from Obsidian, Notion or Grok Bot, and review drafts
+        prepared with ChatGPT, Codex or Claude. Choose which files to share.
+        Accounts are not connected automatically.
       </p>
       <p>
         <Link href="/about">About Relay and integration setup ↗</Link>
@@ -203,8 +221,26 @@ export function Connections({
         />
       </label>
       <div className="actions">
-        <button className="secondary" disabled={!current} onClick={download}>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => download()}
+        >
           Download selected job packet
+        </button>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => download('chatgpt')}
+        >
+          Prepare for ChatGPT
+        </button>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => download('codex')}
+        >
+          Prepare for Codex
         </button>
         <label className="secondary">
           Load research or draft
@@ -255,6 +291,13 @@ export function Connections({
           />
         </label>
       </div>
+      <p>
+        For ChatGPT or Codex, enter verified facts, download the prepared
+        prompt, and share it with that assistant. Save its JSON response as a
+        .json file and load it here. Codex can also prepare a draft through the
+        local command tool. Returned wording needs review; loading never accepts
+        or sends it.
+      </p>
       {loading && <output>Reading selected files…</output>}
       {note && <output>{note}</output>}
     </details>

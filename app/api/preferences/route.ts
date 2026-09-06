@@ -3,10 +3,11 @@ import { database } from '../../../lib/database';
 import { usableFact } from '../../../lib/profile';
 import {
   corpusOf,
+  difference,
   fitWeights,
-  isChoiceDelta,
   nextPair,
   pairKey,
+  vector,
 } from '../../../lib/utility';
 import {
   loadChoices,
@@ -58,7 +59,6 @@ export async function GET() {
     pair: pair && {
       a: pair.a,
       b: pair.b,
-      delta: pair.delta,
     },
   });
 }
@@ -79,12 +79,14 @@ export async function POST(request: Request) {
         b.winner === b.loser
       )
         throw Error('A choice needs two different jobs.');
-      if (!isChoiceDelta(b.delta))
-        throw Error('A choice needs its comparison vector.');
-      const { pool } = await state(db, user);
-      const keys = new Set(pool.map((p) => p.job_key));
-      if (!keys.has(b.winner) || !keys.has(b.loser))
+      if (Object.hasOwn(b, 'delta'))
+        throw Error('A choice is two jobs, not a comparison vector.');
+      const { pool, corpus } = await state(db, user);
+      const winner = pool.find((p) => p.job_key === b.winner);
+      const loser = pool.find((p) => p.job_key === b.loser);
+      if (!winner || !loser)
         throw Error('Those postings are no longer in the pool.');
+      const delta = difference(vector(winner, corpus), vector(loser, corpus));
       await db.batch([
         db
           .prepare(
@@ -95,7 +97,7 @@ export async function POST(request: Request) {
             user,
             b.winner,
             b.loser,
-            JSON.stringify(b.delta),
+            JSON.stringify(delta),
             now,
           ),
         db

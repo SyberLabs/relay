@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, RotateCcw, Scale, Timer } from 'lucide-react';
 import type { Posting, Weights } from '../../lib/utility';
-type Pair = { a: Posting; b: Posting; delta: number[] };
+type Pair = { a: Posting; b: Posting };
 type State = {
   weights: Weights;
   answered: number;
@@ -169,7 +169,6 @@ export default function Preferences() {
                     action: 'choose',
                     winner: state.pair!.a.job_key,
                     loser: state.pair!.b.job_key,
-                    delta: state.pair!.delta,
                   },
                   'Recorded. The value model refits after every answer.',
                 )
@@ -185,7 +184,6 @@ export default function Preferences() {
                     action: 'choose',
                     winner: state.pair!.b.job_key,
                     loser: state.pair!.a.job_key,
-                    delta: state.pair!.delta.map((d) => -d),
                   },
                   'Recorded. The value model refits after every answer.',
                 )

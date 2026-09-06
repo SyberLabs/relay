@@ -180,7 +180,8 @@ const employerYear = await call('/api/drafts', {
   body: 'I read your 2024 post on storage engines. I led a team of 6 engineers.',
   cited: [teamFact.id],
 });
-assert.equal(employerYear.status, 200, JSON.stringify(employerYear.data));
+assert.equal(employerYear.status, 400, JSON.stringify(employerYear.data));
+assert.match(employerYear.data.error, /Unsupported claim/);
 
 // Retiring the cited fact must not silently leave graduated autonomy running.
 await call('/api/profile', { action: 'retire', id: teamFact.id });

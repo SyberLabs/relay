@@ -90,7 +90,6 @@ for (let i = 0; i < 6; i++) {
     action: 'choose',
     winner: aRemote ? pair.a.job_key : pair.b.job_key,
     loser: aRemote ? pair.b.job_key : pair.a.job_key,
-    delta: aRemote ? pair.delta : pair.delta.map((d) => -d),
   });
   assert.equal(chosen.status, 200, JSON.stringify(chosen.data));
 }
@@ -105,20 +104,35 @@ const rejectedSame = await call('/api/preferences', {
   action: 'choose',
   winner: alpha.job_key,
   loser: alpha.job_key,
-  delta: [0, 0, 0, 0, 0],
 });
 assert.equal(rejectedSame.status, 400, 'a job cannot beat itself');
 
+const bravoKey = (await workspaceJob('bravo')).job_key;
 const emptyDelta = await call('/api/preferences', {
   action: 'choose',
   winner: alpha.job_key,
-  loser: (await workspaceJob('bravo')).job_key,
+  loser: bravoKey,
   delta: [],
 });
 assert.equal(emptyDelta.status, 400, JSON.stringify(emptyDelta.data));
 assert.match(emptyDelta.data.error, /comparison vector/);
+const huge = [1e308, 1e308, 1e308, 1e308, 1e308];
+for (let i = 0; i < 4; i++) {
+  const oversized = await call('/api/preferences', {
+    action: 'choose',
+    winner: alpha.job_key,
+    loser: bravoKey,
+    delta: huge,
+  });
+  assert.equal(oversized.status, 400, JSON.stringify(oversized.data));
+  assert.match(oversized.data.error, /comparison vector/);
+}
 const afterEmpty = (await call('/api/preferences')).data;
-assert.equal(afterEmpty.answered, prefs.answered, 'empty delta is not stored');
+assert.equal(
+  afterEmpty.answered,
+  prefs.answered,
+  'client comparison vectors are not stored',
+);
 assert.ok(
   Object.values(afterEmpty.weights).every((w) => Number.isFinite(w)),
   'stored weights stay finite',

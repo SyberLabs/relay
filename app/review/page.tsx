@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -17,6 +17,13 @@ import {
   type DraftRow,
   type Fact,
 } from '../../lib/profile';
+import {
+  beginPageWork,
+  createPageSession,
+  expireIfUnauthorized,
+  pageWorkIsLive,
+  readAuthorizedJson,
+} from '../../lib/page-session';
 type Trust = {
   cluster: string;
   state: string;
@@ -46,45 +53,75 @@ export default function Review() {
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [signedOut, setSignedOut] = useState(false);
+  const sessionRef = useRef(createPageSession());
+  const applyExpired = useCallback(() => {
+    setDrafts([]);
+    setFacts([]);
+    setBatches([]);
+    setTrust({});
+    setTrigger(null);
+    setEdits({});
+    setProposals({});
+    setBasket([]);
+    setBusy(false);
+    setMessage('');
+    setSignedOut(true);
+  }, []);
   const refresh = useCallback(async () => {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
+    const session = sessionRef.current;
+    const watch = (request: Promise<Response>) =>
+      request.then((r) => {
+        if (expireIfUnauthorized(session, r)) applyExpired();
+        return r;
+      });
     const [d, p] = await Promise.all([
-      fetch('/api/drafts'),
-      fetch('/api/profile'),
+      watch(fetch('/api/drafts')),
+      watch(fetch('/api/profile')),
     ]);
-    if (d.status === 401 || p.status === 401) {
-      setDrafts([]);
-      setFacts([]);
-      setBatches([]);
-      setTrust({});
-      setTrigger(null);
-      setEdits({});
-      setProposals({});
-      setBasket([]);
-      setSignedOut(true);
-      return;
-    }
-    const draftData = (await d.json()) as {
+    if (!pageWorkIsLive(session, started)) return;
+    const draftReply = await readAuthorizedJson<{
       drafts: DraftRow[];
       batches: Batch[];
       trust: Record<string, Trust>;
       trigger: { reason: string; ids: string[] } | null;
       error?: string;
-    };
-    const profileData = (await p.json()) as { facts: Fact[]; error?: string };
-    if (!d.ok) throw Error(draftData.error);
-    if (!p.ok) throw Error(profileData.error);
-    setDrafts(draftData.drafts);
-    setBatches(draftData.batches);
-    setTrust(draftData.trust);
-    setTrigger(draftData.trigger);
-    setFacts(profileData.facts);
-  }, []);
+    }>(session, started, d, 'Unable to load drafts.');
+    if (draftReply.kind === 'expired') {
+      applyExpired();
+      return;
+    }
+    if (draftReply.kind === 'ignore') return;
+    if (draftReply.kind === 'error') throw Error(draftReply.error);
+    const profileReply = await readAuthorizedJson<{
+      facts: Fact[];
+      error?: string;
+    }>(session, started, p, 'Unable to load profile.');
+    if (profileReply.kind === 'expired') {
+      applyExpired();
+      return;
+    }
+    if (profileReply.kind === 'ignore') return;
+    if (profileReply.kind === 'error') throw Error(profileReply.error);
+    if (!pageWorkIsLive(session, started)) return;
+    setDrafts(draftReply.body.drafts);
+    setBatches(draftReply.body.batches);
+    setTrust(draftReply.body.trust);
+    setTrigger(draftReply.body.trigger);
+    setFacts(profileReply.body.facts);
+  }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
-      .catch((e: Error) => setMessage(e.message));
+      .catch((e: Error) => {
+        if (sessionRef.current.expired) return;
+        setMessage(e.message);
+      });
   }, [refresh]);
   async function run(body: Record<string, unknown>, note: string) {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     setBusy(true);
     setMessage('');
     try {
@@ -93,20 +130,49 @@ export default function Review() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await r.json()) as { error?: string; proposals?: string[] };
-      if (!r.ok) throw Error(data.error);
+      const reply = await readAuthorizedJson<{
+        error?: string;
+        proposals?: string[];
+      }>(sessionRef.current, started, r, 'Unable to complete request.');
+      if (reply.kind === 'expired') {
+        applyExpired();
+        return;
+      }
+      if (reply.kind === 'ignore') return;
+      if (reply.kind === 'error') throw Error(reply.error);
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       await refresh();
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(note);
-      return data;
+      return reply.body;
     } catch (e) {
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(
         e instanceof Error ? e.message : 'Unable to complete request.',
       );
     } finally {
-      setBusy(false);
+      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
     }
   }
+  async function saveCorrection(id: string) {
+    if (sessionRef.current.expired) return;
+    const result = await run(
+      {
+        action: 'correct',
+        id,
+        corrected: edits[id],
+      },
+      'Correction saved. Confirm which parts should always apply.',
+    );
+    if (sessionRef.current.expired) return;
+    if (result?.proposals)
+      setProposals({
+        ...proposals,
+        [id]: result.proposals,
+      });
+  }
   function addRule(rule: string, scope = 'global') {
+    if (sessionRef.current.expired) return;
     if (basket.some((r) => r.rule === rule && r.scope === scope)) return;
     setBasket([...basket, { rule, scope }]);
     setMessage('Rule staged. It applies when you close this review.');
@@ -118,6 +184,17 @@ export default function Review() {
     sameness = samenessPairs(batch),
     usage = factUsage(batch, facts),
     unreviewed = batch.filter((d) => d.verdict === 'Logged');
+  async function closeSession() {
+    if (sessionRef.current.expired || !open) return;
+    await run(
+      { action: 'close-batch', id: open.id, rules: basket },
+      `Session closed. ${basket.length} rules now apply to new drafts.`,
+    );
+    if (sessionRef.current.expired) return;
+    setBasket([]);
+    setEdits({});
+    setProposals({});
+  }
   if (signedOut)
     return (
       <main className="productpage">
@@ -276,21 +353,7 @@ export default function Review() {
                   <button
                     className="secondary"
                     disabled={busy || !edits[d.id]?.trim()}
-                    onClick={async () => {
-                      const result = (await run(
-                        {
-                          action: 'correct',
-                          id: d.id,
-                          corrected: edits[d.id],
-                        },
-                        'Correction saved. Confirm which parts should always apply.',
-                      )) as { proposals?: string[] } | undefined;
-                      if (result?.proposals)
-                        setProposals({
-                          ...proposals,
-                          [d.id]: result.proposals,
-                        });
-                    }}
+                    onClick={() => saveCorrection(d.id)}
                   >
                     Save correction
                   </button>
@@ -362,15 +425,7 @@ export default function Review() {
               <button
                 className="primary"
                 disabled={busy}
-                onClick={async () => {
-                  await run(
-                    { action: 'close-batch', id: open.id, rules: basket },
-                    `Session closed. ${basket.length} rules now apply to new drafts.`,
-                  );
-                  setBasket([]);
-                  setEdits({});
-                  setProposals({});
-                }}
+                onClick={() => closeSession()}
               >
                 Close review and apply {basket.length} rule
                 {basket.length === 1 ? '' : 's'}

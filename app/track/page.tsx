@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -7,6 +7,12 @@ import {
   Receipt,
   ShieldAlert,
 } from 'lucide-react';
+import {
+  beginPageWork,
+  createPageSession,
+  pageWorkIsLive,
+  readAuthorizedJson,
+} from '../../lib/page-session';
 type Outcome = {
   id: string;
   job_id: string;
@@ -52,23 +58,44 @@ export default function Track() {
     [message, setMessage] = useState(''),
     [receipts, setReceipts] = useState<Record<string, string>>({}),
     [signedOut, setSignedOut] = useState(false);
+  const sessionRef = useRef(createPageSession());
+  const applyExpired = useCallback(() => {
+    setData(null);
+    setReceipts({});
+    setBusy(false);
+    setMessage('');
+    setSignedOut(true);
+  }, []);
   const refresh = useCallback(async () => {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     const r = await fetch('/api/outcomes');
-    const body = (await r.json()) as Data;
-    if (r.status === 401) {
-      setData(null);
-      setSignedOut(true);
+    const reply = await readAuthorizedJson<Data>(
+      sessionRef.current,
+      started,
+      r,
+      'Unable to load outcomes.',
+    );
+    if (reply.kind === 'expired') {
+      applyExpired();
       return;
     }
-    if (!r.ok) throw Error(body.error);
-    setData(body);
-  }, []);
+    if (reply.kind === 'ignore') return;
+    if (reply.kind === 'error') throw Error(reply.error);
+    if (!pageWorkIsLive(sessionRef.current, started)) return;
+    setData(reply.body);
+  }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
-      .catch((e: Error) => setMessage(e.message));
+      .catch((e: Error) => {
+        if (sessionRef.current.expired) return;
+        setMessage(e.message);
+      });
   }, [refresh]);
   async function record(body: Record<string, unknown>, note: string) {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     setBusy(true);
     try {
       const r = await fetch('/api/outcomes', {
@@ -76,14 +103,27 @@ export default function Track() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'record', ...body }),
       });
-      const result = (await r.json()) as { error?: string };
-      if (!r.ok) throw Error(result.error);
+      const reply = await readAuthorizedJson<{ error?: string }>(
+        sessionRef.current,
+        started,
+        r,
+        'Unable to record.',
+      );
+      if (reply.kind === 'expired') {
+        applyExpired();
+        return;
+      }
+      if (reply.kind === 'ignore') return;
+      if (reply.kind === 'error') throw Error(reply.error);
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       await refresh();
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(note);
     } catch (e) {
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(e instanceof Error ? e.message : 'Unable to record.');
     } finally {
-      setBusy(false);
+      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
     }
   }
   if (signedOut)

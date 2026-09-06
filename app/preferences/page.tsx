@@ -1,8 +1,14 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, RotateCcw, Scale, Timer } from 'lucide-react';
 import type { Posting, Weights } from '../../lib/utility';
+import {
+  beginPageWork,
+  createPageSession,
+  pageWorkIsLive,
+  readAuthorizedJson,
+} from '../../lib/page-session';
 type Pair = { a: Posting; b: Posting };
 type State = {
   weights: Weights;
@@ -54,24 +60,45 @@ export default function Preferences() {
     [message, setMessage] = useState(''),
     [minutes, setMinutes] = useState(120),
     [signedOut, setSignedOut] = useState(false);
+  const sessionRef = useRef(createPageSession());
+  const applyExpired = useCallback(() => {
+    setState(null);
+    setMinutes(120);
+    setBusy(false);
+    setMessage('');
+    setSignedOut(true);
+  }, []);
   const refresh = useCallback(async () => {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     const r = await fetch('/api/preferences');
-    const data = (await r.json()) as State;
-    if (r.status === 401) {
-      setState(null);
-      setSignedOut(true);
+    const reply = await readAuthorizedJson<State>(
+      sessionRef.current,
+      started,
+      r,
+      'Unable to load preferences.',
+    );
+    if (reply.kind === 'expired') {
+      applyExpired();
       return;
     }
-    if (!r.ok) throw Error(data.error);
-    setState(data);
-    setMinutes(data.minutes);
-  }, []);
+    if (reply.kind === 'ignore') return;
+    if (reply.kind === 'error') throw Error(reply.error);
+    if (!pageWorkIsLive(sessionRef.current, started)) return;
+    setState(reply.body);
+    setMinutes(reply.body.minutes);
+  }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
-      .catch((e: Error) => setMessage(e.message));
+      .catch((e: Error) => {
+        if (sessionRef.current.expired) return;
+        setMessage(e.message);
+      });
   }, [refresh]);
   async function post(body: Record<string, unknown>, note = '') {
+    if (sessionRef.current.expired) return;
+    const started = beginPageWork(sessionRef.current);
     setBusy(true);
     try {
       const r = await fetch('/api/preferences', {
@@ -79,14 +106,27 @@ export default function Preferences() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await r.json()) as { error?: string };
-      if (!r.ok) throw Error(data.error);
+      const reply = await readAuthorizedJson<{ error?: string }>(
+        sessionRef.current,
+        started,
+        r,
+        'Unable to save.',
+      );
+      if (reply.kind === 'expired') {
+        applyExpired();
+        return;
+      }
+      if (reply.kind === 'ignore') return;
+      if (reply.kind === 'error') throw Error(reply.error);
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       await refresh();
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(note);
     } catch (e) {
+      if (!pageWorkIsLive(sessionRef.current, started)) return;
       setMessage(e instanceof Error ? e.message : 'Unable to save.');
     } finally {
-      setBusy(false);
+      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
     }
   }
   if (signedOut)

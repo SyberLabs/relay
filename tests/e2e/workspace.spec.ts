@@ -251,31 +251,13 @@ test('a dirty editor asks before opening profile or review screens', async ({
   await expect(
     page.getByRole('heading', { name: 'Make your next move.' }),
   ).toBeVisible();
-  const research = [
-    {
-      url: 'https://example.com/research/ci-dirty-nav',
-      Name: 'Dirty Nav Example — Engineer',
-      Job: 'https://example.com/jobs/ci-dirty-nav',
-      Status: 'Held',
-      Notes: 'Fictional dirty-navigation record.',
-    },
-  ];
-  await page
-    .getByRole('button', { name: 'Import research', exact: true })
-    .click();
-  await expect(page.getByRole('textbox', { name: 'Research JSON' })).toBeVisible();
-  await page
-    .getByRole('textbox', { name: 'Research JSON' })
-    .fill(JSON.stringify(research));
-  await page.getByRole('button', { name: 'Preview matches' }).click();
-  await expect(
-    page.getByText('Preview complete. No records were imported.'),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Import into workspace' }).click();
-  await expect(page.getByText('Workspace updated.')).toBeVisible();
-  await page
-    .getByRole('button', { name: /Dirty Nav Example — Engineer/ })
-    .click();
+  const explore = page.getByRole('button', { name: 'Explore example jobs' });
+  if (await explore.isVisible()) {
+    await explore.click();
+    await expect(page.getByText('Workspace updated.')).toBeVisible();
+  }
+  await page.getByRole('button', { name: /All opportunities/ }).click();
+  await page.locator('section.queue .joblist button').first().click();
   const draft = 'Unsaved dirty-navigation draft.';
   await page
     .getByRole('textbox', { name: 'Application answer or outreach draft' })

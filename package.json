@@ -6,11 +6,11 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "ensure-node": "bash scripts/ensure-node.sh",
-    "predev": "bash scripts/ensure-node.sh",
+    "ensure-node": "node scripts/ensure-node.mjs",
+    "predev": "node scripts/ensure-node.mjs",
     "dev": "vinext dev --port 3000",
     "build": "vinext build",
-    "prestart": "bash scripts/ensure-node.sh",
+    "prestart": "node scripts/ensure-node.mjs",
     "start": "wrangler dev --config dist/server/wrangler.json --ip 127.0.0.1 --port 8787 --persist-to .wrangler/state",
     "lint": "oxlint app lib db tests",
     "format": "oxfmt",

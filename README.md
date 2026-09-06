@@ -41,7 +41,7 @@ nvm install && nvm use          # or: fnm install && fnm use
 # mise use node@24
 # asdf install nodejs 24 && asdf set nodejs 24
 
-bash scripts/ensure-node.sh     # checks `node -v` and prints install help
+node scripts/ensure-node.mjs    # checks the running Node version; no Bash required
 node -v                         # must be >= 24
 pnpm install --frozen-lockfile
 pnpm build

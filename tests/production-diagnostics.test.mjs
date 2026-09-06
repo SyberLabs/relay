@@ -150,15 +150,14 @@ test('detached process-group teardown captures post-SIGTERM output and reaps nes
   const logPath = resolve(directory, 'production-server.log');
   const log = createWriteStream(logPath);
   const nested = `
+    process.on('SIGTERM', () => {
+      process.stdout.write('after-term\\n', () => process.exit(0));
+    });
     const nested = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
       stdio: 'ignore',
       windowsHide: true,
     });
     process.stdout.write('grandchild=' + nested.pid + '\\n');
-    process.on('SIGTERM', () => {
-      process.stdout.write('after-term\\n');
-      process.exit(0);
-    });
     setInterval(() => {}, 1000);
   `;
   const child = spawn(

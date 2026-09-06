@@ -37,7 +37,9 @@ void test('focused context preserves evidence and task without granting review a
   };
   for (const provider of ['chatgpt', 'codex']) {
     const prompt = assistantPrompt(packet, provider, false, context);
-    const input = JSON.parse(prompt.split('Input:\n')[1].split('\n\nRequired output:')[0]);
+    const input = JSON.parse(
+      prompt.split('Input:\n')[1].split('\n\nRequired output:')[0],
+    );
     assert.deepEqual(input.taskContext, {
       nextTask: context.nextTask,
       research: context.research,
@@ -50,8 +52,16 @@ void test('focused context preserves evidence and task without granting review a
     assert.equal(result.taskContext, undefined);
   }
   assert.doesNotMatch(assistantPrompt(packet, 'codex'), /"taskContext"/);
-  assert.throws(() => assistantPrompt(packet, 'codex', false, { research: 'x'.repeat(30001) }), /30,000/);
-  assert.throws(() => assistantPrompt(packet, 'codex', false, { nextTask: 'x'.repeat(2001) }), /2,000/);
+  assert.throws(
+    () =>
+      assistantPrompt(packet, 'codex', false, { research: 'x'.repeat(30001) }),
+    /30,000/,
+  );
+  assert.throws(
+    () =>
+      assistantPrompt(packet, 'codex', false, { nextTask: 'x'.repeat(2001) }),
+    /2,000/,
+  );
 });
 
 void test('assistant handoffs include only selected context and preserve review authority', () => {

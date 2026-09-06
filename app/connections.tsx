@@ -62,7 +62,8 @@ export function Connections({
   const [workflow, setWorkflow] =
     useState<keyof typeof obsidianWorkflows>('research');
   const [loading, setLoading] = useState(false);
-<<<<<<< HEAD
+  const [nextTask, setNextTask] = useState('');
+  const [research, setResearch] = useState('');
   function editorTarget() {
     return current?.session
       ? {
@@ -103,10 +104,6 @@ export function Connections({
       );
     }
   }
-=======
-  const [nextTask, setNextTask] = useState('');
-  const [research, setResearch] = useState('');
->>>>>>> acbc299 (Add focused research and next-task context to assistant prompts)
   function download(assistant?: Assistant) {
     if (!current) return;
     const packet = selectedJobPacket(current, facts, draft);
@@ -165,7 +162,6 @@ export function Connections({
           <option value="followup">Follow-up planning</option>
         </select>
       </label>
-
       <div className="actions">
         <button
           className="secondary"
@@ -280,12 +276,21 @@ export function Connections({
           className="secondary"
           disabled={!current}
           onClick={() => {
-            setResearch(JSON.stringify({ notes, sources: sources.map((source) => ({
-              name: source.name,
-              source_url: source.source_url,
-              notes: source.notes,
-              status: source.status,
-            })) }, null, 2));
+            setResearch(
+              JSON.stringify(
+                {
+                  notes,
+                  sources: sources.map((source) => ({
+                    name: source.name,
+                    source_url: source.source_url,
+                    notes: source.notes,
+                    status: source.status,
+                  })),
+                },
+                null,
+                2,
+              ),
+            );
           }}
         >
           Use this job’s research

@@ -12,7 +12,20 @@ import { obsidianDraftNote } from '../lib/obsidian.ts';
 import { readIntegrationFiles } from '../lib/integration-files.ts';
 import { assistantPrompt, assistantResult } from '../lib/assistant-handoff.ts';
 import { draftCodex } from './codex.mjs';
+import { run as runCli } from './cli.mjs';
 const [command, input, output] = process.argv.slice(2);
+// API-backed commands live in cli.mjs and exit with the agent contract's codes.
+// The file-producing connectors below predate it and stay as they were.
+const apiCommands = new Set([
+  'login',
+  'brief',
+  'log',
+  'draft',
+  'plan',
+  'status',
+  'outcome',
+]);
+if (apiCommands.has(command)) process.exit(await runCli(process.argv.slice(2)));
 async function read(path) {
   if (!path) throw Error('An input file is required.');
   return JSON.parse(await readFile(path, 'utf8'));
@@ -135,7 +148,7 @@ try {
     });
   } else {
     console.log(
-      'Relay integrations\n  notion-pull output.json\n  obsidian-pull note.md [another.md ...] output.json\n  obsidian-draft packet.json output.md\n  claude-draft packet.json output.json\n  chatgpt-prompt packet.json output.md\n  codex-prompt packet.json output.md\n  codex-run packet.json output.json\n  chatgpt-draft packet.json draft.txt output.json\n  codex-draft packet.json draft.txt output.json\n  grok-research rows.json output.json\n  grok-draft packet.json draft.txt output.json\nCredentials are read from environment variables or Codex CLI sign-in. See integrations/README.md.',
+      'Relay integrations\n  login | brief | log | draft | plan | status | outcome   (local API; see integrations/README.md)\n  notion-pull output.json\n  obsidian-pull note.md [another.md ...] output.json\n  obsidian-draft packet.json output.md\n  claude-draft packet.json output.json\n  chatgpt-prompt packet.json output.md\n  codex-prompt packet.json output.md\n  codex-run packet.json output.json\n  chatgpt-draft packet.json draft.txt output.json\n  codex-draft packet.json draft.txt output.json\n  grok-research rows.json output.json\n  grok-draft packet.json draft.txt output.json\nCredentials are read from environment variables or Codex CLI sign-in. See integrations/README.md.',
     );
     if (command && command !== '--help') process.exitCode = 1;
   }

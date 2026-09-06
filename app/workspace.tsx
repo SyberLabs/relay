@@ -12,7 +12,17 @@ import {
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
-import { editorAfterRefresh, expireWorkspace } from '../lib/workspace-refresh';
+import {
+  applyAcceptedSave,
+  beginMutation,
+  beginRefresh,
+  createWorkspaceSession,
+  editorForJobs,
+  expiredPrivateWorkspace,
+  mutationIsLive,
+  processMutation,
+  processRefresh,
+} from '../lib/workspace-refresh';
 import {
   ArrowUpRight,
   Search,
@@ -58,12 +68,6 @@ type Report = {
   submitted: number;
   items: { name: string; kind: string; key: string }[];
 };
-type Reply = {
-  jobs: Job[];
-  sources: Source[];
-  events: ReviewEvent[];
-  error?: string;
-} & Report;
 export default function Workspace() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [sources, setSources] = useState<Source[]>([]),
@@ -79,11 +83,9 @@ export default function Workspace() {
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false);
-  const refreshSeq = useRef(0);
-  const sessionLive = useRef(true);
-  const expireSession = useCallback(() => {
-    const next = expireWorkspace(refreshSeq);
-    sessionLive.current = false;
+  const sessionRef = useRef(createWorkspaceSession());
+  const applyExpired = useCallback(() => {
+    const next = expiredPrivateWorkspace();
     setJobs(next.jobs);
     setSources(next.sources);
     setEvents(next.events);
@@ -114,24 +116,24 @@ export default function Workspace() {
     );
   const refresh = useCallback(
     async (saved?: SaveSnapshot) => {
-      const ticket = ++refreshSeq.current;
+      if (saved) sessionRef.current.lastAck = saved;
+      const started = beginRefresh(sessionRef.current.gate);
       const r = await fetch('/api/workspace');
-      const data = (await r.json()) as Reply;
-      if (ticket !== refreshSeq.current) return;
-      if (r.status === 401) {
-        expireSession();
+      const outcome = await processRefresh(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
         return;
       }
-      if (!r.ok) throw Error(data.error);
-      setJobs(data.jobs);
-      setSources(data.sources);
-      setEvents(data.events);
-      setEditor((e) => editorAfterRefresh(e, data.jobs, saved));
-      sessionLive.current = true;
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') throw Error(outcome.error);
+      setJobs(outcome.jobs as Job[]);
+      setSources(outcome.sources as Source[]);
+      setEvents(outcome.events as ReviewEvent[]);
+      setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
       setSignedOut(false);
       setLoaded(true);
     },
-    [expireSession],
+    [applyExpired],
   );
   useEffect(() => {
     void Promise.resolve()
@@ -142,6 +144,7 @@ export default function Workspace() {
       });
   }, [refresh]);
   async function run(body: Record<string, unknown>, saved?: SaveSnapshot) {
+    const started = beginMutation(sessionRef.current.gate);
     setBusy(true);
     setMessage('');
     try {
@@ -150,21 +153,29 @@ export default function Workspace() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await r.json()) as Reply;
-      if (r.status === 401) {
-        expireSession();
+      const outcome = await processMutation(
+        sessionRef.current,
+        started,
+        r,
+        saved,
+      );
+      if (outcome.type === 'expire') {
+        applyExpired();
         return;
       }
-      if (!r.ok) {
-        if (saved && r.status === 409) await refresh();
-        throw Error(data.error);
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') {
+        if (saved && outcome.status === 409) await refresh();
+        if (!mutationIsLive(sessionRef.current.gate, started)) return;
+        throw Error(outcome.error);
       }
-      if (data.items) setReport(data);
+      setEditor((e) => applyAcceptedSave(e, saved));
+      if (outcome.body.items) setReport(outcome.body as Report);
       if (body.action === 'preview')
         setPreviewedImport(JSON.stringify(body.rows));
       if (body.action === 'import') setPreviewedImport('');
       await refresh(saved);
-      if (!sessionLive.current) return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       setMessage(
         body.action === 'save'
           ? 'Saved. Your review is preserved.'

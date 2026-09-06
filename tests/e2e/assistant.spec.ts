@@ -1,0 +1,107 @@
+import { readFile } from 'node:fs/promises';
+import { expect, test } from '@playwright/test';
+
+test('assistant prompts and returned files preserve explicit draft review', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  await page
+    .getByRole('button', { name: 'Import research', exact: true })
+    .click();
+  await page.getByRole('textbox', { name: 'Research JSON' }).fill(
+    JSON.stringify([
+      {
+        url: 'https://example.com/research/assistant-browser',
+        Name: 'Assistant Example — Engineer',
+        Job: 'https://example.com/jobs/assistant-browser',
+        Status: 'Held',
+        Notes: 'Fictional assistant handoff record.',
+      },
+    ]),
+  );
+  await page.getByRole('button', { name: 'Preview matches' }).click();
+  await expect(
+    page.getByText('Preview complete. No records were imported.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Import into workspace' }).click();
+  await expect(page.getByText('Workspace updated.')).toBeVisible();
+  await page
+    .getByRole('button', { name: /Assistant Example — Engineer/ })
+    .click();
+  await page.getByText('Connect your tools', { exact: true }).click();
+  await page
+    .getByRole('textbox', { name: 'Verified facts for this draft' })
+    .fill('Built a fictional inventory service.');
+  const editor = page.getByRole('textbox', {
+    name: 'Application answer or outreach draft',
+  });
+  await editor.fill('Unsaved wording visible to the assistant.');
+
+  for (const assistant of ['ChatGPT', 'Codex']) {
+    const pending = page.waitForEvent('download');
+    await page
+      .getByRole('button', { name: `Prepare for ${assistant}` })
+      .click();
+    const download = await pending;
+    expect(download.suggestedFilename()).toBe(
+      `relay-${assistant.toLowerCase()}-prompt.md`,
+    );
+    const prompt = await readFile((await download.path())!, 'utf8');
+    expect(prompt).toContain('Built a fictional inventory service.');
+    expect(prompt).toContain('Unsaved wording visible to the assistant.');
+    const result = JSON.parse(prompt.split('Required output:\n')[1]);
+    expect(result.reviewRequired).toBe(true);
+    result.draft = `Fictional wording returned by ${assistant}.`;
+    await page.getByLabel('Load integration result').setInputFiles({
+      name: 'relay-result.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(result)),
+    });
+    await expect(editor).toHaveValue(result.draft);
+    let workspace = await (await page.request.get('/api/workspace')).json();
+    const original = workspace.jobs.find(
+      (job: { id: string }) => job.id === result.job.id,
+    );
+    expect(original.status).toBe('Held');
+    expect(original.accepted_draft).toBeNull();
+    expect(original.draft).not.toBe(result.draft);
+
+    if (assistant === 'Codex') {
+      await page
+        .getByRole('button', { name: 'Save draft', exact: true })
+        .click();
+      await expect(
+        page.getByText('Saved. Your review is preserved.'),
+      ).toBeVisible();
+      await page.reload();
+      await page
+        .getByRole('button', { name: /Assistant Example — Engineer/ })
+        .click();
+      await expect(editor).toHaveValue(result.draft);
+      workspace = await (await page.request.get('/api/workspace')).json();
+      const saved = workspace.jobs.find(
+        (job: { id: string }) => job.id === result.job.id,
+      );
+      expect(saved.status).toBe('Held');
+      expect(saved.accepted_draft).toBeNull();
+      expect(saved.version).toBeGreaterThan(result.job.version);
+      await page.getByText('Connect your tools', { exact: true }).click();
+      await page.getByLabel('Load integration result').setInputFiles({
+        name: 'stale-result.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(
+          JSON.stringify({ ...result, draft: 'Stale replacement.' }),
+        ),
+      });
+      await expect(
+        page.getByText(
+          'Select the matching job. If it has changed, download a new packet or draft note.',
+        ),
+      ).toBeVisible();
+      await expect(editor).toHaveValue(result.draft);
+    } else {
+      await editor.fill('Unsaved wording visible to the assistant.');
+    }
+  }
+});

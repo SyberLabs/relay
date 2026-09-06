@@ -17,7 +17,9 @@
     "test:api": "node scripts/ci/run-integration.mjs api",
     "test:e2e": "node scripts/ci/run-integration.mjs browser",
     "test:production": "node scripts/ci/run-production.mjs",
-    "relay": "node integrations/relay.mjs"
+    "relay": "node integrations/relay.mjs",
+    "public-copy:sync": "node scripts/sync-public-copy.mjs --target project --root .",
+    "public-copy:check": "node scripts/sync-public-copy.mjs --target project --root . --check"
   },
   "dependencies": {
     "csv-parse": "7.0.2",

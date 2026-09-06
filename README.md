@@ -1,35 +1,36 @@
 # Relay by SyberLabs
 
-**Keep your job research, review history, and exact accepted draft together.**
+<!-- relay:public:start -->
+**Your job search should remember what you've done.**
 
-Relay is a job-search review workspace for people using multiple AI assistants and research tools. Bring their work into one opportunity history, see what still needs checking, and accept the exact words you intend to use. Keep that context through applications, interviews, and follow-ups.
+A job-search review workspace that keeps research, application history, and exact accepted drafts together across your tools.
 
-## Why Relay
-
-When another assistant rediscovers a role or rewrites a draft, you need to know what came before and whether the new text was actually reviewed. Relay makes those distinctions explicit:
-
-- **Research keeps its history.** Matching posting URLs join the existing opportunity; changed source notes remain separate observations. Rediscovery preserves an existing interview or submitted status.
-- **Acceptance belongs to the text.** An imported Ready label does not approve a new draft. Accept it in Relay; changing the accepted text requires another review.
-- **Handoffs belong to a job and version.** Draft packets and editor checks reject stale work instead of silently replacing a newer review.
-- **Bring the tools you already use.** Selected notes and validated files can supply research and drafts. Relay keeps the review record across those handoffs.
-
-For example: import a role from Notion, prepare a draft with Claude, accept it, and later add an Obsidian research note for the same posting. The note adds context without replacing your draft or approving new wording. A later draft change needs review again.
-
-This is Relay's product focus, not a claim of exclusive features or a proven advantage. Job tracking, AI writing, interview notes, and human review already exist elsewhere. Relay records acceptance inside its workspace; it does not verify every claim or prove which words were submitted to an employer. URL matching also cannot identify every repost across different job boards.
+**Lead engineer: [Seth Carlson](https://github.com/sdcarlson).**
 
 ## Available in this early release
 
-- Consolidate repeated posting URLs and preserve research history.
-- Edit notes and follow-up drafts on submitted jobs and active interviews without resetting their status.
-- Accept an exact draft; changing it returns it to review.
-- Import Notion research through a read-only command connector.
-- Use Obsidian for role research, interview notes and follow-up planning; preview selected notes together, return drafts to their original job version, and export job context with source history.
-- Import a tracker CSV through explicit column mapping and a record preview. Source statuses remain research; existing Relay status and accepted drafts are preserved.
-- Prepare drafts through the Claude API using your verified facts and your own credentials.
-- Exchange validated research and draft files with Grok Bot in its VM.
-- Explore fictional example records. No real applicant data is included.
+- Consolidate repeated posting URLs while preserving source history.
+- Keep interview notes and follow-ups without resetting application status.
+- Accept an exact draft; changing the wording requires review again.
+- Explore fictional example records; no real applicant data is included.
 
-[Integration setup](integrations/README.md) | [Grok Bot instructions](integrations/GROK_BOT.md) | [Launch copy](LAUNCH.md)
+## Integrations
+
+- **[ChatGPT](integrations/OPENAI.md)**: Prepared prompts and JSON file handoffs for draft review.
+- **[Codex](integrations/OPENAI.md)**: Prepared prompts, validated draft files, or local drafting through the signed-in Codex CLI.
+- **[Obsidian](integrations/OBSIDIAN.md)**: Selected research notes, version-bound draft notes, and job context exports.
+- **[Notion](integrations/README.md)**: Read-only research import through the local command connector.
+- **[Claude](integrations/README.md)**: Draft preparation through the Claude API with your own credentials.
+- **[Grok Bot](integrations/GROK_BOT.md)**: Validated research and draft file exchange in the Bot's VM.
+
+Integrations require explicit setup or file handoffs. Returned drafts require human review. No automatic application sending or background account sync is included.
+
+ChatGPT uses a prompt/file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection.
+
+[Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)
+<!-- relay:public:end -->
+
+Tracker CSV imports are also available through explicit column mapping and preview. Source statuses remain research; existing Relay status and accepted drafts are preserved. [Tracker CSV setup](integrations/README.md#tracker-csv--relay).
 
 [Development workflow](CONTRIBUTING.md) | [Delivery and review](docs/delivery.md) | [Team board](https://github.com/orgs/SyberLabs/projects/1)
 
@@ -43,11 +44,19 @@ This is a pinned copy of the separately maintained, MIT-licensed [GrokCell proje
 
 ## Obsidian workflow
 
-Select a job, open **Connect Obsidian, Grok Bot, Notion & Claude**, choose the note purpose and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay, review its contents and preview matches before importing. New jobs can start from the downloadable example. Several research notes can be imported together.
+Select a job, open **Connect your tools**, choose the note purpose and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay, review its contents and preview matches before importing. New jobs can start from the downloadable example. Several research notes can be imported together.
 
 Use **Edit draft in Obsidian** for an application or follow-up draft that returns to the same job version for review. **Download job context** includes source history as a reference snapshot. Research preserves existing status and approval; loading a draft never accepts or sends it. This is an explicit file handoff, with no plugin, vault scanning or background synchronization.
 
 [Complete Obsidian guide](integrations/OBSIDIAN.md) | [Architecture and data ownership](ARCHITECTURE.md)
+
+## ChatGPT and Codex
+
+Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Connect your tools**, share the selected prompt, and return the JSON result for review. Codex can also prepare drafts through its signed-in CLI. [Complete setup and boundaries](integrations/OPENAI.md).
+
+## Keeping public pages current
+
+The project, organization, personal profile and website share one [maintained product description](docs/public-copy.json). [Public-copy process](docs/PUBLIC-COPY.md) explains generation, checks and automatic refreshes.
 
 ## Run locally
 

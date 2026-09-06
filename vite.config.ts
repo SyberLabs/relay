@@ -46,13 +46,18 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: process.env.RELAY_CI_STATE
+      ? { strictPort: true }
+      : isCodexSeatbeltSandbox
+        ? { watch: { useFsEvents: false, usePolling: true } }
+        : undefined,
     plugins: [
       vinext(),
       sites(),
       cloudflare({
+        persistState: process.env.RELAY_CI_STATE
+          ? { path: process.env.RELAY_CI_STATE }
+          : true,
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
         config: localBindingConfig,
       }),

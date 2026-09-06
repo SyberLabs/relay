@@ -1,7 +1,7 @@
 import { sites } from '@openai/sites-vite-plugin';
 import tailwindcss from '@tailwindcss/postcss';
 import vinext from 'vinext';
-import { defineConfig } from 'vite';
+import { defineConfig, type ViteDevServer } from 'vite';
 import hostingConfig from './.openai/hosting.json';
 
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
@@ -11,6 +11,12 @@ const { d1, r2 } = hostingConfig;
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
+
+const parsedDevPort = Number.parseInt(process.env.PORT || '3000', 10);
+const DEV_PORT =
+  Number.isInteger(parsedDevPort) && parsedDevPort > 0 && parsedDevPort < 65536
+    ? parsedDevPort
+    : 3000;
 
 const localBindingConfig = {
   main: 'vinext/server/fetch-handler',
@@ -46,21 +52,54 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
+    // CI starts Vinext with an ephemeral --port. Never pin 3000 when RELAY_CI_STATE is set.
     server: process.env.RELAY_CI_STATE
       ? { strictPort: true }
-      : isCodexSeatbeltSandbox
-        ? { watch: { useFsEvents: false, usePolling: true } }
-        : undefined,
+      : {
+          host: 'localhost',
+          port: DEV_PORT,
+          strictPort: true,
+          ...(isCodexSeatbeltSandbox
+            ? { watch: { useFsEvents: false, usePolling: true } }
+            : {}),
+        },
+    preview: process.env.RELAY_CI_STATE
+      ? undefined
+      : {
+          host: 'localhost',
+          port: DEV_PORT,
+          strictPort: true,
+        },
     plugins: [
       vinext(),
       sites(),
       cloudflare({
         persistState: process.env.RELAY_CI_STATE
           ? { path: process.env.RELAY_CI_STATE }
-          : true,
+          : { path: '.wrangler/state' },
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
         config: localBindingConfig,
       }),
+      ...(process.env.RELAY_CI_STATE
+        ? []
+        : [
+            {
+              name: 'relay-dev-url',
+              configureServer(server: ViteDevServer) {
+                const httpServer = server.httpServer;
+                httpServer?.once('listening', () => {
+                  const address = httpServer.address();
+                  const port =
+                    typeof address === 'object' && address
+                      ? address.port
+                      : DEV_PORT;
+                  server.config.logger.info(
+                    `Relay: http://localhost:${port}/  (Vite URL. Ignore any workerd 127.0.0.1:NNNN bind.)`,
+                  );
+                });
+              },
+            },
+          ]),
     ],
   };
 });

@@ -29,7 +29,7 @@ const target = {
   draft: '',
 };
 
-await test('assistant handoffs include only selected context and preserve review authority', () => {
+void test('assistant handoffs include only selected context and preserve review authority', () => {
   for (const provider of ['chatgpt', 'codex']) {
     const input = {
       ...packet,
@@ -56,7 +56,7 @@ await test('assistant handoffs include only selected context and preserve review
   }
 });
 
-await test('missing facts, invalid identity, empty and oversized drafts stop the handoff', () => {
+void test('missing facts, invalid identity, empty and oversized drafts stop the handoff', () => {
   assert.throws(() => assistantPrompt({ ...packet, facts: '' }, 'chatgpt'));
   assert.throws(() =>
     assistantPrompt(
@@ -74,7 +74,7 @@ await test('missing facts, invalid identity, empty and oversized drafts stop the
   assert.throws(() => assistantResult(packet, 'a'.repeat(20001), 'codex'));
 });
 
-await test('Codex runs with constrained output and Relay owns identity, not the response', async () => {
+void test('Codex runs with constrained output and Relay owns identity, not the response', async () => {
   let directory;
   const result = await draftCodex(
     packet,
@@ -105,7 +105,7 @@ await test('Codex runs with constrained output and Relay owns identity, not the 
   await assert.rejects(access(directory));
 });
 
-await test('Codex failure or malformed output leaves no draft and cleans temporary files', async () => {
+void test('Codex failure or malformed output leaves no draft and cleans temporary files', async () => {
   let directory;
   await assert.rejects(
     draftCodex(packet, async (_exe, _args, options) => {
@@ -125,7 +125,7 @@ await test('Codex failure or malformed output leaves no draft and cleans tempora
   );
 });
 
-await test('CLI prompt and draft file round trip rejects output overwrite', async () => {
+void test('CLI prompt and draft file round trip rejects output overwrite', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'relay-assistant-test-'));
   try {
     const input = join(dir, 'packet.json'),

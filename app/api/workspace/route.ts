@@ -11,6 +11,10 @@ import {
 } from '../../../lib/domain';
 import seed from '../../../lib/seed.json';
 import { packets } from '../../../lib/packets';
+import {
+  historyPageSize,
+  INITIAL_EVENT_LIMIT,
+} from '../../../lib/workspace-events';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -28,9 +32,9 @@ export async function GET() {
     .all();
   const events = await db
     .prepare(
-      'SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT 200',
+      'SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT ?',
     )
-    .bind(user)
+    .bind(user, INITIAL_EVENT_LIMIT)
     .all();
   return reply({
     jobs: jobs.results,
@@ -154,6 +158,36 @@ export async function POST(request: Request) {
       if (!result[0].meta.changes)
         return reply({ error: 'Record changed. Reload before saving.' }, 409);
       return reply({ ok: true });
+    }
+    if (b.action === 'history') {
+      const job = await db
+        .prepare('SELECT id FROM jobs WHERE id=? AND owner=?')
+        .bind(b.id, user)
+        .first();
+      if (!job) return reply({ error: 'Record not found.' }, 404);
+      const limit = historyPageSize(b.limit);
+      const before = typeof b.before === 'string' && b.before ? b.before : null;
+      const rows = before
+        ? await db
+            .prepare(
+              'SELECT * FROM events WHERE owner=? AND job_id=? AND created < ? ORDER BY created DESC LIMIT ?',
+            )
+            .bind(user, b.id, before, limit)
+            .all()
+        : await db
+            .prepare(
+              'SELECT * FROM events WHERE owner=? AND job_id=? ORDER BY created DESC LIMIT ?',
+            )
+            .bind(user, b.id, limit)
+            .all();
+      const events = rows.results;
+      return reply({
+        events,
+        next:
+          events.length === limit
+            ? events[events.length - 1]?.created || null
+            : null,
+      });
     }
     return reply({ error: 'Unknown action.' }, 400);
   } catch (e) {

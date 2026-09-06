@@ -4,9 +4,13 @@ import {
   applyLoadedDraft,
   acknowledgeSave,
   canSave,
+  editorIsDirty,
   fileLoadApplies,
+  jobQueueHint,
+  keepEditorOnReselect,
   loadEditor,
   reconcileEditor,
+  showsExactAcceptance,
 } from '../lib/editor.ts';
 const job = (id, extra = {}) => ({
   id,
@@ -171,4 +175,130 @@ void test('stale file-load snapshot cannot overwrite a later editor', () => {
   assert.equal(applied.draft, 'from file');
   assert.equal(applied.session, same.session);
   assert.notEqual(applied, same);
+});
+void test('dirty compares draft and blocker against the loaded base', () => {
+  const editor = loadEditor(job('A', { blocker: 'need fact' }));
+  assert.equal(editorIsDirty(null), false);
+  assert.equal(editorIsDirty(editor), false);
+  assert.equal(editorIsDirty({ ...editor, draft: 'typed' }), true);
+  assert.equal(editorIsDirty({ ...editor, blocker: 'other fact' }), true);
+  assert.equal(
+    editorIsDirty({ ...editor, draft: 'original', blocker: 'need fact' }),
+    false,
+  );
+});
+void test('same-job reselect keeps the editor; another job does not', () => {
+  const editor = loadEditor(job('A'));
+  const typed = { ...editor, draft: 'unsaved' };
+  assert.equal(keepEditorOnReselect(typed, 'A'), true);
+  assert.equal(keepEditorOnReselect(typed, 'B'), false);
+  assert.equal(keepEditorOnReselect(null, 'A'), false);
+  assert.equal(typed.session, editor.session);
+});
+void test('exact local acceptance is Ready with an unchanged draft and blocker', () => {
+  const ready = {
+    id: 'A',
+    version: 1,
+    status: 'Ready',
+    accepted_draft: 'Exact accepted',
+  };
+  const accepted = loadEditor(
+    job('A', { draft: 'Exact accepted', blocker: '' }),
+  );
+  assert.equal(showsExactAcceptance(ready, accepted), true);
+  assert.equal(
+    showsExactAcceptance(ready, { ...accepted, draft: 'Exact accepted ' }),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance(ready, { ...accepted, blocker: 'need fact' }),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Held' }, accepted),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Skip' }, accepted),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Submitted' }, accepted),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Live loop' }, accepted),
+    false,
+  );
+  assert.equal(showsExactAcceptance(ready, null), false);
+  assert.equal(showsExactAcceptance({ ...ready, version: 2 }, accepted), false);
+  assert.equal(
+    showsExactAcceptance({ ...ready, accepted_draft: 'other text' }, accepted),
+    false,
+  );
+  assert.equal(showsExactAcceptance({ ...ready, id: 'B' }, accepted), false);
+  assert.equal(
+    showsExactAcceptance(ready, { ...accepted, conflict: true }),
+    false,
+  );
+});
+void test('queue hint drops accepted copy when the selected Ready editor is dirty', () => {
+  const ready = {
+    ...job('A', { draft: 'Exact accepted', blocker: '' }),
+    status: 'Ready',
+    accepted_draft: 'Exact accepted',
+  };
+  const editor = loadEditor({ ...ready, id: 'A' });
+  assert.equal(
+    jobQueueHint({ ...ready, status: 'Ready' }, editor),
+    'Exact draft accepted',
+  );
+  assert.equal(
+    jobQueueHint({ ...ready, status: 'Ready' }, { ...editor, draft: 'edited' }),
+    'Review fit & prepare draft',
+  );
+  assert.equal(
+    jobQueueHint(
+      { ...ready, status: 'Ready' },
+      { ...editor, blocker: 'need fact' },
+    ),
+    'Needs attention',
+  );
+  assert.equal(
+    jobQueueHint({ ...ready, id: 'B', status: 'Ready', blocker: '' }, editor),
+    'Exact draft accepted',
+  );
+  assert.equal(
+    jobQueueHint(
+      { ...ready, id: 'C', status: 'Held', blocker: 'open' },
+      editor,
+    ),
+    'Needs attention',
+  );
+  assert.equal(
+    jobQueueHint({ ...ready, status: 'Submitted' }, editor),
+    'Submitted',
+  );
+});
+void test('reverting after a Ready conflict does not label stale text accepted', () => {
+  let editor = loadEditor(job('A', { draft: 'Exact v1', blocker: '' }));
+  editor = { ...editor, draft: 'local edit' };
+  editor = reconcileEditor(
+    editor,
+    job('A', { version: 2, draft: 'Exact v2', blocker: '' }),
+  );
+  assert.equal(editor.conflict, true);
+  assert.equal(editor.version, 1);
+  editor = { ...editor, draft: editor.baseDraft, blocker: editor.baseBlocker };
+  assert.equal(editorIsDirty(editor), false);
+  const current = {
+    id: 'A',
+    version: 2,
+    status: 'Ready',
+    blocker: '',
+    accepted_draft: 'Exact v2',
+  };
+  assert.equal(showsExactAcceptance(current, editor), false);
+  assert.notEqual(jobQueueHint(current, editor), 'Exact draft accepted');
+  assert.equal(jobQueueHint(current, editor), 'Review fit & prepare draft');
 });

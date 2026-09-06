@@ -71,10 +71,12 @@ void test('workers.dev subdomain labels accept 1 and 63 character DNS labels and
     assert.equal(Object.hasOwn(config, 'routes'), false);
     assertGatewayBindings(config);
   }
-  const ok = workersEnv();
-  for (const subdomain of ['', 'n'.repeat(64), 'a_b', 'a.b', 'a b', '-ab', 'ab-', '-']) {
-    assert.throws(() => releaseConfig({ ...ok, WORKERS_DEV_SUBDOMAIN: subdomain }, {}));
+  for (const subdomain of ['', 'n'.repeat(64), 'a_b', 'a.b', '-ab', 'ab-', '-']) {
+    const input = workersEnv('relay-staging', subdomain);
+    assert.equal(new URL(input.DEPLOY_URL).hostname, `relay-staging.${subdomain}.workers.dev`);
+    assert.throws(() => releaseConfig(input, {}), /WORKERS_DEV_SUBDOMAIN/);
   }
+  assert.throws(() => releaseConfig({ ...workersEnv(), WORKERS_DEV_SUBDOMAIN: 'a b' }, {}), /WORKERS_DEV_SUBDOMAIN/);
 });
 void test('artifact verification binds release SHA and every byte, rejecting missing and extra files', () => {
   const files = Object.fromEntries(['dist/server/index.js', 'dist/server/wrangler.json', 'dist/gateway/worker.js', 'deploy/worker.mjs', 'deploy/access.mjs', 'deploy/handler.mjs'].map(path => [path, 'd'.repeat(64)]));

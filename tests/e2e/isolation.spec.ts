@@ -75,7 +75,7 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
   try {
     await pageA.goto('/');
     await expect(
-      pageA.getByRole('heading', { name: 'Make your next move.' }),
+      pageA.getByRole('heading', { name: 'Workspace' }),
     ).toBeVisible();
     await expect(pageA.getByText('Opening your workspace…')).toHaveCount(0);
     await expect(
@@ -84,7 +84,7 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
 
     await pageB.goto('/');
     await expect(
-      pageB.getByRole('heading', { name: 'Make your next move.' }),
+      pageB.getByRole('heading', { name: 'Workspace' }),
     ).toBeVisible();
     await expect(pageB.getByText('Opening your workspace…')).toHaveCount(0);
     await expect(
@@ -95,7 +95,7 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
     await importResearch(pageB, ownerBRow);
     await pageB.reload();
     await expect(
-      pageB.getByRole('heading', { name: 'Make your next move.' }),
+      pageB.getByRole('heading', { name: 'Workspace' }),
     ).toBeVisible();
     await expect(pageB.getByText('Opening your workspace…')).toHaveCount(0);
     await importResearch(pageB, {
@@ -108,7 +108,7 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
 
     await pageA.reload();
     await expect(
-      pageA.getByRole('heading', { name: 'Make your next move.' }),
+      pageA.getByRole('heading', { name: 'Workspace' }),
     ).toBeVisible();
     await expect(pageA.getByText('Opening your workspace…')).toHaveCount(0);
     await pageA.getByRole('button', { name: /All opportunities/ }).click();

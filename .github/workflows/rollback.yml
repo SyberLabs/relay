@@ -1,0 +1,33 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Previously successful production release commit (40 characters)
+        required: true
+        type: string
+      run_id:
+        description: Successful main CI run that built that release (artifact must still exist)
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+concurrency:
+  group: relay-delivery
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-environment.yml
+    with:
+      environment: production
+      release_sha: ${{ inputs.release_sha }}
+      run_id: ${{ inputs.run_id }}
+      rollback: true
+    secrets: inherit

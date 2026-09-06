@@ -37,7 +37,7 @@ Code implementation used the verified Cursor Grok 4.6 Extra High conversation th
 
 On `3b1efd7`, a local assisted trial accepted an exact saved draft in the browser, reloaded, and reimported the original two research observations. The accepted draft, Ready status, two observations (deduplicated), and review history were retained. No external applications, messages, or Notion writes. Source rows came through the connected Notion tool, not the standalone Notion CLI. Installed Grok Bot JSON was transcribed by hand into a validated file; automatic Bot file transfer was not tested. After this checkout fast-forwarded to `59ec7ac`, a read-only browser reopen still showed the accepted record.
 
-## Round 2 (uncommitted, `2372771`)
+## Round 2 (approved `8ba8400` snapshot based on `2372771`)
 
 Surgical UI on copy/paste, Relay vs source status labels, redundant accepted actions, and dirty navigation. Independent fictional QA only; the earlier assisted real trial on port 3101 was not repeated or mutated.
 
@@ -54,6 +54,16 @@ Astra 6 High review then required four corrections, implemented here without pub
 - Migrations 0000, 0001, and 0002 applied to this checkout’s `.wrangler/state`. Dev server: `http://localhost:3102/` (listens on `[::1]:3102`).
 - Initial fictional browser pass is retained at ignored `private-data/work/round2-browser-qa-initial.json`. Tightened corrections pass (`private-data/work/round2-corrections-browser-qa.json`): copy serializer matched download (Windows clipboard CRLF vs file LF, normalized equality); induced clipboard rejection showed the fallback and left download available; valid paste staged exact text with no database write; prose/wrong-job/stale/oversized paste left editor and stored state unchanged; unchanged Ready on All opportunities disabled Save/Accept with no extra version or event; word edit dropped the accepted hint; Save revoked Ready; explicit reaccept stored the new text; external Ready v2 plus revert did not label stale text accepted; blocker-only dirty cancel/save; current-filter no-op; same-job reselect; dirty job/filter cancel/confirm; delayed file load across a job switch left the later editor unchanged; held in-flight Maple save did not overwrite the Northstar editor. Source Ready rendered beside Relay Held.
 - Not done here: `tests/api.test.mjs`, live Claude, installed Bot transport, production deploy, commit, or push. Port 3101 / live-trial database were not used.
+
+## PR24 integration with merged main `e037ebf`
+
+Uncommitted merge on `codex/round2-draft-handoffs`: head under review is `8ba8400` plus exact `e037ebf468fd1203bd2667ada244137d91794c99`. Merge base `2372771`. Content conflicts were only `package.json` and `pnpm-lock.yaml`; both were resolved to the complete `e037ebf` files. Round2 application, helper, and test files were not rewritten.
+
+Fresh checks on this runtime (Node 24.19.0, pnpm 11.19.0, frozen lockfile, owned `node_modules`): `git diff --check` exit 0; `pnpm lint` exit 0; `pnpm typecheck` exit 0; `pnpm test` via `scripts/ci/run-unit.mjs` **64 passed, 0 failed** (discovered `auth`, `connectors`, `deployment`, `domain`, `editor`, `import`, `obsidian`; `api.test.mjs` excluded by design); `pnpm build` exit 0 on Vite 8.0.16 with the framework route-classification notice; `pnpm audit --audit-level high` exit 0, remaining **2 advisories (1 moderate, 1 low)** in esbuild; `pnpm test:api` PASS; `pnpm test:production` PASS. Local `pnpm test:e2e` did not launch: Playwright 1.63 looks for `chromium_headless_shell-1243` under the Cursor sandbox browser cache; tracked e2e tests were not changed. Canonical remote CI remains required.
+
+Fictional browser regression (not an installed-Bot trial): ignored `private-data/work/round2-main-integration-browser-qa.json` and `.png`. Copy matched download after Windows CRLF normalization (382 vs 370); induced clipboard failure kept download; paste staged exact text with no writes; invalid/wrong-job/stale/oversized inputs left the editor unchanged; exact acceptance disabled redundant Save/Accept; word and blocker edits remained reviewable; Ready external-conflict reversion was not labeled accepted; same-job/current-filter preserved the editor; dirty cancel/discard worked; delayed file read and a held in-flight save left the later editor intact.
+
+The historical 55-test / 19-advisory / no-overrides snapshot above describes `8ba8400`, not this integrated runtime. No production, live Claude, fresh installed-Bot roundtrip, or independent adoption is claimed.
 
 ## Coverage limits
 

@@ -174,7 +174,7 @@ try {
       .setIssuer(issuer)
       .setAudience(audience)
       .setIssuedAt()
-      .setExpirationTime('15m')
+      .setExpirationTime('5m')
       .sign(privateKey);
   const first = await token('owner-a');
   const second = await token('owner-b');

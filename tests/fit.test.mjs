@@ -250,7 +250,8 @@ void test('short cue titles open a section instead of becoming gates', () => {
     'Required',
     'Required experience:',
     'Experience required:',
-    'Required background:',
+    'At least:',
+    'At least',
   ]) {
     assert.deepEqual(
       extractRequirements(
@@ -260,6 +261,16 @@ void test('short cue titles open a section instead of becoming gates', () => {
       title,
     );
   }
+});
+
+void test('a years cue with leftover skill words stays a gate', () => {
+  assert.deepEqual(
+    extractRequirements('Minimum of 5 years of Kubernetes:'),
+    ['Minimum of 5 years of Kubernetes:'],
+  );
+  assert.deepEqual(extractRequirements('At least 5 years of Kubernetes.'), [
+    'At least 5 years of Kubernetes.',
+  ]);
 });
 
 void test('markdown requirements headings still extract bullets', () => {

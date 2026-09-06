@@ -25,7 +25,7 @@ const page = {
     Notes: { rich_text: [{ text: { content: 'Interview scheduled' } }] },
   },
 };
-test('Notion preserves status and returns continuation instead of silently truncating', async () => {
+void test('Notion preserves status and returns continuation instead of silently truncating', async () => {
   const r = await pullNotion(
     { token: 'test-token', dataSource: 'a'.repeat(32), cursor: 'prior' },
     async (url, options) => {
@@ -42,7 +42,7 @@ test('Notion preserves status and returns continuation instead of silently trunc
   assert.equal(r.rows[0].Status, 'Live loop');
   assert.equal(r.cursor, 'next');
 });
-test('unknown Notion statuses are rejected', () => {
+void test('unknown Notion statuses are rejected', () => {
   assert.throws(() =>
     notionRow({
       ...page,
@@ -53,7 +53,7 @@ test('unknown Notion statuses are rejected', () => {
     }),
   );
 });
-test('Claude output remains a draft tied to its original job and version', async () => {
+void test('Claude output remains a draft tied to its original job and version', async () => {
   const result = await draftClaude(
     { token: 'test-token', model: 'test-model', packet },
     async (url, options) => {
@@ -70,7 +70,7 @@ test('Claude output remains a draft tied to its original job and version', async
   assert.equal(result.reviewRequired, true);
   assert.deepEqual(result.job, packet.job);
 });
-test('provider errors and truncated responses never produce drafts', async () => {
+void test('provider errors and truncated responses never produce drafts', async () => {
   await assert.rejects(
     draftClaude(
       { token: 't', model: 'm', packet },
@@ -88,7 +88,7 @@ test('provider errors and truncated responses never produce drafts', async () =>
     /did not finish/,
   );
 });
-test('packets require verified facts and matching job identity', () => {
+void test('packets require verified facts and matching job identity', () => {
   assert.throws(() => validatePacket({ ...packet, facts: '' }));
   assert.throws(() =>
     validatePacket({ ...packet, job: { ...packet.job, key: 'different' } }),

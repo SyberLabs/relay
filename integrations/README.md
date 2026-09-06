@@ -2,6 +2,25 @@
 
 Relay uses local commands and explicit file handoffs. You choose which data leaves your workspace. The command tool works in a Grok Bot VM, Claude Code terminal, or a normal shell. It needs Node 24; it does not require a hosted Relay API token.
 
+## ChatGPT and Codex to Relay
+
+Use **Prepare for ChatGPT** or **Prepare for Codex** in the connection panel, then return the assistant's JSON response for review. Codex also supports `codex-run` through your signed-in CLI. [Read the complete ChatGPT and Codex guide](OPENAI.md) for commands, setup and data boundaries. These are explicit handoffs, not an installed hosted ChatGPT app.
+## Tracker CSV → Relay
+
+Use **Import a tracker CSV** in the workspace for a user-managed Simplify export or another comma-separated tracker file. This path needs no account connection or credentials.
+
+1. Export only the opportunities you want to review, or prepare a copy containing those rows. Keep the original export.
+2. Choose the file and name the source tracker. Confirm the company, role and employer posting URL columns. Relay suggests recognizable headers but requires you to review them. Map source status and research notes if wanted; all omitted columns are listed.
+3. Choose **Preview tracker records**. The file is read locally; only the mapped fields are sent to your Relay workspace for the match preview. Review each title, URL, source status and note. Preview does not save records.
+4. Choose **Import … research records** to save the previewed data. Matching URLs add source history to existing jobs. New jobs start Held; existing status, draft and acceptance remain in Relay. The server rechecks matches at import time.
+
+Source status is recorded in the observation's notes. An Applied, Interview, Offer, Rejected, Withdrawn or Ready value never changes Relay status. This is research import, not full pipeline migration or two-way synchronization. Changing a source status creates a new observation; repeating unchanged research does not duplicate it. Keep the source tracker name consistent across exports for stable observation identity. Renaming the source creates a separate source identity. Different roles sharing a company/title are not merged on those names; use the original employer posting URL to match across tools. URLs on different job boards may remain separate.
+
+Files must be UTF-8, comma-separated, smaller than 2 MB, with one unique header row and 1–200 opportunity rows. Quoted commas, escaped quotes and multiline notes are supported. The limit is 50 columns, 500 characters for the combined company/role title and 20,000 for the resulting research including its source label/status. Blank lines are ignored. Missing posting URLs, duplicate headers, malformed rows and oversized values reject the batch with an error; no partial import occurs. Add missing employer URLs to your copy before trying again.
+
+Try [the fictional CSV](../tests/fixtures/tracker-example.csv). These sample headers are a Relay test fixture, not a captured Simplify export. The [Simplify tracker guide](https://help.simplify.jobs/en/articles/2140179-using-the-job-tracker) documents CSV export; compatibility with an actual account export remains unverified. This release claims no Simplify partnership, API access, account sync or application sending.
+
+
 ## Notion → Relay
 
 Create a Notion internal integration with read access and share the intended data source with it. Set `NOTION_TOKEN` and `NOTION_DATA_SOURCE_ID` in the environment, then run:
@@ -10,7 +29,7 @@ Create a Notion internal integration with read access and share the intended dat
 node integrations/relay.mjs notion-pull private-data/notion-page-1.json
 ```
 
-Upload the resulting JSON with **Connect Obsidian, Grok Bot, Notion & Claude → Load research or draft**, then preview and import. The source needs `Name` (title), `Job` (URL), `Status` (status/select), and `Notes` (rich text). Accepted statuses: Held, Ready, Submitted, Skip, Live loop. Unknown statuses stop the import; map them deliberately in your source first.
+Upload the resulting JSON with **Connect your tools → Load research or draft**, then preview and import. The source needs `Name` (title), `Job` (URL), `Status` (status/select), and `Notes` (rich text). Accepted statuses: Held, Ready, Submitted, Skip, Live loop. Unknown statuses stop the import; map them deliberately in your source first.
 
 For different property names, set `RELAY_NOTION_FIELDS` to a JSON object such as `{"name":"Company","job":"Posting","status":"Stage","notes":"Research"}`. Each command fetches at most 100 source records. If more exist, the command prints a continuation cursor: set `NOTION_CURSOR`, use a new output filename, and repeat until no cursor is printed. No automatic polling or Notion writes occur.
 
@@ -49,6 +68,14 @@ node integrations/relay.mjs grok-draft relay-packet.json draft.txt private-data/
 ```
 
 Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; that path has not been tested in a Grok Bot session.
+
+## Profile, drafts and review
+
+The fact ledger and style card live in the app at `/profile`, and review sessions at `/review`. Neither needs a connector or credentials: extraction runs locally on text you paste, and no resume file leaves your machine.
+
+A browser exposing WebMCP gives an assistant `relay_read_profile`, `relay_log_draft` and `relay_review_status` alongside the existing workspace tools. Logging enforces that claims trace to verified facts; it does not accept drafts or change application status. This path has not been tested in a Grok Bot session.
+
+The `claude-draft` command remains a file handoff and does not use the fact ledger. Facts you type into a packet are still ephemeral and unsaved.
 
 ## Privacy and operation
 

@@ -1,19 +1,36 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
-
+import { TrackerImport } from './tracker-import';
 import {
-  acknowledgeSave,
   applyLoadedDraft,
   canSave,
+  editorIsDirty,
+  jobQueueHint,
+  keepEditorOnReselect,
   loadEditor,
-  reconcileEditor,
+  showsExactAcceptance,
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
+import {
+  applyAcceptedSave,
+  beginMutation,
+  beginRefresh,
+  createWorkspaceSession,
+  editorForJobs,
+  expiredPrivateWorkspace,
+  expireSession,
+  mutationIsLive,
+  processMutation,
+  processRefresh,
+} from '../lib/workspace-refresh';
+import {
+  mergeReviewEvents,
+} from '../lib/workspace-events';
 import {
   ArrowUpRight,
   Search,
@@ -25,13 +42,14 @@ import {
   History,
   BriefcaseBusiness,
   Upload,
-  ChevronRight,
+  FileText,
+  Sparkles,
 } from 'lucide-react';
 type Job = {
   id: string;
   job_key: string;
   name: string;
-  url: string;
+  url: string | null;
   status: string;
   blocker: string;
   draft: string;
@@ -59,12 +77,6 @@ type Report = {
   submitted: number;
   items: { name: string; kind: string; key: string }[];
 };
-type Reply = {
-  jobs: Job[];
-  sources: Source[];
-  events: ReviewEvent[];
-  error?: string;
-} & Report;
 export default function Workspace() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [sources, setSources] = useState<Source[]>([]),
@@ -79,7 +91,27 @@ export default function Workspace() {
     [report, setReport] = useState<Report | null>(null),
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
-    [showImport, setShowImport] = useState(false);
+    [showImport, setShowImport] = useState(false),
+    [historyNext, setHistoryNext] = useState<Record<string, string | null>>(
+      {},
+    );
+  const sessionRef = useRef(createWorkspaceSession());
+  const workspaceEpoch = sessionRef.current.gate.epoch;
+  const applyExpired = useCallback(() => {
+    const next = expiredPrivateWorkspace();
+    setJobs(next.jobs);
+    setSources(next.sources);
+    setEvents(next.events);
+    setEditor(next.editor);
+    setImportText(next.importText);
+    setPreviewedImport(next.previewedImport);
+    setReport(next.report);
+    setShowImport(next.showImport);
+    setSignedOut(next.signedOut);
+    setLoaded(next.loaded);
+    setHistoryNext({});
+    setMessage('');
+  }, []);
   const researchRows = useMemo(() => {
     try {
       return validateRows(JSON.parse(importText));
@@ -96,27 +128,62 @@ export default function Workspace() {
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
     );
-  const refresh = useCallback(async (saved?: SaveSnapshot) => {
-    const r = await fetch('/api/workspace');
-    const data = (await r.json()) as Reply;
-    if (r.status === 401) {
-      setSignedOut(true);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const loadJobHistory = useCallback(
+    async (jobId: string, before?: string | null) => {
+      const r = await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'history',
+          id: jobId,
+          limit: 50,
+          ...(before ? { before } : {}),
+        }),
+      });
+      if (r.status === 401) {
+        expireSession(sessionRef.current);
+        applyExpired();
+        return;
+      }
+      if (!r.ok) return;
+      const data = (await r.json()) as {
+        events?: ReviewEvent[];
+        next?: string | null;
+      };
+      setEvents((prev) => mergeReviewEvents(prev, data.events || []));
+      setHistoryNext((prev) => ({ ...prev, [jobId]: data.next || null }));
+    },
+    [applyExpired],
+  );
+  const refresh = useCallback(
+    async (saved?: SaveSnapshot) => {
+      if (saved) sessionRef.current.lastAck = saved;
+      const started = beginRefresh(sessionRef.current.gate);
+      const r = await fetch('/api/workspace');
+      const outcome = await processRefresh(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
+      }
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') throw Error(outcome.error);
+      setJobs(outcome.jobs as Job[]);
+      setSources(outcome.sources as Source[]);
+      setEvents(outcome.events as ReviewEvent[]);
+      setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      setSignedOut(false);
       setLoaded(true);
-      return;
-    }
-    if (!r.ok) throw Error(data.error);
-    setJobs(data.jobs);
-    setSources(data.sources);
-    setEvents(data.events);
-    setEditor((e) => {
-      const next = e && saved ? acknowledgeSave(e, saved) : e;
-      return reconcileEditor(
-        next,
-        data.jobs.find((j) => j.id === next?.jobId),
-      );
-    });
-    setLoaded(true);
-  }, []);
+      if (selectedRef.current) void loadJobHistory(selectedRef.current);
+    },
+    [applyExpired, loadJobHistory],
+  );
+  const selectedJobId = selected;
+  useEffect(() => {
+    if (!selectedJobId || signedOut) return;
+    void loadJobHistory(selectedJobId);
+  }, [selectedJobId, signedOut, loadJobHistory]);
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
@@ -126,6 +193,7 @@ export default function Workspace() {
       });
   }, [refresh]);
   async function run(body: Record<string, unknown>, saved?: SaveSnapshot) {
+    const started = beginMutation(sessionRef.current.gate);
     setBusy(true);
     setMessage('');
     try {
@@ -134,16 +202,29 @@ export default function Workspace() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await r.json()) as Reply;
-      if (!r.ok) {
-        if (saved && r.status === 409) await refresh();
-        throw Error(data.error);
+      const outcome = await processMutation(
+        sessionRef.current,
+        started,
+        r,
+        saved,
+      );
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
       }
-      if (data.items) setReport(data);
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') {
+        if (saved && outcome.status === 409) await refresh();
+        if (!mutationIsLive(sessionRef.current.gate, started)) return;
+        throw Error(outcome.error);
+      }
+      setEditor((e) => applyAcceptedSave(e, saved));
+      if (outcome.body.items) setReport(outcome.body as Report);
       if (body.action === 'preview')
         setPreviewedImport(JSON.stringify(body.rows));
       if (body.action === 'import') setPreviewedImport('');
       await refresh(saved);
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       setMessage(
         body.action === 'save'
           ? 'Saved. Your review is preserved.'
@@ -162,7 +243,22 @@ export default function Workspace() {
   useRelayTools(refresh);
   const protectedState =
       current && ['Submitted', 'Live loop'].includes(current.status),
-    blocked = busy || !editor || !canSave(editor);
+    blocked = busy || !editor || !canSave(editor),
+    acceptedExact = showsExactAcceptance(current, editor);
+  function discardUnsaved() {
+    return window.confirm('Discard unsaved draft and blocker changes?');
+  }
+  function chooseJob(job: Job) {
+    if (keepEditorOnReselect(editor, job.id)) return;
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    setEditor(loadEditor(job));
+  }
+  function chooseFilter(value: string) {
+    if (value === filter) return;
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    setFilter(value);
+    setEditor(null);
+  }
   function save(status: string) {
     if (!editor || !canSave(editor)) return;
     const saved: SaveSnapshot = {
@@ -211,10 +307,7 @@ export default function Workspace() {
           <button
             className={'nav ' + (filter === v ? 'active' : '')}
             key={v}
-            onClick={() => {
-              setFilter(v);
-              setEditor(null);
-            }}
+            onClick={() => chooseFilter(v)}
           >
             <Icon size={18} />
             {label}
@@ -225,6 +318,15 @@ export default function Workspace() {
             </span>
           </button>
         ))}
+        <div className="navlabel">AUTONOMY</div>
+        <Link className="nav" href="/profile">
+          <FileText size={18} />
+          Profile
+        </Link>
+        <Link className="nav" href="/review">
+          <Sparkles size={18} />
+          Review drafts
+        </Link>
         <div className="sidebottom">
           <div className="dot" /> History stays with the job.
           <p>
@@ -316,7 +418,19 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
-
+        {!signedOut && loaded && (
+          <TrackerImport
+            onImported={() =>
+              mutationIsLive(sessionRef.current.gate, { epoch: workspaceEpoch })
+                ? refresh()
+                : Promise.resolve()
+            }
+            onUnauthorized={() => {
+              expireSession(sessionRef.current);
+              applyExpired();
+            }}
+          />
+        )}
         {!signedOut && (
           <Connections
             current={
@@ -342,7 +456,7 @@ export default function Workspace() {
             openImport={() => setShowImport(true)}
           />
         )}
-        {showImport && (
+        {showImport && !signedOut && (
           <section className="import">
             <h2>Import research</h2>
             <p>
@@ -400,7 +514,7 @@ export default function Workspace() {
             </div>
           </section>
         )}
-        {report && (
+        {report && !signedOut && (
           <section className="report">
             <div>
               <b>Research check</b>
@@ -424,7 +538,7 @@ export default function Workspace() {
             </details>
           </section>
         )}
-        {jobs.length > 0 && (
+        {jobs.length > 0 && !signedOut && (
           <>
             <section className="replay">
               <GitMerge size={20} />
@@ -471,20 +585,12 @@ export default function Workspace() {
                     <button
                       key={j.id}
                       className={'job ' + (selected === j.id ? 'selected' : '')}
-                      onClick={() => setEditor(loadEditor(j))}
+                      onClick={() => chooseJob(j)}
                     >
                       <span className="companyicon">{j.name[0]}</span>
                       <span className="jobtext">
                         <b>{j.name}</b>
-                        <small>
-                          {j.blocker
-                            ? 'Needs attention'
-                            : j.status === 'Held'
-                              ? 'Review fit & prepare draft'
-                              : j.status === 'Ready'
-                                ? 'Exact draft accepted'
-                                : j.status}
-                        </small>
+                        <small>{jobQueueHint(j, editor)}</small>
                       </span>
                       <ChevronRight size={16} />
                     </button>
@@ -499,7 +605,9 @@ export default function Workspace() {
                   <>
                     <div className="detailhead">
                       <span className="eyebrow">OPPORTUNITY RECORD</span>
-                      <span className="badge">{current.status}</span>
+                      <span className="badge">
+                        Relay status: {current.status}
+                      </span>
                       <h2>{current.name}</h2>
                       {current.url && (
                         <a href={current.url} target="_blank" rel="noreferrer">
@@ -507,6 +615,11 @@ export default function Workspace() {
                         </a>
                       )}
                     </div>
+                    {showsExactAcceptance(current, editor) && (
+                      <div className="notice">
+                        This exact draft is accepted.
+                      </div>
+                    )}
                     {protectedState && (
                       <div className="notice">
                         You can edit notes and follow-up drafts. Saving keeps
@@ -576,7 +689,7 @@ export default function Workspace() {
                       <div className="actions">
                         <button
                           className="secondary"
-                          disabled={blocked}
+                          disabled={blocked || acceptedExact}
                           onClick={() => save('Held')}
                         >
                           Save draft
@@ -584,7 +697,10 @@ export default function Workspace() {
                         <button
                           className="primary"
                           disabled={
-                            blocked || !draft.trim() || !!blocker.trim()
+                            blocked ||
+                            acceptedExact ||
+                            !draft.trim() ||
+                            !!blocker.trim()
                           }
                           onClick={() => save('Ready')}
                         >
@@ -605,12 +721,18 @@ export default function Workspace() {
                       anything.
                     </small>
                     <h3>Source history</h3>
+                    <small className="muted">
+                      Imported source status is research evidence. Exact draft
+                      acceptance is a local Relay decision.
+                    </small>
                     {sources
                       .filter((s) => s.job_key === current.job_key)
                       .map((s) => (
                         <article className="source" key={s.id}>
                           <b>{s.name}</b>
-                          <span className="badge">{s.status}</span>
+                          <span className="badge">
+                            Source reported: {s.status}
+                          </span>
                           <p>{s.notes || 'No source notes recorded.'}</p>
                           {s.source_url.startsWith('obsidian:') && (
                             <small className="muted">
@@ -646,6 +768,19 @@ export default function Workspace() {
                               </pre>
                             </details>
                           ))}
+                        {historyNext[current.id] && (
+                          <button
+                            className="textbutton"
+                            onClick={() =>
+                              void loadJobHistory(
+                                current.id,
+                                historyNext[current.id],
+                              )
+                            }
+                          >
+                            Load earlier review history
+                          </button>
+                        )}
                       </>
                     )}
                   </>

@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { releaseConfig } from '../release/config.mjs';
+import { formatHttpFailure } from './production-diagnostics.mjs';
 
 // Only the test entry supplies a local verification key. The compiled app,
 // authentication handler, assets and SQL migrations are the release versions.
@@ -108,6 +109,8 @@ const server = spawn(
     String(port),
     '--inspector-port',
     '0',
+    '--live-reload',
+    'false',
   ],
   {
     cwd: root,
@@ -119,29 +122,61 @@ const server = spawn(
 );
 server.stdout.pipe(log, { end: false });
 server.stderr.pipe(log, { end: false });
+const logChunks = [];
+const captureLog = (chunk) => {
+  logChunks.push(chunk.toString());
+  if (logChunks.length > 400) logChunks.splice(0, logChunks.length - 400);
+};
+server.stdout.on('data', captureLog);
+server.stderr.on('data', captureLog);
 let startupError;
 server.on('error', (error) => {
   startupError = error;
 });
 
 try {
-  const deadline = Date.now() + 120_000;
-  let ready = false;
-  while (Date.now() < deadline) {
-    if (startupError) throw startupError;
-    if (server.exitCode !== null)
-      throw Error('Built worker exited. See outputs/ci/production-server.log.');
-    try {
-      ready =
-        (await fetch(`${base}/healthz`, { signal: AbortSignal.timeout(2_000) }))
-          .status === 200;
-      if (ready) break;
-    } catch {
-      /* A bounded probe waits for this worker to start. */
+  const logTail = () => logChunks.join('');
+  async function waitForHealth(label) {
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      if (startupError) throw startupError;
+      if (server.exitCode !== null)
+        throw Error(
+          `${label}: built worker exited. See outputs/ci/production-server.log.`,
+        );
+      try {
+        const health = await fetch(`${base}/healthz`, {
+          signal: AbortSignal.timeout(2_000),
+        });
+        if (health.status === 200) return;
+      } catch {
+        /* A bounded probe waits for this worker to start. */
+      }
+      await delay(250);
     }
-    await delay(250);
+    throw Error(
+      formatHttpFailure({
+        label,
+        expected: 200,
+        status: 0,
+        body: '',
+        logTail: logTail(),
+      }),
+    );
   }
-  assert.ok(ready, 'Built worker failed to become ready');
+  async function assertHttp(response, expected, label) {
+    if (response.status === expected) return response;
+    throw Error(
+      formatHttpFailure({
+        label,
+        expected,
+        status: response.status,
+        body: await response.text(),
+        logTail: logTail(),
+      }),
+    );
+  }
+  await waitForHealth('Built worker healthz');
   const token = (owner) =>
     new SignJWT({ email: `${owner}@example.com` })
       .setProtectedHeader({ alg: 'RS256' })
@@ -219,7 +254,8 @@ try {
       .status,
     403,
   );
-  assert.equal((await call(first, update)).status, 200);
+  await waitForHealth('Health before owner-A save');
+  await assertHttp(await call(first, update), 200, 'owner-A save');
   const stale = await call(first, update);
   assert.equal(
     stale.status,

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { assistantPrompt, type Assistant } from '../lib/assistant-handoff';
 import { type EditorTarget } from '../lib/editor';
 import {
   obsidianNote,
@@ -12,6 +13,8 @@ import {
 import {
   readIntegrationFiles,
   draftFromResult,
+  draftFromPastedJson,
+  selectedJobPacket,
 } from '../lib/integration-files';
 
 function downloadFile(content: string, filename: string, type: string) {
@@ -36,7 +39,7 @@ export function Connections({
     id: string;
     job_key: string;
     name: string;
-    url: string;
+    url: string | null;
     version: number;
     status: string;
     session?: string;
@@ -55,29 +58,71 @@ export function Connections({
 }) {
   const [facts, setFacts] = useState('');
   const [note, setNote] = useState('');
+  const [pasted, setPasted] = useState('');
   const [workflow, setWorkflow] =
     useState<keyof typeof obsidianWorkflows>('research');
   const [loading, setLoading] = useState(false);
-  function download() {
+  function editorTarget() {
+    return current?.session
+      ? {
+          jobId: current.id,
+          session: current.session,
+          version: current.version,
+          draft,
+          job_key: current.job_key,
+        }
+      : undefined;
+  }
+  function packetText() {
+    return current
+      ? JSON.stringify(selectedJobPacket(current, facts, draft), null, 2)
+      : '';
+  }
+  async function copy() {
     if (!current) return;
-    const packet = {
-      schema: 'relay.packet.v1',
-      job: {
-        id: current.id,
-        key: current.job_key,
-        name: current.name,
-        url: current.url,
-        version: current.version,
-        status: current.status,
-      },
-      facts,
-      draft,
-    };
-    downloadFile(
-      JSON.stringify(packet, null, 2),
-      'relay-packet.json',
-      'application/json',
-    );
+    try {
+      await navigator.clipboard.writeText(packetText());
+      setNote(
+        'Packet copied. It includes only this job, the visible draft, and the facts you supplied.',
+      );
+    } catch {
+      setNote('Unable to copy to the clipboard. Download the packet instead.');
+    }
+  }
+  function loadPastedDraft() {
+    try {
+      const started = editorTarget();
+      onDraft(draftFromPastedJson(pasted, started), started);
+      setNote(
+        'JSON checked. Review the visible draft before saving; if your selection or draft changed, load it again.',
+      );
+    } catch (error) {
+      setNote(
+        error instanceof Error ? error.message : 'Unable to read draft JSON.',
+      );
+    }
+  }
+  function download(assistant?: Assistant) {
+    if (!current) return;
+    const packet = selectedJobPacket(current, facts, draft);
+    if (assistant) {
+      try {
+        downloadFile(
+          assistantPrompt(packet, assistant),
+          `relay-${assistant}-prompt.md`,
+          'text/markdown',
+        );
+        setNote(
+          'Prompt downloaded. Share it with your chosen assistant, save its JSON response, then load that file here for review. Only this job, the visible draft and supplied facts are included.',
+        );
+      } catch (error) {
+        setNote(
+          error instanceof Error ? error.message : 'Unable to prepare handoff.',
+        );
+      }
+      return;
+    }
+    downloadFile(packetText(), 'relay-packet.json', 'application/json');
     setNote(
       'Packet downloaded. It includes only this job, the visible draft, and the facts you supplied.',
     );
@@ -85,12 +130,12 @@ export function Connections({
   return (
     <details className="import">
       <summary>
-        <b>Connect Obsidian, Grok Bot, Notion & Claude</b>
+        <b>Connect your tools</b>
       </summary>
       <p>
-        Bring research from Obsidian, Notion or Grok Bot, and review a draft
-        prepared by Claude. Load Obsidian notes directly; other integrations use
-        the Relay command tool. Accounts are not connected automatically.
+        Bring research from Obsidian, Notion or Grok Bot, and review drafts
+        prepared with ChatGPT, Codex or Claude. Choose which files to share.
+        Accounts are not connected automatically.
       </p>
       <p>
         <Link href="/about">About Relay and integration setup ↗</Link>
@@ -203,8 +248,33 @@ export function Connections({
         />
       </label>
       <div className="actions">
-        <button className="secondary" disabled={!current} onClick={download}>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => download()}
+        >
           Download selected job packet
+        </button>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => void copy()}
+        >
+          Copy selected job packet
+        </button>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => download('chatgpt')}
+        >
+          Prepare for ChatGPT
+        </button>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => download('codex')}
+        >
+          Prepare for Codex
         </button>
         <label className="secondary">
           Load research or draft
@@ -219,15 +289,7 @@ export function Connections({
                 const files = Array.from(e.target.files || []);
                 if (!files.length) return;
                 setLoading(true);
-                const started = current?.session
-                  ? {
-                      jobId: current.id,
-                      session: current.session,
-                      version: current.version,
-                      draft,
-                      job_key: current.job_key,
-                    }
-                  : undefined;
+                const started = editorTarget();
                 const value = await readIntegrationFiles(files);
                 if (Array.isArray(value)) {
                   onImport(JSON.stringify(value, null, 2));
@@ -254,6 +316,31 @@ export function Connections({
             }}
           />
         </label>
+      </div>
+      <p>
+        For ChatGPT or Codex, enter verified facts, download the prepared
+        prompt, and share it with that assistant. Save its JSON response as a
+        .json file and load it here. Codex can also prepare a draft through the
+        local command tool.         Returned wording needs review; loading never accepts
+        or sends it.
+      </p>
+      <label className="field">
+        Paste complete relay.draft.v1 JSON
+        <textarea
+          aria-label="Paste complete relay.draft.v1 JSON"
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder='{"schema":"relay.draft.v1","job":{"id":"…","key":"…","url":"…","version":1},"draft":"…"}'
+        />
+      </label>
+      <div className="actions">
+        <button
+          className="secondary"
+          disabled={!current || loading}
+          onClick={loadPastedDraft}
+        >
+          Load draft for review
+        </button>
       </div>
       {loading && <output>Reading selected files…</output>}
       {note && <output>{note}</output>}

@@ -6,6 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { obsidianRow, obsidianExample } from '../lib/obsidian.ts';
 import {
+  readTrackerCsv,
+  suggestTrackerMapping,
+  trackerRows,
+} from '../lib/tracker-csv.ts';
+import {
   classify,
   displayName,
   importedBlocker,
@@ -16,7 +21,7 @@ import {
 } from '../lib/domain.ts';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-test('Obsidian reimports preserve active jobs and accepted drafts while keeping note revisions', () => {
+void test('Obsidian reimports preserve active jobs and accepted drafts while keeping note revisions', () => {
   const db = open();
   try {
     for (const status of ['Held', 'Ready', 'Submitted', 'Skip', 'Live loop']) {
@@ -128,7 +133,46 @@ function observationsOf(db, owner) {
     )
     .all(owner);
 }
-test('import upsert SQL and observation insert are the workspace statements', () => {
+
+void test('tracker research preserves all local states and acceptance, deduplicates repeats and retains revisions', () => {
+  const db = open();
+  try {
+    const csv = readTrackerCsv(
+      'Company,Role,URL,Status,Notes\nExample,Engineer,https://example.com/job,Offer,First research',
+    );
+    const mapping = suggestTrackerMapping(csv.headers);
+    const [row] = trackerRows(csv, mapping, 'Simplify');
+    for (const status of ['Held', 'Ready', 'Submitted', 'Skip', 'Live loop']) {
+      const owner = 'tracker-' + status;
+      importRow(db, owner, row);
+      assert.equal(jobOf(db, owner, row.Job).status, 'Held');
+      db.prepare(
+        'UPDATE jobs SET status=?,draft=?,accepted_draft=?,version=4 WHERE owner=?',
+      ).run(
+        status,
+        'Exact draft',
+        status === 'Ready' ? 'Exact draft' : null,
+        owner,
+      );
+      const before = jobOf(db, owner, row.Job);
+      importRow(db, owner, row);
+      assert.equal(observationsOf(db, owner).length, 1);
+      const revised = readTrackerCsv(
+        'Company,Role,URL,Status,Notes\nExample,Engineer,https://example.com/job,Rejected,Changed research',
+      );
+      importRow(db, owner, trackerRows(revised, mapping, 'Simplify')[0]);
+      const after = jobOf(db, owner, row.Job);
+      assert.equal(after.status, before.status);
+      assert.equal(after.draft, before.draft);
+      assert.equal(after.accepted_draft, before.accepted_draft);
+      assert.equal(after.version, before.version + 2);
+      assert.equal(observationsOf(db, owner).length, 2);
+    }
+  } finally {
+    db.close();
+  }
+});
+void test('import upsert SQL and observation insert are the workspace statements', () => {
   assert.match(routeSrc, /importedJobStatus\(r\.Status\)/);
   assert.equal(sqlFromRoute('job').startsWith('INSERT INTO jobs'), true);
   assert.equal(
@@ -136,7 +180,7 @@ test('import upsert SQL and observation insert are the workspace statements', ()
     true,
   );
 });
-test('Live loop outranks Submitted in both import orders and keeps drafts', () => {
+void test('Live loop outranks Submitted in both import orders and keeps drafts', () => {
   const owner = 'owner-a';
   const job = 'https://example.com/jobs/loop';
   for (const order of [
@@ -161,7 +205,7 @@ test('Live loop outranks Submitted in both import orders and keeps drafts', () =
     assert.equal(row.draft, 'keep this draft');
   }
 });
-test('repeated imports keep Live loop and every source observation', () => {
+void test('repeated imports keep Live loop and every source observation', () => {
   const db = open();
   const owner = 'owner-a';
   const job = 'https://example.com/jobs/loop';
@@ -176,7 +220,7 @@ test('repeated imports keep Live loop and every source observation', () => {
   assert.equal(jobOf(db, owner, job).status, 'Live loop');
   assert.equal(observationsOf(db, owner).length, 5);
 });
-test('new Ready import is Held with no accepted draft; observation stays Ready', () => {
+void test('new Ready import is Held with no accepted draft; observation stays Ready', () => {
   const db = open();
   const owner = 'owner-a';
   const job = 'https://example.com/jobs/ready';
@@ -188,7 +232,7 @@ test('new Ready import is Held with no accepted draft; observation stays Ready',
   const [obs] = observationsOf(db, owner);
   assert.equal(obs.status, 'Ready');
 });
-test('duplicate Ready import does not replace a local accepted draft', () => {
+void test('duplicate Ready import does not replace a local accepted draft', () => {
   const db = open();
   const owner = 'owner-a';
   const job = 'https://example.com/jobs/ready';
@@ -203,7 +247,7 @@ test('duplicate Ready import does not replace a local accepted draft', () => {
   assert.equal(row.draft, 'Exact accepted text');
   assert.equal(observationsOf(db, owner).length, 2);
 });
-test('observation uniqueness includes job identity and keeps prior rows', () => {
+void test('observation uniqueness includes job identity and keeps prior rows', () => {
   const db = new DatabaseSync(':memory:');
   const files = readdirSync(drizzle)
     .filter((f) => f.endsWith('.sql'))
@@ -296,7 +340,7 @@ const mergedStatus = {
     'Live loop': 'Live loop',
   },
 };
-test('real SQL and preview merge match the 25 existing/incoming status pairs', () => {
+void test('real SQL and preview merge match the 25 existing/incoming status pairs', () => {
   const owner = 'owner-matrix';
   for (const existing of statuses)
     for (const incoming of statuses) {
@@ -343,7 +387,7 @@ test('real SQL and preview merge match the 25 existing/incoming status pairs', (
       );
     }
 });
-test('migration repairs invalid imported Ready and keeps valid acceptance and observations', () => {
+void test('migration repairs invalid imported Ready and keeps valid acceptance and observations', () => {
   const db = new DatabaseSync(':memory:');
   const files = readdirSync(drizzle)
     .filter((f) => f.endsWith('.sql'))
@@ -402,7 +446,7 @@ test('migration repairs invalid imported Ready and keeps valid acceptance and ob
   assert.equal(row('live').status, 'Live loop');
   assert.equal(row('live').version, 2);
 });
-test('migration keeps API-valid Ready rows whose blockers are JS-trim whitespace', () => {
+void test('migration keeps API-valid Ready rows whose blockers are JS-trim whitespace', () => {
   const db = new DatabaseSync(':memory:');
   const files = readdirSync(drizzle)
     .filter((f) => f.endsWith('.sql'))

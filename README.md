@@ -90,7 +90,7 @@ Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Connect your tools*
 
 ### GrokCell research templates
 
-The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector. These templates do not connect to Relay or grant access to application records. The [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts. See also [context management](context-management/README.md). This is a pinned copy of the MIT-licensed [GrokCell project](https://github.com/sdcarlson/grokcell).
+The [GrokCell project](https://github.com/sdcarlson/grokcell) publishes the First Principles, Product Ideation, Red Flag, and Garbage Collector templates. They do not connect to Relay or grant access to application records. The [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts. See also [context management](context-management/README.md).
 
 ## Autonomy and review
 
@@ -207,10 +207,10 @@ Domain, import, editor, profile, selection, and API tests cover status preservat
 
 Keep real imports, packets, and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, and personal records stay out of Git.
 
-Deploy only the verified release artifact through the protected workflows. Account provisioning, live authentication, and the first production release still require verification before inviting users.
+Deploy only the verified release artifact through the protected workflows. An invited pilot may use workers.dev without purchasing a domain; a custom domain remains optional. Account provisioning, live authentication, and the first production release still require verification before inviting users.
 
 Early release: no hiring outcomes, reliability targets, or throughput improvements have been established.
 
 ## License
 
-Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). The bundled `grokcell/` templates retain their [MIT license](grokcell/LICENSE). Third-party dependencies retain their respective licenses.
+Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). Third-party dependencies retain their respective licenses.

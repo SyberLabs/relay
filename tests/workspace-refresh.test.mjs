@@ -532,3 +532,25 @@ void test('history JSON that expires during parse cannot restore events', async 
   assert.deepEqual(state.historyNext, {});
   assert.deepEqual(state.jobs, []);
 });
+
+void test('refresh helpers do not wrap acknowledgeSave behind extra names', async () => {
+  assert.equal('applyAcceptedSave' in helper, false);
+  assert.equal('editorAfterRefresh' in helper, false);
+  const session = createWorkspaceSession();
+  const v1 = job('A');
+  let editor = loadEditor(v1);
+  session.lastAck = {
+    jobId: editor.jobId,
+    session: editor.session,
+    version: editor.version,
+    draft: 'saved text',
+    blocker: 'saved blocker',
+  };
+  editor = { ...editor, draft: 'typed after save' };
+  editor = editorForJobs(session, editor, [
+    job('A', { version: 2, draft: 'saved text', blocker: 'saved blocker' }),
+  ]);
+  assert.equal(editor.draft, 'typed after save');
+  assert.equal(editor.baseDraft, 'saved text');
+  assert.equal(editor.conflict, false);
+});

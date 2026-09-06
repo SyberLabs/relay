@@ -54,7 +54,6 @@ export type JobRow = {
   size: string;
   posted: string | null;
   effort: number;
-  cited?: string;
 };
 export function toPosting(job: JobRow): Posting {
   return {

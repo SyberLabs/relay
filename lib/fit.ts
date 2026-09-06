@@ -136,14 +136,6 @@ export function jobRequirements(
   }
   return out;
 }
-export function postingText(
-  job: { name: string },
-  sources: { notes: string }[],
-) {
-  return [job.name, ...sources.map((s) => s.notes)]
-    .filter((s) => typeof s === 'string' && s.trim())
-    .join('\n');
-}
 function covers(
   requirement: string,
   fact: { claim: string; evidence: string },
@@ -184,13 +176,6 @@ function assessRequirements(
       return { text, status: 'miss', factId: null };
     }),
   };
-}
-export function assessPosting(
-  posting: string,
-  facts: Fact[],
-  now: string,
-): { gates: Gate[]; reason: FitReason } {
-  return assessRequirements(extractRequirements(posting), facts, now);
 }
 export function assessJob(
   job: { name: string },

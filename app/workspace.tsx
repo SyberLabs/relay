@@ -23,6 +23,7 @@ import {
   mutationIsLive,
   processMutation,
   processRefresh,
+  refreshIsLive,
 } from '../lib/workspace-refresh';
 import {
   ArrowUpRight,
@@ -127,6 +128,7 @@ export default function Workspace() {
         return;
       }
       if (outcome.type === 'ignore') return;
+      if (!refreshIsLive(sessionRef.current.gate, started)) return;
       if (outcome.type === 'error') throw Error(outcome.error);
       setJobs(outcome.jobs as Job[]);
       setSources(outcome.sources as Source[]);

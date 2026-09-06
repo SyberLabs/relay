@@ -19,6 +19,10 @@ import {
   mergeJobStatus,
   validateEdit,
 } from '../lib/domain.ts';
+import {
+  jobImportSql,
+  observationImportSql,
+} from '../lib/import-upsert.ts';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 void test('Obsidian reimports preserve active jobs and accepted drafts while keeping note revisions', () => {
@@ -39,6 +43,7 @@ void test('Obsidian reimports preserve active jobs and accepted drafts while kee
       const before = jobOf(db, owner, row.Job);
       importRow(db, owner, row);
       assert.equal(observationsOf(db, owner).length, 1);
+      assert.equal(jobOf(db, owner, row.Job).version, before.version);
       importRow(
         db,
         owner,
@@ -48,6 +53,7 @@ void test('Obsidian reimports preserve active jobs and accepted drafts while kee
       assert.equal(after.status, before.status);
       assert.equal(after.draft, before.draft);
       assert.equal(after.accepted_draft, before.accepted_draft);
+      assert.equal(after.version, before.version);
       assert.equal(observationsOf(db, owner).length, 2);
     }
   } finally {
@@ -70,14 +76,6 @@ function applyMigrations(
       if (sql) db.exec(sql);
     }
 }
-function sqlFromRoute(kind) {
-  if (kind === 'job') {
-    const start = routeSrc.indexOf('INSERT INTO jobs');
-    return routeSrc.slice(start, routeSrc.indexOf('`', start));
-  }
-  const start = routeSrc.indexOf('INSERT OR IGNORE INTO observations');
-  return routeSrc.slice(start, routeSrc.indexOf("'", start));
-}
 function open() {
   const db = new DatabaseSync(':memory:');
   applyMigrations(db);
@@ -99,7 +97,7 @@ function source(
 }
 function importRow(db, owner, r, now = '2026-01-01T00:00:00.000Z') {
   const key = jobKey(r.Job, r.url);
-  db.prepare(sqlFromRoute('job')).run(
+  db.prepare(jobImportSql).run(
     crypto.randomUUID(),
     owner,
     key,
@@ -121,7 +119,7 @@ function importRow(db, owner, r, now = '2026-01-01T00:00:00.000Z') {
     r.source ?? '',
     r.effort ?? 20,
   );
-  db.prepare(sqlFromRoute('obs')).run(
+  db.prepare(observationImportSql).run(
     crypto.randomUUID(),
     owner,
     key,
@@ -176,7 +174,7 @@ void test('tracker research preserves all local states and acceptance, deduplica
       assert.equal(after.status, before.status);
       assert.equal(after.draft, before.draft);
       assert.equal(after.accepted_draft, before.accepted_draft);
-      assert.equal(after.version, before.version + 2);
+      assert.equal(after.version, before.version);
       assert.equal(observationsOf(db, owner).length, 2);
     }
   } finally {
@@ -185,11 +183,84 @@ void test('tracker research preserves all local states and acceptance, deduplica
 });
 void test('import upsert SQL and observation insert are the workspace statements', () => {
   assert.match(routeSrc, /importedJobStatus\(r\.Status\)/);
-  assert.equal(sqlFromRoute('job').startsWith('INSERT INTO jobs'), true);
+  assert.match(routeSrc, /jobImportSql/);
+  assert.match(routeSrc, /observationImportSql/);
+  assert.equal(jobImportSql.startsWith('INSERT INTO jobs'), true);
+  assert.match(jobImportSql, /effort=jobs\.effort/);
+  assert.match(jobImportSql, /IS NOT \(jobs\.status/);
   assert.equal(
-    sqlFromRoute('obs').startsWith('INSERT OR IGNORE INTO observations'),
+    observationImportSql.startsWith('INSERT OR IGNORE INTO observations'),
     true,
   );
+});
+void test('exact-repeat import keeps version, updated, and effort', () => {
+  const db = open();
+  const owner = 'noop-import';
+  const job = 'https://example.com/jobs/noop';
+  const row = source('Held', job, 'same research');
+  importRow(db, owner, row);
+  db.prepare(
+    "UPDATE jobs SET version=4, effort=40, updated='2026-01-01T00:00:00.000Z' WHERE owner=?",
+  ).run(owner);
+  importRow(db, owner, row, '2026-06-01T00:00:00.000Z');
+  const after = jobOf(db, owner, job);
+  assert.equal(after.version, 4);
+  assert.equal(after.effort, 40);
+  assert.equal(after.updated, '2026-01-01T00:00:00.000Z');
+  assert.equal(observationsOf(db, owner).length, 1);
+  db.close();
+});
+void test('new observation without a job-row change keeps version', () => {
+  const db = open();
+  const owner = 'note-only';
+  const job = 'https://example.com/jobs/notes';
+  importRow(db, owner, source('Held', job, 'first look'));
+  db.prepare('UPDATE jobs SET version=4 WHERE owner=?').run(owner);
+  importRow(db, owner, source('Held', job, 'second look'));
+  const after = jobOf(db, owner, job);
+  assert.equal(after.version, 4);
+  assert.equal(observationsOf(db, owner).length, 2);
+  db.close();
+});
+void test('import that merges Live loop still advances version', () => {
+  const db = open();
+  const owner = 'loop-bump';
+  const job = 'https://example.com/jobs/loop-bump';
+  importRow(db, owner, source('Held', job, 'research'));
+  db.prepare('UPDATE jobs SET version=4 WHERE owner=?').run(owner);
+  importRow(db, owner, source('Live loop', job, 'interview started'));
+  const after = jobOf(db, owner, job);
+  assert.equal(after.status, 'Live loop');
+  assert.equal(after.version, 5);
+  db.close();
+});
+void test('import that fills an empty blocker still advances version', () => {
+  const db = open();
+  const owner = 'blocker-bump';
+  const job = 'https://example.com/jobs/blocker-bump';
+  importRow(db, owner, source('Held', job, 'research'));
+  db.prepare('UPDATE jobs SET version=4 WHERE owner=?').run(owner);
+  importRow(db, owner, source('Held', job, 'do not double-submit'));
+  const after = jobOf(db, owner, job);
+  assert.equal(
+    after.blocker,
+    'Prior attempt or restriction recorded. Read source history before continuing.',
+  );
+  assert.equal(after.version, 5);
+  db.close();
+});
+void test('import that writes a posting field still advances version', () => {
+  const db = open();
+  const owner = 'company-bump';
+  const job = 'https://example.com/jobs/company-bump';
+  const row = source('Held', job, 'research');
+  importRow(db, owner, row);
+  db.prepare('UPDATE jobs SET version=4 WHERE owner=?').run(owner);
+  importRow(db, owner, { ...row, company: 'Northstar' });
+  const after = jobOf(db, owner, job);
+  assert.equal(after.company, 'Northstar');
+  assert.equal(after.version, 5);
+  db.close();
 });
 void test('Live loop outranks Submitted in both import orders and keeps drafts', () => {
   const owner = 'owner-a';
@@ -199,7 +270,7 @@ void test('Live loop outranks Submitted in both import orders and keeps drafts',
     ['Submitted', 'Live loop'],
   ]) {
     const db = open();
-    db.prepare(sqlFromRoute('job')).run(
+    db.prepare(jobImportSql).run(
       crypto.randomUUID(),
       owner,
       jobKey(job, job),
@@ -367,7 +438,7 @@ void test('real SQL and preview merge match the 25 existing/incoming status pair
       const expected = mergedStatus[existing][incoming];
       const job = `https://example.com/jobs/${existing}-${incoming}`;
       const db = open();
-      db.prepare(sqlFromRoute('job')).run(
+      db.prepare(jobImportSql).run(
         crypto.randomUUID(),
         owner,
         jobKey(job, job),
@@ -540,7 +611,7 @@ void test('the real SQL refuses to resurrect a job that already ended', () => {
     ]) {
       const db = open();
       const job = `https://example.com/jobs/${terminal}-${incoming}`;
-      db.prepare(sqlFromRoute('job')).run(
+      db.prepare(jobImportSql).run(
         crypto.randomUUID(),
         owner,
         jobKey(job, job),

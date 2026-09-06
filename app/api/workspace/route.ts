@@ -9,6 +9,7 @@ import {
   validateRows,
   validateEdit,
 } from '../../../lib/domain';
+import { jobImportSql, observationImportSql } from '../../../lib/import-upsert';
 import seed from '../../../lib/seed.json';
 import { packets } from '../../../lib/packets';
 import {
@@ -82,9 +83,7 @@ export async function POST(request: Request) {
         const key = jobKey(r.Job, r.url);
         statements.push(
           db
-            .prepare(
-              `INSERT INTO jobs (id,owner,job_key,name,url,status,blocker,draft,updated,company,level,remote,comp_min,comp_max,location,posted,source,effort) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,job_key) DO UPDATE SET status=CASE WHEN jobs.status IN ('Offer','Accepted','Closed') THEN jobs.status WHEN jobs.status='Live loop' OR excluded.status='Live loop' THEN 'Live loop' WHEN jobs.status='Submitted' OR excluded.status='Submitted' THEN 'Submitted' ELSE jobs.status END, blocker=CASE WHEN jobs.blocker='' AND jobs.status NOT IN ('Ready','Submitted','Live loop') THEN excluded.blocker ELSE jobs.blocker END, accepted_draft=CASE WHEN excluded.status IN ('Submitted','Live loop') THEN NULL ELSE jobs.accepted_draft END, company=CASE WHEN excluded.company!='' THEN excluded.company ELSE jobs.company END, level=CASE WHEN excluded.level!='' THEN excluded.level ELSE jobs.level END, remote=CASE WHEN excluded.remote!='' THEN excluded.remote ELSE jobs.remote END, comp_min=COALESCE(excluded.comp_min,jobs.comp_min), comp_max=COALESCE(excluded.comp_max,jobs.comp_max), location=CASE WHEN excluded.location!='' THEN excluded.location ELSE jobs.location END, posted=COALESCE(excluded.posted,jobs.posted), source=CASE WHEN excluded.source!='' THEN excluded.source ELSE jobs.source END, effort=excluded.effort, version=jobs.version+1, updated=excluded.updated`,
-            )
+            .prepare(jobImportSql)
             .bind(
               crypto.randomUUID(),
               user,
@@ -109,9 +108,7 @@ export async function POST(request: Request) {
         );
         statements.push(
           db
-            .prepare(
-              'INSERT OR IGNORE INTO observations (id,owner,job_key,source_url,name,status,notes,created) VALUES (?,?,?,?,?,?,?,?)',
-            )
+            .prepare(observationImportSql)
             .bind(
               crypto.randomUUID(),
               user,

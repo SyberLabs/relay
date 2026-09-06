@@ -37,7 +37,7 @@ The note-purpose selector provides three starting outlines:
 
 After editing, choose **Load research or draft** in Relay. Select one or several `.md` research files, expand their readable previews and check what will be imported. Choose **Preview matches**, then **Import into workspace**. Editing the import data invalidates the preview and requires another preview. Preview results are visible even in an empty workspace.
 
-Matching posting URLs join the existing opportunity. A new opportunity starts Held. Research cannot change an existing job's status, overwrite its draft or grant approval. Note changes add observations to source history; exact repeats do not duplicate observations. Windows and Unix line endings are normalized. Research imports can advance the job version even for repeated notes, so finish research imports before exporting a draft to edit elsewhere.
+Matching posting URLs join the existing opportunity. A new opportunity starts Held. Research cannot change an existing job's status, overwrite its draft or grant approval. Note changes add observations to source history; exact repeats do not duplicate observations. Windows and Unix line endings are normalized. Research import advances the job version only when the job row itself changes, so repeating the same notes does not invalidate an outstanding draft packet.
 
 Only selected text is read. Wikilinks and embed syntax remain text: linked notes, attachments, images and the rest of the vault are not loaded. Other note properties are ignored. The previewed research is uploaded to your Relay workspace only when you import it. A bad note or duplicate note ID rejects the entire selected batch before anything is staged.
 

@@ -106,6 +106,11 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
       Notes: 'Fictional colliding import that must not attach to owner-a.',
     });
 
+    await pageA.reload();
+    await expect(
+      pageA.getByRole('heading', { name: 'Make your next move.' }),
+    ).toBeVisible();
+    await expect(pageA.getByText('Opening your workspace…')).toHaveCount(0);
     await pageA.getByRole('button', { name: /All opportunities/ }).click();
     await expect(
       pageA.getByRole('button', { name: /Willow Example — Isolation Owner A/ }),
@@ -265,17 +270,6 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
       name: jobB.name,
     });
 
-    await pageA.reload();
-    await pageA.getByRole('button', { name: /All opportunities/ }).click();
-    await expect(
-      pageA.getByRole('button', { name: /Willow Example — Isolation Owner A/ }),
-    ).toBeVisible();
-    await expect(
-      pageA.getByText('Maple Example — Isolation Owner B'),
-    ).toHaveCount(0);
-    await expect(
-      pageA.getByText('Maple Example — Isolation Collision'),
-    ).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     await contextA.close();

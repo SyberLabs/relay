@@ -29,7 +29,7 @@ function headers(extra = {}) {
   });
 }
 
-test('unexpected response keeps selected metadata and omits request authentication', () => {
+void test('unexpected response keeps selected metadata and omits request authentication', () => {
   const detail = describeUnexpectedResponse({
     operation: 'owner-a save',
     status: 503,
@@ -54,7 +54,7 @@ test('unexpected response keeps selected metadata and omits request authenticati
   assert.match(detail, /\[redacted-jwt\]/);
 });
 
-test('503 body mentioning restart is copied, not interpreted as a process restart', () => {
+void test('503 body mentioning restart is copied, not interpreted as a process restart', () => {
   const detail = describeUnexpectedResponse({
     operation: 'owner-a save',
     status: 503,
@@ -68,7 +68,7 @@ test('503 body mentioning restart is copied, not interpreted as a process restar
   assert.match(detail, /exit=null signal=null/);
 });
 
-test('body read stops at the byte limit', async () => {
+void test('body read stops at the byte limit', async () => {
   const response = new Response('n'.repeat(5000), {
     status: 503,
     headers: { 'content-type': 'text/plain' },
@@ -83,7 +83,7 @@ test('body read stops at the byte limit', async () => {
   assert.equal(Buffer.byteLength(body.text), 64);
 });
 
-test('body read stops at the deadline instead of hanging', async () => {
+void test('body read stops at the deadline instead of hanging', async () => {
   const body = new ReadableStream({
     pull() {
       return new Promise(() => {});
@@ -104,7 +104,7 @@ function timeoutHandles() {
     .length;
 }
 
-test('pending cancel cannot exceed the overall deadline', async () => {
+void test('pending cancel cannot exceed the overall deadline', async () => {
   const response = new Response(
     new ReadableStream({
       pull() {
@@ -127,7 +127,7 @@ test('pending cancel cannot exceed the overall deadline', async () => {
   assert.equal(result.body.timedOut, true);
 });
 
-test('chunked body does not leave dangling deadline timers', async () => {
+void test('chunked body does not leave dangling deadline timers', async () => {
   const before = timeoutHandles();
   const stream = new ReadableStream({
     start(controller) {
@@ -145,7 +145,7 @@ test('chunked body does not leave dangling deadline timers', async () => {
   assert.equal(timeoutHandles(), before);
 });
 
-test('detached process-group teardown captures post-SIGTERM output and reaps nested children', async () => {
+void test('detached process-group teardown captures post-SIGTERM output and reaps nested children', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'relay-prod-log-'));
   const logPath = resolve(directory, 'production-server.log');
   const log = createWriteStream(logPath);
@@ -186,15 +186,16 @@ test('detached process-group teardown captures post-SIGTERM output and reaps nes
     if (process.platform !== 'win32') assert.match(text, /after-term/);
     assert.throws(() => process.kill(grandchild, 0), { code: 'ESRCH' });
   } finally {
-    if (child.pid) {
+    const pid = child.pid;
+    if (typeof pid === 'number') {
       try {
         if (process.platform === 'win32') {
-          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+          spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
             windowsHide: true,
             stdio: 'ignore',
           });
         } else {
-          process.kill(-child.pid, 'SIGKILL');
+          process.kill(-pid, 'SIGKILL');
         }
       } catch {
         /* Best-effort cleanup after the assertion. */
@@ -208,7 +209,7 @@ test('detached process-group teardown captures post-SIGTERM output and reaps nes
   }
 });
 
-test('teardown still finishes when the leader ignores SIGTERM', async () => {
+void test('teardown still finishes when the leader ignores SIGTERM', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'relay-prod-kill-'));
   const logPath = resolve(directory, 'production-server.log');
   const log = createWriteStream(logPath);
@@ -238,15 +239,15 @@ test('teardown still finishes when the leader ignores SIGTERM', async () => {
     await finishProductionServer(child, log, { timeoutMs: 200 });
     if (process.platform !== 'win32') assert.ok(Date.now() - started >= 150);
     assert.ok(Date.now() - started < 2_000);
-    assert.throws(() => process.kill(child.pid, 0), { code: 'ESRCH' });
+    const pid = child.pid;
+    assert.ok(typeof pid === 'number');
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
     await readFile(logPath);
   } finally {
-    if (child.pid) {
+    const pid = child.pid;
+    if (typeof pid === 'number') {
       try {
-        process.kill(
-          process.platform === 'win32' ? child.pid : -child.pid,
-          'SIGKILL',
-        );
+        process.kill(process.platform === 'win32' ? pid : -pid, 'SIGKILL');
       } catch {
         /* Best-effort cleanup after the assertion. */
       }
@@ -269,7 +270,7 @@ function posixTerminated(pid) {
   }
 }
 
-test(
+void test(
   'exited group leader does not skip TERM/KILL of a TERM-ignoring descendant',
   { skip: process.platform === 'win32' },
   async () => {
@@ -311,10 +312,13 @@ test(
       assert.match(text, /GRANDCHILD_TERM_STDERR/);
       assert.equal(posixTerminated(grandchild), true);
     } finally {
-      try {
-        process.kill(-child.pid, 'SIGKILL');
-      } catch {
-        /* Best-effort group cleanup after the assertion. */
+      const pid = child.pid;
+      if (typeof pid === 'number') {
+        try {
+          process.kill(-pid, 'SIGKILL');
+        } catch {
+          /* Best-effort group cleanup after the assertion. */
+        }
       }
       await closePromise;
       if (!log.writableEnded) log.end();
@@ -322,7 +326,7 @@ test(
   },
 );
 
-test(
+void test(
   'TERM-ignoring process is KILLed after it closes stdio',
   { skip: process.platform === 'win32' },
   async () => {
@@ -356,12 +360,17 @@ test(
       assert.equal(child.stderr.readableEnded, true);
       assert.equal(child.exitCode, null);
       await finishProductionServer(child, log, { timeoutMs: 100 });
-      assert.equal(posixTerminated(child.pid), true);
+      const pid = child.pid;
+      assert.ok(typeof pid === 'number');
+      assert.equal(posixTerminated(pid), true);
     } finally {
-      try {
-        process.kill(-child.pid, 'SIGKILL');
-      } catch {
-        /* Best-effort group cleanup after the assertion. */
+      const pid = child.pid;
+      if (typeof pid === 'number') {
+        try {
+          process.kill(-pid, 'SIGKILL');
+        } catch {
+          /* Best-effort group cleanup after the assertion. */
+        }
       }
       await closed;
       if (!log.writableEnded) log.end();

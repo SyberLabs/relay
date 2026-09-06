@@ -13,7 +13,7 @@ Other projects, biography text and website design remain independently maintaine
 
 1. Implement and test the behavior. Update its detailed integration guide, including verification limits.
 2. Review `docs/public-copy.json`. Describe implemented behavior only; keep proposed integrations and unverified account access labeled. If no public facts changed, no metadata edit is needed.
-3. Run `pnpm public-copy:sync`, then `pnpm public-copy:check` and `pnpm test`. Commit generated project copy with the implementation. The read-only **Relay checks** workflow detects stale project copy on pushes and pull requests.
+3. Run `pnpm public-copy:sync`, then `pnpm public-copy:check` and `pnpm test`. Commit generated project copy with the implementation. The canonical **CI** workflow checks for stale project copy as part of its required quality job on pushes and pull requests.
 4. After the change reaches `main`, the target repositories pull the canonical description on their next scheduled run. Each has a **Sync Relay public copy** workflow with a **Run workflow** button for an immediate refresh. No shared cross-repository personal token is needed; each workflow can write only its own repository.
 5. Check the workflow results and, for the website, the published page. Missing permissions, removed markers or a concurrent push fail visibly rather than overwriting unrelated work or force-pushing.
 

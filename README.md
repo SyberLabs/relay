@@ -206,7 +206,7 @@ Domain, import, editor, profile, selection, and API tests cover status preservat
 
 Keep real imports, packets, and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, and personal records stay out of Git.
 
-Deploy only the verified release artifact through the protected workflows. Account provisioning, live authentication, and the first production release still require verification before inviting users.
+Deploy only the verified release artifact through the protected workflows. An invited pilot may use workers.dev without purchasing a domain; a custom domain remains optional. Account provisioning, live authentication, and the first production release still require verification before inviting users.
 
 Early release: no hiring outcomes, reliability targets, or throughput improvements have been established.
 

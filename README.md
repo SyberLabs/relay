@@ -106,4 +106,8 @@ React/Vinext on Cloudflare Workers with D1 persistence. Local development uses S
 
 Keep real imports, packets and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, personal records and the original development Git history are excluded from this release.
 
-Maintained by SyberLabs. Early release: no hiring outcomes, reliability targets or throughput improvements have been established. The bundled `grokcell/` templates are covered by their [MIT license](grokcell/LICENSE). No open-source license is granted for the rest of Relay in this release; contact SyberLabs for licensing.
+Maintained by SyberLabs. Early release: no hiring outcomes, reliability targets or throughput improvements have been established.
+
+## License
+
+Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). The bundled `grokcell/` templates retain their [MIT license](grokcell/LICENSE). Third-party dependencies retain their respective licenses.

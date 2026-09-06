@@ -1,0 +1,24 @@
+name: Report a bug
+description: Describe a reproducible failure without posting private data.
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Minimal steps, environment, and affected version or commit. Use fictional records.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and evidence
+      description: Who is affected, workaround, redacted errors, and a regression test if known. Report vulnerabilities privately using the Security tab.
+    validations:
+      required: true

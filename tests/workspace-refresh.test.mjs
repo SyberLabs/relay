@@ -77,7 +77,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-test('plain Unauthorized 401 expires without parsing JSON', async () => {
+void test('plain Unauthorized 401 expires without parsing JSON', async () => {
   const session = createWorkspaceSession();
   const started = beginRefresh(session.gate);
   const r = http(401, 'Unauthorized');
@@ -87,7 +87,7 @@ test('plain Unauthorized 401 expires without parsing JSON', async () => {
   assert.equal(session.lastAck, undefined);
 });
 
-test('plain Unauthorized POST 401 expires without parsing JSON', async () => {
+void test('plain Unauthorized POST 401 expires without parsing JSON', async () => {
   const session = createWorkspaceSession();
   const started = beginMutation(session.gate);
   const r = http(401, 'Unauthorized');
@@ -96,7 +96,7 @@ test('plain Unauthorized POST 401 expires without parsing JSON', async () => {
   assert.equal(r.jsonCalls, 0);
 });
 
-test('older 401 while a newer refresh is in flight still expires the session', async () => {
+void test('older 401 while a newer refresh is in flight still expires the session', async () => {
   const session = createWorkspaceSession();
   const older = beginRefresh(session.gate);
   const newer = beginRefresh(session.gate);
@@ -114,7 +114,7 @@ test('older 401 while a newer refresh is in flight still expires the session', a
   assert.equal(late.type, 'ignore');
 });
 
-test('deferred pre-expiry preview 200 is ignored so run cannot apply it', async () => {
+void test('deferred pre-expiry preview 200 is ignored so run cannot apply it', async () => {
   const session = createWorkspaceSession();
   const mutation = beginMutation(session.gate);
   const refresh = beginRefresh(session.gate);
@@ -130,7 +130,7 @@ test('deferred pre-expiry preview 200 is ignored so run cannot apply it', async 
   assert.equal(mutationIsLive(session.gate, mutation), false);
 });
 
-test('deferred pre-expiry import 200 is ignored after expiry', async () => {
+void test('deferred pre-expiry import 200 is ignored after expiry', async () => {
   const session = createWorkspaceSession();
   const mutation = beginMutation(session.gate);
   await processRefresh(
@@ -146,7 +146,7 @@ test('deferred pre-expiry import 200 is ignored after expiry', async () => {
   assert.equal(outcome.type, 'ignore');
 });
 
-test('newer then older 200 keeps the newer records', async () => {
+void test('newer then older 200 keeps the newer records', async () => {
   const session = createWorkspaceSession();
   const older = deferred();
   const newer = deferred();
@@ -171,7 +171,7 @@ test('newer then older 200 keeps the newer records', async () => {
   assert.equal(olderOutcome.type, 'ignore');
 });
 
-test('edits typed while refreshes are in flight survive both orderings', async () => {
+void test('edits typed while refreshes are in flight survive both orderings', async () => {
   const v1 = job('A');
   const v2 = job('A', { version: 2, draft: 'from server' });
   for (const order of ['newer-first', 'older-first']) {
@@ -213,7 +213,7 @@ test('edits typed while refreshes are in flight survive both orderings', async (
   }
 });
 
-test('own save ack survives a newer refresh that does not carry the snapshot', async () => {
+void test('own save ack survives a newer refresh that does not carry the snapshot', async () => {
   const original = job('A');
   const session = createWorkspaceSession();
   let editor = loadEditor(original);
@@ -257,7 +257,7 @@ test('own save ack survives a newer refresh that does not carry the snapshot', a
   assert.equal(editor.session, saved.session);
 });
 
-test('external version bump without an own save still conflicts', async () => {
+void test('external version bump without an own save still conflicts', async () => {
   const session = createWorkspaceSession();
   let editor = loadEditor(job('A'));
   editor = { ...editor, draft: 'unsaved local text' };

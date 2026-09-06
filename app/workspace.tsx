@@ -164,6 +164,7 @@ export default function Workspace() {
         return;
       }
       if (outcome.type === 'ignore') return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       if (outcome.type === 'error') {
         if (saved && outcome.status === 409) await refresh();
         if (!mutationIsLive(sessionRef.current.gate, started)) return;

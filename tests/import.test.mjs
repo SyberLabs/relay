@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -190,6 +190,21 @@ void test('import upsert SQL and observation insert are the workspace statements
     sqlFromRoute('obs').startsWith('INSERT OR IGNORE INTO observations'),
     true,
   );
+});
+void test('bootstrap writes empty drafts without a packets table', () => {
+  assert.equal(existsSync(join(root, 'lib/packets.ts')), false);
+  assert.doesNotMatch(routeSrc, /packets/);
+  assert.match(routeSrc, /importedBlocker\(r\.Notes\),\s*''/);
+});
+void test('GrokCell is not vendored and CI does not gate on bundled templates', () => {
+  assert.equal(existsSync(join(root, 'grokcell')), false);
+  const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
+  assert.doesNotMatch(ci, /\bgrokcell\b/);
+  assert.doesNotMatch(ci, /Bundled agent contracts/);
+  assert.doesNotMatch(ci, /^\s+templates:/m);
+  const readme = readFileSync(join(root, 'README.md'), 'utf8');
+  assert.match(readme, /https:\/\/github.com\/sdcarlson\/grokcell/);
+  assert.doesNotMatch(readme, /\]\(grokcell\//);
 });
 void test('Live loop outranks Submitted in both import orders and keeps drafts', () => {
   const owner = 'owner-a';

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
-import { loadEditor } from '../lib/editor.ts';
+import { acknowledgeSave, loadEditor } from '../lib/editor.ts';
 import * as helper from '../lib/workspace-refresh.ts';
 import {
   beginMutation,
@@ -216,6 +216,18 @@ void test('edits typed while refreshes are in flight survive both orderings', as
   }
 });
 
+void test('workspace refresh inlines acknowledgeSave instead of one-caller wrappers', () => {
+  const src = readFileSync('lib/workspace-refresh.ts', 'utf8');
+  assert.doesNotMatch(src, /export function editorAfterRefresh/);
+  assert.doesNotMatch(src, /export function applyAcceptedSave/);
+  assert.match(src, /export function editorForJobs/);
+  assert.match(src, /acknowledgeSave/);
+  assert.doesNotMatch(
+    readFileSync('app/workspace.tsx', 'utf8'),
+    /applyAcceptedSave/,
+  );
+});
+
 void test('own save ack survives a newer refresh that does not carry the snapshot', async () => {
   const original = job('A');
   const session = createWorkspaceSession();
@@ -331,6 +343,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
           }));
   const deps = {
     ...helper,
+    acknowledgeSave,
     fetch: fetcher,
     sessionRef: { current: session },
     selectedRef: { current: '' },

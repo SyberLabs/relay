@@ -126,31 +126,17 @@ export async function readWorkspaceResponse(
   return { kind: 'ok', body };
 }
 
-export function editorAfterRefresh<J extends JobFields>(
-  editor: Editor | null,
-  jobs: J[],
-  saved?: SaveSnapshot,
-) {
-  const next = editor && saved ? acknowledgeSave(editor, saved) : editor;
-  return reconcileEditor(
-    next,
-    jobs.find((j) => j.id === next?.jobId),
-  );
-}
-
-export function applyAcceptedSave(
-  editor: Editor | null,
-  saved: SaveSnapshot | undefined,
-) {
-  return editor && saved ? acknowledgeSave(editor, saved) : editor;
-}
-
 export function editorForJobs<J extends JobFields>(
   session: WorkspaceSession,
   editor: Editor | null,
   jobs: J[],
 ) {
-  return editorAfterRefresh(editor, jobs, session.lastAck);
+  const saved = session.lastAck;
+  const next = editor && saved ? acknowledgeSave(editor, saved) : editor;
+  return reconcileEditor(
+    next,
+    jobs.find((j) => j.id === next?.jobId),
+  );
 }
 
 export async function processRefresh(

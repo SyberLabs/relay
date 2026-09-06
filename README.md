@@ -90,7 +90,7 @@ Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Connect your tools*
 
 ### GrokCell research templates
 
-The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector. These templates do not connect to Relay or grant access to application records. The [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts. See also [context management](context-management/README.md). This is a pinned copy of the MIT-licensed [GrokCell project](https://github.com/sdcarlson/grokcell).
+GrokCell is a separate MIT-licensed project with First Principles, Product Ideation, Red Flag, and Garbage Collector templates. Those templates do not connect to Relay or grant access to application records. Keep them in [sdcarlson/grokcell](https://github.com/sdcarlson/grokcell). The [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts. See also [context management](context-management/README.md).
 
 ## Autonomy and review
 
@@ -212,4 +212,4 @@ Early release: no hiring outcomes, reliability targets, or throughput improvemen
 
 ## License
 
-Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). The bundled `grokcell/` templates retain their [MIT license](grokcell/LICENSE). Third-party dependencies retain their respective licenses.
+Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). Third-party dependencies retain their respective licenses.

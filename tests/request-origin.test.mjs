@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { refuseUntrustedOrigin } from '../lib/request-origin.ts';
 
+const hung = { hung: true };
+
+function within(ms, work) {
+  return Promise.race([
+    work,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(hung), ms);
+    }),
+  ]);
+}
+
 function post(url, origin, body) {
   return new Request(url, {
     method: 'POST',
@@ -72,7 +83,51 @@ void test('untrusted origin 403s an oversized body without buffering the remaind
   const response = await refuseUntrustedOrigin(request);
   assert.equal(response.status, 403);
   assert.ok(
-    pulled <= 2_000_000 + chunk.byteLength,
-    `origin refusal buffered ${pulled} bytes`,
+    pulled < total,
+    `origin refusal buffered ${pulled} bytes of ${total}`,
   );
+});
+
+void test('untrusted origin 403s when the body never delivers a chunk', async () => {
+  const request = post(
+    'http://127.0.0.1:8787/api/workspace',
+    'https://untrusted.example.com',
+    new ReadableStream({
+      start() {
+        /* Stay open and never enqueue. */
+      },
+    }),
+  );
+  const response = await within(750, refuseUntrustedOrigin(request));
+  assert.notEqual(response, hung);
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), {
+    error: 'Invalid request origin.',
+  });
+});
+
+void test('untrusted origin 403s when body cancel never settles', async () => {
+  const chunk = new Uint8Array(64 * 1024);
+  const total = 4 * 1024 * 1024;
+  let pulled = 0;
+  const request = post(
+    'http://127.0.0.1:8787/api/workspace',
+    'https://untrusted.example.com',
+    new ReadableStream({
+      pull(controller) {
+        if (pulled >= total) {
+          controller.close();
+          return;
+        }
+        pulled += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        return new Promise(() => {});
+      },
+    }),
+  );
+  const response = await within(750, refuseUntrustedOrigin(request));
+  assert.notEqual(response, hung);
+  assert.equal(response.status, 403);
 });

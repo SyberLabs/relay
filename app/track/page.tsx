@@ -50,6 +50,7 @@ export default function Track() {
   const [data, setData] = useState<Data | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
+    [receipts, setReceipts] = useState<Record<string, string>>({}),
     [signedOut, setSignedOut] = useState(false);
   const refresh = useCallback(async () => {
     const r = await fetch('/api/outcomes');
@@ -100,7 +101,8 @@ export default function Track() {
         </a>
       </main>
     );
-  const unreceipted = data?.prep.filter((p) => !p.receipt).length ?? 0;
+  const unreceipted =
+    data?.prep.filter((p) => p.status !== 'Ready' && !p.receipt).length ?? 0;
   return (
     <main className="productpage">
       <Link className="backlink" href="/">
@@ -201,21 +203,58 @@ export default function Track() {
               </p>
             )}
             <div className="actions">
-              {laterKinds.map((kind) => (
-                <button
-                  className="secondary"
-                  disabled={busy}
-                  key={kind}
-                  onClick={() =>
-                    record(
-                      { id: job.id, version: job.version, kind },
-                      `Recorded: ${kind}.`,
-                    )
-                  }
-                >
-                  {kind}
-                </button>
-              ))}
+              {job.status === 'Ready' ? (
+                <>
+                  <input
+                    aria-label="Submission receipt"
+                    className="grow"
+                    disabled={busy}
+                    placeholder="Confirmation URL, reference, or email subject"
+                    value={receipts[job.id] ?? ''}
+                    onChange={(e) =>
+                      setReceipts((current) => ({
+                        ...current,
+                        [job.id]: e.target.value,
+                      }))
+                    }
+                  />
+                  <button
+                    className="primary"
+                    disabled={
+                      busy || (receipts[job.id] ?? '').trim().length < 4
+                    }
+                    onClick={() =>
+                      record(
+                        {
+                          id: job.id,
+                          version: job.version,
+                          kind: 'submitted',
+                          receipt: receipts[job.id] ?? '',
+                        },
+                        'Recorded the submission.',
+                      )
+                    }
+                  >
+                    Record submission
+                  </button>
+                </>
+              ) : (
+                laterKinds.map((kind) => (
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    key={kind}
+                    onClick={() =>
+                      record(
+                        { id: job.id, version: job.version, kind },
+                        `Recorded: ${kind}.`,
+                      )
+                    }
+                  >
+                    {kind}
+                  </button>
+                ))
+              )}
             </div>
           </article>
         ))}

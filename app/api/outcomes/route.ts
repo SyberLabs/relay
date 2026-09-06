@@ -32,7 +32,7 @@ export async function GET() {
   const latest = new Map<string, (typeof drafts)[number]>();
   for (const d of drafts) latest.set(d.job_id, d);
   const active = jobs.filter((j) =>
-    ['Submitted', 'Live loop', 'Offer'].includes(j.status),
+    ['Ready', 'Submitted', 'Live loop', 'Offer'].includes(j.status),
   );
   const prep = active.map((job) => {
     const draft = latest.get(job.id);

@@ -97,6 +97,21 @@ void test('a number about the employer is not an applicant claim', () => {
   );
 });
 
+void test('employer language in the same sentence does not waive applicant quantities', () => {
+  const mixed = [
+    'Your role fits my 12 years of experience.',
+    'For your team, I bring 15 years of experience.',
+  ];
+  for (const body of mixed) {
+    assert.equal(isClaim(body), true, body);
+    assert.throws(
+      () => validateDraftLog({ body, cited: [] }, [], NOW),
+      /Unsupported claim/,
+      body,
+    );
+  }
+});
+
 void test('an uncited achievement is refused, a cited one passes', () => {
   const facts = [fact('f1', 'Led a team of 6 engineers at Northstar')];
   assert.deepEqual(

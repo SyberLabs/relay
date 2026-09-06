@@ -174,6 +174,14 @@ const accepted = await call('/api/workspace', {
   blocker: '',
 });
 assert.equal(accepted.status, 200, JSON.stringify(accepted.data));
+const readyListed = (await call('/api/outcomes')).data.prep.find(
+  (p) => p.id === alpha.id,
+);
+assert.ok(
+  readyListed,
+  'a Ready job appears on Track so a submission can be recorded',
+);
+assert.equal(readyListed.status, 'Ready');
 
 const charlie = await workspaceJob('charlie');
 const hijack = await call('/api/workspace', {

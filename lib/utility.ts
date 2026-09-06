@@ -98,7 +98,9 @@ export function isChoiceDelta(delta: unknown): delta is number[] {
   return (
     Array.isArray(delta) &&
     delta.length === features.length &&
-    delta.every((n) => typeof n === 'number' && Number.isFinite(n))
+    delta.every(
+      (n) => typeof n === 'number' && Number.isFinite(n) && n >= -1 && n <= 1,
+    )
   );
 }
 export function fitWeights(

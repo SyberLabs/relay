@@ -125,6 +125,19 @@ void test('an empty comparison vector cannot be fitted as five NaN weights', () 
   assert.equal(isChoiceDelta([0, 0, 0, 0, Number.NaN]), false);
 });
 
+void test('comparison components stay inside the normalised feature range', () => {
+  const huge = [1e308, 1e308, 1e308, 1e308, 1e308];
+  assert.equal(isChoiceDelta(huge), false);
+  assert.equal(isChoiceDelta([-1, -0.5, 0, 0.5, 1]), true);
+  assert.equal(isChoiceDelta([1.0001, 0, 0, 0, 0]), false);
+  const weights = Object.values(fitWeights([huge, huge, huge, huge]));
+  assert.equal(weights.length, 5);
+  assert.ok(
+    weights.every((w) => w === 0 && Number.isFinite(w)),
+    `oversized deltas must not produce ${JSON.stringify(weights)}`,
+  );
+});
+
 void test('elicitation avoids pairs already asked and one-attribute pairs', () => {
   const corpus = corpusOf(['backend engineer']);
   const pool = [

@@ -89,18 +89,26 @@ export function sentences(text: string): string[] {
     .map((s) => s.trim())
     .filter(Boolean);
 }
+function lastIndex(haystack: string, pattern: RegExp): number {
+  let last = -1;
+  for (const match of haystack.matchAll(pattern)) last = match.index ?? -1;
+  return last;
+}
 function numberIsAboutEmployer(
   sentence: string,
   index: number,
   token: string,
 ): boolean {
-  const before = sentence.slice(Math.max(0, index - 56), index);
-  const after = sentence.slice(index, index + token.length + 56);
-  return (
-    /\byour\b/i.test(before) ||
-    /\byou(?:'re| are)\b/i.test(before) ||
-    /\byou(?:'re| are)\b/i.test(after)
-  );
+  const before = sentence.slice(0, index);
+  const after = sentence.slice(index + token.length);
+  const lastSelf = lastIndex(before, /\b(?:i|we|my|our|mine)\b/gi);
+  const lastEmployer = lastIndex(before, /\b(?:your|you(?:'re| are))\b/gi);
+  // The nearest subject before the number owns it. "Your role fits my 12
+  // years" and "For your team, I bring 15 years" are applicant quantities
+  // even though employer language appears earlier in the same sentence.
+  if (lastSelf > lastEmployer) return false;
+  if (lastEmployer >= 0) return true;
+  return /^(?:-|\s)person\b/i.test(after) && /\byou(?:'re| are)\b/i.test(after);
 }
 function hasApplicantNumber(sentence: string): boolean {
   for (const match of sentence.matchAll(/\d+(?:\.\d+)?/g)) {

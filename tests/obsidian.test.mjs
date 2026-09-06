@@ -17,6 +17,8 @@ import {
 import {
   readIntegrationFiles,
   draftFromResult,
+  draftFromPastedJson,
+  selectedJobPacket,
 } from '../lib/integration-files.ts';
 import { loadEditor, applyLoadedDraft } from '../lib/editor.ts';
 import { parseDocument } from 'yaml';
@@ -29,7 +31,7 @@ const handoff = {
   version: 7,
 };
 
-test('Obsidian properties and Markdown are preserved without following links', () => {
+void test('Obsidian properties and Markdown are preserved without following links', () => {
   const note =
     obsidianExample.replace(
       'Example Company — Platform Engineer',
@@ -45,7 +47,7 @@ test('Obsidian properties and Markdown are preserved without following links', (
   assert.deepEqual(row, obsidianRow(note));
 });
 
-test('note status, draft and acceptance properties never become Relay actions', () => {
+void test('note status, draft and acceptance properties never become Relay actions', () => {
   for (const status of ['Ready', 'Submitted', 'Live loop', 'Unknown']) {
     const note = obsidianExample.replace(
       'relay_id:',
@@ -58,7 +60,7 @@ test('note status, draft and acceptance properties never become Relay actions', 
   }
 });
 
-test('missing identity, invalid URLs and malformed properties reject the note', () => {
+void test('missing identity, invalid URLs and malformed properties reject the note', () => {
   for (const note of [
     '# Plain note',
     obsidianExample.replace(
@@ -89,7 +91,7 @@ test('missing identity, invalid URLs and malformed properties reject the note', 
     assert.throws(() => obsidianRow(note));
 });
 
-test('aliases and oversized input are bounded', () => {
+void test('aliases and oversized input are bounded', () => {
   assert.throws(
     () =>
       obsidianRow(
@@ -117,7 +119,7 @@ test('aliases and oversized input are bounded', () => {
   );
 });
 
-test('context exports source history and literal drafts without becoming importable research', () => {
+void test('context exports source history and literal drafts without becoming importable research', () => {
   const job = {
     id: 'job-123',
     name: 'Example: "Role"\nstatus: Ready',
@@ -147,7 +149,7 @@ test('context exports source history and literal drafts without becoming importa
   assert.throws(() => loadObsidian(exported), /reference only/);
 });
 
-test('each workflow creates a research note tied to the selected posting', () => {
+void test('each workflow creates a research note tied to the selected posting', () => {
   for (const workflow of Object.keys(obsidianWorkflows)) {
     const row = obsidianRow(
       obsidianResearchNote(handoff, workflow, `note-${workflow}`),
@@ -159,7 +161,7 @@ test('each workflow creates a research note tied to the selected posting', () =>
   }
 });
 
-test('batch import rejects duplicate IDs and any malformed note without returning partial data', () => {
+void test('batch import rejects duplicate IDs and any malformed note without returning partial data', () => {
   const notes = [
     { name: 'one.md', text: obsidianExample },
     {
@@ -190,7 +192,7 @@ test('batch import rejects duplicate IDs and any malformed note without returnin
   assert.throws(() => obsidianResearchBatch(large), /too large/);
 });
 
-test('draft round trip stages exact wording only for its job and version', () => {
+void test('draft round trip stages exact wording only for its job and version', () => {
   const result = loadObsidian(
     obsidianDraftNote(handoff, 'Edited in Obsidian.'),
   );
@@ -250,7 +252,7 @@ test('draft round trip stages exact wording only for its job and version', () =>
   );
 });
 
-test('file loading supports Markdown batches, individual drafts and existing JSON handoffs', async () => {
+void test('file loading supports Markdown batches, individual drafts and existing JSON handoffs', async () => {
   const file = (name, text) => ({
     name,
     size: new TextEncoder().encode(text).length,
@@ -285,7 +287,7 @@ test('file loading supports Markdown batches, individual drafts and existing JSO
   );
 });
 
-test('CLI creates a draft note without facts or credentials and converts it back for review', async () => {
+void test('CLI creates a draft note without facts or credentials and converts it back for review', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'relay-obsidian-draft-'));
   try {
     const packet = join(folder, 'packet.json');
@@ -330,7 +332,7 @@ test('CLI creates a draft note without facts or credentials and converts it back
   }
 });
 
-test('command reads only the selected note, leaves it intact, and refuses overwrite', async () => {
+void test('command reads only the selected note, leaves it intact, and refuses overwrite', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'relay-obsidian-'));
   try {
     const input = join(folder, 'selected.md');
@@ -359,4 +361,152 @@ test('command reads only the selected note, leaves it intact, and refuses overwr
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
+});
+void test('copy and download share one packet object for the selected job', () => {
+  const job = {
+    id: 'job-123',
+    job_key: 'https://example.com/jobs/a',
+    name: 'Example role',
+    url: 'https://example.com/jobs/a',
+    version: 7,
+    status: 'Held',
+  };
+  const packet = selectedJobPacket(job, 'verified fact', 'visible draft');
+  assert.equal(packet.schema, 'relay.packet.v1');
+  assert.deepEqual(packet.job, {
+    id: job.id,
+    key: job.job_key,
+    name: job.name,
+    url: job.url,
+    version: job.version,
+    status: job.status,
+  });
+  assert.equal(packet.facts, 'verified fact');
+  assert.equal(packet.draft, 'visible draft');
+  assert.equal(
+    JSON.stringify(packet, null, 2),
+    JSON.stringify(
+      selectedJobPacket(job, 'verified fact', 'visible draft'),
+      null,
+      2,
+    ),
+  );
+});
+
+void test('pasted draft JSON stages exact text and rejects prose, research, and stale targets', () => {
+  const started = {
+    jobId: handoff.id,
+    session: 'session-1',
+    version: handoff.version,
+    draft: 'Original',
+    job_key: handoff.key,
+  };
+  const exact = '  Exact wording.\nKeep punctuation!  ';
+  const result = {
+    schema: 'relay.draft.v1',
+    job: {
+      id: handoff.id,
+      key: handoff.key,
+      url: handoff.url,
+      version: handoff.version,
+    },
+    draft: exact,
+  };
+  assert.equal(draftFromPastedJson(JSON.stringify(result), started), exact);
+  assert.equal(
+    draftFromPastedJson(JSON.stringify(result), started),
+    result.draft,
+  );
+  assert.throws(
+    () => draftFromPastedJson('Please use this draft: hello', started),
+    /complete relay\.draft\.v1 JSON/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify([{ Name: 'Role', Job: handoff.url, Status: 'Held' }]),
+        started,
+      ),
+    /complete relay\.draft\.v1 JSON/,
+  );
+  assert.throws(
+    () => draftFromPastedJson('x'.repeat(1800001), started),
+    /1.8 MB/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify({ ...result, draft: 'd'.repeat(20001) }),
+        started,
+      ),
+    /nonempty Relay draft/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(JSON.stringify({ ...result, draft: '   ' }), started),
+    /nonempty Relay draft/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify({
+          ...result,
+          job: { ...result.job, url: 'https://example.com/other' },
+        }),
+        started,
+      ),
+    /matching job/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify({
+          ...result,
+          job: { ...result.job, version: 8 },
+        }),
+        started,
+      ),
+    /matching job/,
+  );
+});
+
+void test('pasted JSON over the 1.8 MB byte bound is rejected even when character count is lower', () => {
+  const started = {
+    jobId: handoff.id,
+    session: 'session-1',
+    version: handoff.version,
+    draft: 'Original',
+    job_key: handoff.key,
+  };
+  const text = JSON.stringify({
+    schema: 'relay.draft.v1',
+    job: {
+      id: handoff.id,
+      key: handoff.key,
+      url: handoff.url,
+      version: handoff.version,
+    },
+    draft: 'Exact wording.',
+    padding: '\u20AC'.repeat(600100),
+  });
+  const bytes = new TextEncoder().encode(text).byteLength;
+  assert.ok(text.length < 1800000);
+  assert.ok(bytes > 1800000);
+  assert.throws(() => draftFromPastedJson(text, started), /1.8 MB/);
+  assert.equal(
+    draftFromPastedJson(
+      JSON.stringify({
+        schema: 'relay.draft.v1',
+        job: {
+          id: handoff.id,
+          key: handoff.key,
+          url: handoff.url,
+          version: handoff.version,
+        },
+        draft: '  Exact wording.\nKeep punctuation!  ',
+      }),
+      started,
+    ),
+    '  Exact wording.\nKeep punctuation!  ',
+  );
 });

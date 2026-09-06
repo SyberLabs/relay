@@ -200,7 +200,7 @@ export function obsidianNote(
   job: {
     id: string;
     name: string;
-    url: string;
+    url: string | null;
     status: string;
     version: number;
   },
@@ -218,7 +218,7 @@ export function obsidianNote(
     relay_kind: 'snapshot',
     relay_id: `relay-${job.id}`,
     relay_name: job.name,
-    relay_job: job.url,
+    relay_job: job.url || '',
     relay_status_snapshot: job.status,
     relay_editor_version: job.version,
     relay_exported_at: new Date().toISOString(),

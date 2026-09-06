@@ -7,9 +7,9 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "vinext dev",
+    "dev": "vinext dev --port 3000",
     "build": "vinext build",
-    "start": "wrangler dev --config dist/server/wrangler.json",
+    "start": "wrangler dev --config dist/server/wrangler.json --ip 127.0.0.1 --port 8787 --persist-to .wrangler/state",
     "lint": "oxlint app lib db tests scripts deploy",
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
@@ -20,9 +20,13 @@
     "test:production": "node scripts/ci/run-production.mjs",
     "relay": "node integrations/relay.mjs",
     "public-copy:sync": "node scripts/sync-public-copy.mjs --target project --root .",
-    "public-copy:check": "node scripts/sync-public-copy.mjs --target project --root . --check"
+    "public-copy:check": "node scripts/sync-public-copy.mjs --target project --root . --check",
+    "ensure-node": "node scripts/ensure-node.mjs",
+    "predev": "node scripts/ensure-node.mjs",
+    "prestart": "node scripts/ensure-node.mjs"
   },
   "dependencies": {
+    "csv-parse": "7.0.2",
     "jose": "6.2.12",
     "react": "19.2.8",
     "react-dom": "19.2.8",

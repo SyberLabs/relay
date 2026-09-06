@@ -17,7 +17,7 @@ function request(jwt, headers = {}) {
     headers: { ...(jwt ? { 'Cf-Access-Jwt-Assertion': jwt } : {}), ...headers },
   });
 }
-test('valid Access identity replaces all spoofed application identity headers', async () => {
+void test('valid Access identity replaces all spoofed application identity headers', async () => {
   const verified = await authenticatedRequest(request(await token(), {
     'oai-authenticated-user-id': 'victim', 'oai-authenticated-user-email': 'victim@example.com',
     'oai-authenticated-user-full-name': 'Forged Name', 'oai-other': 'forged',
@@ -30,12 +30,12 @@ test('valid Access identity replaces all spoofed application identity headers', 
   assert.equal(verified.headers.get('Cf-Access-Jwt-Assertion'), null);
   assert.equal(verified.headers.get('CF-Access-Client-Secret'), null);
 });
-test('rejects missing identity and missing provider configuration', async () => {
+void test('rejects missing identity and missing provider configuration', async () => {
   await assert.rejects(authenticatedRequest(request(), env, publicKey));
   await assert.rejects(authenticatedRequest(request(await token()), {}, publicKey));
   await assert.rejects(authenticatedRequest(request(await token()), { ...env, ACCESS_ISSUER: 'https://attacker.example' }, publicKey));
 });
-test('rejects wrong signature, issuer, audience, expired token, and missing human identity', async () => {
+void test('rejects wrong signature, issuer, audience, expired token, and missing human identity', async () => {
   const other = await generateKeyPair('RS256');
   for (const jwt of [await token({}, other.privateKey), await token({ iss: 'https://other.cloudflareaccess.com' }),
     await token({ aud: 'b'.repeat(64) }), await token({ exp: 1 }), await token({ sub: '' }),
@@ -43,20 +43,20 @@ test('rejects wrong signature, issuer, audience, expired token, and missing huma
     await assert.rejects(authenticatedRequest(request(jwt), env, publicKey));
   }
 });
-test('gateway rejects anonymous asset access before invoking assets or application', async () => {
+void test('gateway rejects anonymous asset access before invoking assets or application', async () => {
   const bindings = { ...env, ASSETS: { fetch() { throw new Error('Must not reach assets'); } } };
   const app = { fetch() { throw new Error('Must not reach application'); } };
   const response = await handleRequest(new Request('https://relay.example.com/_next/static/app.js'), bindings, {}, app, publicKey);
   assert.equal(response.status, 401);
 });
-test('readiness reports unavailable database without leaking its error', async () => {
+void test('readiness reports unavailable database without leaking its error', async () => {
   const bindings = { ...env, DB: { prepare() { throw new Error('private database detail'); } } };
   const req = new Request('https://relay.example.com/readyz', { headers: { 'Cf-Access-Jwt-Assertion': await token() } });
   const response = await handleRequest(req, bindings, {}, {}, publicKey);
   assert.equal(response.status, 503);
   assert.equal(await response.text(), 'Service unavailable');
 });
-test('service tokens can prove readiness but cannot access human workspace data', async () => {
+void test('service tokens can prove readiness but cannot access human workspace data', async () => {
   const service = request(await token({ email: undefined, sub: '' }));
   await authenticatedReadiness(service, env, publicKey);
   await assert.rejects(authenticatedRequest(service, env, publicKey));

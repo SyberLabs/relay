@@ -286,7 +286,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     /const applyExpired = useCallback\(([\s\S]*?), \[\]\);/,
   )[1];
   const refreshSrc = src.match(
-    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired\],\s*\);/,
+    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,
   )[1];
   const runSrc = src.slice(
     src.indexOf('async function run('),
@@ -329,7 +329,13 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
             sources: [],
             events: [],
           }));
-  const deps = { ...helper, fetch: fetcher, sessionRef: { current: session } };
+  const deps = {
+    ...helper,
+    fetch: fetcher,
+    sessionRef: { current: session },
+    selectedRef: { current: '' },
+    loadJobHistory: async () => {},
+  };
   for (const key of [
     'jobs',
     'sources',
@@ -343,6 +349,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     'loaded',
     'busy',
     'message',
+    'historyNext',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -365,12 +372,163 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
   for (let i = 0; i < 4; i++) await Promise.resolve();
   unauthorized.resolve(new Response('Unauthorized', { status: 401 }));
   await Promise.all([mutation, expired]);
-  console.log({ gets, spawnedEpoch, state });
   assert.equal(
     gets,
     1,
     'Pre-expiry mutation must not start a refresh in the new epoch',
   );
   assert.equal(state.signedOut, true);
+  assert.deepEqual(state.jobs, []);
+  assert.equal(spawnedEpoch, undefined);
+});
+
+void test('delayed history JSON cannot restore events after session expiry', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8');
+  const compile = (s) =>
+    stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
+  const expiry = src.match(
+    /const applyExpired = useCallback\(([\s\S]*?), \[\]\);/,
+  )[1];
+  const historySrc = src.match(
+    /const loadJobHistory = useCallback\(([\s\S]*?),\s*\[applyExpired\],\s*\);/,
+  )[1];
+  function deferred() {
+    let resolve;
+    const promise = new Promise((r) => (resolve = r));
+    return { promise, resolve };
+  }
+  const pending = deferred();
+  const session = helper.createWorkspaceSession();
+  const state = {
+    events: [],
+    historyNext: {},
+    signedOut: false,
+    jobs: [{ id: 'kept' }],
+  };
+  const deps = {
+    ...helper,
+    fetch: async () => pending.promise,
+    sessionRef: { current: session },
+    mergeReviewEvents: (prev, extra) => [...prev, ...extra],
+  };
+  for (const key of [
+    'jobs',
+    'sources',
+    'events',
+    'editor',
+    'importText',
+    'previewedImport',
+    'report',
+    'showImport',
+    'signedOut',
+    'loaded',
+    'message',
+    'historyNext',
+  ]) {
+    deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
+      (state[key] = typeof value === 'function' ? value(state[key]) : value);
+  }
+  const bind = (source) =>
+    // oxlint-disable-next-line typescript/no-implied-eval -- compile actual Workspace callbacks
+    new Function(...Object.keys(deps), 'return (' + compile(source) + ');')(
+      ...Object.values(deps),
+    );
+  deps.applyExpired = bind(expiry);
+  const loadJobHistory = bind(historySrc);
+  const loading = loadJobHistory('job-1');
+  helper.expireSession(session);
+  deps.applyExpired();
+  pending.resolve(
+    new Response(
+      JSON.stringify({
+        events: [
+          {
+            id: 'private-event',
+            created: '2026-01-01T00:00:00.000Z',
+            kind: 'Review saved',
+            detail: '{"draft":"private"}',
+          },
+        ],
+        next: 'cursor-1',
+      }),
+      { status: 200 },
+    ),
+  );
+  await loading;
+  assert.equal(state.signedOut, true);
+  assert.deepEqual(state.events, []);
+  assert.deepEqual(state.historyNext, {});
+  assert.deepEqual(state.jobs, []);
+});
+
+void test('history JSON that expires during parse cannot restore events', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8');
+  const compile = (s) =>
+    stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
+  const expiry = src.match(
+    /const applyExpired = useCallback\(([\s\S]*?), \[\]\);/,
+  )[1];
+  const historySrc = src.match(
+    /const loadJobHistory = useCallback\(([\s\S]*?),\s*\[applyExpired\],\s*\);/,
+  )[1];
+  const session = helper.createWorkspaceSession();
+  const state = {
+    events: [],
+    historyNext: {},
+    signedOut: false,
+    jobs: [{ id: 'kept' }],
+  };
+  const deps = {
+    ...helper,
+    fetch: async () => ({
+      status: 200,
+      ok: true,
+      json: async () => {
+        helper.expireSession(session);
+        deps.applyExpired();
+        return {
+          events: [
+            {
+              id: 'private-event',
+              created: '2026-01-01T00:00:00.000Z',
+              kind: 'Review saved',
+              detail: '{"draft":"private"}',
+            },
+          ],
+          next: 'cursor-1',
+        };
+      },
+    }),
+    sessionRef: { current: session },
+    mergeReviewEvents: (prev, extra) => [...prev, ...extra],
+  };
+  for (const key of [
+    'jobs',
+    'sources',
+    'events',
+    'editor',
+    'importText',
+    'previewedImport',
+    'report',
+    'showImport',
+    'signedOut',
+    'loaded',
+    'message',
+    'historyNext',
+  ]) {
+    deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
+      (state[key] = typeof value === 'function' ? value(state[key]) : value);
+  }
+  const bind = (source) =>
+    // oxlint-disable-next-line typescript/no-implied-eval -- compile actual Workspace callbacks
+    new Function(...Object.keys(deps), 'return (' + compile(source) + ');')(
+      ...Object.values(deps),
+    );
+  deps.applyExpired = bind(expiry);
+  const loadJobHistory = bind(historySrc);
+  await loadJobHistory('job-1');
+  assert.equal(state.signedOut, true);
+  assert.deepEqual(state.events, []);
+  assert.deepEqual(state.historyNext, {});
   assert.deepEqual(state.jobs, []);
 });

@@ -4,9 +4,13 @@ import {
   applyLoadedDraft,
   acknowledgeSave,
   canSave,
+  editorIsDirty,
   fileLoadApplies,
+  jobQueueHint,
+  keepEditorOnReselect,
   loadEditor,
   reconcileEditor,
+  showsExactAcceptance,
 } from '../lib/editor.ts';
 const job = (id, extra = {}) => ({
   id,
@@ -23,7 +27,7 @@ function target(editor) {
     draft: editor.draft,
   };
 }
-test('refresh during editing keeps unsaved text on the loaded version', () => {
+void test('refresh during editing keeps unsaved text on the loaded version', () => {
   let editor = loadEditor(job('A'));
   editor = { ...editor, draft: 'local edits' };
   editor = reconcileEditor(editor, job('A'));
@@ -31,7 +35,7 @@ test('refresh during editing keeps unsaved text on the loaded version', () => {
   assert.equal(editor.conflict, false);
   assert.equal(editor.version, 1);
 });
-test('external update while editing requires reload before save', () => {
+void test('external update while editing requires reload before save', () => {
   let editor = loadEditor(job('A'));
   editor = { ...editor, draft: 'stale buffer' };
   const server = job('A', { version: 2, draft: 'agent draft' });
@@ -45,7 +49,7 @@ test('external update while editing requires reload before save', () => {
   assert.equal(editor.conflict, false);
   assert.equal(editor.version, 2);
 });
-test('clean editor adopts a newer refresh', () => {
+void test('clean editor adopts a newer refresh', () => {
   let editor = loadEditor(job('A'));
   editor = reconcileEditor(
     editor,
@@ -55,7 +59,7 @@ test('clean editor adopts a newer refresh', () => {
   assert.equal(editor.version, 2);
   assert.equal(editor.conflict, false);
 });
-test('stale save ack after A to B to A does not bless the reloaded editor', () => {
+void test('stale save ack after A to B to A does not bless the reloaded editor', () => {
   const old = job('A');
   const original = loadEditor(old);
   const submitted = { ...original, draft: 'intentionally saved' };
@@ -76,7 +80,7 @@ test('stale save ack after A to B to A does not bless the reloaded editor', () =
   assert.equal(result.conflict, false);
   assert.notEqual(result.session, submitted.session);
 });
-test('save acknowledgement ignores a job switched during the request', () => {
+void test('save acknowledgement ignores a job switched during the request', () => {
   const submitted = loadEditor(job('A'));
   let editor = loadEditor(job('B', { version: 2, draft: 'draft-B' }));
   editor = acknowledgeSave(editor, submitted);
@@ -84,7 +88,7 @@ test('save acknowledgement ignores a job switched during the request', () => {
   assert.equal(editor.version, 2);
   assert.equal(editor.draft, 'draft-B');
 });
-test('edits made while a save is in flight stay unsaved on that editor session', () => {
+void test('edits made while a save is in flight stay unsaved on that editor session', () => {
   let editor = loadEditor(job('A'));
   const submitted = { ...editor, draft: 'saved snapshot' };
   editor = { ...editor, draft: 'typed during save' };
@@ -95,7 +99,7 @@ test('edits made while a save is in flight stay unsaved on that editor session',
   assert.notEqual(editor.draft, editor.baseDraft);
   assert.equal(editor.session, submitted.session);
 });
-test('delayed save ack cannot bless an editor already on a newer base', () => {
+void test('delayed save ack cannot bless an editor already on a newer base', () => {
   const original = loadEditor(job('A'));
   const submitted = { ...original, draft: 'intentionally saved' };
   let editor = reconcileEditor(
@@ -108,7 +112,7 @@ test('delayed save ack cannot bless an editor already on a newer base', () => {
   assert.equal(editor.baseDraft, 'from server');
   assert.notEqual(editor.session, submitted.session);
 });
-test('rejected stale save refreshes into a conflict that reload can resolve', () => {
+void test('rejected stale save refreshes into a conflict that reload can resolve', () => {
   let editor = loadEditor(job('A'));
   editor = { ...editor, draft: 'unsaved after 409' };
   const server = job('A', { version: 2, draft: 'newer record' });
@@ -123,7 +127,7 @@ test('rejected stale save refreshes into a conflict that reload can resolve', ()
   assert.equal(editor.conflict, false);
   assert.equal(canSave(editor), true);
 });
-test('file load rejects a changed session, version, or typed draft', () => {
+void test('file load rejects a changed session, version, or typed draft', () => {
   const started = loadEditor(job('A'));
   assert.equal(fileLoadApplies(target(started), target(started)), true);
   assert.equal(
@@ -137,7 +141,7 @@ test('file load rejects a changed session, version, or typed draft', () => {
   const typed = { ...started, draft: 'typed while reading' };
   assert.equal(fileLoadApplies(target(started), target(typed)), false);
 });
-test('queued editor updater still applies a matching file load without a boolean', () => {
+void test('queued editor updater still applies a matching file load without a boolean', () => {
   const editor = loadEditor(job('A'));
   const started = target(editor);
   const queue = [];
@@ -148,7 +152,7 @@ test('queued editor updater still applies a matching file load without a boolean
   assert.equal(queue.length, 1);
   assert.equal(queue[0](editor).draft, 'from file');
 });
-test('stale file-load snapshot cannot overwrite a later editor', () => {
+void test('stale file-load snapshot cannot overwrite a later editor', () => {
   const started = loadEditor(job('A'));
   const laterB = loadEditor(job('B', { draft: 'keep B' }));
   const skippedB = applyLoadedDraft(
@@ -171,4 +175,130 @@ test('stale file-load snapshot cannot overwrite a later editor', () => {
   assert.equal(applied.draft, 'from file');
   assert.equal(applied.session, same.session);
   assert.notEqual(applied, same);
+});
+void test('dirty compares draft and blocker against the loaded base', () => {
+  const editor = loadEditor(job('A', { blocker: 'need fact' }));
+  assert.equal(editorIsDirty(null), false);
+  assert.equal(editorIsDirty(editor), false);
+  assert.equal(editorIsDirty({ ...editor, draft: 'typed' }), true);
+  assert.equal(editorIsDirty({ ...editor, blocker: 'other fact' }), true);
+  assert.equal(
+    editorIsDirty({ ...editor, draft: 'original', blocker: 'need fact' }),
+    false,
+  );
+});
+void test('same-job reselect keeps the editor; another job does not', () => {
+  const editor = loadEditor(job('A'));
+  const typed = { ...editor, draft: 'unsaved' };
+  assert.equal(keepEditorOnReselect(typed, 'A'), true);
+  assert.equal(keepEditorOnReselect(typed, 'B'), false);
+  assert.equal(keepEditorOnReselect(null, 'A'), false);
+  assert.equal(typed.session, editor.session);
+});
+void test('exact local acceptance is Ready with an unchanged draft and blocker', () => {
+  const ready = {
+    id: 'A',
+    version: 1,
+    status: 'Ready',
+    accepted_draft: 'Exact accepted',
+  };
+  const accepted = loadEditor(
+    job('A', { draft: 'Exact accepted', blocker: '' }),
+  );
+  assert.equal(showsExactAcceptance(ready, accepted), true);
+  assert.equal(
+    showsExactAcceptance(ready, { ...accepted, draft: 'Exact accepted ' }),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance(ready, { ...accepted, blocker: 'need fact' }),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Held' }, accepted),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Skip' }, accepted),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Submitted' }, accepted),
+    false,
+  );
+  assert.equal(
+    showsExactAcceptance({ ...ready, status: 'Live loop' }, accepted),
+    false,
+  );
+  assert.equal(showsExactAcceptance(ready, null), false);
+  assert.equal(showsExactAcceptance({ ...ready, version: 2 }, accepted), false);
+  assert.equal(
+    showsExactAcceptance({ ...ready, accepted_draft: 'other text' }, accepted),
+    false,
+  );
+  assert.equal(showsExactAcceptance({ ...ready, id: 'B' }, accepted), false);
+  assert.equal(
+    showsExactAcceptance(ready, { ...accepted, conflict: true }),
+    false,
+  );
+});
+void test('queue hint drops accepted copy when the selected Ready editor is dirty', () => {
+  const ready = {
+    ...job('A', { draft: 'Exact accepted', blocker: '' }),
+    status: 'Ready',
+    accepted_draft: 'Exact accepted',
+  };
+  const editor = loadEditor({ ...ready, id: 'A' });
+  assert.equal(
+    jobQueueHint({ ...ready, status: 'Ready' }, editor),
+    'Exact draft accepted',
+  );
+  assert.equal(
+    jobQueueHint({ ...ready, status: 'Ready' }, { ...editor, draft: 'edited' }),
+    'Review fit & prepare draft',
+  );
+  assert.equal(
+    jobQueueHint(
+      { ...ready, status: 'Ready' },
+      { ...editor, blocker: 'need fact' },
+    ),
+    'Needs attention',
+  );
+  assert.equal(
+    jobQueueHint({ ...ready, id: 'B', status: 'Ready', blocker: '' }, editor),
+    'Exact draft accepted',
+  );
+  assert.equal(
+    jobQueueHint(
+      { ...ready, id: 'C', status: 'Held', blocker: 'open' },
+      editor,
+    ),
+    'Needs attention',
+  );
+  assert.equal(
+    jobQueueHint({ ...ready, status: 'Submitted' }, editor),
+    'Submitted',
+  );
+});
+void test('reverting after a Ready conflict does not label stale text accepted', () => {
+  let editor = loadEditor(job('A', { draft: 'Exact v1', blocker: '' }));
+  editor = { ...editor, draft: 'local edit' };
+  editor = reconcileEditor(
+    editor,
+    job('A', { version: 2, draft: 'Exact v2', blocker: '' }),
+  );
+  assert.equal(editor.conflict, true);
+  assert.equal(editor.version, 1);
+  editor = { ...editor, draft: editor.baseDraft, blocker: editor.baseBlocker };
+  assert.equal(editorIsDirty(editor), false);
+  const current = {
+    id: 'A',
+    version: 2,
+    status: 'Ready',
+    blocker: '',
+    accepted_draft: 'Exact v2',
+  };
+  assert.equal(showsExactAcceptance(current, editor), false);
+  assert.notEqual(jobQueueHint(current, editor), 'Exact draft accepted');
+  assert.equal(jobQueueHint(current, editor), 'Review fit & prepare draft');
 });

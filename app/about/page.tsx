@@ -53,6 +53,12 @@ export default function About() {
       </p>
       <h2>What’s available today</h2>
       <p>
+        Bring a tracker CSV into Relay: match the company, role and posting URL
+        columns, preview the records, then import them as research. Original
+        statuses remain in the notes; existing Relay status and accepted drafts
+        are preserved. No tracker account connection is required.
+      </p>
+      <p>
         A working review workspace, duplicate detection, source history, and
         local command integrations. Obsidian notes can be selected for import,
         and job snapshots downloaded into your vault. Notion imports are

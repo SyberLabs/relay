@@ -2,6 +2,21 @@
 
 Relay uses local commands and explicit file handoffs. You choose which data leaves your workspace. The command tool works in a Grok Bot VM, Claude Code terminal, or a normal shell. It needs Node 24; it does not require a hosted Relay API token.
 
+## Tracker CSV → Relay
+
+Use **Import a tracker CSV** in the workspace for a user-managed Simplify export or another comma-separated tracker file. This path needs no account connection or credentials.
+
+1. Export only the opportunities you want to review, or prepare a copy containing those rows. Keep the original export.
+2. Choose the file and name the source tracker. Confirm the company, role and employer posting URL columns. Relay suggests recognizable headers but requires you to review them. Map source status and research notes if wanted; all omitted columns are listed.
+3. Choose **Preview tracker records**. The file is read locally; only the mapped fields are sent to your Relay workspace for the match preview. Review each title, URL, source status and note. Preview does not save records.
+4. Choose **Import … research records** to save the previewed data. Matching URLs add source history to existing jobs. New jobs start Held; existing status, draft and acceptance remain in Relay. The server rechecks matches at import time.
+
+Source status is recorded in the observation's notes. An Applied, Interview, Offer, Rejected, Withdrawn or Ready value never changes Relay status. This is research import, not full pipeline migration or two-way synchronization. Changing a source status creates a new observation; repeating unchanged research does not duplicate it. Keep the source tracker name consistent across exports for stable observation identity. Renaming the source creates a separate source identity. Different roles sharing a company/title are not merged on those names; use the original employer posting URL to match across tools. URLs on different job boards may remain separate.
+
+Files must be UTF-8, comma-separated, smaller than 2 MB, with one unique header row and 1–200 opportunity rows. Quoted commas, escaped quotes and multiline notes are supported. The limit is 50 columns, 500 characters for the combined company/role title and 20,000 for the resulting research including its source label/status. Blank lines are ignored. Missing posting URLs, duplicate headers, malformed rows and oversized values reject the batch with an error; no partial import occurs. Add missing employer URLs to your copy before trying again.
+
+Try [the fictional CSV](../tests/fixtures/tracker-example.csv). These sample headers are a Relay test fixture, not a captured Simplify export. The [Simplify tracker guide](https://help.simplify.jobs/en/articles/2140179-using-the-job-tracker) documents CSV export; compatibility with an actual account export remains unverified. This release claims no Simplify partnership, API access, account sync or application sending.
+
 ## ChatGPT and Codex to Relay
 
 Use **Prepare for ChatGPT** or **Prepare for Codex** in the connection panel, then return the assistant's JSON response for review. Codex also supports `codex-run` through your signed-in CLI. [Read the complete ChatGPT and Codex guide](OPENAI.md) for commands, setup and data boundaries. These are explicit handoffs, not an installed hosted ChatGPT app.

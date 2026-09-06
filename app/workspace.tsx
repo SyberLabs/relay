@@ -4,11 +4,15 @@ import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
-
+import { TrackerImport } from './tracker-import';
 import {
   applyLoadedDraft,
   canSave,
+  editorIsDirty,
+  jobQueueHint,
+  keepEditorOnReselect,
   loadEditor,
+  showsExactAcceptance,
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
@@ -19,11 +23,15 @@ import {
   createWorkspaceSession,
   editorForJobs,
   expiredPrivateWorkspace,
+  expireSession,
   mutationIsLive,
   processMutation,
   processRefresh,
   refreshIsLive,
 } from '../lib/workspace-refresh';
+import {
+  mergeReviewEvents,
+} from '../lib/workspace-events';
 import {
   ArrowUpRight,
   Search,
@@ -41,7 +49,7 @@ type Job = {
   id: string;
   job_key: string;
   name: string;
-  url: string;
+  url: string | null;
   status: string;
   blocker: string;
   draft: string;
@@ -83,8 +91,12 @@ export default function Workspace() {
     [report, setReport] = useState<Report | null>(null),
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
-    [showImport, setShowImport] = useState(false);
+    [showImport, setShowImport] = useState(false),
+    [historyNext, setHistoryNext] = useState<Record<string, string | null>>(
+      {},
+    );
   const sessionRef = useRef(createWorkspaceSession());
+  const workspaceEpoch = sessionRef.current.gate.epoch;
   const applyExpired = useCallback(() => {
     const next = expiredPrivateWorkspace();
     setJobs(next.jobs);
@@ -97,6 +109,7 @@ export default function Workspace() {
     setShowImport(next.showImport);
     setSignedOut(next.signedOut);
     setLoaded(next.loaded);
+    setHistoryNext({});
     setMessage('');
   }, []);
   const researchRows = useMemo(() => {
@@ -115,6 +128,37 @@ export default function Workspace() {
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
     );
+  const selectedRef = useRef('');
+  const loadJobHistory = useCallback(
+    async (jobId: string, before?: string | null) => {
+      const started = { epoch: sessionRef.current.gate.epoch };
+      const r = await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'history',
+          id: jobId,
+          limit: 50,
+          ...(before ? { before } : {}),
+        }),
+      });
+      if (r.status === 401) {
+        expireSession(sessionRef.current);
+        applyExpired();
+        return;
+      }
+      if (!r.ok) return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      const data = (await r.json()) as {
+        events?: ReviewEvent[];
+        next?: string | null;
+      };
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      setEvents((prev) => mergeReviewEvents(prev, data.events || []));
+      setHistoryNext((prev) => ({ ...prev, [jobId]: data.next || null }));
+    },
+    [applyExpired],
+  );
   const refresh = useCallback(
     async (saved?: SaveSnapshot) => {
       if (saved) sessionRef.current.lastAck = saved;
@@ -134,8 +178,9 @@ export default function Workspace() {
       setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
       setSignedOut(false);
       setLoaded(true);
+      if (selectedRef.current) void loadJobHistory(selectedRef.current);
     },
-    [applyExpired],
+    [applyExpired, loadJobHistory],
   );
   useEffect(() => {
     void Promise.resolve()
@@ -197,7 +242,25 @@ export default function Workspace() {
   useRelayTools(refresh);
   const protectedState =
       current && ['Submitted', 'Live loop'].includes(current.status),
-    blocked = busy || !editor || !canSave(editor);
+    blocked = busy || !editor || !canSave(editor),
+    acceptedExact = showsExactAcceptance(current, editor);
+  function discardUnsaved() {
+    return window.confirm('Discard unsaved draft and blocker changes?');
+  }
+  function chooseJob(job: Job) {
+    if (keepEditorOnReselect(editor, job.id)) return;
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    selectedRef.current = job.id;
+    setEditor(loadEditor(job));
+    void loadJobHistory(job.id);
+  }
+  function chooseFilter(value: string) {
+    if (value === filter) return;
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    selectedRef.current = '';
+    setFilter(value);
+    setEditor(null);
+  }
   function save(status: string) {
     if (!editor || !canSave(editor)) return;
     const saved: SaveSnapshot = {
@@ -246,10 +309,7 @@ export default function Workspace() {
           <button
             className={'nav ' + (filter === v ? 'active' : '')}
             key={v}
-            onClick={() => {
-              setFilter(v);
-              setEditor(null);
-            }}
+            onClick={() => chooseFilter(v)}
           >
             <Icon size={18} />
             {label}
@@ -351,7 +411,19 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
-
+        {!signedOut && loaded && (
+          <TrackerImport
+            onImported={() =>
+              mutationIsLive(sessionRef.current.gate, { epoch: workspaceEpoch })
+                ? refresh()
+                : Promise.resolve()
+            }
+            onUnauthorized={() => {
+              expireSession(sessionRef.current);
+              applyExpired();
+            }}
+          />
+        )}
         {!signedOut && (
           <Connections
             current={
@@ -506,20 +578,12 @@ export default function Workspace() {
                     <button
                       key={j.id}
                       className={'job ' + (selected === j.id ? 'selected' : '')}
-                      onClick={() => setEditor(loadEditor(j))}
+                      onClick={() => chooseJob(j)}
                     >
                       <span className="companyicon">{j.name[0]}</span>
                       <span className="jobtext">
                         <b>{j.name}</b>
-                        <small>
-                          {j.blocker
-                            ? 'Needs attention'
-                            : j.status === 'Held'
-                              ? 'Review fit & prepare draft'
-                              : j.status === 'Ready'
-                                ? 'Exact draft accepted'
-                                : j.status}
-                        </small>
+                        <small>{jobQueueHint(j, editor)}</small>
                       </span>
                       <ChevronRight size={16} />
                     </button>
@@ -534,7 +598,9 @@ export default function Workspace() {
                   <>
                     <div className="detailhead">
                       <span className="eyebrow">OPPORTUNITY RECORD</span>
-                      <span className="badge">{current.status}</span>
+                      <span className="badge">
+                        Relay status: {current.status}
+                      </span>
                       <h2>{current.name}</h2>
                       {current.url && (
                         <a href={current.url} target="_blank" rel="noreferrer">
@@ -542,6 +608,11 @@ export default function Workspace() {
                         </a>
                       )}
                     </div>
+                    {showsExactAcceptance(current, editor) && (
+                      <div className="notice">
+                        This exact draft is accepted.
+                      </div>
+                    )}
                     {protectedState && (
                       <div className="notice">
                         You can edit notes and follow-up drafts. Saving keeps
@@ -611,7 +682,7 @@ export default function Workspace() {
                       <div className="actions">
                         <button
                           className="secondary"
-                          disabled={blocked}
+                          disabled={blocked || acceptedExact}
                           onClick={() => save('Held')}
                         >
                           Save draft
@@ -619,7 +690,10 @@ export default function Workspace() {
                         <button
                           className="primary"
                           disabled={
-                            blocked || !draft.trim() || !!blocker.trim()
+                            blocked ||
+                            acceptedExact ||
+                            !draft.trim() ||
+                            !!blocker.trim()
                           }
                           onClick={() => save('Ready')}
                         >
@@ -640,12 +714,18 @@ export default function Workspace() {
                       anything.
                     </small>
                     <h3>Source history</h3>
+                    <small className="muted">
+                      Imported source status is research evidence. Exact draft
+                      acceptance is a local Relay decision.
+                    </small>
                     {sources
                       .filter((s) => s.job_key === current.job_key)
                       .map((s) => (
                         <article className="source" key={s.id}>
                           <b>{s.name}</b>
-                          <span className="badge">{s.status}</span>
+                          <span className="badge">
+                            Source reported: {s.status}
+                          </span>
                           <p>{s.notes || 'No source notes recorded.'}</p>
                           {s.source_url.startsWith('obsidian:') && (
                             <small className="muted">
@@ -681,6 +761,19 @@ export default function Workspace() {
                               </pre>
                             </details>
                           ))}
+                        {historyNext[current.id] && (
+                          <button
+                            className="textbutton"
+                            onClick={() =>
+                              void loadJobHistory(
+                                current.id,
+                                historyNext[current.id],
+                              )
+                            }
+                          >
+                            Load earlier review history
+                          </button>
+                        )}
                       </>
                     )}
                   </>

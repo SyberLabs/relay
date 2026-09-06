@@ -132,8 +132,7 @@ try {
     throw Error(
       `Development server did not become ready. See outputs/ci/${suite}-server.log.`,
     );
-  if (suite === 'api') await run(['tests/api.test.mjs']);
-  else await run([await bin('@playwright/test', 'playwright'), 'test']);
+  if (suite === 'api') await run(['tests/api.test.mjs']); else await run([await bin('@playwright/test', 'playwright'), 'test']);
 } finally {
   if (server?.pid && server.exitCode === null) {
     if (process.platform === 'win32') {

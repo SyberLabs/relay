@@ -1,6 +1,6 @@
 # Context management for Relay
 
-Research checked: **September 5, 2026**. Status: **research and proposed operating practices; no new runtime features enabled**.
+Research checked: **September 5, 2026**. Status: **research plus an optional focused handoff in the existing ChatGPT/Codex prompt download**.
 
 Give each model the evidence and current state needed for one job task. Keep the durable record in Relay and selected source files. Rebuild the context when the task, model, or job version changes.
 
@@ -10,7 +10,13 @@ Give each model the evidence and current state needed for one job task. Keep the
 
 For the first trial, choose one fictional opportunity. Download its current Relay packet, fill in the [task-context template](templates/task-context.md), and ask one assistant for a reviewable draft. Switch assistants using the [checkpoint template](templates/checkpoint.md). Check whether the second assistant preserves the facts, uncertainties, job version, and next action without repeating the research.
 
-A [ready-to-use fictional exercise](examples/fictional-handoff/README.md) includes a native packet, original fixture evidence, a sample draft, and a completed checkpoint. Its local file-adapter checks passed; a two-model quality comparison has not yet been run.
+A [ready-to-use fictional exercise](examples/fictional-handoff/README.md) includes a native packet, original fixture evidence, a sample draft, and a completed checkpoint. Its local file-adapter checks passed. A [two-model fictional pilot](examples/fictional-handoff/model-pilot.md) exercised three context conditions; it is too small to rank models or establish cost savings.
+
+## Use in Relay
+
+Select one job, open **Connect your tools**, and expand **Continue a task with ChatGPT or Codex**. Enter the next drafting task and optionally select **Use this job’s research**. Review and edit the research before using **Prepare for ChatGPT** or **Prepare for Codex**. These temporary fields clear when you switch jobs; they are not saved. Load the assistant’s JSON response for review, then save the draft explicitly. Existing version checks reject stale returns.
+
+The optional context applies to these two prompt downloads only. The plain packet and command-line connectors retain their existing format. There is no database migration or new provider service.
 
 ## Contents
 

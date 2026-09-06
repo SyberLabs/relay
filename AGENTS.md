@@ -13,7 +13,7 @@ Apply first-principles reasoning: name the user problem, question each requireme
 
 ## Delivery
 
-Work in an issue-linked branch. Keep one owner and a testable result per issue. Follow CONTRIBUTING.md and docs/delivery.md. Do not push directly to main, bypass required checks/reviews, approve your own work, or disable failing tests. Human approval and deployment approval are separate.
+Work in an issue-linked branch. Keep one owner and a testable result per issue. Follow CONTRIBUTING.md and docs/delivery.md. Do not push directly to main, bypass required checks/reviews, approve your own work, or disable failing tests. Human approval and deployment approval are separate. Seth owns the integration landing slot: only one ready pull request lands at a time. Do not merge or rebase `main` during freeze. Run `node scripts/check-integration-head.mjs` before claiming a head is current, and pass `--evidence <sha>` before reusing CI or review evidence; reuse is allowed only when `head_tree` matches.
 
 ## Review guidelines
 

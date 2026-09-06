@@ -6,11 +6,27 @@ Seth (`sdcarlson`) owns delivery and product decisions; Mateo (`sykosyber`) is t
 
 1. Choose a ticket with a named owner, observable problem, acceptance criteria, and verification. Move it to In progress; keep one active implementation per person. Product assumptions belong in experiment tickets with a predeclared decision threshold.
 2. Branch from current `main`. Keep private records and credentials out of source, tests, prompts, screenshots, and logs. Use fictional fixtures.
-3. Open a pull request linked to the ticket. Explain the resulting behavior and the checks actually run. Move the ticket to In review. Cursor reviews new pull requests and subsequent pushes.
+3. Open a pull request linked to the ticket. If another PR is landing, keep this one draft and Blocked on it. Explain the resulting behavior and the checks actually run. Move the ticket to In review only when it is the landing PR. Cursor reviews new pull requests and subsequent pushes.
 4. Resolve actionable findings and run the required checks. One other owner must approve the latest changes; neither an agent comment nor a green build supplies human approval. Squash merge only when GitHub permits it.
 5. Main CI creates the immutable release. Staging deploys automatically; production waits for a peer environment approval. Verify the deployed behavior before marking a release ticket complete.
 
 Use Backlog for unselected work, Ready for a fully specified next task, and Blocked only with a named dependency and next action. Closed issues move to Done. New open issues in RELAY join the board automatically. Avoid parallel status labels that disagree with the board.
+
+## Land one pull request at a time
+
+Seth (`sdcarlson`) is the integration owner. The board remains the canonical queue. Parallel agent branches may exist, but only one pull request is **landing**: ready, not draft, and allowed to squash to `main`.
+
+| Role | Rule |
+| --- | --- |
+| Owner | Seth. Mateo reviews; neither self-approves. |
+| Trigger | A second PR targeting `main` is ready, or an agent is about to open or update a second landing PR. |
+| Order | Named board Blocked entries wait on the landing PR. Overlapping files wait, they do not race. |
+| Freeze | Starts when the landing PR is sent for final peer review on a SHA. During freeze, no other squash to `main`, and the landing PR does not merge or rebase `main`. |
+| Stop | The landing PR is squash-merged, or it returns to draft / Blocked. Then the next Ready item may land. |
+| Stale head | `node scripts/check-integration-head.mjs` prints `behind` and `current`. A behind head is not a merge-from-main instruction. |
+| Evidence | `node scripts/check-integration-head.mjs --evidence <sha>` must print `evidence_matches yes`. Reuse CI or review notes only for that exact `head_tree`. |
+
+This is required because the live main ruleset dismisses stale reviews, requires last-push approval, and requires the branch to be up to date with `main` before merge. Updating from `main` during review is a new push: it re-runs `CI` and can dismiss the peer approval. Do not enable GitHub merge queue to skip that; queue docs say it replaces the up-to-date requirement with `merge_group` status checks and does not re-approve the combined tree. Do not add this script as a required GitHub check, and do not weaken last-push, dismiss-stale, code-owner, or required `CI` rules.
 
 ## Automatic review and context budget
 

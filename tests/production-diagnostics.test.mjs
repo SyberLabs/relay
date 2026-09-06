@@ -97,6 +97,52 @@ test('body read stops at the deadline instead of hanging', async () => {
   assert.equal(result.timedOut, true);
 });
 
+function timeoutHandles() {
+  return process.getActiveResourcesInfo().filter((name) => name === 'Timeout')
+    .length;
+}
+
+test('pending cancel cannot exceed the overall deadline', async () => {
+  const response = new Response(
+    new ReadableStream({
+      pull() {
+        return new Promise(() => {});
+      },
+      cancel() {
+        return new Promise(() => {});
+      },
+    }),
+    { status: 503 },
+  );
+  const result = await Promise.race([
+    readBoundedBody(response, { timeoutMs: 25 }).then((body) => ({
+      kind: 'returned',
+      body,
+    })),
+    delay(150).then(() => ({ kind: 'HUNG' })),
+  ]);
+  assert.equal(result.kind, 'returned');
+  assert.equal(result.body.timedOut, true);
+});
+
+test('chunked body does not leave dangling deadline timers', async () => {
+  const before = timeoutHandles();
+  const stream = new ReadableStream({
+    start(controller) {
+      for (let i = 0; i < 20; i++) controller.enqueue(new Uint8Array([120]));
+      controller.close();
+    },
+  });
+  const body = await readBoundedBody(new Response(stream, { status: 503 }), {
+    byteLimit: 2048,
+    timeoutMs: 500,
+  });
+  assert.equal(body.bytes, 20);
+  assert.equal(body.text, 'x'.repeat(20));
+  assert.equal(body.timedOut, false);
+  assert.equal(timeoutHandles(), before);
+});
+
 test('detached process-group teardown captures post-SIGTERM output and reaps nested children', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'relay-prod-log-'));
   const logPath = resolve(directory, 'production-server.log');

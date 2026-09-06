@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
 
 const BODY_BYTE_LIMIT = 2048;
 const BODY_READ_TIMEOUT_MS = 2_000;
@@ -43,17 +42,18 @@ export async function readBoundedBody(
   let bytes = 0;
   let truncated = false;
   let timedOut = false;
-  const deadline = Date.now() + timeoutMs;
+  let timeoutId;
+  const expired = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      resolve();
+    }, timeoutMs);
+  });
   try {
-    while (bytes < byteLimit) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) {
-        timedOut = true;
-        break;
-      }
+    while (bytes < byteLimit && !timedOut) {
       const outcome = await Promise.race([
         reader.read().then((chunk) => ({ kind: 'chunk', chunk })),
-        delay(remaining).then(() => ({ kind: 'timeout' })),
+        expired.then(() => ({ kind: 'timeout' })),
       ]);
       if (outcome.kind === 'timeout') {
         timedOut = true;
@@ -74,11 +74,9 @@ export async function readBoundedBody(
       bytes += chunk.byteLength;
     }
   } finally {
-    try {
-      await reader.cancel();
-    } catch {
-      /* The stream may already be closed. */
-    }
+    const cancel = Promise.resolve(reader.cancel()).catch(() => {});
+    await Promise.race([cancel, expired]);
+    clearTimeout(timeoutId);
   }
   return {
     text: Buffer.concat(chunks.map((part) => Buffer.from(part))).toString(

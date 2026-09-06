@@ -72,3 +72,9 @@ Original code review (base `6f88ea2`) did not include browser interactions or re
 ## Native Bot copy/paste trial (2026-09-06)
 
 On `7cfec262e02a2d255e233b0f335e056cab24a13e`, 2026-09-06 01:41:19–01:43:01 UTC, an isolated fictional Relay UI packet was copied into the installed native Grok Bot, and the observed JSON reply was pasted into Relay by hand. Paste staged the exact text without saving; an explicit save and reload preserved it. The record stayed Held, unaccepted, and unsubmitted. Automatic Bot file transfer and the Bot VM command environment remain unverified. This was a narrow local check on fictional isolated data.
+
+## Three-record Notion and native Bot trial (2026-09-06)
+
+A three-record trial ran on `e9e6030cae4c413ffde9ab83615bac7955de10bb`, 2026-09-06 02:29:53–02:31:21 UTC, using three distinct Held records from real historical Notion research. The rows were fetched read-only through the connected Notion tool, then previewed and imported into isolated local browser storage. Three actual context packets were copied into the installed native Grok Bot. Three actual replies were observed and transcribed by hand into files. Loading those files staged drafts without persistence. An explicit save and reload preserved the exact text. Stale original replies were rejected. A repeat import deduplicated. The workspace ended with three jobs and three sources, all Held, with no accepted draft.
+
+The original live-trial workspace was not used or mutated. There were no Notion writes, acceptances, employer messages, submissions, or deployments. Historical source notes do not verify that those roles are still open or a current fit. Automatic Bot file transfer and the standalone Notion command connector remain unverified. This does not show the whole product, independent adoption, a provider-side browser, production use, or actual submissions.

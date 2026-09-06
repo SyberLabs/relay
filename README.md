@@ -135,6 +135,8 @@ See [Local assisted browser trial](REVIEW.md#local-assisted-browser-trial) for t
 
 On `7cfec262`, a later fictional trial copied a Relay packet into the installed Grok Bot and manually pasted the returned JSON into Relay. Paste staged the draft without saving; an explicit save and reload preserved its exact text while the record remained Held and unaccepted. Automatic Bot file transfer and the Bot VM command environment remain unverified.
 
+On `e9e6030`, a later three-record trial imported three distinct Held jobs from historical Notion research through the connected Notion tool (read-only) into isolated local browser storage. Three actual context packets were copied into the installed native Grok Bot; the three observed JSON replies were transcribed by hand and loaded as files. Load staged drafts without persistence; an explicit save and reload preserved the exact text; stale original replies were rejected; a repeat import deduplicated. All three jobs stayed Held with no accepted draft. This is connected Notion read-only plus manually returned installed-Bot JSON, not automatic transfer or the standalone Notion command connector. See [Three-record Notion and native Bot trial](REVIEW.md#three-record-notion-and-native-bot-trial-2026-09-06).
+
 ## Checks
 
 ```sh

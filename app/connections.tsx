@@ -62,6 +62,7 @@ export function Connections({
   const [workflow, setWorkflow] =
     useState<keyof typeof obsidianWorkflows>('research');
   const [loading, setLoading] = useState(false);
+<<<<<<< HEAD
   function editorTarget() {
     return current?.session
       ? {
@@ -102,18 +103,22 @@ export function Connections({
       );
     }
   }
+=======
+  const [nextTask, setNextTask] = useState('');
+  const [research, setResearch] = useState('');
+>>>>>>> acbc299 (Add focused research and next-task context to assistant prompts)
   function download(assistant?: Assistant) {
     if (!current) return;
     const packet = selectedJobPacket(current, facts, draft);
     if (assistant) {
       try {
         downloadFile(
-          assistantPrompt(packet, assistant),
+          assistantPrompt(packet, assistant, false, { nextTask, research }),
           `relay-${assistant}-prompt.md`,
           'text/markdown',
         );
         setNote(
-          'Prompt downloaded. Share it with your chosen assistant, save its JSON response, then load that file here for review. Only this job, the visible draft and supplied facts are included.',
+          'Prompt downloaded with this job, visible draft, supplied facts and the task context shown below. Share it with your assistant, then paste or load its JSON response here for review.',
         );
       } catch (error) {
         setNote(
@@ -160,6 +165,7 @@ export function Connections({
           <option value="followup">Follow-up planning</option>
         </select>
       </label>
+
       <div className="actions">
         <button
           className="secondary"
@@ -254,6 +260,50 @@ export function Connections({
           placeholder="Only include facts you want to share with your chosen assistant. These facts are not saved here."
         />
       </label>
+      <details>
+        <summary>Continue a task with ChatGPT or Codex</summary>
+        <p>
+          Add only what this draft needs. These optional details go into Prepare
+          for ChatGPT and Prepare for Codex downloads, not the plain job packet.
+          They are not saved here.
+        </p>
+        <label className="field">
+          What should the assistant draft next?
+          <textarea
+            value={nextTask}
+            maxLength={2000}
+            onChange={(e) => setNextTask(e.target.value)}
+            placeholder="For example: revise the opening paragraph using the role requirements below."
+          />
+        </label>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => {
+            setResearch(JSON.stringify({ notes, sources: sources.map((source) => ({
+              name: source.name,
+              source_url: source.source_url,
+              notes: source.notes,
+              status: source.status,
+            })) }, null, 2));
+          }}
+        >
+          Use this job’s research
+        </button>
+        <label className="field">
+          Research to share with the assistant
+          <textarea
+            value={research}
+            onChange={(e) => setResearch(e.target.value)}
+            placeholder="Choose the research above or paste relevant excerpts with their sources. Remove anything this task does not need."
+          />
+        </label>
+        <p>
+          Review and shorten the selection before sharing. Research is separate
+          from verified candidate facts. Limit: 30,000 characters; longer text
+          is rejected, never silently shortened.
+        </p>
+      </details>
       <div className="actions">
         <button
           className="secondary"

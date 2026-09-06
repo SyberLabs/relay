@@ -7,7 +7,6 @@ import {
   Copy,
   GitMerge,
   Layers,
-  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import {
@@ -215,11 +214,10 @@ export default function Review() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
-      <p className="eyebrow">REVIEW · CALIBRATE THE WRITER</p>
-      <h1>Correct the writer, not the letter.</h1>
+      <h1>Review</h1>
       <p className="lead">
-        A review session is worth running only if it changes the profile. Fix a
-        habit once here and the next batch is written without it.
+        Edit logged drafts and save style rules so the next batch is written
+        without the same habit.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -230,7 +228,7 @@ export default function Review() {
         <div>
           <span>Logged, unreviewed</span>
           <strong>{pending.length.toString().padStart(2, '0')}</strong>
-          <small>Written autonomously</small>
+          <small>Waiting for review</small>
         </div>
         <div>
           <span>In this session</span>
@@ -241,11 +239,6 @@ export default function Review() {
           <span>Rules staged</span>
           <strong>{basket.length.toString().padStart(2, '0')}</strong>
           <small>Applied on close</small>
-        </div>
-        <div className="stataccent">
-          <ShieldCheck size={22} />
-          <b>Claims are pre-checked.</b>
-          <small>Uncited claims never reach this queue.</small>
         </div>
       </section>
       {!open && (
@@ -435,11 +428,11 @@ export default function Review() {
         </>
       )}
       <section className="import">
-        <h2>Cluster autonomy</h2>
+        <h2>Role types</h2>
         <p>
-          Autonomy is earned per role type. A graduated cluster places its
-          drafts into the workspace unattended; it still never accepts or sends
-          one. A correction or an expired fact returns it to full review.
+          A graduated role type places its drafts in the workspace without a
+          review session. It still never accepts or sends a draft. A correction
+          or an expired fact returns it to full review.
         </p>
         {Object.values(trust).length === 0 && (
           <p className="empty">No drafts logged yet.</p>
@@ -456,10 +449,7 @@ export default function Review() {
           </article>
         ))}
       </section>
-      <footer>
-        Relay / SyberLabs
-        <span>Review changes the writer, not just the text.</span>
-      </footer>
+      <footer>Relay / SyberLabs</footer>
     </main>
   );
 }

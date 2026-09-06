@@ -103,12 +103,10 @@ export default function PlanPage() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
-      <p className="eyebrow">THIS WEEK · WHAT TO ACTUALLY APPLY TO</p>
-      <h1>A plan sized to your week, not a queue.</h1>
+      <h1>This week</h1>
       <p className="lead">
-        You accept one job, so this maximises the expected value of the best
-        offer you receive rather than the total across applications. That is why
-        a long shot can outrank a safer role you already have covered.
+        Roles ranked for the time you have this week. A long shot can outrank a
+        safer role you already have covered, because you only accept one offer.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -163,10 +161,7 @@ export default function PlanPage() {
 
       <section className="import">
         <h2>Apply to these</h2>
-        <p>
-          Chosen by marginal gain per minute. Each row says why it earned the
-          place, so a wrong call is arguable rather than opaque.
-        </p>
+        <p>Chosen by gain per minute. Each row includes why it was chosen.</p>
         {!plan?.plan.length && (
           <p className="empty">
             Nothing selected. Either there are no open roles in the workspace,
@@ -191,10 +186,7 @@ export default function PlanPage() {
           ))}
         </section>
       )}
-      <footer>
-        Relay / SyberLabs
-        <span>Selection is the largest lever. This is it.</span>
-      </footer>
+      <footer>Relay / SyberLabs</footer>
     </main>
   );
 }

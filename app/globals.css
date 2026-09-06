@@ -84,35 +84,6 @@ a:hover {
   margin-top: 7px;
   letter-spacing: 0;
 }
-.studio {
-  font-size: 11px;
-  letter-spacing: 1px;
-  margin: 18px 0 28px;
-  color: #b4c7bb;
-}
-.owner {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding: 18px 0;
-  border-top: 1px solid #3b584b;
-  border-bottom: 1px solid #3b584b;
-  font-size: 14px;
-}
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  background: #37594a;
-  border-radius: 50%;
-  font-family: Georgia, serif;
-}
-.owner small {
-  display: block;
-  color: #adc0b2;
-  font-size: 12px;
-}
 .navlabel {
   color: #a1b5a7;
   font-size: 12px;
@@ -144,19 +115,16 @@ a:hover {
 .nav:hover:not(.active) {
   background: #294a3c;
 }
+.sidebar a.nav:first-of-type {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #3b584b;
+}
 .sidebottom {
   margin-top: auto;
   padding: 55px 6px 0;
   font-size: 12px;
   color: #c1d1c4;
-}
-.dot {
-  width: 6px;
-  height: 6px;
-  display: inline-block;
-  background: #c8df8f;
-  border-radius: 50%;
-  margin-right: 8px;
 }
 .sidebottom p {
   color: #93ac9c;
@@ -232,11 +200,14 @@ a.primary,
 }
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr) 1.25fr;
+  grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #fafbf5;
   margin-bottom: 25px;
+}
+.stats:has(.stataccent) {
+  grid-template-columns: repeat(3, 1fr) 1.25fr;
 }
 .stats > div {
   padding: 22px;
@@ -505,17 +476,6 @@ a.primary,
 .detailintro p {
   font-size: 16px;
   color: var(--muted);
-  margin-bottom: 30px;
-}
-.detailintro > div:not(.bigmark) {
-  font-size: 14px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-}
-.detailintro span {
-  font-size: 12px;
-  color: #7e9273;
-  padding-right: 18px;
 }
 .notice {
   background: #edf1df;
@@ -623,8 +583,6 @@ footer {
     padding: 15px;
     display: block;
   }
-  .studio,
-  .owner,
   .navlabel,
   .sidebottom {
     display: none;
@@ -679,9 +637,6 @@ footer {
   .welcome {
     padding: 25px;
   }
-  footer span {
-    display: none;
-  }
 }
 
 .productpage {
@@ -690,8 +645,8 @@ footer {
   padding: 3rem 2rem;
 }
 .productpage h1 {
-  font-size: clamp(2.4rem, 5vw, 4.2rem);
-  margin: 2rem 0;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  margin: 1rem 0 0.75rem;
 }
 .productpage .lead {
   max-width: 700px;

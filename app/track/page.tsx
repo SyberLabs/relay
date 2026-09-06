@@ -148,14 +148,10 @@ export default function Track() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
-      <p className="eyebrow">
-        TRACK · WHAT CAME BACK, AND WHAT YOU MUST DEFEND
-      </p>
-      <h1>Close the loop, and know what you claimed.</h1>
+      <h1>Track</h1>
       <p className="lead">
-        Every application commits you to defending specific claims. Because each
-        one had to cite a verified fact, the preparation sheet already exists —
-        it is the citation list, not a separate document.
+        Record what happened after you applied, and the claims that submission
+        committed you to.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -319,9 +315,7 @@ export default function Track() {
             ))}
         </section>
       )}
-      <footer>
-        Relay / SyberLabs<span>Outcomes are what make the estimates real.</span>
-      </footer>
+      <footer>Relay / SyberLabs</footer>
     </main>
   );
 }

@@ -200,7 +200,9 @@ try {
   });
   await expectStatus(htmlResponse, 200, 'authenticated document');
   const html = await htmlResponse.text();
-  assert.match(html, /Make your next move/);
+  assert.match(html, /Import research/);
+  assert.doesNotMatch(html, /Make your next move/);
+  assert.doesNotMatch(html, /Selection is the largest lever/);
   const scriptPath = html.match(/<script[^>]+src="([^"]+\.js[^"]*)"/)?.[1];
   assert.ok(scriptPath, 'Compiled page must load its client JavaScript');
   await expectStatus(

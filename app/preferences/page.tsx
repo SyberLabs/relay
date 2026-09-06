@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, RotateCcw, Scale, Timer } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Timer } from 'lucide-react';
 import type { Posting, Weights } from '../../lib/utility';
 import {
   beginPageWork,
@@ -152,12 +152,10 @@ export default function Preferences() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
-      <p className="eyebrow">PREFERENCES · WHAT A JOB IS WORTH TO YOU</p>
-      <h1>Choose between two jobs. Not between two sliders.</h1>
+      <h1>Preferences</h1>
       <p className="lead">
-        Nobody knows how much pay they would trade for remote until they are
-        looking at two real jobs. So the value model is fitted from choices you
-        make here, and it is what decides which roles reach your plan.
+        Pick the job you would rather have. Those choices set the weights used
+        to rank roles on This week.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -184,11 +182,6 @@ export default function Preferences() {
           <span>Weekly attention</span>
           <strong>{minutes}</strong>
           <small>Minutes the plan is sized to</small>
-        </div>
-        <div className="stataccent">
-          <Scale size={22} />
-          <b>Revealed, not declared.</b>
-          <small>Each answer is one constraint on the weights.</small>
         </div>
       </section>
 
@@ -250,8 +243,7 @@ export default function Preferences() {
         </p>
         {answered === 0 && (
           <p className="empty">
-            No opinion yet. Relay will not invent one — until you answer, every
-            posting scores the same.
+            No comparisons yet, so every posting scores the same.
           </p>
         )}
         {answered > 0 &&
@@ -293,10 +285,7 @@ export default function Preferences() {
         <h2>
           <Timer size={18} /> Weekly attention budget
         </h2>
-        <p>
-          One number, and the whole plan is sized against it. As review
-          calibrates the writer, the same minutes buy more applications.
-        </p>
+        <p>Minutes available for applications this week.</p>
         <div className="actions">
           <input
             aria-label="Minutes per week"
@@ -319,9 +308,7 @@ export default function Preferences() {
           </button>
         </div>
       </section>
-      <footer>
-        Relay / SyberLabs<span>Preferences decide what reaches your week.</span>
-      </footer>
+      <footer>Relay / SyberLabs</footer>
     </main>
   );
 }

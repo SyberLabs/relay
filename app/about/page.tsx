@@ -80,9 +80,7 @@ export default function About() {
           Report an issue ↗
         </a>
       </div>
-      <footer>
-        Relay / SyberLabs<span>Research. Prepare. Review.</span>
-      </footer>
+      <footer>Relay / SyberLabs</footer>
     </main>
   );
 }

@@ -32,9 +32,7 @@ import {
   processRefresh,
   refreshIsLive,
 } from '../lib/workspace-refresh';
-import {
-  mergeReviewEvents,
-} from '../lib/workspace-events';
+import { mergeReviewEvents } from '../lib/workspace-events';
 import {
   ArrowUpRight,
   Search,
@@ -104,9 +102,7 @@ export default function Workspace() {
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false),
-    [historyNext, setHistoryNext] = useState<Record<string, string | null>>(
-      {},
-    );
+    [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
   const sessionRef = useRef(createWorkspaceSession());
   const workspaceEpoch = sessionRef.current.gate.epoch;
   const applyExpired = useCallback(() => {
@@ -315,13 +311,6 @@ export default function Workspace() {
         <Link className="brand" href="/">
           <span className="mark">r</span>relay<span className="beta">01</span>
         </Link>
-        <div className="studio">SYBERLABS / PRIVATE WORKSPACE</div>
-        <div className="owner">
-          <span className="avatar">S</span>
-          <div>
-            Your next move<small>Career workspace</small>
-          </div>
-        </div>
         <div className="navlabel">WORKSPACE</div>
         {(
           [
@@ -350,7 +339,6 @@ export default function Workspace() {
             </span>
           </button>
         ))}
-        <div className="navlabel">AUTONOMY</div>
         <Link className="nav" href="/profile" onClick={confirmLeave}>
           <FileText size={18} />
           Profile
@@ -372,20 +360,14 @@ export default function Workspace() {
           Track outcomes
         </Link>
         <div className="sidebottom">
-          <div className="dot" /> History stays with the job.
-          <p>
-            Your research, connected
-            <br />
-            No live sending connected
-          </p>
+          <p>Does not send applications.</p>
         </div>
       </aside>
       <main>
         <header>
           <div>
-            <span className="eyebrow">CAREER / REVIEW</span>
-            <h1>Make your next move.</h1>
-            <p>One opportunity. One history. A clear next action.</p>
+            <h1>Workspace</h1>
+            <p>Jobs, drafts, and research for the roles you are considering.</p>
           </div>
           <button
             className="secondary"
@@ -409,19 +391,14 @@ export default function Workspace() {
                 .length.toString()
                 .padStart(2, '0')}
             </strong>
-            <small>Evidence before action</small>
+            <small>Held drafts</small>
           </div>
           <div>
-            <span>History preserved</span>
+            <span>Repeat sources</span>
             <strong>
               {(sources.length - jobs.length).toString().padStart(2, '0')}
             </strong>
-            <small>Repeat records consolidated</small>
-          </div>
-          <div className="stataccent">
-            <ShieldCheck size={22} />
-            <b>Decisions carry forward.</b>
-            <small>Rediscovery never resets a submitted job.</small>
+            <small>Joined to an existing job</small>
           </div>
         </section>
         {message && (
@@ -444,11 +421,10 @@ export default function Workspace() {
           </section>
         ) : loaded && jobs.length === 0 ? (
           <section className="welcome">
-            <span className="eyebrow">START WITH YOUR REAL WORK</span>
-            <h2>Bring the history with you.</h2>
+            <h2>No jobs yet</h2>
             <p>
-              Import your research or explore fictional examples. Relay keeps
-              earlier submissions, notes and blockers attached to each job.
+              Import your research or explore fictional examples. Earlier
+              submissions, notes and blockers stay attached to each job.
             </p>
             <button
               className="primary"
@@ -588,10 +564,10 @@ export default function Workspace() {
             <section className="replay">
               <GitMerge size={20} />
               <div>
-                <b>Put the next hunt through its history.</b>
+                <b>Check example research</b>
                 <p>
-                  Check example research against this workspace. Find repeats
-                  before doing the work twice.
+                  Compare the example records with this workspace to see which
+                  jobs are already here.
                 </p>
               </div>
               <button
@@ -649,7 +625,6 @@ export default function Workspace() {
                 {current ? (
                   <>
                     <div className="detailhead">
-                      <span className="eyebrow">OPPORTUNITY RECORD</span>
                       <span className="badge">
                         Relay status: {current.status}
                       </span>
@@ -783,7 +758,8 @@ export default function Workspace() {
                         {fit.gates.map((gate) => (
                           <li key={gate.text}>
                             <span className="badge">
-                              {gate.status[0].toUpperCase() + gate.status.slice(1)}
+                              {gate.status[0].toUpperCase() +
+                                gate.status.slice(1)}
                             </span>
                             {gate.text}
                           </li>
@@ -865,34 +841,18 @@ export default function Workspace() {
                     <div className="bigmark">
                       <BriefcaseBusiness size={32} />
                     </div>
-                    <h2>
-                      Good decisions start
-                      <br />
-                      with the whole picture.
-                    </h2>
+                    <h2>Select a role</h2>
                     <p>
-                      Select a role to see its previous research, resolve a
-                      blocker and prepare the exact text you want to use.
+                      Open a job to see its research, resolve a blocker, and
+                      prepare the exact text you want to use.
                     </p>
-                    <div>
-                      <span>01</span> Read the evidence
-                    </div>
-                    <div>
-                      <span>02</span> Resolve the exception
-                    </div>
-                    <div>
-                      <span>03</span> Accept a specific draft
-                    </div>
                   </div>
                 )}
               </section>
             </div>
           </>
         )}
-        <footer>
-          Relay / SyberLabs{' '}
-          <span>Working version · Research and preparation</span>
-        </footer>
+        <footer>Relay / SyberLabs</footer>
       </main>
     </div>
   );

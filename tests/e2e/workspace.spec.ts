@@ -248,9 +248,7 @@ test('a dirty editor asks before opening profile or review screens', async ({
   page,
 }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await expect(
-    page.getByRole('heading', { name: 'Make your next move.' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
   const explore = page.getByRole('button', { name: 'Explore example jobs' });
   if (await explore.isVisible()) {
     await explore.click();
@@ -271,8 +269,6 @@ test('a dirty editor asks before opening profile or review screens', async ({
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('link', { name: 'Profile' }).click();
   await expect(
-    page.getByRole('heading', {
-      name: 'Facts it may claim. Voice it must use.',
-    }),
+    page.getByRole('heading', { name: 'Your profile' }),
   ).toBeVisible();
 });

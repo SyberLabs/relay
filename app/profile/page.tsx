@@ -181,12 +181,10 @@ export default function Profile() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
-      <p className="eyebrow">PROFILE · WHAT THE AGENT WRITES FROM</p>
-      <h1>Facts it may claim. Voice it must use.</h1>
+      <h1>Your profile</h1>
       <p className="lead">
-        The fact ledger is checked: a draft may only make a claim traceable to a
-        verified fact here. The style card is learned from your corrections
-        during review.
+        A draft may only claim a verified fact from this ledger. Style rules
+        come from corrections you save during review.
       </p>
       <section className="stats">
         <div>
@@ -424,9 +422,7 @@ export default function Profile() {
           </button>
         </div>
       </section>
-      <footer>
-        Relay / SyberLabs<span>The agent reads this. Only you write it.</span>
-      </footer>
+      <footer>Relay / SyberLabs</footer>
     </main>
   );
 }

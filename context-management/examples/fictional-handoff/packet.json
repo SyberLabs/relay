@@ -1,0 +1,12 @@
+{
+  "schema": "relay.packet.v1",
+  "job": {
+    "id": "fictional-context-trial",
+    "key": "https://example.com/jobs/inventory-engineer",
+    "url": "https://example.com/jobs/inventory-engineer",
+    "name": "Fictional Example Company - Inventory Software Engineer",
+    "version": 4
+  },
+  "facts": "FICTIONAL TEST DATA ONLY. F1: The fictional candidate contributed to an inventory reconciliation service; source: evidence.md#f1. F2: The candidate wrote integration tests for that service; source: evidence.md#f2. No ownership, duration, improvement metric, or SAP experience is established. E1: The fictional role involves inventory software and integration testing; source: evidence.md#e1. E2: Work location is unresolved because two fictional observations conflict; source: evidence.md#e2. Prepare a short application paragraph for review only.",
+  "draft": ""
+}

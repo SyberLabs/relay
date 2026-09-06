@@ -18,6 +18,13 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
         Status: 'Held',
         Notes: 'Fictional assistant handoff record.',
       },
+      {
+        url: 'https://example.com/research/other-context',
+        Name: 'Other Context Job',
+        Job: 'https://example.com/jobs/other-context',
+        Status: 'Held',
+        Notes: 'OTHER_JOB_PRIVATE_RESEARCH',
+      },
     ]),
   );
   await page.getByRole('button', { name: 'Preview matches' }).click();
@@ -37,6 +44,23 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
     name: 'Application answer or outreach draft',
   });
   await editor.fill('Unsaved wording visible to the assistant.');
+  await page
+    .getByText('Continue a task with ChatGPT or Codex', { exact: true })
+    .click();
+  await page
+    .getByRole('textbox', { name: 'What should the assistant draft next?' })
+    .fill('Revise only the opening paragraph.');
+  const research = page.getByRole('textbox', {
+    name: 'Research to share with the assistant',
+  });
+  await expect(research).toHaveValue('');
+  await page.getByRole('button', { name: 'Use this job’s research' }).click();
+  expect(await research.inputValue()).toContain(
+    'Fictional assistant handoff record.',
+  );
+  expect(await research.inputValue()).not.toContain(
+    'OTHER_JOB_PRIVATE_RESEARCH',
+  );
 
   for (const assistant of ['ChatGPT', 'Codex']) {
     const pending = page.waitForEvent('download');
@@ -50,14 +74,26 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
     const prompt = await readFile((await download.path())!, 'utf8');
     expect(prompt).toContain('Built a fictional inventory service.');
     expect(prompt).toContain('Unsaved wording visible to the assistant.');
+    expect(prompt).toContain('Revise only the opening paragraph.');
+    expect(prompt).toContain('Fictional assistant handoff record.');
+    expect(prompt).not.toContain('OTHER_JOB_PRIVATE_RESEARCH');
     const result = JSON.parse(prompt.split('Required output:\n')[1]);
     expect(result.reviewRequired).toBe(true);
     result.draft = `Fictional wording returned by ${assistant}.`;
-    await page.getByLabel('Load integration result').setInputFiles({
-      name: 'relay-result.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify(result)),
-    });
+    if (assistant === 'ChatGPT') {
+      await page
+        .getByLabel('Paste complete relay.draft.v1 JSON')
+        .fill(JSON.stringify(result));
+      await page
+        .getByRole('button', { name: 'Load draft for review', exact: true })
+        .click();
+    } else {
+      await page.getByLabel('Load integration result').setInputFiles({
+        name: 'relay-result.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify(result)),
+      });
+    }
     await expect(editor).toHaveValue(result.draft);
     let workspace = await (await page.request.get('/api/workspace')).json();
     const original = workspace.jobs.find(
@@ -104,4 +140,28 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
       await editor.fill('Unsaved wording visible to the assistant.');
     }
   }
+  await page
+    .getByRole('textbox', { name: 'Verified facts for this draft' })
+    .fill('Facts for the first job only.');
+  await page
+    .getByText('Continue a task with ChatGPT or Codex', { exact: true })
+    .click();
+  await page
+    .getByRole('textbox', { name: 'What should the assistant draft next?' })
+    .fill('Continue the first job only.');
+  await research.fill('Research for the first job only.');
+  await page.getByRole('button', { name: /Other Context Job/ }).click();
+  await page.getByText('Connect your tools', { exact: true }).click();
+  await expect(
+    page.getByRole('textbox', { name: 'Verified facts for this draft' }),
+  ).toHaveValue('');
+  await page
+    .getByText('Continue a task with ChatGPT or Codex', { exact: true })
+    .click();
+  await expect(
+    page.getByRole('textbox', {
+      name: 'What should the assistant draft next?',
+    }),
+  ).toHaveValue('');
+  await expect(research).toHaveValue('');
 });

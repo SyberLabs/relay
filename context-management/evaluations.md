@@ -1,6 +1,6 @@
 # Evaluation plan
 
-Status: proposed, not executed. No model quality, token savings, cost savings, or hiring outcome has been measured by this research task.
+Status: the full evaluation below is proposed, not executed. A separate [two-model fictional drafting pilot](examples/fictional-handoff/model-pilot.md) has run; it does not establish model rankings, token or cost savings, or hiring outcomes.
 
 ## Decision to make
 

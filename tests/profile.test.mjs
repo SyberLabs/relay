@@ -106,6 +106,8 @@ void test('employer language in the same sentence does not waive applicant quant
   const mixed = [
     'Your role fits my 12 years of experience.',
     'For your team, I bring 15 years of experience.',
+    'I bring your team 15 years of experience.',
+    'I offer your company 12 years of experience.',
   ];
   for (const body of mixed) {
     assert.equal(isClaim(body), true, body);

@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { access, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { EXIT, RelayError, login, request } from './client.mjs';
 import {
@@ -7,6 +7,11 @@ import {
   unsupportedClaims,
   usableFact,
 } from '../lib/profile.ts';
+
+let io = { fetchImpl: fetch, claudeFetch: fetch, session: undefined };
+function api(path, body) {
+  return request(path, body, { fetchImpl: io.fetchImpl, session: io.session });
+}
 // Argument parsing, formatting and exit codes. No decisions live here: what
 // counts as a claim, which jobs make the plan and when a cluster graduates all
 // belong to lib/, where every transport reaches the same answer.
@@ -44,7 +49,7 @@ function pct(n) {
   return (n * 100).toFixed(1) + '%';
 }
 async function jobById(id) {
-  const workspace = await request('/api/workspace');
+  const workspace = await api('/api/workspace');
   const job = workspace.jobs.find((j) => j.id === id);
   if (!job)
     throw new RelayError(
@@ -57,7 +62,7 @@ async function jobById(id) {
 // in force for that cluster, and the rules of use. Composed by lib/, not here.
 async function buildBrief(jobId) {
   const [profile, job] = await Promise.all([
-    request('/api/profile'),
+    api('/api/profile'),
     jobById(jobId),
   ]);
   const cluster = clusterOf(job.name);
@@ -100,8 +105,8 @@ function precheck(body, cited, facts, now) {
 }
 const commands = {
   async login() {
-    await login();
-    const profile = await request('/api/profile');
+    await login(io.fetchImpl);
+    const profile = await api('/api/profile');
     out(
       `Signed in. Profile v${profile.version} · ${profile.usable} verified facts.`,
     );
@@ -142,9 +147,9 @@ const commands = {
       throw new RelayError(`Cannot read ${file}.`, EXIT.usage);
     }
     if (!body.trim()) throw new RelayError(`${file} is empty.`, EXIT.usage);
-    const profile = await request('/api/profile');
+    const profile = await api('/api/profile');
     precheck(body, cited, profile.facts, new Date().toISOString());
-    const result = await request('/api/drafts', {
+    const result = await api('/api/drafts', {
       action: 'log',
       job_id: id,
       body,
@@ -162,9 +167,9 @@ const commands = {
   },
 
   async draft([id], flags) {
-    if (!id)
+    if (!id || flags.out === true)
       throw new RelayError(
-        'Usage: relay draft <job_id> [--out file]',
+        'Usage: relay draft <job_id> [--out file] [--force]',
         EXIT.usage,
       );
     const token = process.env.ANTHROPIC_API_KEY,
@@ -174,30 +179,57 @@ const commands = {
         'Set ANTHROPIC_API_KEY and RELAY_CLAUDE_MODEL.',
         EXIT.usage,
       );
+    if (typeof flags.out === 'string' && !flags.force) {
+      try {
+        await access(flags.out);
+        throw new RelayError(
+          `${flags.out} already exists. Pass --force to overwrite.`,
+          EXIT.usage,
+        );
+      } catch (error) {
+        if (error instanceof RelayError) throw error;
+        if (error?.code !== 'ENOENT') throw error;
+      }
+    }
     const { job, brief, profile } = await buildBrief(id);
     if (!brief.facts.length)
       throw new RelayError(
         'No verified facts to cite. Verify some in the browser first.',
         EXIT.refused,
       );
-    const written = await askClaude({ token, model, job, brief });
-    if (flags.out) {
-      await mkdir(dirname(flags.out), { recursive: true });
-      await writeFile(flags.out, written.draft + '\n', { mode: 0o600 });
-    }
+    const written = await askClaude(
+      { token, model, job, brief },
+      io.claudeFetch,
+    );
     precheck(
       written.draft,
       written.cited,
       profile.facts,
       new Date().toISOString(),
     );
-    const result = await request('/api/drafts', {
+    const result = await api('/api/drafts', {
       action: 'log',
       job_id: id,
       body: written.draft,
       cited: written.cited,
       confidence: written.confidence,
     });
+    if (typeof flags.out === 'string') {
+      await mkdir(dirname(flags.out), { recursive: true });
+      try {
+        await writeFile(flags.out, written.draft + '\n', {
+          flag: flags.force ? 'w' : 'wx',
+          mode: 0o600,
+        });
+      } catch (error) {
+        if (error?.code === 'EEXIST')
+          throw new RelayError(
+            `${flags.out} already exists. Pass --force to overwrite.`,
+            EXIT.usage,
+          );
+        throw error;
+      }
+    }
     if (flags.json) return json({ ...result, draft: written.draft });
     out(written.draft);
     out('');
@@ -207,7 +239,7 @@ const commands = {
   },
 
   async plan(_, flags) {
-    const plan = await request('/api/plan');
+    const plan = await api('/api/plan');
     if (flags.json) return json(plan);
     if (!plan.plan.length) {
       out(
@@ -231,8 +263,8 @@ const commands = {
 
   async status(_, flags) {
     const [drafts, profile] = await Promise.all([
-      request('/api/drafts'),
-      request('/api/profile'),
+      api('/api/drafts'),
+      api('/api/profile'),
     ]);
     const pending = drafts.drafts.filter((d) => d.verdict === 'Logged');
     if (flags.json)
@@ -277,7 +309,7 @@ const commands = {
         EXIT.usage,
       );
     const job = await jobById(id);
-    const result = await request('/api/outcomes', outcomeBody(job, kind, flags));
+    const result = await api('/api/outcomes', outcomeBody(job, kind, flags));
     if (flags.json) return json(result);
     out(`recorded ${kind} · status now ${result.status}`);
   },
@@ -349,7 +381,20 @@ async function askClaude({ token, model, job, brief }, fetchImpl = fetch) {
     confidence: parsed.confidence === 'low' ? 'low' : 'high',
   };
 }
-export async function run(argv) {
+export async function run(argv, overrides = {}) {
+  const previous = io;
+  io = {
+    fetchImpl: overrides.fetchImpl ?? fetch,
+    claudeFetch: overrides.claudeFetch ?? fetch,
+    session: overrides.session,
+  };
+  try {
+    return await invoke(argv);
+  } finally {
+    io = previous;
+  }
+}
+async function invoke(argv) {
   const { positional, flags } = parseArgs(argv);
   const [name, ...rest] = positional;
   const command = commands[name];

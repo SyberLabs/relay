@@ -89,7 +89,7 @@ node integrations/relay.mjs login                 # cache a local session
 node integrations/relay.mjs plan                  # this week, with ids and reasons
 node integrations/relay.mjs brief <job_id> --json # facts you may cite + style rules
 node integrations/relay.mjs log <job_id> draft.txt --cite f1,f2
-node integrations/relay.mjs draft <job_id>        # Claude writes it, then logs it
+node integrations/relay.mjs draft <job_id> [--out file] [--force]
 node integrations/relay.mjs status                # cluster trust, review due
 node integrations/relay.mjs outcome <job_id> submitted --receipt "confirmation #A-88"
 ```
@@ -109,7 +109,7 @@ An unattended agent relies on these. The distinction that matters is 3 against 4
 | 4    | Server or network failure    | Retry with backoff                        |
 | 5    | Nothing to do                | Stop cleanly                              |
 
-A refused draft prints the offending sentence and writes nothing. Retrying it unchanged will fail identically; retrying it _reworded_ until it passes is defeating the check, not satisfying it.
+A refused draft prints the offending sentence and writes nothing, including `--out`. `relay draft --out` writes that file only after the draft is logged. An existing file is left untouched unless `--force` is passed.
 
 `--json` prints one object on stdout and sends every diagnostic to stderr.
 

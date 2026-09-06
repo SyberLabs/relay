@@ -98,6 +98,8 @@ export async function request(path, body, { fetchImpl = fetch, session } = {}) {
       EXIT.server,
     );
   }
+  if (response.status === 401)
+    throw new RelayError('Not signed in. Run `relay login` first.', EXIT.auth);
   let data;
   try {
     data = await response.json();

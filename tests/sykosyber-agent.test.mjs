@@ -70,7 +70,10 @@ void test('prompt keeps close and merge rules before untrusted issue text', () =
   assert.ok(noClose > -1 && noClose < untrusted);
   assert.ok(noMain > -1 && noMain < untrusted);
   assert.ok(closes > -1 && closes < untrusted);
-  assert.ok(prompt.includes('https://github.com/SyberLabs/relay/issues/4'));
+  assert.match(
+    prompt,
+    /^Implement RELAY GitHub issue https:\/\/github\.com\/SyberLabs\/relay\/issues\/4 /m,
+  );
   assert.ok(prompt.includes('push directly to main'));
   assert.match(prompt, /untrusted data/);
   assert.deepEqual(modelFromEnv({}), {

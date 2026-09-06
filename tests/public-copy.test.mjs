@@ -15,6 +15,23 @@ void test('every advertised integration has a checked-in setup guide', async () 
   for (const item of copy.integrations)
     await access(new URL('../' + item.guide, import.meta.url));
   assert.equal(copy.leadEngineer, 'Seth Carlson');
+  assert.equal(copy.leadProfile, 'https://github.com/sdcarlson');
+  assert.equal(copy.peerEngineer, 'Mateo');
+  assert.equal(copy.peerProfile, 'https://github.com/sykosyber');
+});
+
+void test('project and organization copy credits both maintainers', () => {
+  for (const target of ['project', 'organization']) {
+    const content = render(copy, target);
+    assert.match(content, /Lead engineer: \[Seth Carlson\]\(https:\/\/github.com\/sdcarlson\)/);
+    assert.match(
+      content,
+      /Application development: \[Mateo\]\(https:\/\/github.com\/sykosyber\)/,
+    );
+  }
+  const profile = render(copy, 'profile');
+  assert.match(profile, /Lead engineer/);
+  assert.doesNotMatch(profile, /Application development/);
 });
 
 void test('sync preserves all content outside its block and is idempotent', () => {
@@ -47,7 +64,7 @@ void test('website product data is escaped before rendering', () => {
 });
 
 void test('public links reject executable schemes, other hosts and embedded credentials', () => {
-  for (const field of ['repository', 'leadProfile']) {
+  for (const field of ['repository', 'leadProfile', 'peerProfile']) {
     for (const value of [
       'javascript:alert(1)',
       'data:text/html,test',

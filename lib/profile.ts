@@ -89,12 +89,33 @@ export function sentences(text: string): string[] {
     .map((s) => s.trim())
     .filter(Boolean);
 }
-// A sentence asserts something checkable when it carries a number, or pairs a
-// first-person subject with an achievement verb. Interest, questions and
-// remarks about the employer are not claims and never need a citation.
+function numberIsAboutEmployer(
+  sentence: string,
+  index: number,
+  token: string,
+): boolean {
+  const before = sentence.slice(Math.max(0, index - 56), index);
+  const after = sentence.slice(index, index + token.length + 56);
+  return (
+    /\byour\b/i.test(before) ||
+    /\byou(?:'re| are)\b/i.test(before) ||
+    /\byou(?:'re| are)\b/i.test(after)
+  );
+}
+function hasApplicantNumber(sentence: string): boolean {
+  for (const match of sentence.matchAll(/\d+(?:\.\d+)?/g)) {
+    if (!numberIsAboutEmployer(sentence, match.index ?? 0, match[0]))
+      return true;
+  }
+  return false;
+}
+// A sentence asserts something checkable when it carries an applicant
+// quantity, or pairs a first-person subject with an achievement verb.
+// Interest, questions and remarks about the employer — including "your 2024
+// post" — are not claims and never need a citation.
 export function isClaim(sentence: string): boolean {
   if (sentence.endsWith('?')) return false;
-  if (/\d/.test(sentence)) return true;
+  if (hasApplicantNumber(sentence)) return true;
   if (!firstPerson.test(sentence)) return false;
   if (strongVerbs.test(sentence)) return true;
   // An ambiguous verb used intransitively is discourse, not assertion:

@@ -73,12 +73,15 @@ export function validateOutcome(
   const kind = body.kind as OutcomeKind;
   if (!(outcomeKinds as readonly string[]).includes(kind))
     throw Error('Record a known outcome.');
-  if (isTerminal(job.status))
+  // Offer is terminal for import and editor status, but it is still the
+  // status from which an offer is accepted, declined, or withdrawn.
+  if (job.status === 'Accepted' || job.status === 'Closed')
     throw Error('This job has already ended. Reopen it before recording more.');
   if (
     kind !== 'submitted' &&
     job.status !== 'Submitted' &&
-    job.status !== 'Live loop'
+    job.status !== 'Live loop' &&
+    job.status !== 'Offer'
   )
     throw Error('Record the submission before recording what came back.');
   if (kind === 'submitted' && job.status !== 'Ready')

@@ -182,13 +182,13 @@ pnpm exec tsc --noEmit
 pnpm lint
 pnpm public-copy:check
 node tests/api.test.mjs
-node tests/calibration.test.mjs
-node tests/orchestration.test.mjs
+pnpm test:calibration
+pnpm test:orchestration
 ```
 
 The project, organization, personal profile, and website share one [maintained product description](docs/public-copy.json). [Public-copy process](docs/PUBLIC-COPY.md) explains generation, checks, and automatic refreshes.
 
-`pnpm test` is the unit gate. The API and profile/selection live suites need a running local server and write only fictional test records. Run calibration and orchestration one at a time against a freshly migrated local database. Connector tests mock vendor responses; they do not prove live account access.
+`pnpm test` is the unit gate. The API, calibration, and orchestration live suites each get a dedicated freshly migrated database via `pnpm test:api`, `pnpm test:calibration`, and `pnpm test:orchestration`. Do not run calibration and orchestration against the same D1: calibration graduates clusters and retires facts. Connector tests mock vendor responses; they do not prove live account access.
 
 For an existing local database still on migration 0001, apply 0002, then 0003 and 0004. From 0002, apply 0003 then 0004. From 0003, apply only 0004. Migration 0003 adds the fact ledger, style rules and draft-review tables. Migration 0004 adds preference, choice and outcome tables and defaulted posting columns on `jobs`; existing rows stay. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 

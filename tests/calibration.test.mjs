@@ -174,6 +174,14 @@ assert.equal(
   'staging never accepts on the human’s behalf',
 );
 
+const employerYear = await call('/api/drafts', {
+  action: 'log',
+  job_id: job.id,
+  body: 'I read your 2024 post on storage engines. I led a team of 6 engineers.',
+  cited: [teamFact.id],
+});
+assert.equal(employerYear.status, 200, JSON.stringify(employerYear.data));
+
 // Retiring the cited fact must not silently leave graduated autonomy running.
 await call('/api/profile', { action: 'retire', id: teamFact.id });
 const blocked = await call('/api/drafts', {

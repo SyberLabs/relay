@@ -19,6 +19,11 @@ async function call(path, body) {
   });
   return { status: r.status, data: await r.json() };
 }
+async function workspaceJob(slug) {
+  return (await call('/api/workspace')).data.jobs.find((j) =>
+    j.job_key.endsWith(`/jobs/${slug}`),
+  );
+}
 function posting(slug, over = {}) {
   return {
     url: `https://example.com/research/${slug}`,
@@ -104,6 +109,21 @@ const rejectedSame = await call('/api/preferences', {
 });
 assert.equal(rejectedSame.status, 400, 'a job cannot beat itself');
 
+const emptyDelta = await call('/api/preferences', {
+  action: 'choose',
+  winner: alpha.job_key,
+  loser: (await workspaceJob('bravo')).job_key,
+  delta: [],
+});
+assert.equal(emptyDelta.status, 400, JSON.stringify(emptyDelta.data));
+assert.match(emptyDelta.data.error, /comparison vector/);
+const afterEmpty = (await call('/api/preferences')).data;
+assert.equal(afterEmpty.answered, prefs.answered, 'empty delta is not stored');
+assert.ok(
+  Object.values(afterEmpty.weights).every((w) => Number.isFinite(w)),
+  'stored weights stay finite',
+);
+
 await call('/api/preferences', { action: 'minutes', minutes: 60 });
 assert.equal((await call('/api/preferences')).data.minutes, 60);
 
@@ -155,10 +175,40 @@ const accepted = await call('/api/workspace', {
 });
 assert.equal(accepted.status, 200, JSON.stringify(accepted.data));
 
+const charlie = await workspaceJob('charlie');
+const hijack = await call('/api/workspace', {
+  action: 'save',
+  id: charlie.id,
+  version: charlie.version,
+  status: 'Accepted',
+  draft: '',
+  blocker: '',
+});
+assert.equal(hijack.status, 400, JSON.stringify(hijack.data));
+assert.match(hijack.data.error, /Record the outcome with a receipt/);
+assert.equal((await workspaceJob('charlie')).status, 'Held');
+
 /* -- the receipt invariant ------------------------------------------------ */
+const readyAlpha = await workspaceJob('alpha');
+const staleSubmit = await call('/api/outcomes', {
+  action: 'record',
+  id: alpha.id,
+  version: readyAlpha.version - 1,
+  kind: 'submitted',
+  receipt: 'confirmation https://example.com/receipt/stale',
+});
+assert.equal(staleSubmit.status, 409, JSON.stringify(staleSubmit.data));
+assert.equal((await workspaceJob('alpha')).status, 'Ready');
+assert.equal(
+  (await call('/api/outcomes')).data.outcomes.length,
+  0,
+  'a version conflict writes no outcome',
+);
+
 const noReceipt = await call('/api/outcomes', {
   action: 'record',
   id: alpha.id,
+  version: readyAlpha.version,
   kind: 'submitted',
 });
 assert.equal(noReceipt.status, 400);
@@ -173,6 +223,7 @@ assert.equal(
 const submitted = await call('/api/outcomes', {
   action: 'record',
   id: alpha.id,
+  version: (await workspaceJob('alpha')).version,
   kind: 'submitted',
   receipt: 'confirmation https://example.com/receipt/9931',
 });
@@ -191,10 +242,16 @@ assert.deepEqual(
 );
 
 /* -- outcomes close the loop and are final -------------------------------- */
-await call('/api/outcomes', { action: 'record', id: alpha.id, kind: 'screen' });
+await call('/api/outcomes', {
+  action: 'record',
+  id: alpha.id,
+  version: (await workspaceJob('alpha')).version,
+  kind: 'screen',
+});
 const rejected = await call('/api/outcomes', {
   action: 'record',
   id: alpha.id,
+  version: (await workspaceJob('alpha')).version,
   kind: 'rejected',
 });
 assert.equal(rejected.data.status, 'Closed');
@@ -202,6 +259,7 @@ assert.equal(rejected.data.status, 'Closed');
 const afterClose = await call('/api/outcomes', {
   action: 'record',
   id: alpha.id,
+  version: (await workspaceJob('alpha')).version,
   kind: 'response',
 });
 assert.equal(afterClose.status, 400);
@@ -231,6 +289,42 @@ assert.ok(backend, 'rates are reported per role cluster');
 assert.equal(backend.sent, 1, 'one receipted submission');
 assert.equal(backend.responses, 1, 'which drew a reply');
 assert.ok(backend.high > backend.low, 'reported as an interval, not a point');
+
+/* -- Offer-to-Accepted is an outcome, not an editor status ---------------- */
+const bravo = await workspaceJob('bravo');
+const bravoReady = await call('/api/workspace', {
+  action: 'save',
+  id: bravo.id,
+  version: bravo.version,
+  status: 'Ready',
+  draft: 'Your storage work is why I write. I led a team of 6 engineers.',
+  blocker: '',
+});
+assert.equal(bravoReady.status, 200, JSON.stringify(bravoReady.data));
+const bravoSubmit = await call('/api/outcomes', {
+  action: 'record',
+  id: bravo.id,
+  version: (await workspaceJob('bravo')).version,
+  kind: 'submitted',
+  receipt: 'confirmation https://example.com/receipt/bravo',
+});
+assert.equal(bravoSubmit.status, 200, JSON.stringify(bravoSubmit.data));
+const bravoOffer = await call('/api/outcomes', {
+  action: 'record',
+  id: bravo.id,
+  version: (await workspaceJob('bravo')).version,
+  kind: 'offer',
+});
+assert.equal(bravoOffer.data.status, 'Offer');
+const bravoAccepted = await call('/api/outcomes', {
+  action: 'record',
+  id: bravo.id,
+  version: (await workspaceJob('bravo')).version,
+  kind: 'accepted',
+});
+assert.equal(bravoAccepted.status, 200, JSON.stringify(bravoAccepted.data));
+assert.equal(bravoAccepted.data.status, 'Accepted');
+assert.equal((await workspaceJob('bravo')).status, 'Accepted');
 
 // A closed job leaves the candidate pool.
 const replanned = (await call('/api/plan')).data;

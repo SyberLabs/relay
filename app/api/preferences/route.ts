@@ -1,7 +1,13 @@
 import { getChatGPTUser } from '../../chatgpt-auth';
 import { database } from '../../../lib/database';
 import { usableFact } from '../../../lib/profile';
-import { corpusOf, fitWeights, nextPair, pairKey } from '../../../lib/utility';
+import {
+  corpusOf,
+  fitWeights,
+  isChoiceDelta,
+  nextPair,
+  pairKey,
+} from '../../../lib/utility';
 import {
   loadChoices,
   loadFacts,
@@ -73,10 +79,7 @@ export async function POST(request: Request) {
         b.winner === b.loser
       )
         throw Error('A choice needs two different jobs.');
-      if (
-        !Array.isArray(b.delta) ||
-        b.delta.some((n: unknown) => typeof n !== 'number')
-      )
+      if (!isChoiceDelta(b.delta))
         throw Error('A choice needs its comparison vector.');
       const { pool } = await state(db, user);
       const keys = new Set(pool.map((p) => p.job_key));

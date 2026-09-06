@@ -5,6 +5,7 @@ import {
   corpusOf,
   fitWeights,
   difference,
+  isChoiceDelta,
   nextPair,
   normalise,
   remoteFeature,
@@ -109,6 +110,19 @@ void test('weights are scaled to unit mass so attributes read as shares', () => 
 
 void test('no choices yields no opinion rather than a fabricated one', () => {
   assert.deepEqual(Object.values(fitWeights([])), [0, 0, 0, 0, 0]);
+});
+
+void test('an empty comparison vector cannot be fitted as five NaN weights', () => {
+  const weights = Object.values(fitWeights([[]]));
+  assert.equal(weights.length, 5);
+  assert.ok(
+    weights.every((w) => w === 0),
+    `empty delta must not produce ${JSON.stringify(weights)}`,
+  );
+  assert.equal(isChoiceDelta([]), false);
+  assert.equal(isChoiceDelta([0, 0, 0, 0, 0]), true);
+  assert.equal(isChoiceDelta([0, 0, 0, 0]), false);
+  assert.equal(isChoiceDelta([0, 0, 0, 0, Number.NaN]), false);
 });
 
 void test('elicitation avoids pairs already asked and one-attribute pairs', () => {
@@ -437,12 +451,22 @@ void test('outcomes must follow the process they describe', () => {
   assert.doesNotThrow(() =>
     validateOutcome({ status: 'Submitted' }, { kind: 'response' }),
   );
+  const accepted = validateOutcome({ status: 'Offer' }, { kind: 'accepted' });
+  assert.equal(accepted.kind, 'accepted');
+  assert.doesNotThrow(() =>
+    validateOutcome({ status: 'Offer' }, { kind: 'withdrawn' }),
+  );
+  assert.throws(
+    () => validateOutcome({ status: 'Accepted' }, { kind: 'accepted' }),
+    /already ended/,
+  );
 });
 
 void test('each outcome maps to the status it actually implies', () => {
   assert.equal(statusAfter('submitted'), 'Submitted');
   assert.equal(statusAfter('screen'), 'Live loop');
   assert.equal(statusAfter('offer'), 'Offer');
+  assert.equal(statusAfter('accepted'), 'Accepted');
   assert.equal(statusAfter('rejected'), 'Closed');
   assert.equal(statusAfter('ghosted'), 'Closed');
   assert.ok(isTerminal('Closed') && !isTerminal('Live loop'));
@@ -477,4 +501,16 @@ void test('a job that has ended stays editable for notes but not for status', ()
       ),
     /without changing the application status/,
   );
+});
+
+void test('ordinary workspace saves cannot set a terminal outcome', () => {
+  for (const status of ['Offer', 'Accepted', 'Closed'])
+    assert.throws(
+      () =>
+        validateEdit(
+          { version: 1, status: 'Held' },
+          { version: 1, status, draft: '', blocker: '' },
+        ),
+      /Record the outcome with a receipt/,
+    );
 });

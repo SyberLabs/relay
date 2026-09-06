@@ -73,6 +73,30 @@ void test('an intransitive verb frames the letter and is not a claim', () => {
   assert.ok(isClaim('I write release tooling.'));
 });
 
+void test('a number about the employer is not an applicant claim', () => {
+  assert.equal(
+    isClaim('I read your 2024 post on storage engines.'),
+    false,
+    'the year belongs to the employer’s paper',
+  );
+  assert.equal(
+    isClaim('I have spent 3 years on distributed systems.'),
+    true,
+    'tenure is the applicant’s quantity',
+  );
+  assert.equal(isClaim('Your Series B was announced in March.'), false);
+  assert.equal(isClaim('I led a team of 6 engineers.'), true);
+  assert.equal(
+    isClaim("The 40-person team you're building is the draw."),
+    false,
+  );
+  assert.equal(
+    isClaim('I spent 3 years after reading your blog.'),
+    true,
+    'an applicant quantity is still a claim when your appears later',
+  );
+});
+
 void test('an uncited achievement is refused, a cited one passes', () => {
   const facts = [fact('f1', 'Led a team of 6 engineers at Northstar')];
   assert.deepEqual(

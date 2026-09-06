@@ -44,6 +44,8 @@ export type JobRow = {
   job_key: string;
   name: string;
   status: string;
+  version: number;
+  receipt?: string | null;
   company: string;
   level: string;
   remote: string;

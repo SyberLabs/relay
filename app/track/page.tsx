@@ -19,6 +19,7 @@ type Prep = {
   id: string;
   name: string;
   status: string;
+  version: number;
   receipt: string | null;
   claims: { id: string; claim: string; evidence: string }[];
 };
@@ -206,7 +207,10 @@ export default function Track() {
                   disabled={busy}
                   key={kind}
                   onClick={() =>
-                    record({ id: job.id, kind }, `Recorded: ${kind}.`)
+                    record(
+                      { id: job.id, version: job.version, kind },
+                      `Recorded: ${kind}.`,
+                    )
                   }
                 >
                   {kind}

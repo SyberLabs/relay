@@ -145,6 +145,10 @@ export function validateEdit(
     throw Error(
       'Save notes and drafts without changing the application status.',
     );
+  if (!active && isTerminal(b.status))
+    throw Error(
+      'Record the outcome with a receipt; do not set it from the editor.',
+    );
   if (!active && ['Submitted', 'Live loop'].includes(b.status))
     throw Error(
       'This workspace prepares applications; it does not submit them.',

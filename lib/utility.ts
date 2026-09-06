@@ -94,6 +94,13 @@ export function dot(a: number[], b: number[]): number {
 // says only that the winner scores higher, which is exactly the constraint
 // sigma(theta . delta) > 0.5 encodes. Plain gradient ascent with L2 is enough
 // for five weights and a dozen comparisons, and stays deterministic.
+export function isChoiceDelta(delta: unknown): delta is number[] {
+  return (
+    Array.isArray(delta) &&
+    delta.length === features.length &&
+    delta.every((n) => typeof n === 'number' && Number.isFinite(n))
+  );
+}
 export function fitWeights(
   deltas: number[][],
   steps = 600,
@@ -101,16 +108,17 @@ export function fitWeights(
   l2 = 0.02,
 ): Weights {
   const theta = Array.from<number>({ length: features.length }).fill(0);
-  if (!deltas.length) return toWeights(theta);
+  const usable = deltas.filter(isChoiceDelta);
+  if (!usable.length) return toWeights(theta);
   for (let step = 0; step < steps; step++) {
     const grad = Array.from<number>({ length: features.length }).fill(0);
-    for (const d of deltas) {
+    for (const d of usable) {
       // Every recorded delta is winner minus loser, so the target is always 1.
       const p = 1 / (1 + Math.exp(-dot(theta, d)));
       for (let i = 0; i < grad.length; i++) grad[i] += (1 - p) * d[i];
     }
     for (let i = 0; i < theta.length; i++)
-      theta[i] += rate * (grad[i] / deltas.length - l2 * theta[i]);
+      theta[i] += rate * (grad[i] / usable.length - l2 * theta[i]);
   }
   // Scale to unit L1 so weights read as shares of attention between attributes
   // and utilities stay comparable across refits.

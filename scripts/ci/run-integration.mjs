@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readdir, readFile } from 'node:fs/promises';
 import { createWriteStream } from 'node:fs';
 import { resolve } from 'node:path';
-import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
+import { holdLoopbackPorts } from './loopback-port.mjs';
 
 const suite = process.argv[2];
 if (!['api', 'browser'].includes(suite)) throw Error('Choose api or browser.');
@@ -14,20 +14,9 @@ await mkdir(resolve(root, 'outputs', 'ci'), { recursive: true });
 const log = createWriteStream(
   resolve(root, 'outputs', 'ci', `${suite}-server.log`),
 );
-const portProbe = createServer();
-await new Promise((accept, reject) => {
-  portProbe.once('error', reject);
-  portProbe.listen(0, '127.0.0.1', accept);
-});
-const port = portProbe.address().port;
-await new Promise((accept, reject) =>
-  portProbe.close((error) => (error ? reject(error) : accept())),
-);
-const base = `http://127.0.0.1:${port}`;
 const env = {
   ...process.env,
   RELAY_CI_STATE: state,
-  RELAY_TEST_URL: base,
   WRANGLER_SEND_METRICS: 'false',
   WRANGLER_WRITE_LOGS: 'false',
 };
@@ -63,6 +52,7 @@ function run(args) {
 }
 
 let server;
+let base;
 try {
   const wrangler = await bin('wrangler');
   const migrations = (await readdir(resolve(root, 'drizzle')))
@@ -84,6 +74,11 @@ try {
       `drizzle/${migration}`,
     ]);
   }
+  const held = await holdLoopbackPorts(1);
+  const port = held.ports[0];
+  base = `http://127.0.0.1:${port}`;
+  env.RELAY_TEST_URL = base;
+  await held.release();
   server = spawn(
     process.execPath,
     [

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
-import { createServer } from 'node:net';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
@@ -13,6 +12,7 @@ import {
   processSnapshot,
   readBoundedBody,
 } from './production-diagnostics.mjs';
+import { holdLoopbackPorts } from './loopback-port.mjs';
 
 // Only the test entry supplies a local verification key. The compiled app,
 // authentication handler, assets and SQL migrations are the release versions.
@@ -87,15 +87,9 @@ await command([
   '--persist-to',
   state,
 ]);
-const portProbe = createServer();
-await new Promise((accept, reject) => {
-  portProbe.once('error', reject);
-  portProbe.listen(0, '127.0.0.1', accept);
-});
-const port = portProbe.address().port;
-await new Promise((accept, reject) =>
-  portProbe.close((error) => (error ? reject(error) : accept())),
-);
+const held = await holdLoopbackPorts(2);
+const [port, inspectorPort] = held.ports;
+await held.release();
 const base = `http://127.0.0.1:${port}`;
 const log = createWriteStream('outputs/ci/production-server.log');
 const server = spawn(
@@ -113,7 +107,7 @@ const server = spawn(
     '--port',
     String(port),
     '--inspector-port',
-    '0',
+    String(inspectorPort),
   ],
   {
     cwd: root,

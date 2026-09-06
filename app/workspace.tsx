@@ -124,6 +124,7 @@ export default function Workspace() {
       saved?: SaveSnapshot,
       jobId = saved?.jobId ?? selectedRef.current,
     ) => {
+      if (saved) sessionRef.current.lastAck = saved;
       const started = beginRefresh(sessionRef.current.gate);
       const query = jobId ? `?job=${encodeURIComponent(jobId)}` : '';
       const r = await fetch('/api/workspace' + query);

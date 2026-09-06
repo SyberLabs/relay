@@ -32,6 +32,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm public-copy:check
       - run: pnpm build
       - name: Bundle the production gateway with the built application
         run: node scripts/release/prepare.mjs

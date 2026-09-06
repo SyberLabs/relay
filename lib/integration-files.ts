@@ -21,7 +21,8 @@ export function draftFromResult(
     throw Error('Choose a nonempty Relay draft or a research array.');
   if (
     !started ||
-    (value.provider === 'obsidian' && value.job?.id !== started.jobId) ||
+    (['obsidian', 'chatgpt', 'codex'].includes(value.provider || '') &&
+      value.job?.id !== started.jobId) ||
     value.job?.key !== started.job_key ||
     value.job?.version !== started.version ||
     !matchesJobKey(value.job?.url, started.job_key)

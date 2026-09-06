@@ -73,6 +73,20 @@ test('an intransitive verb frames the letter and is not a claim', () => {
   assert.ok(isClaim('I write release tooling.'));
 });
 
+test('a number belonging to the employer is not the applicant’s claim', () => {
+  // These are compliments about the employer's work. Requiring a citation for
+  // them makes the gate fight ordinary cover-letter prose.
+  assert.ok(!isClaim('I read your 2024 post on storage engines.'));
+  assert.ok(!isClaim('I admire your 30-person platform team.'));
+  assert.ok(!isClaim('Your Series B in 2021 funded that work.'));
+  // The exemption never covers the applicant's own achievements, even when an
+  // employer number sits in the same sentence.
+  assert.ok(isClaim('I shipped 3 releases for your 2024 launch.'));
+  assert.ok(isClaim('I led your 12-person team.'));
+  // And a bare applicant figure is still a claim.
+  assert.ok(isClaim('I have spent 3 years on distributed systems.'));
+});
+
 test('an uncited achievement is refused, a cited one passes', () => {
   const facts = [fact('f1', 'Led a team of 6 engineers at Northstar')];
   assert.deepEqual(

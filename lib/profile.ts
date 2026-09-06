@@ -94,7 +94,7 @@ export function sentences(text: string): string[] {
 // remarks about the employer are not claims and never need a citation.
 export function isClaim(sentence: string): boolean {
   if (sentence.endsWith('?')) return false;
-  if (/\d/.test(sentence)) return true;
+  if (/\d/.test(sentence)) return !employerNumber(sentence);
   if (!firstPerson.test(sentence)) return false;
   if (strongVerbs.test(sentence)) return true;
   // An ambiguous verb used intransitively is discourse, not assertion:
@@ -106,6 +106,21 @@ export function isClaim(sentence: string): boolean {
     !!match &&
     contentWords(sentence.slice(match.index + match[0].length)).size > 0
   );
+}
+// A number governed by a second-person possessive belongs to the employer, not
+// the applicant: "your 2024 paper", "your 30-person team". Without this, every
+// compliment about an employer's work trips the citation gate, and a gate that
+// fights ordinary prose gets routed around.
+//
+// The exemption is deliberately narrow. It applies only when no achievement
+// verb of the applicant's own appears in the sentence, so "I shipped 3
+// releases for your 2024 launch" stays a claim and still needs its citation.
+// A wrongly blocked sentence is visible and recoverable; a wrongly admitted one
+// is not.
+export function employerNumber(sentence: string): boolean {
+  if (!/\b(?:your|yours|their|its)\b[^.!?]{0,24}?\d/i.test(sentence))
+    return false;
+  return !strongVerbs.test(sentence) && !ambiguousVerbs.test(sentence);
 }
 export function usableFact(fact: Fact, now: string): boolean {
   return fact.status === 'Verified' && (!fact.expires || fact.expires > now);

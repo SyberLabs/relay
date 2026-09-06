@@ -426,6 +426,7 @@ export default function Workspace() {
         )}
         {!signedOut && (
           <Connections
+            key={current?.id ?? 'no-job'}
             current={
               current && editor
                 ? {

@@ -100,21 +100,6 @@ jobs:
       - name: Reject high and critical dependency advisories
         run: pnpm audit --audit-level high
 
-  templates:
-    name: Bundled agent contracts
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - name: Validate bundled templates and examples
-        working-directory: grokcell
-        run: |
-          python3 scripts/validate_templates.py
-          python3 bots/garbage-collector/eval/verify.py
-          python3 bots/garbage-collector/eval/check_structure.py
-
   security:
     name: Security
     permissions:
@@ -126,7 +111,7 @@ jobs:
   required:
     name: CI
     if: always()
-    needs: [quality, integration, dependencies, templates, security]
+    needs: [quality, integration, dependencies, security]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

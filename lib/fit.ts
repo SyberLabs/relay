@@ -47,7 +47,9 @@ const headingNouns = new Set([
   'candidates',
 ]);
 function heading(line: string): 'required' | 'other' | null {
-  const title = line.replace(/[:\s]+$/, '');
+  const title = line
+    .replace(/[:\s]+$/, '')
+    .replace(/^[*_`]+|[`*_]+$/g, '');
   if (title.length >= 60) return null;
   if (requiredHead.test(title)) return 'required';
   if (otherHead.test(title)) return 'other';

@@ -10,6 +10,8 @@ Give each model the evidence and current state needed for one job task. Keep the
 
 For the first trial, choose one fictional opportunity. Download its current Relay packet, fill in the [task-context template](templates/task-context.md), and ask one assistant for a reviewable draft. Switch assistants using the [checkpoint template](templates/checkpoint.md). Check whether the second assistant preserves the facts, uncertainties, job version, and next action without repeating the research.
 
+A [ready-to-use fictional exercise](examples/fictional-handoff/README.md) includes a native packet, original fixture evidence, a sample draft, and a completed checkpoint. Its local file-adapter checks passed; a two-model quality comparison has not yet been run.
+
 ## Contents
 
 - [Research findings](research.md): production lessons, recent changes, disagreements, and experimental work.

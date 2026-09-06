@@ -25,7 +25,7 @@ Use **Cursor Grok 4.6 Extra High** for a bounded implementation when deeper reas
 - Main is protected by the active [repository ruleset](https://github.com/SyberLabs/relay/settings/rules/22359132): no deletion, force pushes, direct pushes, or bypass actors; linear history and squash merges.
 - One peer approval, code-owner review, dismissal of stale reviews, approval after the latest push, and resolved review conversations.
 - The strict `CI` check, bound to GitHub Actions, plus CodeQL blocking high/critical security findings and error-level alerts.
-- CI fails if any required job fails, is cancelled, or is skipped. It covers lint, types, unit behavior, a fresh migrated database, Chromium journeys, the compiled production application and identity gateway, dependency advisories, bundled agent contracts, and CodeQL.
+- CI fails if any required job fails, is cancelled, or is skipped. It covers lint, types, unit behavior, a fresh migrated database, Chromium journeys, the compiled production application and identity gateway, dependency advisories, and CodeQL.
 - Actions have read-only default tokens and cannot approve pull requests. Third-party actions are restricted; workflow references are pinned. Secret scanning, push protection, dependency alerts, and scheduled dependency updates are enabled.
 - Production accepts releases only from main and requires peer environment approval without administrator bypass. Release provenance, checksums, staging smoke checks, and exact commit verification precede production. Rollback uses an earlier successful release artifact and refuses incompatible schema changes.
 

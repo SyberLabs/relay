@@ -645,3 +645,21 @@ void test('the real SQL refuses to resurrect a job that already ended', () => {
       );
     }
 });
+
+void test('bootstrap does not consult an empty packet table', () => {
+  const route = readFileSync(join(root, 'app/api/workspace/route.ts'), 'utf8');
+  assert.equal(
+    route.includes('packets'),
+    false,
+    'seed rows already carry example notes; an empty packet map cannot',
+  );
+  assert.equal(readdirSync(join(root, 'lib')).includes('packets.ts'), false);
+});
+
+void test('Relay does not vendor GrokCell templates', () => {
+  assert.equal(
+    readdirSync(root).includes('grokcell'),
+    false,
+    'templates that do not connect to Relay live in sdcarlson/grokcell',
+  );
+});

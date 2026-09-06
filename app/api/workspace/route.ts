@@ -11,7 +11,6 @@ import {
 } from '../../../lib/domain';
 import { jobImportSql, observationImportSql } from '../../../lib/import-upsert';
 import seed from '../../../lib/seed.json';
-import { packets } from '../../../lib/packets';
 import {
   historyPageSize,
   INITIAL_EVENT_LIMIT,
@@ -70,7 +69,7 @@ export async function POST(request: Request) {
       now = new Date().toISOString();
     if (['bootstrap', 'import', 'preview', 'replay'].includes(b.action)) {
       const rows = validateRows(
-        b.action === 'bootstrap' ? seed : b.action === 'replay' ? seed : b.rows,
+        b.action === 'bootstrap' || b.action === 'replay' ? seed : b.rows,
       );
       const existing = await db
         .prepare('SELECT job_key,status FROM jobs WHERE owner=?')
@@ -91,9 +90,8 @@ export async function POST(request: Request) {
               displayName(r.Name),
               r.Job,
               importedJobStatus(r.Status),
-              importedBlocker(r.Notes) ||
-                (b.action === 'bootstrap' ? packets[key]?.blocker || '' : ''),
-              b.action === 'bootstrap' ? packets[key]?.draft || '' : '',
+              importedBlocker(r.Notes),
+              '',
               now,
               text(r.company),
               text(r.level),

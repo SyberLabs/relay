@@ -7,6 +7,7 @@ import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
 import { TrackerImport } from './tracker-import';
 import {
+  acknowledgeSave,
   applyLoadedDraft,
   canSave,
   editorIsDirty,
@@ -18,7 +19,6 @@ import {
   type SaveSnapshot,
 } from '../lib/editor';
 import {
-  applyAcceptedSave,
   beginMutation,
   beginRefresh,
   createWorkspaceSession,
@@ -226,7 +226,7 @@ export default function Workspace() {
         if (!mutationIsLive(sessionRef.current.gate, started)) return;
         throw Error(outcome.error);
       }
-      setEditor((e) => applyAcceptedSave(e, saved));
+      setEditor((e) => (e && saved ? acknowledgeSave(e, saved) : e));
       if (outcome.body.items) setReport(outcome.body as Report);
       if (body.action === 'preview')
         setPreviewedImport(JSON.stringify(body.rows));

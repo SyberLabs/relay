@@ -7,8 +7,21 @@ import {
   validatePacket,
   pullBoard,
 } from './connectors.mjs';
+import { run as runCli } from './cli.mjs';
 import { validateRows } from '../lib/domain.ts';
 const [command, input, output] = process.argv.slice(2);
+// API-backed commands live in cli.mjs and exit with the agent contract's codes.
+// The file-producing connectors below predate it and stay as they were.
+const apiCommands = new Set([
+  'login',
+  'brief',
+  'log',
+  'draft',
+  'plan',
+  'status',
+  'outcome',
+]);
+if (apiCommands.has(command)) process.exit(await runCli(process.argv.slice(2)));
 async function read(path) {
   if (!path) throw Error('An input file is required.');
   return JSON.parse(await readFile(path, 'utf8'));

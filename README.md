@@ -6,6 +6,7 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 
 ## Available in this early release
 
+- Drive the whole loop from a local command line, with exit codes an agent can act on.
 - Set what a job is worth to you by choosing between real postings, not by filling in sliders.
 - Get a weekly plan sized to the minutes you actually have, chosen to maximise the best single offer.
 - Pull public Greenhouse and Lever boards into the same job identity as everything else.
@@ -79,6 +80,8 @@ Drafting well is not the largest lever. Which jobs you apply to is, because repl
 
 Reply rates are reported as intervals with the evidence count that produced them, and they are descriptive. Samples are small, the market moves and a job search cannot be run as an experiment, so nothing here establishes that a change caused an outcome.
 
+**The command line** (`integrations/README.md`) is how an agent reaches all of this without a browser. It is local-only, it shares one client with the future MCP server, and it deliberately cannot accept a draft, verify a fact, close a review or submit anything — adding a transport must never add a capability. A refused draft exits 3 and writes nothing, which is kept distinct from a server failure so an agent never retries its way past the citation gate.
+
 **Interview preparation** falls out of the citation graph rather than being a separate feature: because every claim had to cite a verified fact, Relay already knows what each application commits you to defending.
 
 Relay still does not submit applications. There are no write-plane adapters in this release: nothing here fills in a form, sends an email, or messages anyone, and recording a submission is you telling Relay what you already did.
@@ -96,11 +99,12 @@ pnpm lint
 node tests/api.test.mjs
 node tests/calibration.test.mjs
 node tests/orchestration.test.mjs
+node tests/cli-live.test.mjs
 ```
 
 For an existing local database already on migration 0003, apply only 0004; it adds the preference, choice and outcome tables and adds nullable or defaulted posting columns to `jobs`, leaving existing rows untouched. From 0002, apply 0003 then 0004; from 0001, apply 0002 first. It preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
-The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. Profile tests cover claim detection, citation support, resume extraction, review triggers and cluster graduation. Selection tests cover the preference fit, the expected-maximum arithmetic against hand-computed cases, budget-respecting portfolio choice, board normalisation, and the rule that a terminal outcome can never be reopened by import — checked against the real upsert SQL as well as the TypeScript. The two live suites each need a **fresh local database**, because they exercise one signed-in workspace end to end; run them one at a time after re-applying the migrations. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Calibration checks run the whole loop against a local server: extraction writing nothing, an unverified citation and an unsupported claim both refused without a row being written, a correction proposing rules, a closed session advancing the profile version, a cluster graduating into unattended staging that leaves status and acceptance alone, and a retired fact blocking further citation. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. User acceptance and post-acceptance reimport are pending.
+The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. Profile tests cover claim detection, citation support, resume extraction, review triggers and cluster graduation. Selection tests cover the preference fit, the expected-maximum arithmetic against hand-computed cases, budget-respecting portfolio choice, board normalisation, and the rule that a terminal outcome can never be reopened by import — checked against the real upsert SQL as well as the TypeScript. The three live suites each need a **fresh local database**, because they exercise one signed-in workspace end to end; run them one at a time after re-applying the migrations. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Calibration checks run the whole loop against a local server: extraction writing nothing, an unverified citation and an unsupported claim both refused without a row being written, a correction proposing rules, a closed session advancing the profile version, a cluster graduating into unattended staging that leaves status and acceptance alone, and a retired fact blocking further citation. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. User acceptance and post-acceptance reimport are pending.
 
 ## Hosting and privacy
 

@@ -155,6 +155,20 @@ function waitForClose(server, timeoutMs) {
   });
 }
 
+function groupAlive(server) {
+  if (!server?.pid) return false;
+  if (process.platform === 'win32') {
+    return server.exitCode === null && server.signalCode === null;
+  }
+  try {
+    process.kill(-server.pid, 0);
+    return true;
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
 async function signalGroup(server, posixSignal) {
   if (!server?.pid) return;
   if (process.platform === 'win32') {
@@ -186,7 +200,7 @@ export async function finishProductionServer(
   const closed = waitForClose(server, timeoutMs);
   await signalGroup(server, 'SIGTERM');
   await closed;
-  if (server?.pid && stdioOpen(server)) {
+  if (groupAlive(server)) {
     const last = waitForClose(server, timeoutMs);
     await signalGroup(server, 'SIGKILL');
     await last;

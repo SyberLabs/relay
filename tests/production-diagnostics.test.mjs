@@ -6,6 +6,7 @@ import { createWriteStream, readFileSync } from 'node:fs';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { Writable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   describeUnexpectedResponse,
@@ -317,6 +318,53 @@ test(
         /* Best-effort group cleanup after the assertion. */
       }
       await closePromise;
+      if (!log.writableEnded) log.end();
+    }
+  },
+);
+
+test(
+  'TERM-ignoring process is KILLed after it closes stdio',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const child = spawn(
+      process.execPath,
+      [
+        '-e',
+        "process.on('SIGTERM',()=>{});setInterval(()=>{},1000);process.stdout.end(()=>process.stderr.end(()=>process.send('ready')));",
+      ],
+      {
+        detached: true,
+        stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        windowsHide: true,
+      },
+    );
+    const closed = once(child, 'close');
+    const log = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+    });
+    child.stdout.pipe(log, { end: false });
+    child.stderr.pipe(log, { end: false });
+    try {
+      await Promise.all([
+        once(child, 'message'),
+        once(child.stdout, 'end'),
+        once(child.stderr, 'end'),
+      ]);
+      assert.equal(child.stdout.readableEnded, true);
+      assert.equal(child.stderr.readableEnded, true);
+      assert.equal(child.exitCode, null);
+      await finishProductionServer(child, log, { timeoutMs: 100 });
+      assert.equal(posixTerminated(child.pid), true);
+    } finally {
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        /* Best-effort group cleanup after the assertion. */
+      }
+      await closed;
       if (!log.writableEnded) log.end();
     }
   },

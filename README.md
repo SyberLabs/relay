@@ -34,6 +34,8 @@ ChatGPT uses a prompt/file handoff; Codex also supports a local CLI adapter. Thi
 
 ## GrokCell bot templates
 
+For model-specific research practices, reusable handoffs, and a proposed evaluation plan, see [Context management for Relay](context-management/README.md). The guide distinguishes documented provider capabilities from Relay's implemented integrations.
+
 The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector with their source instructions, profiles, public bot links, and behavior checks. Use a specialist when its purpose fits the task. These templates do not connect to Relay or grant access to application records automatically; the [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts.
 
 This is a pinned copy of the separately maintained, MIT-licensed [GrokCell project](https://github.com/sdcarlson/grokcell). Propose template improvements upstream, then refresh the copy following [its source record](grokcell/UPSTREAM.md).

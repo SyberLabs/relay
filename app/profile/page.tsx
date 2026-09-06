@@ -1,0 +1,380 @@
+'use client';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CircleAlert,
+  FileText,
+  Plus,
+  Trash2,
+} from 'lucide-react';
+type Fact = {
+  id: string;
+  claim: string;
+  evidence: string;
+  tag: string;
+  status: string;
+  verified: string | null;
+  expires: string | null;
+};
+type Rule = { id: string; rule: string; scope: string };
+type Candidate = { claim: string; evidence: string; tag: string };
+export default function Profile() {
+  const [facts, setFacts] = useState<Fact[]>([]),
+    [rules, setRules] = useState<Rule[]>([]),
+    [version, setVersion] = useState(1),
+    [usable, setUsable] = useState(0),
+    [resume, setResume] = useState(''),
+    [candidates, setCandidates] = useState<Candidate[]>([]),
+    [chosen, setChosen] = useState<Set<number>>(new Set()),
+    [expiry, setExpiry] = useState<Record<string, string>>({}),
+    [rule, setRule] = useState(''),
+    [scope, setScope] = useState('global'),
+    [busy, setBusy] = useState(false),
+    [message, setMessage] = useState(''),
+    [signedOut, setSignedOut] = useState(false);
+  const refresh = useCallback(async () => {
+    const r = await fetch('/api/profile');
+    const data = (await r.json()) as {
+      facts: Fact[];
+      rules: Rule[];
+      version: number;
+      usable: number;
+      error?: string;
+    };
+    if (r.status === 401) {
+      setFacts([]);
+      setRules([]);
+      setCandidates([]);
+      setResume('');
+      setSignedOut(true);
+      return;
+    }
+    if (!r.ok) throw Error(data.error);
+    setFacts(data.facts);
+    setRules(data.rules);
+    setVersion(data.version);
+    setUsable(data.usable);
+  }, []);
+  useEffect(() => {
+    void Promise.resolve()
+      .then(() => refresh())
+      .catch((e: Error) => setMessage(e.message));
+  }, [refresh]);
+  async function run(body: Record<string, unknown>, note: string) {
+    setBusy(true);
+    setMessage('');
+    try {
+      const r = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = (await r.json()) as { error?: string };
+      if (!r.ok) throw Error(data.error);
+      await refresh();
+      setMessage(note);
+      return data;
+    } catch (e) {
+      setMessage(
+        e instanceof Error ? e.message : 'Unable to complete request.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function extract() {
+    setBusy(true);
+    setMessage('');
+    try {
+      const r = await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract', text: resume }),
+      });
+      const data = (await r.json()) as {
+        candidates?: Candidate[];
+        error?: string;
+      };
+      if (!r.ok) throw Error(data.error);
+      setCandidates(data.candidates!);
+      setChosen(new Set(data.candidates!.map((_, i) => i)));
+      setMessage(
+        `${data.candidates!.length} candidate facts found. Nothing is saved until you add them, and nothing is usable until you verify it.`,
+      );
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Unable to read resume.');
+    } finally {
+      setBusy(false);
+    }
+  }
+  const proposed = facts.filter((f) => f.status === 'Proposed'),
+    verified = facts.filter((f) => f.status === 'Verified');
+  if (signedOut)
+    return (
+      <main className="productpage">
+        <h1>Your profile</h1>
+        <p className="lead">Sign in to load your fact ledger and style card.</p>
+        {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
+        <a
+          className="primary"
+          href="/signin-with-chatgpt?return_to=/profile"
+          target="_top"
+        >
+          Sign in with ChatGPT
+        </a>
+      </main>
+    );
+  return (
+    <main className="productpage">
+      <Link className="backlink" href="/">
+        <ArrowLeft size={15} /> Workspace
+      </Link>
+      <p className="eyebrow">PROFILE · WHAT THE AGENT WRITES FROM</p>
+      <h1>Facts it may claim. Voice it must use.</h1>
+      <p className="lead">
+        The fact ledger is checked: a draft may only make a claim traceable to a
+        verified fact here. The style card is learned from your corrections
+        during review.
+      </p>
+      <section className="stats">
+        <div>
+          <span>Verified and usable</span>
+          <strong>{usable.toString().padStart(2, '0')}</strong>
+          <small>Citable by the writing agent</small>
+        </div>
+        <div>
+          <span>Awaiting your check</span>
+          <strong>{proposed.length.toString().padStart(2, '0')}</strong>
+          <small>Extracted, not yet usable</small>
+        </div>
+        <div>
+          <span>Style rules</span>
+          <strong>{rules.length.toString().padStart(2, '0')}</strong>
+          <small>Learned from review</small>
+        </div>
+        <div>
+          <span>Profile version</span>
+          <strong>{version.toString().padStart(2, '0')}</strong>
+          <small>Stamped on every draft</small>
+        </div>
+      </section>
+      {message && (
+        <div className="notice" aria-live="polite">
+          {message}
+        </div>
+      )}
+      <section className="import">
+        <h2>
+          <FileText size={18} /> Seed the ledger from a resume
+        </h2>
+        <p>
+          Extraction runs locally and proposes candidate lines only. It never
+          marks anything verified.
+        </p>
+        <textarea
+          aria-label="Resume text"
+          value={resume}
+          onChange={(e) => setResume(e.target.value)}
+          placeholder="Paste your resume text, including the experience and education sections…"
+        />
+        <div className="actions">
+          <button
+            className="secondary"
+            disabled={busy || !resume.trim()}
+            onClick={extract}
+          >
+            Extract candidate facts
+          </button>
+          {candidates.length > 0 && (
+            <button
+              className="primary"
+              disabled={busy || !chosen.size}
+              onClick={async () => {
+                await run(
+                  {
+                    action: 'propose',
+                    facts: candidates.filter((_, i) => chosen.has(i)),
+                  },
+                  `${chosen.size} facts added. Verify each one before the agent can cite it.`,
+                );
+                setCandidates([]);
+                setResume('');
+              }}
+            >
+              Add {chosen.size} to ledger
+            </button>
+          )}
+        </div>
+        {candidates.map((c, i) => (
+          <label className="checkrow" key={i}>
+            <input
+              type="checkbox"
+              checked={chosen.has(i)}
+              onChange={(e) => {
+                const next = new Set(chosen);
+                if (e.target.checked) next.add(i);
+                else next.delete(i);
+                setChosen(next);
+              }}
+            />
+            <span>
+              {c.claim}
+              <small>
+                {c.tag} · {c.evidence}
+              </small>
+            </span>
+          </label>
+        ))}
+      </section>
+      {proposed.length > 0 && (
+        <section className="import">
+          <h2>
+            <CircleAlert size={18} /> Verify before use ({proposed.length})
+          </h2>
+          <p>
+            A proposed fact cannot be cited. Confirm the wording is true, then
+            verify it. Add an expiry for anything that goes stale, such as a
+            current title or a headcount.
+          </p>
+          {proposed.map((f) => (
+            <article className="factrow" key={f.id}>
+              <b>{f.claim}</b>
+              <span className="badge">{f.tag}</span>
+              <small>{f.evidence}</small>
+              <div className="actions">
+                <input
+                  aria-label={`Expiry for ${f.claim}`}
+                  type="date"
+                  value={expiry[f.id] || ''}
+                  onChange={(e) =>
+                    setExpiry({ ...expiry, [f.id]: e.target.value })
+                  }
+                />
+                <button
+                  className="primary"
+                  disabled={busy}
+                  onClick={() =>
+                    run(
+                      {
+                        action: 'verify',
+                        id: f.id,
+                        expires: expiry[f.id] || null,
+                      },
+                      'Verified. The agent may now cite this fact.',
+                    )
+                  }
+                >
+                  <BadgeCheck size={15} /> Verify
+                </button>
+                <button
+                  className="textbutton"
+                  disabled={busy}
+                  onClick={() =>
+                    run({ action: 'retire', id: f.id }, 'Fact retired.')
+                  }
+                >
+                  Discard
+                </button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+      <section className="import">
+        <h2>
+          <BadgeCheck size={18} /> Verified ledger ({verified.length})
+        </h2>
+        {verified.length === 0 && (
+          <p className="empty">
+            Nothing verified yet. Until a fact is verified here, any draft
+            claiming it is refused.
+          </p>
+        )}
+        {verified.map((f) => (
+          <article className="factrow" key={f.id}>
+            <b>{f.claim}</b>
+            <span className="badge">{f.tag}</span>
+            <small>
+              {f.evidence}
+              {f.expires
+                ? ` · expires ${new Date(f.expires).toLocaleDateString()}`
+                : ' · no expiry'}
+            </small>
+            <div className="actions">
+              <button
+                className="textbutton"
+                disabled={busy}
+                onClick={() =>
+                  run(
+                    { action: 'retire', id: f.id },
+                    'Fact retired. Drafts can no longer cite it.',
+                  )
+                }
+              >
+                <Trash2 size={14} /> Retire
+              </button>
+            </div>
+          </article>
+        ))}
+      </section>
+      <section className="import">
+        <h2>Style card ({rules.length})</h2>
+        <p>
+          Rules are usually added during a review session rather than typed
+          here. Scope a rule to a role cluster when it should not apply to every
+          application.
+        </p>
+        {rules.map((r) => (
+          <article className="factrow" key={r.id}>
+            <b>{r.rule}</b>
+            <span className="badge">{r.scope}</span>
+            <div className="actions">
+              <button
+                className="textbutton"
+                disabled={busy}
+                onClick={() =>
+                  run({ action: 'rule-remove', id: r.id }, 'Rule removed.')
+                }
+              >
+                <Trash2 size={14} /> Remove
+              </button>
+            </div>
+          </article>
+        ))}
+        <div className="actions">
+          <input
+            aria-label="New style rule"
+            className="grow"
+            value={rule}
+            onChange={(e) => setRule(e.target.value)}
+            placeholder="Keep the opening paragraph under two sentences."
+          />
+          <input
+            aria-label="Rule scope"
+            value={scope}
+            onChange={(e) => setScope(e.target.value)}
+            placeholder="global"
+          />
+          <button
+            className="secondary"
+            disabled={busy || !rule.trim()}
+            onClick={async () => {
+              await run(
+                { action: 'rule-add', rule, scope: scope || 'global' },
+                'Rule added to the style card.',
+              );
+              setRule('');
+            }}
+          >
+            <Plus size={15} /> Add rule
+          </button>
+        </div>
+      </section>
+      <footer>
+        Relay / SyberLabs<span>The agent reads this. Only you write it.</span>
+      </footer>
+    </main>
+  );
+}

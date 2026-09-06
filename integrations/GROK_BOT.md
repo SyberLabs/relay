@@ -7,6 +7,16 @@ Use Relay as the job-history and human-review workspace. Run the local commands 
 3. For a draft, use the job and verified facts in a Relay packet. Write short plain text. Do not invent achievements, tenure, skills, names, signatures or outreach permissions. Run `grok-draft` to wrap the draft with the original job identity/version.
 4. Return the resulting file for the user to load and review. Do not report it as sent, accepted or submitted. A successful command means a handoff file was written, not that any remote account changed.
 
+## Writing against the fact ledger
+
+If the browser exposes Relay's WebMCP tools, prefer them over files for drafting.
+
+1. Read `relay_read_profile` first. It returns the fact ids you may cite and the style rules in force for that role cluster. Treat it as the only source of claims about the applicant; do not reuse facts remembered from an earlier session.
+2. Write the draft, then log it with `relay_log_draft`, citing the fact ids used. Every sentence asserting something checkable needs a citation, and every number must come from a cited fact. A draft breaking either rule is refused and nothing is stored; fix the claim rather than rephrasing to slip past the check.
+3. When a needed fact is missing, log with `confidence: "low"` and say what is missing. Do not substitute a plausible figure, round a number, or infer tenure from dates.
+4. A successful log means a draft is queued for the applicant's review. It is not acceptance, and for most clusters it does not place the draft in the job record. Never report it as accepted, staged, submitted or sent.
+5. Do not attempt to add or verify facts, or to edit style rules. Those are the applicant's actions and the API refuses them.
+
 If blocked, state the specific blocker and preserve the work. Do not repeatedly research the same posting or overwrite earlier evidence to make progress appear larger.
 
 ## Local Relay URL and auth

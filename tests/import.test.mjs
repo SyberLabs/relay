@@ -109,6 +109,17 @@ function importRow(db, owner, r, now = '2026-01-01T00:00:00.000Z') {
     importedBlocker(r.Notes) || '',
     '',
     now,
+    // Posting attributes from the read plane. Hand-written imports omit them,
+    // so these are the defaults the route coerces to.
+    r.company ?? '',
+    r.level ?? '',
+    r.remote ?? '',
+    r.comp_min ?? null,
+    r.comp_max ?? null,
+    r.location ?? '',
+    r.posted ?? null,
+    r.source ?? '',
+    r.effort ?? 20,
   );
   db.prepare(sqlFromRoute('obs')).run(
     crypto.randomUUID(),
@@ -198,6 +209,15 @@ void test('Live loop outranks Submitted in both import orders and keeps drafts',
       '',
       'keep this draft',
       '2026-01-01T00:00:00.000Z',
+      '',
+      '',
+      '',
+      null,
+      null,
+      '',
+      null,
+      '',
+      20,
     );
     importRow(db, owner, source(order[1], job, 'second look'));
     const row = jobOf(db, owner, job);
@@ -357,6 +377,15 @@ void test('real SQL and preview merge match the 25 existing/incoming status pair
         '',
         existing === 'Ready' ? 'Exact' : '',
         't',
+        '',
+        '',
+        '',
+        null,
+        null,
+        '',
+        null,
+        '',
+        20,
       );
       if (existing === 'Ready')
         db.prepare(
@@ -495,4 +524,53 @@ void test('migration keeps API-valid Ready rows whose blockers are JS-trim white
     assert.equal(row.version, 1);
     assert.equal(row.blocker, blockers[i]);
   }
+});
+
+void test('the real SQL refuses to resurrect a job that already ended', () => {
+  // The terminal guard exists in both mergeJobStatus and the upsert SQL. If the
+  // two ever disagree, rediscovery could silently reopen a closed application.
+  const owner = 'owner-terminal';
+  for (const terminal of ['Offer', 'Accepted', 'Closed'])
+    for (const incoming of [
+      'Held',
+      'Ready',
+      'Submitted',
+      'Skip',
+      'Live loop',
+    ]) {
+      const db = open();
+      const job = `https://example.com/jobs/${terminal}-${incoming}`;
+      db.prepare(sqlFromRoute('job')).run(
+        crypto.randomUUID(),
+        owner,
+        jobKey(job, job),
+        'Role',
+        job,
+        terminal,
+        '',
+        'final text',
+        't',
+        '',
+        '',
+        '',
+        null,
+        null,
+        '',
+        null,
+        '',
+        20,
+      );
+      importRow(db, owner, source(incoming, job, 'rediscovered'));
+      const row = jobOf(db, owner, job);
+      assert.equal(
+        row.status,
+        terminal,
+        `SQL let ${incoming} reopen ${terminal}`,
+      );
+      assert.equal(
+        mergeJobStatus(terminal, incoming),
+        row.status,
+        'the TypeScript lattice and the SQL must agree',
+      );
+    }
 });

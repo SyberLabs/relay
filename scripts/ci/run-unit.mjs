@@ -1,12 +1,16 @@
 import { readdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 
-// The API contract suite needs a running, freshly migrated application.
-// Every other top-level test is automatically part of the unit gate.
+// Live suites (api, calibration, orchestration) need a running, freshly
+// migrated application and a dedicated workspace. Every other top-level test
+// is automatically part of the unit gate.
 const files = (await readdir('tests'))
   .filter(
     (name) =>
-      name.endsWith('.test.mjs') && name !== 'api.test.mjs',
+      name.endsWith('.test.mjs') &&
+      name !== 'api.test.mjs' &&
+      name !== 'calibration.test.mjs' &&
+      name !== 'orchestration.test.mjs',
   )
   .sort()
   .map((name) => `tests/${name}`);

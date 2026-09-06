@@ -1,0 +1,405 @@
+// The profile is what directs an autonomous writing agent, and the calibration
+// loop is what keeps it honest. Two halves with deliberately different rules:
+// the fact ledger is objective and gated on human verification, the style card
+// is subjective and learned from corrections. Style mistakes are recoverable;
+// an unsupported claim sent under the applicant's name is not.
+export type Fact = {
+  id: string;
+  claim: string;
+  evidence: string;
+  tag: string;
+  status: string;
+  verified: string | null;
+  expires: string | null;
+};
+export type Rule = { id: string; rule: string; scope: string };
+export type DraftRow = {
+  id: string;
+  job_id: string;
+  cluster: string;
+  body: string;
+  corrected: string;
+  cited: string;
+  confidence: string;
+  verdict: string;
+  profile_version: number;
+  batch?: string | null;
+};
+export const factStates = ['Proposed', 'Verified', 'Retired'] as const;
+export const factTags = ['metric', 'role', 'credential', 'detail'] as const;
+export const confidences = ['high', 'low'] as const;
+export const verdicts = ['Logged', 'Reviewed', 'Corrected'] as const;
+export const limits = {
+  batchSize: 12,
+  lowConfidence: 3,
+  graduationRuns: 5,
+  graduationEdit: 0.15,
+  driftEdit: 0.45,
+  samenessEdit: 0.2,
+};
+const stop = new Set(
+  `a an the and or but if then than that this these those of in on at to for with from by as is are was were be been being am i my me we our us you your it its their there here have has had do does did not no so such very much many more most own same too also just only about into over under after before between during while which who whom what when where how why can could should would will shall may might must`.split(
+    /\s+/,
+  ),
+);
+// Unambiguous achievement verbs. Any of these alongside a first-person
+// subject marks a checkable claim.
+const strongVerbs =
+  /\b(led|built|shipped|increased|reduced|managed|founded|scaled|launched|published|won|earned|grew|saved|delivered|architected|created|improved|drove|hired|mentored|taught|wrote|released|migrated|authored|generated|developed|implemented|automated|graduated|spent)\b/i;
+// These double as common nouns ("your storage work", "the design", "a lead"),
+// so they only count as claims when a first-person subject governs them. A
+// missed claim is the dangerous direction, so they are guarded rather than
+// dropped.
+const ambiguousVerbs =
+  /(?<=\b(?:i|we|my|our)\s(?:\w+\s){0,1})\b(lead|leads|build|builds|ship|ships|increase|reduce|manage|found|scale|own|owns|owned|launch|publish|save|deliver|design|designed|create|improve|cut|hold|holds|write|release|migrate|author|generate|raise|raised|close|closed|work|works|worked)\b/i;
+const firstPerson = /\b(i|my|mine|we|our)\b/i;
+const roleFamilies: [RegExp, string][] = [
+  [/\b(research|scientist|scientific)\b/i, 'research'],
+  [/\b(machine learning|ml|ai|deep learning)\b/i, 'ml'],
+  [/\b(data|analytics|analyst)\b/i, 'data'],
+  [/\b(infra|infrastructure|sre|reliability|devops)\b/i, 'infrastructure'],
+  [/\b(security|appsec|cryptograph)\b/i, 'security'],
+  [/\b(platform)\b/i, 'platform'],
+  [/\b(backend|back-end|server)\b/i, 'backend'],
+  [/\b(frontend|front-end|ui engineer)\b/i, 'frontend'],
+  [/\b(full[ -]?stack)\b/i, 'fullstack'],
+  [/\b(mobile|ios|android)\b/i, 'mobile'],
+  [/\b(product manager|product owner|pm)\b/i, 'product'],
+  [/\b(design|designer|ux)\b/i, 'design'],
+];
+export function contentWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !stop.has(w)),
+  );
+}
+export function numbersIn(text: string): Set<string> {
+  return new Set(
+    (text.replace(/,(?=\d{3}\b)/g, '').match(/\d+(?:\.\d+)?/g) || []).map((n) =>
+      String(Number(n)),
+    ),
+  );
+}
+export function sentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+// A sentence asserts something checkable when it carries a number, or pairs a
+// first-person subject with an achievement verb. Interest, questions and
+// remarks about the employer are not claims and never need a citation.
+export function isClaim(sentence: string): boolean {
+  if (sentence.endsWith('?')) return false;
+  if (/\d/.test(sentence)) return true;
+  if (!firstPerson.test(sentence)) return false;
+  if (strongVerbs.test(sentence)) return true;
+  // An ambiguous verb used intransitively is discourse, not assertion:
+  // "why I write" frames the letter, while "I write release tooling" claims
+  // something. Requiring a following object keeps the common cover-letter
+  // framing out of the citation gate without weakening it for real claims.
+  const match = ambiguousVerbs.exec(sentence);
+  return (
+    !!match &&
+    contentWords(sentence.slice(match.index + match[0].length)).size > 0
+  );
+}
+export function usableFact(fact: Fact, now: string): boolean {
+  return fact.status === 'Verified' && (!fact.expires || fact.expires > now);
+}
+function supports(sentence: string, fact: Fact, pool: Set<string>): boolean {
+  const sentenceNumbers = numbersIn(sentence);
+  for (const n of sentenceNumbers) if (!pool.has(n)) return false;
+  const words = contentWords(sentence),
+    factWords = contentWords(`${fact.claim} ${fact.evidence}`);
+  let overlap = 0;
+  for (const w of words) if (factWords.has(w)) overlap++;
+  return overlap >= Math.min(2, words.size || 1);
+}
+// Every number in a claim must trace to some cited fact, and the claim must
+// share vocabulary with at least one of them. This is what makes an invented
+// achievement machine-detectable instead of something a reviewer has to catch.
+export function unsupportedClaims(body: string, cited: Fact[]): string[] {
+  const pool = new Set<string>();
+  for (const f of cited)
+    for (const n of numbersIn(`${f.claim} ${f.evidence}`)) pool.add(n);
+  return sentences(body).filter(
+    (s) => isClaim(s) && !cited.some((f) => supports(s, f, pool)),
+  );
+}
+export function clusterOf(name: string): string {
+  const role = name.includes('—') ? name.split('—').pop()! : name;
+  for (const [pattern, family] of roleFamilies)
+    if (pattern.test(role)) return family;
+  return 'general';
+}
+export function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+// Word-level Levenshtein: prose comparison at character level is both slower
+// and less meaningful than comparing the words a reviewer actually changed.
+export function editRatio(a: string, b: string): number {
+  const x = words(a),
+    y = words(b);
+  if (!x.length && !y.length) return 0;
+  if (!x.length || !y.length) return 1;
+  let previous = Array.from({ length: y.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= x.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= y.length; j++)
+      row[j] = Math.min(
+        previous[j] + 1,
+        row[j - 1] + 1,
+        previous[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1),
+      );
+    previous = row;
+  }
+  return previous[y.length] / Math.max(x.length, y.length);
+}
+export function draftEdit(draft: DraftRow): number {
+  return draft.corrected ? editRatio(draft.body, draft.corrected) : 0;
+}
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+// Autonomy is earned per cluster, never globally. A cluster graduates only
+// after enough reviewed drafts came back close to unchanged, and any later
+// correction or expired fact drops it straight back to full review.
+export function clusterTrust(
+  cluster: string,
+  all: DraftRow[],
+  staleFacts = false,
+): { cluster: string; state: string; reviewed: number; edit: number } {
+  const reviewed = all.filter(
+    (d) => d.cluster === cluster && d.verdict !== 'Logged',
+  );
+  const recent = reviewed.slice(-limits.graduationRuns);
+  const edit = recent.length ? median(recent.map(draftEdit)) : 1;
+  const state =
+    !staleFacts &&
+    reviewed.length >= limits.graduationRuns &&
+    edit <= limits.graduationEdit
+      ? 'Graduated'
+      : 'Probation';
+  return { cluster, state, reviewed: reviewed.length, edit };
+}
+export function trustMap(
+  all: DraftRow[],
+  staleFacts = false,
+): Record<string, ReturnType<typeof clusterTrust>> {
+  const out: Record<string, ReturnType<typeof clusterTrust>> = {};
+  for (const cluster of new Set(all.map((d) => d.cluster)))
+    out[cluster] = clusterTrust(cluster, all, staleFacts);
+  return out;
+}
+// Ordered by risk, not by convenience. An unseen role type is reviewed at the
+// first draft; a full batch is the weakest signal and comes last.
+export function reviewTrigger(
+  all: DraftRow[],
+): { reason: string; ids: string[] } | null {
+  const pending = all.filter((d) => d.verdict === 'Logged');
+  if (!pending.length) return null;
+  const seen = new Set(
+    all.filter((d) => d.verdict !== 'Logged').map((d) => d.cluster),
+  );
+  const fresh = pending.filter((d) => !seen.has(d.cluster));
+  if (fresh.length)
+    return { reason: 'New cluster', ids: pending.map((d) => d.id) };
+  const drifted = pending.filter((d) => {
+    const trust = clusterTrust(d.cluster, all);
+    if (trust.state !== 'Graduated') return false;
+    const corpus = all.filter(
+      (o) => o.cluster === d.cluster && o.verdict !== 'Logged',
+    );
+    return (
+      median(corpus.map((o) => editRatio(d.body, o.corrected || o.body))) >
+      limits.driftEdit
+    );
+  });
+  if (drifted.length)
+    return { reason: 'Style drift', ids: pending.map((d) => d.id) };
+  if (
+    pending.filter((d) => d.confidence === 'low').length >= limits.lowConfidence
+  )
+    return { reason: 'Low confidence', ids: pending.map((d) => d.id) };
+  if (pending.length >= limits.batchSize)
+    return { reason: 'Batch full', ids: pending.map((d) => d.id) };
+  return null;
+}
+export function opening(body: string, count = 6): string {
+  return words(sentences(body)[0] || '')
+    .slice(0, count)
+    .join(' ');
+}
+// Reviewing twelve documents one by one is the same work as before, batched.
+// Grouping by shared opening turns a repeated habit into a single decision.
+export function openingGroups(
+  batch: DraftRow[],
+): { phrase: string; ids: string[] }[] {
+  const groups = new Map<string, string[]>();
+  for (const d of batch) {
+    const phrase = opening(d.corrected || d.body);
+    if (!phrase) continue;
+    groups.set(phrase, [...(groups.get(phrase) || []), d.id]);
+  }
+  return [...groups]
+    .filter(([, ids]) => ids.length > 1)
+    .map(([phrase, ids]) => ({ phrase, ids }))
+    .sort((a, b) => b.ids.length - a.ids.length);
+}
+// A profile that learns from its own accepted output homogenises. Near-identical
+// letters in one batch are a defect worth blocking on, not a sign of success.
+export function samenessPairs(batch: DraftRow[]): [string, string][] {
+  const out: [string, string][] = [];
+  for (let i = 0; i < batch.length; i++)
+    for (let j = i + 1; j < batch.length; j++)
+      if (
+        editRatio(
+          batch[i].corrected || batch[i].body,
+          batch[j].corrected || batch[j].body,
+        ) <= limits.samenessEdit
+      )
+        out.push([batch[i].id, batch[j].id]);
+  return out;
+}
+export function factUsage(
+  batch: DraftRow[],
+  facts: Fact[],
+): { fact: Fact; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const d of batch)
+    for (const id of d.cited.split(',').filter(Boolean))
+      counts.set(id, (counts.get(id) || 0) + 1);
+  return facts
+    .filter((f) => counts.has(f.id))
+    .map((f) => ({ fact: f, count: counts.get(f.id)! }))
+    .sort((a, b) => b.count - a.count);
+}
+// Most people cannot describe their own voice but recognise a violation at a
+// glance. Style is therefore elicited by correction: the reviewer edits, and
+// these are the generalisations offered back for confirmation.
+export function proposeRules(before: string, after: string): string[] {
+  const out: string[] = [];
+  if (!after.trim() || before.trim() === after.trim()) return out;
+  const openBefore = opening(before),
+    openAfter = opening(after);
+  if (openBefore && openBefore !== openAfter)
+    out.push(`Do not open with "${openBefore}".`);
+  const kept = new Set(words(after));
+  const tokens = (before.match(/[A-Za-z0-9'-]+/g) || []).filter(Boolean);
+  let run: string[] = [];
+  for (const token of [...tokens, '']) {
+    const plain = token.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (plain && !kept.has(plain) && !stop.has(plain)) run.push(token);
+    else {
+      if (run.length >= 2) out.push(`Avoid the phrase "${run.join(' ')}".`);
+      run = [];
+    }
+  }
+  const wordsAfter = words(after).length;
+  if (wordsAfter && words(before).length > wordsAfter * 1.25)
+    out.push(`Keep drafts near ${Math.round(wordsAfter / 10) * 10} words.`);
+  return [...new Set(out)].slice(0, 3);
+}
+// What the writing agent is actually handed. Verified, unexpired facts only;
+// rules narrowed to the cluster in play. The agent reads this and never writes
+// it — a generator that edits its own instructions drifts toward whatever is
+// cheapest to produce.
+export function profileBrief(
+  facts: Fact[],
+  rules: Rule[],
+  cluster: string,
+  now: string,
+  version: number,
+) {
+  return {
+    profile_version: version,
+    cluster,
+    facts: facts
+      .filter((f) => usableFact(f, now))
+      .map((f) => ({ id: f.id, claim: f.claim, tag: f.tag })),
+    style: rules
+      .filter((r) => r.scope === 'global' || r.scope === cluster)
+      .map((r) => r.rule),
+    rules_of_use: [
+      'Every sentence making a factual claim must cite a fact id from this brief.',
+      'Numbers may only come from cited facts.',
+      'Set confidence "low" when a required fact is missing rather than guessing.',
+    ],
+  };
+}
+export function validateFact(v: unknown): {
+  claim: string;
+  evidence: string;
+  tag: string;
+} {
+  const f = v as { claim?: unknown; evidence?: unknown; tag?: unknown };
+  if (
+    typeof f?.claim !== 'string' ||
+    !f.claim.trim() ||
+    f.claim.length > 500 ||
+    (f.evidence != null && typeof f.evidence !== 'string') ||
+    ((f.evidence as string)?.length || 0) > 2000
+  )
+    throw Error('A fact needs a claim under 500 characters.');
+  const tag = typeof f.tag === 'string' ? f.tag : 'detail';
+  if (!(factTags as readonly string[]).includes(tag))
+    throw Error('Use a known fact tag.');
+  return {
+    claim: f.claim.trim(),
+    evidence: ((f.evidence as string) || '').trim(),
+    tag,
+  };
+}
+export function validateRule(v: unknown): { rule: string; scope: string } {
+  const r = v as { rule?: unknown; scope?: unknown };
+  if (typeof r?.rule !== 'string' || !r.rule.trim() || r.rule.length > 300)
+    throw Error('A style rule needs text under 300 characters.');
+  const scope = typeof r.scope === 'string' && r.scope ? r.scope : 'global';
+  if (scope.length > 40) throw Error('Use a shorter rule scope.');
+  return { rule: r.rule.trim(), scope };
+}
+// The agent may log a draft, never accept one. A draft carrying an unsupported
+// claim is refused outright: it must not reach a batch where a tired reviewer
+// might wave it through.
+export function validateDraftLog(
+  v: unknown,
+  facts: Fact[],
+  now: string,
+): { body: string; cited: string[]; confidence: string } {
+  const d = v as { body?: unknown; cited?: unknown; confidence?: unknown };
+  if (typeof d?.body !== 'string' || !d.body.trim() || d.body.length > 20000)
+    throw Error('A logged draft needs body text under 20000 characters.');
+  const confidence = typeof d.confidence === 'string' ? d.confidence : 'high';
+  if (!(confidences as readonly string[]).includes(confidence))
+    throw Error('Confidence must be high or low.');
+  const cited = Array.isArray(d.cited) ? d.cited : [];
+  if (cited.some((id) => typeof id !== 'string'))
+    throw Error('Cited facts must be fact ids.');
+  const known = new Map(facts.map((f) => [f.id, f]));
+  const used: Fact[] = [];
+  for (const id of cited as string[]) {
+    const fact = known.get(id);
+    if (!fact) throw Error(`Cited fact ${id} does not exist.`);
+    if (!usableFact(fact, now))
+      throw Error(
+        `Fact ${id} is not verified or has expired. Verify it before citing it.`,
+      );
+    used.push(fact);
+  }
+  const unsupported = unsupportedClaims(d.body, used);
+  if (unsupported.length)
+    throw Error(
+      `Unsupported claim: "${unsupported[0]}". Cite a verified fact or remove the claim.`,
+    );
+  return { body: d.body, cited: cited as string[], confidence };
+}

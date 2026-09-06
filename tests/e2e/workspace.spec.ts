@@ -243,3 +243,50 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
   ).toHaveValue(draft);
   expect(errors).toEqual([]);
 });
+
+test('a dirty editor asks before opening profile or review screens', async ({
+  page,
+}) => {
+  await page.goto('/signin-with-chatgpt?return_to=/');
+  const research = [
+    {
+      url: 'https://example.com/research/ci-dirty-nav',
+      Name: 'Dirty Nav Example — Engineer',
+      Job: 'https://example.com/jobs/ci-dirty-nav',
+      Status: 'Held',
+      Notes: 'Fictional dirty-navigation record.',
+    },
+  ];
+  await page
+    .getByRole('button', { name: 'Import research', exact: true })
+    .click();
+  await page
+    .getByRole('textbox', { name: 'Research JSON' })
+    .fill(JSON.stringify(research));
+  await page.getByRole('button', { name: 'Preview matches' }).click();
+  await expect(
+    page.getByText('Preview complete. No records were imported.'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Import into workspace' }).click();
+  await expect(page.getByText('Workspace updated.')).toBeVisible();
+  await page
+    .getByRole('button', { name: /Dirty Nav Example — Engineer/ })
+    .click();
+  const draft = 'Unsaved dirty-navigation draft.';
+  await page
+    .getByRole('textbox', { name: 'Application answer or outreach draft' })
+    .fill(draft);
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('link', { name: 'Profile' }).click();
+  await expect(page).not.toHaveURL(/\/profile/);
+  await expect(
+    page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
+  ).toHaveValue(draft);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('link', { name: 'Profile' }).click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Facts it may claim. Voice it must use.',
+    }),
+  ).toBeVisible();
+});

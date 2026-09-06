@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { validateRows } from '../lib/domain';
+import { isTerminal } from '../lib/outcomes';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
@@ -44,6 +45,14 @@ import {
   BriefcaseBusiness,
   Upload,
   ChevronRight,
+  FileText,
+  Sparkles,
+  Scale,
+  Target,
+  Activity,
+  Award,
+  BadgeCheck,
+  CircleOff,
 } from 'lucide-react';
 type Job = {
   id: string;
@@ -241,11 +250,16 @@ export default function Workspace() {
   }
   useRelayTools(refresh);
   const protectedState =
-      current && ['Submitted', 'Live loop'].includes(current.status),
+      current &&
+      (['Submitted', 'Live loop'].includes(current.status) ||
+        isTerminal(current.status)),
     blocked = busy || !editor || !canSave(editor),
     acceptedExact = showsExactAcceptance(current, editor);
   function discardUnsaved() {
     return window.confirm('Discard unsaved draft and blocker changes?');
+  }
+  function confirmLeave(event: { preventDefault: () => void }) {
+    if (editorIsDirty(editor) && !discardUnsaved()) event.preventDefault();
   }
   function chooseJob(job: Job) {
     if (keepEditorOnReselect(editor, job.id)) return;
@@ -303,6 +317,9 @@ export default function Workspace() {
             ['Submitted', 'Submitted', ShieldCheck],
             ['Live loop', 'In conversation', BriefcaseBusiness],
             ['Skip', 'Set aside', ArrowRight],
+            ['Offer', 'Offers', Award],
+            ['Accepted', 'Accepted', BadgeCheck],
+            ['Closed', 'Closed', CircleOff],
             ['All', 'All opportunities', History],
           ] as const
         ).map(([v, label, Icon]) => (
@@ -320,6 +337,27 @@ export default function Workspace() {
             </span>
           </button>
         ))}
+        <div className="navlabel">AUTONOMY</div>
+        <Link className="nav" href="/profile" onClick={confirmLeave}>
+          <FileText size={18} />
+          Profile
+        </Link>
+        <Link className="nav" href="/review" onClick={confirmLeave}>
+          <Sparkles size={18} />
+          Review drafts
+        </Link>
+        <Link className="nav" href="/preferences" onClick={confirmLeave}>
+          <Scale size={18} />
+          Preferences
+        </Link>
+        <Link className="nav" href="/plan" onClick={confirmLeave}>
+          <Target size={18} />
+          This week
+        </Link>
+        <Link className="nav" href="/track" onClick={confirmLeave}>
+          <Activity size={18} />
+          Track outcomes
+        </Link>
         <div className="sidebottom">
           <div className="dot" /> History stays with the job.
           <p>
@@ -617,11 +655,7 @@ export default function Workspace() {
                     {protectedState && (
                       <div className="notice">
                         You can edit notes and follow-up drafts. Saving keeps
-                        this job’s{' '}
-                        {current.status === 'Live loop'
-                          ? 'interview'
-                          : 'submitted'}{' '}
-                        status.
+                        this job’s {current.status} status.
                       </div>
                     )}
                     {editor?.conflict && (

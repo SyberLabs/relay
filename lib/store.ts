@@ -116,8 +116,6 @@ export async function loadRefusals(db: D1Database, user: string) {
       id: string;
       job_id: string;
       reason: string;
-      sentence: string;
-      cited: string;
       created: string;
     }>();
   return r.results;

@@ -7,7 +7,6 @@ CREATE TABLE `refusals` (
 	`numbers` integer DEFAULT 0 NOT NULL,
 	`words` integer DEFAULT 0 NOT NULL,
 	`employer_ref` integer DEFAULT 0 NOT NULL,
-	`cited` text DEFAULT '' NOT NULL,
 	`created` text NOT NULL
 );
 --> statement-breakpoint

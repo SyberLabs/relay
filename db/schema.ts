@@ -174,6 +174,5 @@ export const refusals = sqliteTable('refusals', {
   numbers: integer('numbers').notNull().default(0),
   words: integer('words').notNull().default(0),
   employer_ref: integer('employer_ref').notNull().default(0),
-  cited: text('cited').notNull().default(''),
   created: text('created').notNull(),
 });

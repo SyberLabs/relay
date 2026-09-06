@@ -252,6 +252,17 @@ const distinctive = [
   '4200000',
 ];
 
+void test('employer_ref is 1 only when a possessive governs a figure', () => {
+  assert.equal(
+    refusalSignature('Your company has 2024 customers.').employer_ref,
+    1,
+  );
+  assert.equal(
+    refusalSignature('I shipped 12 releases in 2025.').employer_ref,
+    0,
+  );
+});
+
 void test('the refusal signature keeps no word of the refused clause', () => {
   const signature = refusalSignature(SENSITIVE);
   const serialised = JSON.stringify(signature).toLowerCase();
@@ -302,9 +313,9 @@ void test('a refused single-sentence draft leaves no text in any table', () => {
     'numbers',
     'words',
     'employer_ref',
-    'cited',
     'created',
   ]);
+  assert.doesNotMatch(routeSrc, /\bb\.cited\b/);
 
   let refusal;
   try {
@@ -327,7 +338,6 @@ void test('a refused single-sentence draft leaves no text in any table', () => {
     refusal.signature.numbers,
     refusal.signature.words,
     refusal.signature.employer_ref,
-    '',
     NOW,
   );
   assert.equal(
@@ -350,4 +360,54 @@ void test('a refused single-sentence draft leaves no text in any table', () => {
               !value.toLowerCase().includes(token.toLowerCase()),
               `${table}.${column} retained "${token}" from a refused draft`,
             );
+});
+
+void test('unknown_fact does not persist caller-supplied cited strings', () => {
+  const drizzle = join(process.cwd(), 'drizzle');
+  const db = new DatabaseSync(':memory:');
+  for (const name of readdirSync(drizzle)
+    .filter((f) => f.endsWith('.sql'))
+    .sort())
+    for (const part of readFileSync(join(drizzle, name), 'utf8').split(
+      '--> statement-breakpoint',
+    )) {
+      const sql = part.trim();
+      if (sql) db.exec(sql);
+    }
+  const routeSrc = readFileSync(
+    join(process.cwd(), 'app/api/drafts/route.ts'),
+    'utf8',
+  );
+  assert.doesNotMatch(routeSrc, /b\.cited/);
+  const start = routeSrc.indexOf('INSERT INTO refusals');
+  const insert = routeSrc.slice(start, routeSrc.indexOf("'", start));
+  const leaked = 'I led 999 engineers.';
+  let refusal;
+  try {
+    validateDraftLog({ body: 'Hello.', cited: [leaked] }, [], NOW);
+    assert.fail('the gate should have refused');
+  } catch (e) {
+    assert.ok(e instanceof RefusalError);
+    assert.equal(e.reason, 'unknown_fact');
+    refusal = e;
+  }
+  db.prepare(insert).run(
+    'refusal-unknown',
+    'owner-a',
+    'job-1',
+    refusal.reason,
+    refusal.signature?.trigger ?? 'other',
+    refusal.signature?.numbers ?? 0,
+    refusal.signature?.words ?? 0,
+    refusal.signature?.employer_ref ?? 0,
+    NOW,
+  );
+  for (const row of db.prepare('SELECT * FROM refusals').all())
+    for (const value of Object.values(row))
+      if (typeof value === 'string')
+        for (const token of ['led', '999', 'engineers'])
+          assert.ok(
+            !value.toLowerCase().includes(token),
+            `refusals retained "${token}" from unknown_fact cited`,
+          );
 });

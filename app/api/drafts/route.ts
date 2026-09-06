@@ -90,7 +90,7 @@ export async function POST(request: Request) {
         if (refusal instanceof RefusalError)
           await db
             .prepare(
-              'INSERT INTO refusals (id,owner,job_id,reason,trigger_kind,numbers,words,employer_ref,cited,created) VALUES (?,?,?,?,?,?,?,?,?,?)',
+              'INSERT INTO refusals (id,owner,job_id,reason,trigger_kind,numbers,words,employer_ref,created) VALUES (?,?,?,?,?,?,?,?,?)',
             )
             .bind(
               crypto.randomUUID(),
@@ -101,9 +101,6 @@ export async function POST(request: Request) {
               refusal.signature?.numbers ?? 0,
               refusal.signature?.words ?? 0,
               refusal.signature?.employer_ref ?? 0,
-              (Array.isArray(b.cited) ? b.cited : [])
-                .filter((c: unknown) => typeof c === 'string')
-                .join(','),
               now,
             )
             .run();

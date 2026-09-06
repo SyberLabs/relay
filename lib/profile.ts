@@ -397,7 +397,7 @@ export type RefusalSignature = {
 // and this changes nothing about that -- it exempts nothing and is read by
 // nothing except the refusal record. It exists so the cost of that deliberate
 // strictness can be seen in evidence rather than argued from memory.
-const employerFigure = /(?:your|yours|their|its)[^.!?]{0,24}?\d/i;
+const employerFigure = /\b(?:your|yours|their|its)\b[^.!?]{0,24}?\d/i;
 export function refusalSignature(sentence: string): RefusalSignature {
   return {
     trigger: /\d/.test(sentence)

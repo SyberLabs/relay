@@ -23,7 +23,7 @@ const escapeHtml = (text) =>
 export function render(copy, target) {
   if (!Object.hasOwn(targets, target))
     throw Error('Unknown public-copy target.');
-  for (const value of [copy.repository, copy.leadProfile]) {
+  for (const value of [copy.repository, copy.leadProfile, copy.peerProfile]) {
     const url = new URL(value);
     if (
       url.protocol !== 'https:' ||
@@ -37,7 +37,7 @@ export function render(copy, target) {
   }
   const guide = `${copy.repository}/blob/main/integrations/OPENAI.md`;
   const integrations = copy.integrations.map((item) => item.name).join(', ');
-  const credit = `**Lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).**`;
+  const credit = `**Lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).** Application development: [${copy.peerEngineer}](${copy.peerProfile}).`;
   if (target === 'project')
     return `**${copy.tagline}**
 

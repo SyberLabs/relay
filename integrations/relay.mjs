@@ -25,7 +25,13 @@ const apiCommands = new Set([
   'status',
   'outcome',
 ]);
-if (apiCommands.has(command)) process.exit(await runCli(process.argv.slice(2)));
+if (apiCommands.has(command)) {
+  // Forced process.exit after fetch aborts Windows Node 24: libuv asserts
+  // UV_HANDLE_CLOSING on a still-closing async handle (nodejs/node#56645).
+  process.exitCode = await runCli(process.argv.slice(2));
+} else {
+  await runFileCommand();
+}
 async function read(path) {
   if (!path) throw Error('An input file is required.');
   return JSON.parse(await readFile(path, 'utf8'));
@@ -47,6 +53,7 @@ async function save(path, data, markdown = false) {
       : 'Saved. Import the output in Relay for review.',
   );
 }
+async function runFileCommand() {
 try {
   if (command === 'board-pull') {
     // Usage: board-pull greenhouse northstar out.json
@@ -155,4 +162,5 @@ try {
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;
+}
 }

@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   EXIT,
   RelayError,
@@ -327,6 +329,95 @@ void test('a refused generated draft does not overwrite an existing --out file',
     else process.env.RELAY_CLAUDE_MODEL = previousModel;
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// Windows Node 24 aborts with UV_HANDLE_CLOSING when process.exit() runs while
+// undici/V8 still holds a closing async handle (nodejs/node#56645). The login
+// subprocess in the live suite is that sequence: fetch, then a forced exit.
+// The stub server is a child process so spawnSync does not freeze the listener.
+void test('login as a piped subprocess exits 0 after a local sign-in', async () => {
+  const cwd = mkdtempSync(join(tmpdir(), 'relay-cli-login-'));
+  writeFileSync(
+    join(cwd, 'server.mjs'),
+    `import { createServer } from 'node:http';
+const server = createServer((req, res) => {
+  if (req.url.startsWith('/signin-with-chatgpt')) {
+    res.writeHead(302, { 'set-cookie': '__sites_local_auth=1; Path=/', Location: '/' });
+    res.end();
+    return;
+  }
+  if (req.url === '/api/profile') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ version: 1, usable: 0, facts: [], rules: [] }));
+    return;
+  }
+  res.writeHead(404);
+  res.end();
+});
+server.listen(0, '127.0.0.1', () => process.stdout.write(String(server.address().port)));
+`,
+  );
+  const server = spawn(process.execPath, [join(cwd, 'server.mjs')], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  let stderr = '';
+  server.stderr.on('data', (chunk) => {
+    stderr += chunk;
+  });
+  try {
+    const port = await new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`sign-in stub did not bind: ${stderr}`)),
+        3000,
+      );
+      server.stdout.on('data', (chunk) => {
+        clearTimeout(timer);
+        resolve(String(chunk).trim());
+      });
+      server.on('error', reject);
+      server.on('exit', (code) =>
+        reject(new Error(`sign-in stub exited ${code}: ${stderr}`)),
+      );
+    });
+    const result = spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL('../integrations/relay.mjs', import.meta.url)),
+        'login',
+      ],
+      {
+        cwd,
+        encoding: 'utf8',
+        timeout: 4000,
+        env: { ...process.env, RELAY_URL: `http://127.0.0.1:${port}` },
+      },
+    );
+    assert.equal(result.error, undefined, result.error?.message);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Signed in\. Profile v1/);
+    assert.doesNotMatch(result.stderr, /UV_HANDLE_CLOSING|Assertion failed/);
+  } finally {
+    server.kill('SIGTERM');
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+void test('the CLI entry does not force process.exit after an API command', () => {
+  const source = readFileSync(
+    new URL('../integrations/relay.mjs', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    source,
+    /process\.exitCode\s*=\s*await runCli/,
+    'API commands must leave shutdown to the event loop',
+  );
+  assert.doesNotMatch(
+    source.replace(/\/\/[^\n]*/g, ''),
+    /process\.exit\s*\(/,
+    'forced process.exit after fetch is the Windows abort trigger',
+  );
 });
 
 void test('draft --out refuses to replace an existing file without --force', async () => {

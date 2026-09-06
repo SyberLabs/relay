@@ -33,7 +33,7 @@ The intended main rules are also recorded in [main-ruleset.json](../.github/main
 
 ## Run the checks locally
 
-Use Node 24 and pnpm 11.19.0. Run `pnpm install --frozen-lockfile`, then `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`. After building, `pnpm test:api`, `pnpm test:calibration`, `pnpm test:orchestration`, `pnpm test:e2e`, and `pnpm test:production` each create an isolated fictional test database and clean up their servers. Calibration and orchestration must not share a D1. Install Chromium first with `pnpm exec playwright install chromium`. Run `pnpm audit --audit-level high` to match the blocking security threshold. Low and moderate advisories still require triage; a passing audit does not mean there are none.
+Use Node 24 and pnpm 11.19.0. Run `pnpm install --frozen-lockfile`, then `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build`. After building, `pnpm test:api`, `pnpm test:calibration`, `pnpm test:orchestration`, `pnpm test:e2e`, and `pnpm test:production` each create an isolated fictional test database and clean up their servers. Calibration and orchestration must not share a D1. Install Chromium first with `pnpm exec playwright install chromium`. Chromium is required for `pnpm test:e2e` and for the two-session isolation check inside `pnpm test:production`. Run `pnpm audit --audit-level high` to match the blocking security threshold. Low and moderate advisories still require triage; a passing audit does not mean there are none.
 
 ## Release acceptance and product evidence
 

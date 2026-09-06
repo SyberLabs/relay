@@ -244,8 +244,88 @@ try {
     'Rejected stale writes leave no event',
   );
   assert.deepEqual((await (await call(second)).json()).jobs, []);
+  const isolationRow = {
+    url: 'https://example.com/research/owner-b-isolation',
+    Name: 'Northstar Example — Isolation Engineer',
+    Job: 'https://example.com/jobs/backend',
+    Status: 'Held',
+    Notes: 'Fictional owner-b note that must not appear in owner-a history.',
+  };
+  assert.equal(
+    (await call(second, { action: 'import', rows: [isolationRow] })).status,
+    200,
+  );
+  const ownerA = await (await call(first)).json();
+  const ownerB = await (await call(second)).json();
+  assert.equal(
+    ownerA.jobs.find((item) => item.id === job.id).accepted_draft,
+    update.draft,
+  );
+  assert.equal(
+    ownerA.sources.some((source) => source.source_url === isolationRow.url),
+    false,
+    'Owner A must not enumerate owner B import sources',
+  );
+  assert.equal(
+    ownerB.jobs.some((item) => item.id === job.id),
+    false,
+    'Owner B must not enumerate owner A job ids',
+  );
+  assert.equal(ownerB.jobs.length, 1);
+  assert.equal(ownerB.sources.length, 1);
+  assert.equal(ownerB.events.length, 0);
+  const foreign = ownerB.jobs[0];
+  assert.equal(
+    (
+      await call(first, {
+        action: 'save',
+        id: foreign.id,
+        version: foreign.version,
+        status: 'Ready',
+        draft: 'Owner A must not accept owner B text.',
+        blocker: '',
+      })
+    ).status,
+    404,
+  );
+  const expired = await new SignJWT({ email: 'owner-a@example.com' })
+    .setProtectedHeader({ alg: 'RS256' })
+    .setSubject('owner-a')
+    .setIssuer(issuer)
+    .setAudience(audience)
+    .setIssuedAt(Math.floor(Date.now() / 1000) - 120)
+    .setExpirationTime(1)
+    .sign(privateKey);
+  assert.equal((await call(expired)).status, 401);
+  const wrongAudience = await new SignJWT({ email: 'owner-a@example.com' })
+    .setProtectedHeader({ alg: 'RS256' })
+    .setSubject('owner-a')
+    .setIssuer(issuer)
+    .setAudience('b'.repeat(64))
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .sign(privateKey);
+  assert.equal((await call(wrongAudience)).status, 401);
+  const service = await new SignJWT({})
+    .setProtectedHeader({ alg: 'RS256' })
+    .setSubject('release-smoke')
+    .setIssuer(issuer)
+    .setAudience(audience)
+    .setIssuedAt()
+    .setExpirationTime('5m')
+    .sign(privateKey);
+  assert.equal((await call(service)).status, 401);
+  assert.equal(
+    (
+      await fetch(`${base}/readyz`, {
+        headers: { 'Cf-Access-Jwt-Assertion': service },
+      })
+    ).status,
+    200,
+    'Service identity may prove readiness only',
+  );
   console.log(
-    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, forged headers, request origin, exact acceptance and stale-write integrity.',
+    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity.',
   );
 } finally {
   if (server.pid && server.exitCode === null) {

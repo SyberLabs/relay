@@ -137,6 +137,29 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
   expect(errors).toEqual([]);
 });
 
+test('clearing the session cookie hides private records on the open page', async ({
+  page,
+  context,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  await page.getByRole('button', { name: 'Explore example jobs' }).click();
+  await expect(
+    page.getByRole('button', { name: /Backend Engineer/ }),
+  ).toBeVisible();
+  await context.clearCookies();
+  await page.getByRole('button', { name: 'Check examples' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your private workspace' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Backend Engineer/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
+  ).toHaveCount(0);
+});
+
 test('tracker CSV mapping and repeated imports preserve reviewed wording', async ({
   page,
 }) => {

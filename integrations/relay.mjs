@@ -25,7 +25,6 @@ const apiCommands = new Set([
   'status',
   'outcome',
 ]);
-if (apiCommands.has(command)) process.exit(await runCli(process.argv.slice(2)));
 async function read(path) {
   if (!path) throw Error('An input file is required.');
   return JSON.parse(await readFile(path, 'utf8'));
@@ -48,7 +47,9 @@ async function save(path, data, markdown = false) {
   );
 }
 try {
-  if (command === 'board-pull') {
+  if (apiCommands.has(command)) {
+    process.exitCode = await runCli(process.argv.slice(2));
+  } else if (command === 'board-pull') {
     // Usage: board-pull greenhouse northstar out.json
     const [, provider, board, target] = process.argv.slice(2);
     if (!provider || !board || !target)

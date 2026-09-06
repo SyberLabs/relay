@@ -28,8 +28,9 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
   await expect(
-    page.getByRole('button', { name: 'Explore example jobs' }),
-  ).toBeVisible();
+    page.getByRole('link', { name: 'Sign in with ChatGPT' }),
+  ).toHaveCount(0);
+  const baseline = await (await page.request.get('/api/workspace')).json();
 
   const research = [
     {
@@ -54,7 +55,7 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
     page.getByText('Preview complete. No records were imported.'),
   ).toBeVisible();
   let workspace = await (await page.request.get('/api/workspace')).json();
-  expect(workspace.jobs).toHaveLength(0);
+  expect(workspace.jobs).toHaveLength(baseline.jobs.length);
 
   await page.getByRole('button', { name: 'Import into workspace' }).click();
   await expect(page.getByText('Workspace updated.')).toBeVisible();
@@ -80,14 +81,23 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
   workspace = await (await page.request.get('/api/workspace')).json();
-  expect(workspace.jobs[0]).toMatchObject({
+  expect(
+    workspace.jobs.find(
+      (job: { job_key: string }) => job.job_key === research[0].Job,
+    ),
+  ).toMatchObject({
     status: 'Ready',
     draft,
     accepted_draft: draft,
   });
   expect(
     workspace.events.filter(
-      (event: { kind: string }) => event.kind === 'Draft accepted',
+      (event: { kind: string; job_id: string }) =>
+        event.kind === 'Draft accepted' &&
+        event.job_id ===
+          workspace.jobs.find(
+            (job: { job_key: string }) => job.job_key === research[0].Job,
+          ).id,
     ),
   ).toHaveLength(1);
 
@@ -107,9 +117,13 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
   await page.getByRole('button', { name: 'Import into workspace' }).click();
   await expect(page.getByText('Workspace updated.')).toBeVisible();
   workspace = await (await page.request.get('/api/workspace')).json();
-  expect(workspace.jobs).toHaveLength(1);
-  expect(workspace.sources).toHaveLength(1);
-  expect(workspace.jobs[0]).toMatchObject({
+  expect(workspace.jobs).toHaveLength(baseline.jobs.length + 1);
+  expect(workspace.sources).toHaveLength(baseline.sources.length + 1);
+  expect(
+    workspace.jobs.find(
+      (job: { job_key: string }) => job.job_key === research[0].Job,
+    ),
+  ).toMatchObject({
     status: 'Ready',
     draft,
     accepted_draft: draft,

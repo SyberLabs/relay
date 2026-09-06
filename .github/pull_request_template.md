@@ -17,3 +17,5 @@ Who needs this change, what failed before, and what can they do afterward?
 - [ ] No credentials, personal applications, or private research are included.
 - [ ] Agent findings are fixed or answered with evidence.
 - [ ] A maintainer other than the author will approve.
+
+- [ ] Public capabilities, integration limits and lead-engineer credit match `docs/public-copy.json`; run `pnpm public-copy:check` and follow `docs/PUBLIC-COPY.md` when these change.

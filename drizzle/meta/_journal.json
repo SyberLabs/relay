@@ -22,6 +22,20 @@
       "when": 1788642000000,
       "tag": "0002_job_key_observations",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788643000000,
+      "tag": "0003_profile_calibration",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788644000000,
+      "tag": "0004_selection_and_outcomes",
+      "breakpoints": true
     }
   ]
 }

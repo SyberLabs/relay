@@ -243,3 +243,36 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
   ).toHaveValue(draft);
   expect(errors).toEqual([]);
 });
+
+test('a dirty editor asks before opening profile or review screens', async ({
+  page,
+}) => {
+  await page.goto('/signin-with-chatgpt?return_to=/');
+  await expect(
+    page.getByRole('heading', { name: 'Make your next move.' }),
+  ).toBeVisible();
+  const explore = page.getByRole('button', { name: 'Explore example jobs' });
+  if (await explore.isVisible()) {
+    await explore.click();
+    await expect(page.getByText('Workspace updated.')).toBeVisible();
+  }
+  await page.getByRole('button', { name: /All opportunities/ }).click();
+  await page.locator('section.queue .joblist button').first().click();
+  const draft = 'Unsaved dirty-navigation draft.';
+  await page
+    .getByRole('textbox', { name: 'Application answer or outreach draft' })
+    .fill(draft);
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('link', { name: 'Profile' }).click();
+  await expect(page).not.toHaveURL(/\/profile/);
+  await expect(
+    page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
+  ).toHaveValue(draft);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('link', { name: 'Profile' }).click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Facts it may claim. Voice it must use.',
+    }),
+  ).toBeVisible();
+});

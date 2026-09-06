@@ -16,6 +16,8 @@
     "test": "node scripts/ci/run-unit.mjs",
     "typecheck": "tsc --noEmit",
     "test:api": "node scripts/ci/run-integration.mjs api",
+    "test:calibration": "node scripts/ci/run-integration.mjs calibration",
+    "test:orchestration": "node scripts/ci/run-integration.mjs orchestration",
     "test:e2e": "node scripts/ci/run-integration.mjs browser",
     "test:production": "node scripts/ci/run-production.mjs",
     "relay": "node integrations/relay.mjs",

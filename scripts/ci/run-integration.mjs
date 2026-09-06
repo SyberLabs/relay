@@ -5,8 +5,14 @@ import { resolve } from 'node:path';
 import { createServer } from 'node:net';
 import { setTimeout as delay } from 'node:timers/promises';
 
+const nodeSuites = {
+  api: 'tests/api.test.mjs',
+  calibration: 'tests/calibration.test.mjs',
+  orchestration: 'tests/orchestration.test.mjs',
+};
 const suite = process.argv[2];
-if (!['api', 'browser'].includes(suite)) throw Error('Choose api or browser.');
+if (!(suite in nodeSuites) && suite !== 'browser')
+  throw Error('Choose api, calibration, orchestration, or browser.');
 const root = process.cwd();
 await mkdir(resolve(root, '.wrangler'), { recursive: true });
 const state = await mkdtemp(resolve(root, '.wrangler', `ci-${suite}-`));
@@ -132,7 +138,9 @@ try {
     throw Error(
       `Development server did not become ready. See outputs/ci/${suite}-server.log.`,
     );
-  if (suite === 'api') await run(['tests/api.test.mjs']); else await run([await bin('@playwright/test', 'playwright'), 'test']);
+  if (suite === 'browser')
+    await run([await bin('@playwright/test', 'playwright'), 'test']);
+  else await run([nodeSuites[suite]]);
 } finally {
   if (server?.pid && server.exitCode === null) {
     if (process.platform === 'win32') {

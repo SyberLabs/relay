@@ -2,7 +2,7 @@
 
 Seth (`@sdcarlson`) and Mateo (`@sykosyber`) use [the development board](https://github.com/orgs/SyberLabs/projects/1) and [repository issues](https://github.com/SyberLabs/relay/issues) as the shared work queue.
 
-1. Pick one issue with a concrete user outcome. Assign one person, add priority and area, and write acceptance criteria before marking it Ready.
+1. Pick one issue with a concrete user outcome. Assign one person, add priority and area, and write acceptance criteria before marking it Ready. Assigning `@sykosyber` launches Cursor Grok 4.6 Extra High against that issue. Human work stays one active implementation at a time; the issue still closes only when the resulting pull request squash-merges with `Closes #number`.
 2. Create a short branch such as `feat/12-import-preview` or `fix/18-stale-draft`. Keep at most one active implementation issue per person.
 3. Make the smallest complete change. Add regression tests for actual behavior and failure paths. Use fictional data.
 4. Open a pull request with `Closes #number`, evidence, and migration/recovery impact. Move the issue to In review.

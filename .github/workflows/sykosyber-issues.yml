@@ -1,0 +1,65 @@
+name: Sykosyber implementation
+
+on:
+  issues:
+    types: [assigned, opened, reopened]
+  schedule:
+    - cron: '23 4,10,16,22 * * *'
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to launch (leave empty to scan open sykosyber issues)
+        required: false
+        type: string
+      force:
+        description: Launch even if an agent comment already exists
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: sykosyber-issue-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    name: Launch Extra High implementation
+    if: >-
+      github.repository == 'SyberLabs/relay' &&
+      (
+        github.event_name != 'issues' ||
+        (
+          github.event.issue.pull_request == null &&
+          (
+            (github.event.action == 'assigned' && github.event.assignee.login == 'sykosyber') ||
+            (github.event.action != 'assigned' && contains(join(github.event.issue.assignees.*.login, ','), 'sykosyber'))
+          )
+        )
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Launch Cursor Grok 4.6 Extra High
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_API_URL: ${{ github.api_url }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          ISSUE_NUMBER: ${{ inputs.issue_number || github.event.issue.number }}
+          FORCE: ${{ (github.event_name == 'workflow_dispatch' && inputs.force) || github.event.action == 'reopened' }}
+          CURSOR_MODEL_ID: grok-4.6
+          CURSOR_MODEL_PARAM_ID: effort
+          CURSOR_MODEL_PARAM_VALUE: xhigh
+        run: node scripts/ci/launch-sykosyber-agent.mjs

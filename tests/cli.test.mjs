@@ -210,6 +210,34 @@ void test('request() treats a plaintext 401 as auth, not a server parse failure'
   );
 });
 
+void test('plaintext refusal statuses keep exitFor when the body is not JSON', async () => {
+  for (const status of [400, 403, 404, 409, 413]) {
+    await assert.rejects(
+      () =>
+        request('/api/plan', undefined, {
+          session: 'x=1',
+          fetchImpl: async () => new Response('Forbidden', { status }),
+        }),
+      (e) =>
+        e instanceof RelayError &&
+        e.code === EXIT.refused &&
+        e.code === exitFor(status),
+      `HTTP ${status}`,
+    );
+  }
+});
+
+void test('a malformed successful body stays a retryable server failure', async () => {
+  await assert.rejects(
+    () =>
+      request('/api/plan', undefined, {
+        session: 'x=1',
+        fetchImpl: async () => new Response('not json', { status: 200 }),
+      }),
+    (e) => e instanceof RelayError && e.code === EXIT.server,
+  );
+});
+
 void test('a refused generated draft does not overwrite an existing --out file', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'relay-cli-'));
   const outPath = join(dir, 'reviewed.txt');

@@ -106,7 +106,7 @@ export async function request(path, body, { fetchImpl = fetch, session } = {}) {
   } catch {
     throw new RelayError(
       `Relay returned a non-JSON response (HTTP ${response.status}).`,
-      EXIT.server,
+      response.ok ? EXIT.server : exitFor(response.status),
     );
   }
   if (!response.ok)

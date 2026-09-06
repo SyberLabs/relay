@@ -294,6 +294,15 @@ void test('markup is stripped without swallowing the text', () => {
     ),
     'Build things well',
   );
+  assert.equal(stripHtml('<p>Keep</p><script>alert(1)</script >'), 'Keep');
+  assert.equal(
+    stripHtml('<style type="text/css">x{}</style >Visible'),
+    'Visible',
+  );
+  assert.equal(stripHtml('Uses &lt;T&gt; and A&amp;B'), 'Uses <T> and A&B');
+  assert.equal(stripHtml('&#60;T&#62;'), '<T>');
+  // Double-encoded entities decode once, so they cannot become a tag.
+  assert.equal(stripHtml('&amp;lt;script&amp;gt;'), '&lt;script&gt;');
 });
 
 void test('effort rises with length and supplemental questions', () => {

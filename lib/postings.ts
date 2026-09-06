@@ -61,16 +61,39 @@ export function parseComp(text: string): [number | null, number | null] {
     max = Math.max(...found);
   return [min, max === min ? null : max];
 }
+const htmlEntities: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+};
+
+function decodeHtmlEntities(text: string): string {
+  return text.replace(
+    /&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]*);/gi,
+    (entity, body: string) => {
+      if (body[0] === '#') {
+        const hex = body[1] === 'x' || body[1] === 'X';
+        const code = Number.parseInt(body.slice(hex ? 2 : 1), hex ? 16 : 10);
+        if (!Number.isInteger(code) || code <= 0 || code > 0x10ffff)
+          return entity;
+        if (code >= 0xd800 && code <= 0xdfff) return entity;
+        return String.fromCodePoint(code);
+      }
+      return htmlEntities[body.toLowerCase()] ?? entity;
+    },
+  );
+}
+
 export function stripHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+  return decodeHtmlEntities(
+    html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, ' ')
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style\s*>/gi, ' ')
+      .replace(/<[^>]+>/g, ' '),
+  )
     .replace(/\s+/g, ' ')
     .trim();
 }

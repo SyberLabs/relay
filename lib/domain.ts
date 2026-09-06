@@ -13,19 +13,6 @@ export const states = [
   'Skip',
   'Live loop',
 ] as const;
-export function matchesJobKey(
-  url: string | null | undefined,
-  key: string,
-): boolean {
-  if (typeof key !== 'string' || !key) return false;
-  if (key.startsWith('source:'))
-    return key.length > 'source:'.length && (url == null || url === '');
-  try {
-    return typeof url === 'string' && url.length > 0 && jobKey(url, '') === key;
-  } catch {
-    return false;
-  }
-}
 export function jobKey(url: string | null, fallback: string): string {
   if (!url) return `source:${fallback}`;
   const u = new URL(url);
@@ -42,6 +29,19 @@ export function jobKey(url: string | null, fallback: string): string {
   u.searchParams.sort();
   u.pathname = u.pathname.replace(/\/$/, '') || '/';
   return u.toString();
+}
+export function packetKeyMatches(
+  url: string | null | undefined,
+  key: string,
+): boolean {
+  if (typeof key !== 'string' || !key) return false;
+  if (url == null || url === '') return key.startsWith('source:');
+  if (typeof url !== 'string') return false;
+  try {
+    return jobKey(url, '') === key;
+  } catch {
+    return false;
+  }
 }
 export function displayName(n: string) {
   return n.replace(/^Hunt\d+\s*(?:#\d+)?\s*[—-]\s*/, '');

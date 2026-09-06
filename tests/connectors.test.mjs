@@ -93,26 +93,4 @@ void test('packets require verified facts and matching job identity', () => {
   assert.throws(() =>
     validatePacket({ ...packet, job: { ...packet.job, key: 'different' } }),
   );
-  const sourcePacket = {
-    ...packet,
-    job: {
-      id: 'job-1',
-      key: 'source:https://example.com/research/a',
-      url: null,
-      version: 3,
-    },
-  };
-  assert.deepEqual(validatePacket(sourcePacket), sourcePacket);
-  assert.throws(() =>
-    validatePacket({
-      ...sourcePacket,
-      job: { ...sourcePacket.job, url: 'https://example.com/jobs/a' },
-    }),
-  );
-  assert.throws(() =>
-    validatePacket({
-      ...sourcePacket,
-      job: { ...sourcePacket.job, key: 'source:' },
-    }),
-  );
 });

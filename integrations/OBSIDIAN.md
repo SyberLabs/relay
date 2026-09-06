@@ -77,7 +77,7 @@ Load the resulting JSON in Relay. Research still goes through preview and import
 ## Limits and recovery
 
 - Research: 1 to 200 selected notes; each body up to 20,000 characters, each note up to 100,000 characters, properties up to 10,000 characters. Total selected files must stay below 1.8 MB and converted research must also fit the import budget. Split larger selections deliberately.
-- Identity: `relay_id` starts with a letter or number and contains at most 200 letters, numbers, dots, underscores or hyphens. `relay_name` is nonempty and at most 500 characters. Research notes require `relay_job` as an HTTP or HTTPS posting URL. Draft notes for source-identity jobs may leave `relay_job` empty when `relay_key` is the stored source identity. Missing `relay_kind` remains supported for older research notes. Other kinds are rejected except individual draft notes.
+- Identity: `relay_id` starts with a letter or number and contains at most 200 letters, numbers, dots, underscores or hyphens. `relay_name` is nonempty and at most 500 characters; `relay_job` is an HTTP or HTTPS posting URL. Missing `relay_kind` remains supported for older research notes. Other kinds are rejected except individual draft notes.
 - Parsing: ordinary YAML quoting, comments and unrelated lists are supported. Duplicate keys, unsupported tags and aliases are rejected. Error messages identify the failed filename. Correct that file and reload the selection.
 - Privacy: store real files under ignored `private-data/` or in your vault. A shared Obsidian vault follows its own sharing rules; choose its destination deliberately. No credentials, absolute vault locations, linked file contents or other jobs are added automatically. Relay is not an Obsidian Sync engine.
 

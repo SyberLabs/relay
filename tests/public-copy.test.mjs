@@ -11,13 +11,13 @@ const copy = JSON.parse(
   await readFile(new URL('../docs/public-copy.json', import.meta.url), 'utf8'),
 );
 
-await test('every advertised integration has a checked-in setup guide', async () => {
+void test('every advertised integration has a checked-in setup guide', async () => {
   for (const item of copy.integrations)
     await access(new URL('../' + item.guide, import.meta.url));
   assert.equal(copy.leadEngineer, 'Seth Carlson');
 });
 
-await test('sync preserves all content outside its block and is idempotent', () => {
+void test('sync preserves all content outside its block and is idempotent', () => {
   const prefix = '\ufeffCustom introduction\r\n',
     suffix = '\r\nOther projects stay intact.\r\n';
   const original = prefix + start + '\r\nOld content\r\n' + end + suffix;
@@ -32,12 +32,12 @@ await test('sync preserves all content outside its block and is idempotent', () 
   }
 });
 
-await test('missing or ambiguous markers fail instead of overwriting a page', () => {
+void test('missing or ambiguous markers fail instead of overwriting a page', () => {
   for (const value of ['custom content', start + end + start, end + start])
     assert.throws(() => replaceBlock(value, 'new'));
 });
 
-await test('website product data is escaped before rendering', () => {
+void test('website product data is escaped before rendering', () => {
   const content = render(
     { ...copy, stage: '<script>alert(1)</script>' },
     'website',
@@ -46,7 +46,7 @@ await test('website product data is escaped before rendering', () => {
   assert.match(content, /&lt;script&gt;/);
 });
 
-await test('public links reject executable schemes, other hosts and embedded credentials', () => {
+void test('public links reject executable schemes, other hosts and embedded credentials', () => {
   for (const field of ['repository', 'leadProfile']) {
     for (const value of [
       'javascript:alert(1)',

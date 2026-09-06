@@ -10,7 +10,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
     /const applyExpired = useCallback\(([\s\S]*?), \[\]\);/,
   )[1];
   const refreshSource = source.match(
-    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired\],\s*\);/,
+    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,
   )[1];
   function deferred() {
     let resolve;
@@ -26,7 +26,9 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
     const state = { jobs: [], editor: null, signedOut: false };
     const deps = {
       ...helper,
-      selectedRef: { current: '' }, sessionRef: { current: session },
+      sessionRef: { current: session },
+      selectedRef: { current: '' },
+      loadJobHistory: async () => {},
       fetch: async (_url, init) =>
         init?.method === 'POST' ? post.promise : get.promise,
     };
@@ -42,6 +44,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       'signedOut',
       'loaded',
       'message',
+      'historyNext',
     ]) {
       deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) => {
         state[key] = typeof value === 'function' ? value(state[key]) : value;

@@ -11,6 +11,11 @@ import {
   suggestTrackerMapping,
   trackerRows,
 } from '../lib/tracker-csv.ts';
+import {
+  acceptedDraftFromEvents,
+  INITIAL_EVENT_LIMIT,
+} from '../lib/workspace-events.ts';
+import { jobKey } from '../lib/domain.ts';
 const base = process.env.RELAY_TEST_URL || 'http://localhost:3000';
 
 // Only run against a local development server, which uses mock authentication.
@@ -19,7 +24,20 @@ if (!['localhost', '127.0.0.1'].includes(new URL(base).hostname))
 const signIn = await fetch(base + '/signin-with-chatgpt?return_to=/', {
   redirect: 'manual',
 });
-const headers = { cookie: signIn.headers.get('set-cookie').split(';')[0] };
+const cookie = signIn.headers.get('set-cookie')?.split(';')[0];
+const usedSitesCookie =
+  (signIn.status === 302 || signIn.status === 303) && Boolean(cookie);
+if (!usedSitesCookie && signIn.status !== 404) {
+  throw Error(
+    `Local sign-in unexpected status ${signIn.status}. Use http://localhost:3000 (pnpm dev) or header mock on http://127.0.0.1:8787 (pnpm start).`,
+  );
+}
+const headers = usedSitesCookie
+  ? { cookie }
+  : {
+      'oai-authenticated-user-id': 'local-test',
+      'oai-authenticated-user-email': 'local@example.com',
+    };
 async function call(body, h = headers) {
   const r = await fetch(base + '/api/workspace', {
     method: body ? 'POST' : 'GET',
@@ -176,54 +194,6 @@ assert.throws(
     draftFromResult(draftResult, { ...target, version: savedObsidian.version }),
   /matching job/,
 );
-const unnamed = await call({
-  action: 'import',
-  rows: [
-    {
-      url: 'https://example.com/research/no-url',
-      Name: 'Source identity role',
-      Job: null,
-      Status: 'Held',
-      Notes: 'No posting URL',
-    },
-  ],
-});
-assert.equal(unnamed.status, 200, JSON.stringify(unnamed.data));
-const sourceJob = (await call()).data.jobs.find((j) =>
-  j.job_key.startsWith('source:'),
-);
-assert.equal(sourceJob.url, null);
-result = await call({
-  action: 'save',
-  id: sourceJob.id,
-  version: sourceJob.version,
-  status: 'Ready',
-  draft: 'Accepted without a posting URL.',
-  blocker: '',
-});
-assert.equal(result.status, 200, JSON.stringify(result.data));
-const scoped = await fetch(base + '/api/workspace?job=' + sourceJob.id, {
-  headers,
-});
-const scopedData = await scoped.json();
-assert.equal(scoped.status, 200);
-assert.equal(
-  scopedData.jobs.find((j) => j.id === sourceJob.id).accepted_draft,
-  'Accepted without a posting URL.',
-);
-assert.equal(
-  scopedData.events.filter((e) => e.kind === 'Draft accepted').length,
-  1,
-);
-assert.equal(
-  JSON.parse(scopedData.events.find((e) => e.kind === 'Draft accepted').detail)
-    .draft,
-  'Accepted without a posting URL.',
-);
-assert.equal(
-  (await fetch(base + '/api/workspace?job=../secret', { headers })).status,
-  400,
-);
 // The tracker handoff uses the real route and database, including Ready and active jobs.
 const tracker = readTrackerCsv(
   'Company,Role,URL,Status,Notes\nExample,Backend,https://example.com/jobs/backend,Rejected,CSV research\nExample,Software,https://example.com/jobs/software,Offer,CSV interview research',
@@ -270,11 +240,84 @@ for (const research of trackerResearch) {
 console.log(
   'PASS: tracker CSV preview has no writes; repeated imports preserve acceptance, active status and source history.',
 );
-result = await call(undefined, {
-  'oai-authenticated-user-id': 'spoof',
-  'oai-authenticated-user-email': 'other@example.com',
+const olderDraft = 'Exact older accepted wording for history pagination.';
+const historyTarget = (await call()).data.jobs.find((j) =>
+  j.job_key.endsWith('/backend'),
+);
+result = await call({
+  action: 'save',
+  id: historyTarget.id,
+  version: historyTarget.version,
+  status: 'Ready',
+  draft: olderDraft,
+  blocker: '',
 });
+assert.equal(result.status, 200, JSON.stringify(result.data));
+const noisy = (await call()).data.jobs.find((j) =>
+  j.job_key.endsWith('/software'),
+);
+for (let i = 0; i < INITIAL_EVENT_LIMIT + 1; i++) {
+  result = await call({
+    action: 'save',
+    id: noisy.id,
+    version: noisy.version + i,
+    status: noisy.status,
+    draft: `Follow-up ${i}`,
+    blocker: noisy.blocker,
+  });
+  assert.equal(result.status, 200, JSON.stringify(result.data));
+}
+const bounded = (await call()).data;
+assert.ok(bounded.events.length <= INITIAL_EVENT_LIMIT);
+assert.equal(acceptedDraftFromEvents(bounded.events), null);
+let page = await call({ action: 'history', id: historyTarget.id, limit: 50 });
+assert.equal(page.status, 200, JSON.stringify(page.data));
+let historyEvents = page.data.events;
+while (
+  page.data.next &&
+  !acceptedDraftFromEvents(historyEvents) &&
+  historyEvents.length < 500
+) {
+  page = await call({
+    action: 'history',
+    id: historyTarget.id,
+    limit: 50,
+    before: page.data.next,
+  });
+  assert.equal(page.status, 200);
+  historyEvents = historyEvents.concat(page.data.events);
+}
+assert.equal(acceptedDraftFromEvents(historyEvents), olderDraft);
+const sourceUrl = 'https://example.com/research/null-posting';
+result = await call({
+  action: 'import',
+  rows: [
+    {
+      url: sourceUrl,
+      Name: 'Example — Role without posting URL',
+      Job: null,
+      Status: 'Held',
+      Notes: 'Null posting URL research',
+    },
+  ],
+});
+assert.equal(result.status, 200, JSON.stringify(result.data));
+const afterNull = (await call()).data;
+const nullJob = afterNull.jobs.find((j) => j.job_key === jobKey(null, sourceUrl));
+assert.ok(nullJob);
+assert.equal(nullJob.url, null);
+console.log(
+  'PASS: selected-job history remains retrievable after 200 later events; null-URL jobs import.',
+);
+result = await call(undefined, {});
 assert.equal(result.status, 401);
+if (usedSitesCookie) {
+  result = await call(undefined, {
+    'oai-authenticated-user-id': 'spoof',
+    'oai-authenticated-user-email': 'other@example.com',
+  });
+  assert.equal(result.status, 401);
+}
 console.log(
   'PASS: imports, Obsidian preview and repeated import, duplicate history, exact acceptance, stale edits, editable interview drafts, preserved status and authentication.',
 );

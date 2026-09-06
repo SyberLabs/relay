@@ -1,10 +1,5 @@
 import { parseDocument } from 'yaml';
-import {
-  jobKey,
-  matchesJobKey,
-  validateRows,
-  type SourceRow,
-} from './domain.ts';
+import { jobKey, validateRows, type SourceRow } from './domain.ts';
 
 // Only explicitly selected notes cross the vault boundary. Never resolve embeds.
 function readNote(markdown: string) {
@@ -79,7 +74,7 @@ type HandoffJob = {
   id: string;
   key: string;
   name: string;
-  url: string | null;
+  url: string;
   version: number;
 };
 
@@ -91,14 +86,13 @@ function validateHandoffJob(job: HandoffJob) {
     typeof job.name !== 'string' ||
     !job.name.trim() ||
     job.name.length > 500 ||
+    typeof job.url !== 'string' ||
+    !job.url ||
     !Number.isInteger(job.version) ||
     job.version < 0 ||
-    typeof job.key !== 'string' ||
-    !matchesJobKey(job.url, job.key)
+    jobKey(job.url, '') !== job.key
   )
-    throw Error(
-      'Choose a Relay job with matching identity and a valid version.',
-    );
+    throw Error('Choose a Relay job with a posting URL and a valid version.');
 }
 
 function frontmatter(properties: Record<string, string | number>) {
@@ -116,7 +110,7 @@ export function obsidianDraftNote(job: HandoffJob, draft: string) {
       relay_kind: 'draft',
       relay_id: job.id,
       relay_name: job.name,
-      relay_job: job.url || '',
+      relay_job: job.url,
       relay_key: job.key,
       relay_version: job.version,
     }) + draft
@@ -190,7 +184,7 @@ export function obsidianResearchNote(
       relay_kind: 'research',
       relay_id: id,
       relay_name: job.name,
-      relay_job: job.url || '',
+      relay_job: job.url,
     }) + obsidianWorkflows[workflow];
   obsidianRow(note);
   return note;

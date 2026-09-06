@@ -31,6 +31,8 @@ This is Relay's product focus, not a claim of exclusive features or a proven adv
 
 [Integration setup](integrations/README.md) | [Grok Bot instructions](integrations/GROK_BOT.md) | [Launch copy](LAUNCH.md)
 
+[Development workflow](CONTRIBUTING.md) | [Delivery and review](docs/delivery.md) | [Team board](https://github.com/orgs/SyberLabs/projects/1)
+
 ## GrokCell bot templates
 
 The [GrokCell folder](grokcell/README.md) includes First Principles, Product Ideation, Red Flag, and Garbage Collector with their source instructions, profiles, public bot links, and behavior checks. Use a specialist when its purpose fits the task. These templates do not connect to Relay or grant access to application records automatically; the [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts.
@@ -70,7 +72,7 @@ Use your preferred discovery and application tools alongside Relay. [Simplify](h
 
 **First compatibility path: tracker CSV → Relay preview.** Simplify documents [CSV import and export](https://help.simplify.jobs/en/articles/2140179-using-the-job-tracker). In Relay, open **Import a tracker CSV**, choose your file, confirm the company, role and employer posting URL columns, and preview before saving. Optional status and notes columns are preserved as research. Every new job starts Held; source statuses never approve a draft or synchronize the application pipeline. Other columns are explicitly listed as omitted.
 
-This is a file importer, not a Simplify account connection or partnership. CSV handling is tested with fictional fixtures; a real Simplify export has not yet been validated. Files need posting URLs, comma-separated columns and at most 200 opportunity rows. See the [CSV setup guide](integrations/README.md#tracker-csv--relay) and [fictional example](tests/fixtures/tracker-example.csv).
+This is a file importer, not a Simplify account connection or partnership. CSV handling is tested with fictional fixtures and a Chromium journey covering column selection, preview, import, acceptance, repeat import and reload; a real Simplify export has not yet been validated. Files need posting URLs, comma-separated columns and at most 200 opportunity rows. See the [CSV setup guide](integrations/README.md#tracker-csv--relay) and [fictional example](tests/fixtures/tracker-example.csv).
 
 Huntr and Teal export compatibility are further candidates, after the first handoff proves useful. Current working integrations and their verification limits are documented in the [setup guide](integrations/README.md). Market positioning was reviewed against vendor documentation on September 5, 2026; repeat use and willingness to pay remain unvalidated.
 
@@ -89,7 +91,7 @@ The last command needs a running local server and writes only fictional test rec
 
 ## Hosting and privacy
 
-React/Vinext on Cloudflare Workers with D1 persistence and Sites authentication. The checked-in hosting manifest declares logical bindings only; it includes no owner's project ID. A production deployment needs its own Sites project and trusted authentication gateway. The app reads identity headers supplied by that gateway; deploying the raw Worker without equivalent trusted authentication is unsafe. This repository does not contain a public hosted service.
+React/Vinext on Cloudflare Workers with D1 persistence. Local development uses Sites authentication. The production delivery process uses separate staging and production databases with a verified Cloudflare Access gateway; see [hosting and recovery](docs/hosting.md). The checked-in Sites manifest declares logical bindings only. Deploy only the verified release artifact through the protected workflows. Account provisioning, live authentication, and the first production release still require verification before inviting users.
 
 Keep real imports, packets and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, personal records and the original development Git history are excluded from this release.
 

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   assessPosting,
   extractRequirements,
+  jobRequirements,
   postingText,
 } from '../lib/fit.ts';
 
@@ -138,6 +139,44 @@ void test('flattened board notes still extract a requirements section', () => {
     'Kubernetes production experience.',
     'PostgreSQL and Redis.',
   ]);
+});
+
+void test('in-sentence about does not split a required bullet', () => {
+  assert.deepEqual(
+    extractRequirements(
+      ['Requirements', '• Passionate about Kubernetes'].join('\n'),
+    ),
+    ['Passionate about Kubernetes'],
+  );
+});
+
+void test('must-cue lines keep about as a content word', () => {
+  const lines = extractRequirements(
+    'Candidates must care about Terraform in production.',
+  );
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /Terraform/);
+});
+
+void test('a Requirements title does not mark later culture notes as required', () => {
+  assert.deepEqual(
+    jobRequirements({ name: 'Requirements Engineer' }, [
+      { notes: 'A friendly culture-first company.' },
+    ]),
+    [],
+  );
+});
+
+void test('a later observation does not inherit an open requirements section', () => {
+  assert.deepEqual(
+    jobRequirements({ name: 'Northstar — Backend Engineer' }, [
+      {
+        notes: ['Requirements', 'Kubernetes production experience'].join('\n'),
+      },
+      { notes: 'Met the hiring manager. Talked about onboarding.' },
+    ]),
+    ['Kubernetes production experience'],
+  );
 });
 
 void test('the selected job shows posting gates without calling them a score', () => {

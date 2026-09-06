@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { validateRows } from '../lib/domain';
 import { isTerminal } from '../lib/outcomes';
 import { type Fact } from '../lib/profile';
-import { assessPosting, postingText } from '../lib/fit';
+import { assessJob } from '../lib/fit';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
@@ -142,11 +142,9 @@ export default function Workspace() {
         j.name.toLowerCase().includes(search.toLowerCase()),
     ),
     fit = current
-      ? assessPosting(
-          postingText(
-            current,
-            sources.filter((s) => s.job_key === current.job_key),
-          ),
+      ? assessJob(
+          current,
+          sources.filter((s) => s.job_key === current.job_key),
           facts,
           new Date().toISOString(),
         )

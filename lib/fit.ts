@@ -17,7 +17,7 @@ const cue = /\b(must|required|minimum|need to|at least)\b/i;
 const requiredHead =
   /^(requirements?|qualifications?|must haves|basic qualifications|minimum qualifications|what you.?ll need)$/i;
 const otherHead =
-  /^(benefits?|about(\s+the)?(\s+(role|team|company|us))?|responsibilities|what you.?ll do|nice to have|preferred|perks)$/i;
+  /^(benefits?|about the (?:role|team|company|us)|about us|responsibilities|what you.?ll do|nice to have|preferred|perks)$/i;
 const filler = new Set([
   'must',
   'required',
@@ -42,7 +42,10 @@ function requirementWords(text: string) {
 }
 function postingLines(text: string): string[] {
   const prepared = text.replace(/[•·▪◦]/g, '\n').replace(
-    /\b(requirements?|qualifications?|must haves|basic qualifications|minimum qualifications|what you.?ll need|benefits?|about(\s+the)?(\s+(role|team|company|us))?|responsibilities|what you.?ll do|nice to have|preferred|perks)\b/gi,
+    /(^|[.\n!?]\s+)(requirements?|qualifications?|must haves|basic qualifications|minimum qualifications|what you.?ll need|benefits?|responsibilities|preferred|perks)\b/gi,
+    '$1\n$2\n',
+  ).replace(
+    /\b(about the (?:role|team|company|us)|about us|nice to have|what you.?ll (?:need|do))\b/gi,
     '\n$&\n',
   );
   const out: string[] = [];
@@ -77,6 +80,28 @@ export function extractRequirements(text: string): string[] {
   }
   return out;
 }
+export function jobRequirements(
+  job: { name: string },
+  sources: { notes: string }[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const add = (lines: string[]) => {
+    for (const line of lines) {
+      const key = line.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(line);
+      if (out.length >= limit) return;
+    }
+  };
+  add(extractRequirements(job.name).filter((line) => cue.test(line)));
+  for (const source of sources) {
+    if (out.length >= limit) break;
+    add(extractRequirements(source.notes));
+  }
+  return out;
+}
 export function postingText(
   job: { name: string },
   sources: { notes: string }[],
@@ -99,12 +124,11 @@ function covers(
   for (const w of words) if (factWords.has(w)) overlap++;
   return overlap >= Math.min(2, words.size || 1);
 }
-export function assessPosting(
-  posting: string,
+function assessRequirements(
+  requirements: string[],
   facts: Fact[],
   now: string,
 ): { gates: Gate[]; reason: FitReason } {
-  const requirements = extractRequirements(posting);
   if (!requirements.length) return { gates: [], reason: 'notes' };
   const usable = facts.filter((f) => usableFact(f, now));
   if (!usable.length)
@@ -126,4 +150,19 @@ export function assessPosting(
       return { text, status: 'miss', factId: null };
     }),
   };
+}
+export function assessPosting(
+  posting: string,
+  facts: Fact[],
+  now: string,
+): { gates: Gate[]; reason: FitReason } {
+  return assessRequirements(extractRequirements(posting), facts, now);
+}
+export function assessJob(
+  job: { name: string },
+  sources: { notes: string }[],
+  facts: Fact[],
+  now: string,
+): { gates: Gate[]; reason: FitReason } {
+  return assessRequirements(jobRequirements(job, sources), facts, now);
 }

@@ -32,6 +32,8 @@ ChatGPT uses a prompt/file handoff; Codex also supports a local CLI adapter. Thi
 [Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)
 <!-- relay:public:end -->
 
+Tracker CSV imports are also available through explicit column mapping and preview. Source statuses remain research; existing Relay status and accepted drafts are preserved. [Tracker CSV setup](integrations/README.md#tracker-csv--relay).
+
 [Development workflow](CONTRIBUTING.md) | [Delivery and review](docs/delivery.md) | [Team board](https://github.com/orgs/SyberLabs/projects/1)
 
 ## Why Relay

@@ -2,10 +2,6 @@
 
 Relay uses local commands and explicit file handoffs. You choose which data leaves your workspace. The command tool works in a Grok Bot VM, Claude Code terminal, or a normal shell. It needs Node 24; it does not require a hosted Relay API token.
 
-## ChatGPT and Codex to Relay
-
-Use **Prepare for ChatGPT** or **Prepare for Codex** in the connection panel, then return the assistant's JSON response for review. Codex also supports `codex-run` through your signed-in CLI. [Read the complete ChatGPT and Codex guide](OPENAI.md) for commands, setup and data boundaries. These are explicit handoffs, not an installed hosted ChatGPT app.
-
 ## Tracker CSV → Relay
 
 Use **Import a tracker CSV** in the workspace for a user-managed Simplify export or another comma-separated tracker file. This path needs no account connection or credentials.
@@ -20,6 +16,10 @@ Source status is recorded in the observation's notes. An Applied, Interview, Off
 Files must be UTF-8, comma-separated, smaller than 2 MB, with one unique header row and 1–200 opportunity rows. Quoted commas, escaped quotes and multiline notes are supported. The limit is 50 columns, 500 characters for the combined company/role title and 20,000 for the resulting research including its source label/status. Blank lines are ignored. Missing posting URLs, duplicate headers, malformed rows and oversized values reject the batch with an error; no partial import occurs. Add missing employer URLs to your copy before trying again.
 
 Try [the fictional CSV](../tests/fixtures/tracker-example.csv). These sample headers are a Relay test fixture, not a captured Simplify export. The [Simplify tracker guide](https://help.simplify.jobs/en/articles/2140179-using-the-job-tracker) documents CSV export; compatibility with an actual account export remains unverified. This release claims no Simplify partnership, API access, account sync or application sending.
+
+## ChatGPT and Codex to Relay
+
+Use **Prepare for ChatGPT** or **Prepare for Codex** in the connection panel, then return the assistant's JSON response for review. Codex also supports `codex-run` through your signed-in CLI. [Read the complete ChatGPT and Codex guide](OPENAI.md) for commands, setup and data boundaries. These are explicit handoffs, not an installed hosted ChatGPT app.
 
 ## Notion → Relay
 

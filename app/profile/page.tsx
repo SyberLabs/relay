@@ -2,10 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  beginPageWork,
   createPageSession,
-  pageWorkIsLive,
-  readAuthorizedJson,
+  postJson,
+  runPageMutation,
+  runPageRead,
 } from '../../lib/page-session';
 import {
   ArrowLeft,
@@ -57,27 +57,28 @@ export default function Profile() {
     setSignedOut(true);
   }, []);
   const refresh = useCallback(async () => {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    const r = await fetch('/api/profile');
-    const reply = await readAuthorizedJson<{
+    await runPageRead<{
       facts: Fact[];
       rules: Rule[];
       version: number;
       usable: number;
       error?: string;
-    }>(sessionRef.current, started, r, 'Unable to load profile.');
-    if (reply.kind === 'expired') {
-      applyExpired();
-      return;
-    }
-    if (reply.kind === 'ignore') return;
-    if (reply.kind === 'error') throw Error(reply.error);
-    if (!pageWorkIsLive(sessionRef.current, started)) return;
-    setFacts(reply.body.facts);
-    setRules(reply.body.rules);
-    setVersion(reply.body.version);
-    setUsable(reply.body.usable);
+    }>(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => fetch('/api/profile'),
+      'Unable to load profile.',
+      (body) => {
+        setFacts(body.facts);
+        setRules(body.rules);
+        setVersion(body.version);
+        setUsable(body.usable);
+      },
+    );
   }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
@@ -88,76 +89,42 @@ export default function Profile() {
       });
   }, [refresh]);
   async function run(body: Record<string, unknown>, note: string) {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    setBusy(true);
-    setMessage('');
-    try {
-      const r = await fetch('/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const reply = await readAuthorizedJson<{ error?: string }>(
-        sessionRef.current,
-        started,
-        r,
-        'Unable to complete request.',
-      );
-      if (reply.kind === 'expired') {
-        applyExpired();
-        return;
-      }
-      if (reply.kind === 'ignore') return;
-      if (reply.kind === 'error') throw Error(reply.error);
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      await refresh();
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(note);
-      return reply.body;
-    } catch (e) {
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(
-        e instanceof Error ? e.message : 'Unable to complete request.',
-      );
-    } finally {
-      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
-    }
+    return runPageMutation(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => postJson('/api/profile', body),
+      'Unable to complete request.',
+      { clearMessage: true, refresh, succeed: () => setMessage(note) },
+    );
   }
+  // Extraction proposes candidate facts and writes nothing, so it reports its
+  // own result instead of reloading the ledger.
   async function extract() {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    setBusy(true);
-    setMessage('');
-    try {
-      const r = await fetch('/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'extract', text: resume }),
-      });
-      const reply = await readAuthorizedJson<{
-        candidates?: Candidate[];
-        error?: string;
-      }>(sessionRef.current, started, r, 'Unable to read resume.');
-      if (reply.kind === 'expired') {
-        applyExpired();
-        return;
-      }
-      if (reply.kind === 'ignore') return;
-      if (reply.kind === 'error') throw Error(reply.error);
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      const next = reply.body.candidates!;
-      setCandidates(next);
-      setChosen(new Set(next.map((_, i) => i)));
-      setMessage(
-        `${next.length} candidate facts found. Nothing is saved until you add them, and nothing is usable until you verify it.`,
-      );
-    } catch (e) {
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(e instanceof Error ? e.message : 'Unable to read resume.');
-    } finally {
-      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
-    }
+    await runPageMutation<{ candidates?: Candidate[]; error?: string }>(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => postJson('/api/profile', { action: 'extract', text: resume }),
+      'Unable to read resume.',
+      {
+        clearMessage: true,
+        succeed: (body) => {
+          const next = body.candidates!;
+          setCandidates(next);
+          setChosen(new Set(next.map((_, i) => i)));
+          setMessage(
+            `${next.length} candidate facts found. Nothing is saved until you add them, and nothing is usable until you verify it.`,
+          );
+        },
+      },
+    );
   }
   const proposed = facts.filter((f) => f.status === 'Proposed'),
     verified = facts.filter((f) => f.status === 'Verified');

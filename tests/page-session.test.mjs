@@ -4,16 +4,20 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/page-session.ts';
 
-// Coverage: helper 401-before-parse; each page refresh/mutation/extract via
-// compiled source callbacks; review sibling GET held after the other 401s;
-// delayed GET/POST/json cannot restore or start a follow-up refresh;
-// helper kind=ok then a later-turn 401 cannot restore refresh/extract state
-// (microtask offset sweep plus a forced helper-to-caller gap).
-// Gaps: browser tests cover same-mount POST 401 and profile extract 401 only
-// (no user-triggered GET refresh). Overlapping successful GETs without 401
-// are not generation-gated. Same-mount reauthentication is not offered.
-// Delayed restoration was not observed in prior QA; these cases are
-// regressions, not a claim that it was seen.
+// The expiry rule used to be written out once per mounted page, so this file
+// used to prove it once per mounted page: it read the four page sources,
+// sliced the callback bodies out with regular expressions and evaluated them.
+// The rule now has one owner in lib/page-session.ts, so the ordering cases are
+// proved once against that module, directly. What is left per page is what is
+// genuinely per page — which private fields it clears — plus a check that a
+// page still routes through the runner instead of hand-rolling the sequence.
+//
+// Coverage: helper 401-before-parse; runner read/sibling-read/mutation across
+// 401 before parse, expiry mid-parse, expiry across a microtask sweep, expiry
+// before the request, expiry on the follow-up refresh, and the error path;
+// each page's cleared fields; each page's wiring.
+// Gaps: browser tests cover same-mount POST 401 and profile extract 401 only.
+// Same-mount reauthentication is not offered.
 
 function http(status, body, jsonHook) {
   const state = { jsonCalls: 0 };
@@ -41,318 +45,113 @@ function deferred() {
   return { promise, resolve };
 }
 
-function compile(text) {
-  return stripTypeScriptTypes(text, { mode: 'transform' })
-    .trim()
-    .replace(/;$/, '');
-}
-
-function bind(text, deps) {
-  // oxlint-disable-next-line typescript/no-implied-eval -- exercise actual page callbacks
-  return new Function(...Object.keys(deps), 'return (' + compile(text) + ');')(
-    ...Object.values(deps),
-  );
-}
-
-function bindFunction(text, deps) {
-  // oxlint-disable-next-line typescript/no-implied-eval -- exercise actual page callbacks
-  return new Function(
-    ...Object.keys(deps),
-    compile(text) + ';return ' + nameOf(text),
-  )(...Object.values(deps));
-}
-
-function nameOf(text) {
-  return text.match(/function\s+([A-Za-z0-9_]+)/)[1];
-}
-
-function callbackBody(source, name) {
-  const token = `const ${name} = useCallback(`;
-  const start = source.indexOf(token);
-  if (start < 0) throw new Error('missing callback ' + name);
-  const matched = source
-    .slice(start + token.length)
-    .match(/^([\s\S]*?),\s*\[(?:applyExpired)?\]\s*\);/);
-  if (!matched) throw new Error('could not extract ' + name);
-  return matched[1];
-}
-
-function sliceFrom(source, startToken, stopToken) {
-  const start = source.indexOf(startToken);
-  if (start < 0) throw new Error('missing ' + startToken);
-  const end = source.indexOf(stopToken, start + startToken.length);
-  if (end < 0) throw new Error('missing stop ' + stopToken);
-  return source.slice(start, end);
-}
-
-function setters(state, keys) {
-  const deps = {};
-  for (const key of keys) {
-    deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) => {
-      state[key] = typeof value === 'function' ? value(state[key]) : value;
-    };
-  }
-  return deps;
-}
-
-function pageDeps(state, keys, fetchImpl) {
-  const session = helper.createPageSession();
-  const deps = {
-    ...helper,
-    ...setters(state, keys),
-    ...state,
-    sessionRef: { current: session },
-    fetch: fetchImpl,
-  };
-  return { session, deps };
-}
-
-function bindExpired(source, deps) {
-  deps.applyExpired = bind(callbackBody(source, 'applyExpired'), deps);
-}
-
-function watchAuthorizedJson(deps, onReply) {
-  const inner = helper.readAuthorizedJson;
-  deps.readAuthorizedJson = async (...args) => {
-    const reply = await inner(...args);
-    onReply(reply);
-    return reply;
-  };
-}
-
-function expireAfterHelperOk(deps, session, afterCount = 1) {
-  let oks = 0;
-  watchAuthorizedJson(deps, (reply) => {
-    if (reply.kind !== 'ok') return;
-    oks += 1;
-    if (oks < afterCount) return;
-    helper.expirePageSession(session);
-    deps.applyExpired();
-  });
-}
-
-function mutationStop(label, source) {
-  if (label === 'profile') return '  async function extract()';
-  if (label === 'review')
-    return source.includes('async function saveCorrection(')
-      ? '  async function saveCorrection('
-      : '  function addRule(';
-  return '  if (signedOut)';
-}
-
 async function flush(n = 8) {
   for (let i = 0; i < n; i++) await Promise.resolve();
 }
 
-const profileKeys = [
-  'facts',
-  'rules',
-  'version',
-  'usable',
-  'resume',
-  'candidates',
-  'chosen',
-  'expiry',
-  'rule',
-  'scope',
-  'busy',
-  'message',
-  'signedOut',
+const PRIVATE = { facts: [{ claim: 'PRIVATE_RECORD' }], error: undefined };
+
+// A stand-in page: it holds private records, a busy flag and a message, and
+// clears the records when its session expires. That is the whole contract the
+// runner depends on.
+function page() {
+  const state = {
+    records: null,
+    busy: false,
+    message: 'old',
+    signedOut: false,
+    expiries: 0,
+  };
+  const session = helper.createPageSession();
+  const host = {
+    session,
+    onExpired: () => {
+      state.expiries += 1;
+      state.records = null;
+      state.busy = false;
+      state.message = '';
+      state.signedOut = true;
+    },
+    setBusy: (busy) => {
+      state.busy = busy;
+    },
+    setMessage: (message) => {
+      state.message = message;
+    },
+  };
+  return { state, session, host };
+}
+
+const unauthorizedBodies = [
+  { format: 'json', body: { error: 'Sign in first.' } },
+  { format: 'plain', body: 'Unauthorized' },
 ];
-const preferencesKeys = ['state', 'busy', 'message', 'minutes', 'signedOut'];
-const reviewKeys = [
-  'drafts',
-  'facts',
-  'batches',
-  'trust',
-  'trigger',
-  'edits',
-  'proposals',
-  'basket',
-  'busy',
-  'message',
-  'signedOut',
-];
-const trackKeys = ['data', 'busy', 'message', 'receipts', 'signedOut'];
 
-function loadedProfile() {
-  return {
-    facts: [
-      {
-        id: 'f1',
-        claim: 'PRIVATE_PROFILE_FACT',
-        evidence: 'ev',
-        tag: 'role',
-        status: 'Verified',
-        verified: '2026-01-01',
-        expires: null,
-      },
-    ],
-    rules: [{ id: 'r1', rule: 'PRIVATE_PROFILE_RULE', scope: 'global' }],
-    version: 7,
-    usable: 1,
-    resume: 'PRIVATE_RESUME',
-    candidates: [{ claim: 'PRIVATE_CANDIDATE', evidence: 'e', tag: 'role' }],
-    chosen: new Set([0]),
-    expiry: { f1: '2026-12-01' },
-    rule: 'typed rule',
-    scope: 'backend',
-    busy: false,
-    message: 'old',
-    signedOut: false,
-  };
-}
-
-function loadedPreferences() {
-  return {
-    state: {
-      weights: { comp: 0.2, remote: 0.1, level: 0, size: 0, domain: 0 },
-      answered: 3,
-      minutes: 180,
-      pool: 4,
-      target: 12,
-      pair: {
-        a: { job_key: 'a', name: 'PRIVATE_PREF_JOB_A' },
-        b: { job_key: 'b', name: 'PRIVATE_PREF_JOB_B' },
-      },
-    },
-    busy: false,
-    message: 'old',
-    minutes: 180,
-    signedOut: false,
-  };
-}
-
-function loadedReview() {
-  return {
-    drafts: [
-      {
-        id: 'd1',
-        body: 'PRIVATE_REVIEW_DRAFT',
-        cluster: 'backend',
-        verdict: 'Logged',
-      },
-    ],
-    facts: [{ id: 'f1', claim: 'PRIVATE_REVIEW_FACT' }],
-    batches: [{ id: 'b1', reason: 'PRIVATE_BATCH', closed: null, size: 1 }],
-    trust: {
-      backend: { cluster: 'backend', state: 'Review', reviewed: 2, edit: 0.1 },
-    },
-    trigger: { reason: 'PRIVATE_REVIEW_REASON', ids: ['d1'] },
-    edits: { d1: 'PRIVATE_EDIT' },
-    proposals: { d1: ['PRIVATE_PROPOSAL'] },
-    basket: [{ rule: 'PRIVATE_STAGED_RULE', scope: 'global' }],
-    busy: false,
-    message: 'old',
-    signedOut: false,
-  };
-}
-
-function loadedTrack() {
-  return {
-    data: {
-      outcomes: [{ id: 'o1', kind: 'submitted', receipt: 'PRIVATE_RECEIPT' }],
-      prep: [
-        {
-          id: 'job-1',
-          name: 'PRIVATE_TRACK_JOB',
-          status: 'Ready',
-          claims: [{ id: 'c1', claim: 'PRIVATE_TRACK_CLAIM' }],
-        },
-      ],
-      rates: {
-        backend: { mean: 0.2, low: 0.1, high: 0.3, sent: 4, responses: 1 },
-      },
-    },
-    busy: false,
-    message: 'old',
-    receipts: { 'job-1': 'PRIVATE_TYPED_RECEIPT' },
-    signedOut: false,
-  };
-}
-
-const profileOk = {
-  facts: loadedProfile().facts,
-  rules: loadedProfile().rules,
-  version: 7,
-  usable: 1,
-};
-const preferencesOk = loadedPreferences().state;
-const reviewDraftsOk = {
-  drafts: loadedReview().drafts,
-  batches: loadedReview().batches,
-  trust: loadedReview().trust,
-  trigger: loadedReview().trigger,
-};
-const reviewProfileOk = { facts: loadedReview().facts };
-const trackOk = loadedTrack().data;
-const extractOk = {
-  candidates: [{ claim: 'PRIVATE_CANDIDATE', evidence: 'e', tag: 'role' }],
-};
-
-function assertCleared(label, state, detail) {
-  assert.equal(state.signedOut, true, detail);
-  if (label === 'profile') {
-    assert.deepEqual(state.facts, [], detail);
-    assert.deepEqual(state.rules, [], detail);
-    assert.equal(state.resume, '', detail);
-    assert.deepEqual(state.candidates, [], detail);
-  }
-  if (label === 'preferences') assert.equal(state.state, null, detail);
-  if (label === 'review') {
-    assert.deepEqual(state.drafts, [], detail);
-    assert.deepEqual(state.facts, [], detail);
-  }
-  if (label === 'track') assert.equal(state.data, null, detail);
-}
+// ---------------------------------------------------------------- helper ---
 
 void test('plain Unauthorized 401 expires without parsing JSON', async () => {
   const session = helper.createPageSession();
   const started = helper.beginPageWork(session);
-  const r = http(401, 'Unauthorized');
-  const reply = await helper.readAuthorizedJson(session, started, r, 'Unable.');
+  const response = http(401, 'Unauthorized');
+  const reply = await helper.readAuthorizedJson(
+    session,
+    started,
+    response,
+    'Unable.',
+  );
   assert.equal(reply.kind, 'expired');
-  assert.equal(r.jsonCalls, 0);
   assert.equal(session.expired, true);
+  assert.equal(response.jsonCalls, 0);
 });
 
 void test('JSON 401 expires without parsing the body', async () => {
   const session = helper.createPageSession();
   const started = helper.beginPageWork(session);
-  const r = http(401, { error: 'Sign in first.' });
-  const reply = await helper.readAuthorizedJson(session, started, r, 'Unable.');
+  const response = http(401, { error: 'Sign in first.' });
+  const reply = await helper.readAuthorizedJson(
+    session,
+    started,
+    response,
+    'Unable.',
+  );
   assert.equal(reply.kind, 'expired');
-  assert.equal(r.jsonCalls, 0);
+  assert.equal(response.jsonCalls, 0);
 });
 
 void test('a later 200 is ignored after expiry and does not parse', async () => {
   const session = helper.createPageSession();
   const started = helper.beginPageWork(session);
   helper.expirePageSession(session);
-  const r = http(200, { facts: [{ claim: 'PRIVATE_PROFILE_FACT' }] });
-  const reply = await helper.readAuthorizedJson(session, started, r, 'Unable.');
+  const response = http(200, PRIVATE);
+  const reply = await helper.readAuthorizedJson(
+    session,
+    started,
+    response,
+    'Unable.',
+  );
   assert.equal(reply.kind, 'ignore');
-  assert.equal(r.jsonCalls, 0);
+  assert.equal(response.jsonCalls, 0);
 });
 
 void test('expiry during JSON parse cannot return private records', async () => {
   const session = helper.createPageSession();
   const started = helper.beginPageWork(session);
-  const r = http(
-    200,
-    { facts: [{ claim: 'PRIVATE_PROFILE_FACT' }] },
-    async () => {
-      helper.expirePageSession(session);
-    },
+  const response = http(200, PRIVATE, () => {
+    helper.expirePageSession(session);
+  });
+  const reply = await helper.readAuthorizedJson(
+    session,
+    started,
+    response,
+    'Unable.',
   );
-  const reply = await helper.readAuthorizedJson(session, started, r, 'Unable.');
   assert.equal(reply.kind, 'ignore');
-  assert.equal(session.expired, true);
 });
 
 void test('an older 401 still expires while other work is live', async () => {
   const session = helper.createPageSession();
   const older = helper.beginPageWork(session);
+  session.epoch += 1;
   const newer = helper.beginPageWork(session);
   await helper.readAuthorizedJson(
     session,
@@ -363,518 +162,509 @@ void test('an older 401 still expires while other work is live', async () => {
   const late = await helper.readAuthorizedJson(
     session,
     newer,
-    http(200, { facts: [{ claim: 'leaked' }] }),
+    http(200, PRIVATE),
     'Unable.',
   );
   assert.equal(late.kind, 'ignore');
   assert.equal(session.expired, true);
 });
 
+// ------------------------------------------------------------------ read ---
+
+for (const { format, body } of unauthorizedBodies) {
+  void test(`read 401 ${format} expires before parse`, async () => {
+    const { state, session, host } = page();
+    const unauthorized = http(401, body);
+    await helper.runPageRead(
+      host,
+      async () => unauthorized,
+      'Unable to load.',
+      (loaded) => {
+        state.records = loaded;
+      },
+    );
+    assert.equal(session.expired, true);
+    assert.equal(state.signedOut, true);
+    assert.equal(state.records, null);
+    assert.equal(unauthorized.jsonCalls, 0);
+  });
+}
+
+void test('read refuses to start once the session has expired', async () => {
+  const { state, session, host } = page();
+  helper.expirePageSession(session);
+  host.onExpired();
+  let calls = 0;
+  await helper.runPageRead(
+    host,
+    async () => {
+      calls += 1;
+      return http(200, PRIVATE);
+    },
+    'Unable to load.',
+    (loaded) => {
+      state.records = loaded;
+    },
+  );
+  assert.equal(calls, 0);
+  assert.equal(state.records, null);
+});
+
+void test('read cannot apply records when expiry lands mid-parse', async () => {
+  const { state, session, host } = page();
+  await helper.runPageRead(
+    host,
+    async () =>
+      http(200, PRIVATE, () => {
+        helper.expirePageSession(session);
+        host.onExpired();
+      }),
+    'Unable to load.',
+    (loaded) => {
+      state.records = loaded;
+    },
+  );
+  assert.equal(state.records, null);
+  assert.equal(session.expired, true);
+});
+
+void test('read 200 cannot restore across 401 microtask gaps', async () => {
+  for (let gap = 0; gap < 20; gap++) {
+    const { state, session, host } = page();
+    const get = deferred();
+    const post = deferred();
+    const pendingRead = helper.runPageRead(
+      host,
+      () => get.promise,
+      'Unable to load.',
+      (loaded) => {
+        state.records = loaded;
+      },
+    );
+    const pendingExpiry = (async () => {
+      const response = await post.promise;
+      if (helper.expireIfUnauthorized(session, response)) host.onExpired();
+    })();
+    get.resolve(http(200, PRIVATE));
+    for (let tick = 0; tick < gap; tick++) await Promise.resolve();
+    post.resolve(http(401, 'Unauthorized'));
+    await Promise.all([pendingRead, pendingExpiry]);
+    assert.equal(state.records, null, `gap ${gap}`);
+    assert.equal(state.signedOut, true, `gap ${gap}`);
+    assert.equal(session.expired, true, `gap ${gap}`);
+  }
+});
+
+void test('read reports a failure instead of showing an empty page', async () => {
+  const { host } = page();
+  await assert.rejects(
+    helper.runPageRead(
+      host,
+      async () => http(500, { error: 'Database unavailable.' }),
+      'Unable to load.',
+      () => {
+        throw new Error('must not apply');
+      },
+    ),
+    /Database unavailable\./,
+  );
+});
+
+// --------------------------------------------------------- sibling reads ---
+
+void test('a 401 on the second sibling expires while the first is held', async () => {
+  const { state, session, host } = page();
+  const drafts = deferred();
+  const pending = helper.runPageSiblingReads(
+    host,
+    [() => drafts.promise, async () => http(401, 'Unauthorized')],
+    ['Unable to load drafts.', 'Unable to load profile.'],
+    (first, second) => {
+      state.records = { first, second };
+    },
+  );
+  await flush();
+  assert.equal(session.expired, true, 'must expire before the held GET lands');
+  assert.equal(state.signedOut, true);
+  drafts.resolve(http(200, PRIVATE));
+  await pending;
+  assert.equal(state.records, null);
+});
+
+void test('a 401 on the first sibling expires while the second is held', async () => {
+  const { state, session, host } = page();
+  const profile = deferred();
+  const pending = helper.runPageSiblingReads(
+    host,
+    [async () => http(401, 'Unauthorized'), () => profile.promise],
+    ['Unable to load drafts.', 'Unable to load profile.'],
+    (first, second) => {
+      state.records = { first, second };
+    },
+  );
+  await flush();
+  assert.equal(session.expired, true);
+  profile.resolve(http(200, PRIVATE));
+  await pending;
+  assert.equal(state.records, null);
+});
+
+void test('sibling reads apply both bodies only when both are live', async () => {
+  const { state, host } = page();
+  await helper.runPageSiblingReads(
+    host,
+    [async () => http(200, { drafts: ['d'] }), async () => http(200, PRIVATE)],
+    ['Unable to load drafts.', 'Unable to load profile.'],
+    (first, second) => {
+      state.records = { first, second };
+    },
+  );
+  assert.deepEqual(state.records.first.drafts, ['d']);
+  assert.deepEqual(state.records.second.facts, PRIVATE.facts);
+});
+
+void test('sibling reads cannot apply when expiry lands between them', async () => {
+  const { state, session, host } = page();
+  await helper.runPageSiblingReads(
+    host,
+    [
+      async () => http(200, { drafts: ['d'] }),
+      async () =>
+        http(200, PRIVATE, () => {
+          helper.expirePageSession(session);
+          host.onExpired();
+        }),
+    ],
+    ['Unable to load drafts.', 'Unable to load profile.'],
+    (first, second) => {
+      state.records = { first, second };
+    },
+  );
+  assert.equal(state.records, null);
+  assert.equal(session.expired, true);
+});
+
+// -------------------------------------------------------------- mutation ---
+
+for (const { format, body } of unauthorizedBodies) {
+  void test(`mutation 401 ${format} expires and skips the body parse`, async () => {
+    const { state, session, host } = page();
+    const unauthorized = http(401, body);
+    let posts = 0;
+    let refreshes = 0;
+    const result = await helper.runPageMutation(
+      host,
+      async () => {
+        posts += 1;
+        return unauthorized;
+      },
+      'Unable to record.',
+      {
+        clearMessage: true,
+        refresh: async () => {
+          refreshes += 1;
+        },
+        succeed: () => {
+          state.message = 'should not appear after expiry';
+        },
+      },
+    );
+    assert.equal(result, undefined);
+    assert.equal(posts, 1);
+    assert.equal(
+      refreshes,
+      0,
+      'an expired mutation must not start a follow-up refresh',
+    );
+    assert.equal(session.expired, true);
+    assert.equal(state.signedOut, true);
+    assert.equal(state.busy, false);
+    assert.equal(state.message, '');
+    assert.equal(unauthorized.jsonCalls, 0);
+  });
+}
+
+void test('an expired session refuses a new mutation before fetching', async () => {
+  const { state, session, host } = page();
+  helper.expirePageSession(session);
+  host.onExpired();
+  let calls = 0;
+  const result = await helper.runPageMutation(
+    host,
+    async () => {
+      calls += 1;
+      return http(200, { ok: true });
+    },
+    'Unable to record.',
+    { succeed: () => assert.fail('must not succeed') },
+  );
+  assert.equal(calls, 0);
+  assert.equal(result, undefined);
+  assert.equal(state.signedOut, true);
+});
+
+void test('a delayed read cannot restore records after a mutation 401', async () => {
+  const { state, session, host } = page();
+  const get = deferred();
+  const post = deferred();
+  let gets = 0;
+  const pendingRead = helper.runPageRead(
+    host,
+    () => {
+      gets += 1;
+      return get.promise;
+    },
+    'Unable to load.',
+    (loaded) => {
+      state.records = loaded;
+    },
+  );
+  const pendingMutation = helper.runPageMutation(
+    host,
+    () => post.promise,
+    'Unable to record.',
+    {
+      refresh: async () => {
+        gets += 1;
+      },
+      succeed: () => {
+        state.message = 'saved';
+      },
+    },
+  );
+  post.resolve(http(401, 'Unauthorized'));
+  await flush();
+  assert.equal(state.signedOut, true, 'must expire before the held GET lands');
+  const getsAfterExpiry = gets;
+  get.resolve(http(200, PRIVATE));
+  await Promise.all([pendingRead, pendingMutation]);
+  assert.equal(session.expired, true);
+  assert.equal(state.records, null);
+  assert.equal(
+    gets,
+    getsAfterExpiry,
+    'an expired mutation must not start a follow-up refresh',
+  );
+});
+
+void test('a 401 on the follow-up refresh does not report success', async () => {
+  const { state, session, host } = page();
+  const result = await helper.runPageMutation(
+    host,
+    async () => http(200, { proposals: ['PRIVATE_PROPOSAL'] }),
+    'Unable to complete request.',
+    {
+      refresh: async () => {
+        helper.expirePageSession(session);
+        host.onExpired();
+      },
+      succeed: () => {
+        state.message = 'must not appear';
+      },
+    },
+  );
+  assert.equal(result, undefined, 'private reply must not reach the page');
+  assert.equal(state.message, '');
+  assert.equal(state.signedOut, true);
+});
+
+void test('a mutation reports its own failure and releases the busy flag', async () => {
+  const { state, host } = page();
+  const result = await helper.runPageMutation(
+    host,
+    async () => http(409, { error: 'This record changed.' }),
+    'Unable to record.',
+    { succeed: () => assert.fail('must not succeed') },
+  );
+  assert.equal(result, undefined);
+  assert.equal(state.message, 'This record changed.');
+  assert.equal(state.busy, false);
+});
+
+void test('a mutation without a refresh applies its own reply', async () => {
+  const { state, host } = page();
+  const result = await helper.runPageMutation(
+    host,
+    async () => http(200, { candidates: [{ claim: 'PRIVATE_CANDIDATE' }] }),
+    'Unable to read resume.',
+    {
+      clearMessage: true,
+      succeed: (loaded) => {
+        state.records = loaded.candidates;
+      },
+    },
+  );
+  assert.deepEqual(state.records, [{ claim: 'PRIVATE_CANDIDATE' }]);
+  assert.deepEqual(result.candidates, [{ claim: 'PRIVATE_CANDIDATE' }]);
+  assert.equal(state.busy, false);
+});
+
+void test('a refusing mutation cannot apply candidates after expiry', async () => {
+  const { state, session, host } = page();
+  const result = await helper.runPageMutation(
+    host,
+    async () =>
+      http(200, { candidates: [{ claim: 'PRIVATE_CANDIDATE' }] }, () => {
+        helper.expirePageSession(session);
+        host.onExpired();
+      }),
+    'Unable to read resume.',
+    {
+      clearMessage: true,
+      succeed: () => {
+        state.records = 'restored';
+      },
+    },
+  );
+  assert.equal(result, undefined);
+  assert.equal(state.records, null);
+});
+
+// ----------------------------------------------------------- the pages ----
+
+// applyExpired is the one part that is genuinely per page: which private
+// fields that page holds. It is a useCallback with no dependencies, so it can
+// be lifted and run without a renderer.
+function compile(text) {
+  return stripTypeScriptTypes(text, { mode: 'transform' })
+    .trim()
+    .replace(/;$/, '');
+}
+
+function clearedBy(source, state) {
+  const token = 'const applyExpired = useCallback(';
+  const start = source.indexOf(token);
+  assert.ok(start >= 0, 'missing applyExpired');
+  const matched = source
+    .slice(start + token.length)
+    .match(/^([\s\S]*?),\s*\[\]\s*\);/);
+  assert.ok(matched, 'could not extract applyExpired');
+  const setters = {};
+  for (const key of Object.keys(state))
+    setters['set' + key[0].toUpperCase() + key.slice(1)] = (value) => {
+      state[key] = typeof value === 'function' ? value(state[key]) : value;
+    };
+  // oxlint-disable-next-line typescript/no-implied-eval -- run the page's own callback
+  new Function(
+    ...Object.keys(setters),
+    'return (' + compile(matched[1]) + ');',
+  )(...Object.values(setters))();
+  return state;
+}
+
 const pages = [
   {
     label: 'profile',
     file: 'app/profile/page.tsx',
-    keys: profileKeys,
-    seed: loadedProfile,
-    mutation: 'run',
-    okBody: profileOk,
+    loaded: {
+      facts: [{ id: 'f1', claim: 'PRIVATE_PROFILE_FACT' }],
+      rules: [{ id: 'r1', rule: 'PRIVATE_PROFILE_RULE' }],
+      version: 7,
+      usable: 1,
+      resume: 'PRIVATE_RESUME',
+      candidates: [{ claim: 'PRIVATE_CANDIDATE' }],
+      chosen: new Set([0]),
+      expiry: { f1: '2026-12-01' },
+      rule: 'typed rule',
+      scope: 'backend',
+      busy: true,
+      message: 'old',
+      signedOut: false,
+    },
+    private: ['facts', 'rules', 'candidates', 'resume', 'expiry', 'rule'],
   },
   {
     label: 'preferences',
     file: 'app/preferences/page.tsx',
-    keys: preferencesKeys,
-    seed: loadedPreferences,
-    mutation: 'post',
-    okBody: preferencesOk,
+    loaded: {
+      state: { pair: { a: { name: 'PRIVATE_PREF_JOB_A' } } },
+      busy: true,
+      message: 'old',
+      minutes: 180,
+      signedOut: false,
+    },
+    private: ['state'],
   },
   {
     label: 'review',
     file: 'app/review/page.tsx',
-    keys: reviewKeys,
-    seed: loadedReview,
-    mutation: 'run',
-    okBody: reviewDraftsOk,
+    loaded: {
+      drafts: [{ id: 'd1', body: 'PRIVATE_REVIEW_DRAFT' }],
+      facts: [{ id: 'f1', claim: 'PRIVATE_REVIEW_FACT' }],
+      batches: [{ id: 'b1', reason: 'PRIVATE_BATCH' }],
+      trust: { backend: { state: 'Review' } },
+      trigger: { reason: 'PRIVATE_REVIEW_REASON', ids: ['d1'] },
+      edits: { d1: 'PRIVATE_EDIT' },
+      proposals: { d1: ['PRIVATE_PROPOSAL'] },
+      basket: [{ rule: 'PRIVATE_STAGED_RULE' }],
+      busy: true,
+      message: 'old',
+      signedOut: false,
+    },
+    private: [
+      'drafts',
+      'facts',
+      'batches',
+      'trust',
+      'trigger',
+      'edits',
+      'proposals',
+      'basket',
+    ],
   },
   {
     label: 'track',
     file: 'app/track/page.tsx',
-    keys: trackKeys,
-    seed: loadedTrack,
-    mutation: 'record',
-    okBody: trackOk,
+    loaded: {
+      data: { outcomes: [{ receipt: 'PRIVATE_RECEIPT' }] },
+      busy: true,
+      message: 'old',
+      receipts: { 'job-1': 'PRIVATE_TYPED_RECEIPT' },
+      signedOut: false,
+    },
+    private: ['data', 'receipts'],
   },
 ];
-const unauthorizedBodies = [
-  { format: 'json', body: { error: 'Sign in first.' } },
-  { format: 'plain', body: 'Unauthorized' },
-];
 
-for (const { label, file, keys, seed, mutation, okBody } of pages) {
-  for (const { format, body } of unauthorizedBodies) {
-    void test(`${label} POST 401 ${format} expires and skips body parse`, async () => {
-      const source = readFileSync(file, 'utf8');
-      const state = seed();
-      let posts = 0;
-      const { session, deps } = pageDeps(state, keys, async (_url, init) => {
-        if (init?.method === 'POST') {
-          posts += 1;
-          return http(401, body);
-        }
-        throw new Error('unexpected GET');
-      });
-      bindExpired(source, deps);
-      deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-      const mutate = bindFunction(
-        sliceFrom(
-          source,
-          `async function ${mutation}(`,
-          mutationStop(label, source),
-        ),
-        deps,
-      );
-      const result = await mutate(
-        { action: 'probe' },
-        'should not appear after expiry',
-      );
-      assert.equal(session.expired, true);
-      assert.equal(state.signedOut, true);
-      assert.equal(state.busy, false);
-      assert.equal(state.message, '');
-      assert.equal(result, undefined);
-      assert.equal(posts, 1);
-      if (label === 'profile') {
-        assert.deepEqual(state.facts, []);
-        assert.deepEqual(state.rules, []);
-        assert.equal(state.resume, '');
-        assert.deepEqual(state.candidates, []);
-        assert.equal(state.chosen.size, 0);
-        assert.deepEqual(state.expiry, {});
-        assert.equal(state.rule, '');
-        assert.equal(state.scope, 'global');
-        assert.equal(state.version, 1);
-        assert.equal(state.usable, 0);
-      }
-      if (label === 'preferences') {
-        assert.equal(state.state, null);
-        assert.equal(state.minutes, 120);
-      }
-      if (label === 'review') {
-        assert.deepEqual(state.drafts, []);
-        assert.deepEqual(state.facts, []);
-        assert.deepEqual(state.batches, []);
-        assert.deepEqual(state.trust, {});
-        assert.equal(state.trigger, null);
-        assert.deepEqual(state.edits, {});
-        assert.deepEqual(state.proposals, {});
-        assert.deepEqual(state.basket, []);
-      }
-      if (label === 'track') {
-        assert.equal(state.data, null);
-        assert.deepEqual(state.receipts, {});
-      }
-    });
-
-    void test(`${label} GET 401 ${format} expires before parse`, async () => {
-      const source = readFileSync(file, 'utf8');
-      const state = seed();
-      const unauthorized = http(401, body);
-      const { session, deps } = pageDeps(state, keys, async () => unauthorized);
-      bindExpired(source, deps);
-      const refresh = bind(callbackBody(source, 'refresh'), deps);
-      await refresh();
-      assert.equal(session.expired, true);
-      assert.equal(state.signedOut, true);
-      assert.equal(unauthorized.jsonCalls, 0);
-    });
-  }
-
-  void test(`${label} delayed GET 200 cannot restore after mutation 401`, async () => {
-    const source = readFileSync(file, 'utf8');
-    const state = seed();
-    const get = deferred();
-    const post = deferred();
-    let gets = 0;
-    const { session, deps } = pageDeps(state, keys, async (_url, init) => {
-      if (init?.method === 'POST') return post.promise;
-      gets += 1;
-      return get.promise;
-    });
-    bindExpired(source, deps);
-    deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-    const mutate = bindFunction(
-      sliceFrom(
-        source,
-        `async function ${mutation}(`,
-        mutationStop(label, source),
-      ),
-      deps,
-    );
-    const pendingRefresh = deps.refresh();
-    const pendingMutation = mutate({ action: 'probe' }, 'saved');
-    post.resolve(http(401, 'Unauthorized'));
-    await flush();
-    assert.equal(
-      state.signedOut,
-      true,
-      'must expire before the held GET lands',
-    );
-    const getsAfterExpiry = gets;
-    get.resolve(http(200, okBody));
-    await Promise.all([pendingRefresh, pendingMutation]);
-    assert.equal(state.signedOut, true);
-    assert.equal(session.expired, true);
-    assert.equal(
-      gets,
-      getsAfterExpiry,
-      'expired mutation must not start a follow-up refresh',
-    );
-    if (label === 'profile') assert.deepEqual(state.facts, []);
-    if (label === 'preferences') assert.equal(state.state, null);
-    if (label === 'review') assert.deepEqual(state.drafts, []);
-    if (label === 'track') assert.equal(state.data, null);
-  });
-
-  void test(`${label} expired session refuses a new mutation before fetch`, async () => {
-    const source = readFileSync(file, 'utf8');
-    const state = seed();
-    let calls = 0;
-    const { session, deps } = pageDeps(state, keys, async () => {
-      calls += 1;
-      return http(200, { ok: true });
-    });
-    bindExpired(source, deps);
-    deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-    helper.expirePageSession(session);
-    deps.applyExpired();
-    const mutate = bindFunction(
-      sliceFrom(
-        source,
-        `async function ${mutation}(`,
-        mutationStop(label, source),
-      ),
-      deps,
-    );
-    await mutate({ action: 'probe' }, 'saved');
-    assert.equal(calls, 0);
-    assert.equal(state.signedOut, true);
-  });
-
-  void test(`${label} GET 200 cannot restore across 401 microtask gaps`, async () => {
-    const source = readFileSync(file, 'utf8');
-    let sawOk = false;
-    for (let gap = 0; gap < 20; gap++) {
-      const state = seed();
-      const get = deferred();
-      const profileGet = deferred();
-      const post = deferred();
-      const { session, deps } = pageDeps(state, keys, async (url, init) => {
-        if (init?.method === 'POST') return post.promise;
-        if (label === 'review' && String(url).includes('/api/profile'))
-          return profileGet.promise;
-        return get.promise;
-      });
-      bindExpired(source, deps);
-      watchAuthorizedJson(deps, (reply) => {
-        if (reply.kind === 'ok') sawOk = true;
-      });
-      deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-      const pendingRefresh = deps.refresh();
-      const pendingExpiry = (async () => {
-        const response = await deps.fetch('/api/probe', { method: 'POST' });
-        if (helper.expireIfUnauthorized(session, response)) deps.applyExpired();
-      })();
-      get.resolve(http(200, okBody));
-      if (label === 'review') profileGet.resolve(http(200, reviewProfileOk));
-      for (let tick = 0; tick < gap; tick++) await Promise.resolve();
-      post.resolve(http(401, 'Unauthorized'));
-      await Promise.all([pendingRefresh, pendingExpiry]);
-      assertCleared(label, state, `gap ${gap}`);
-      assert.equal(session.expired, true, `gap ${gap}`);
-    }
-    assert.equal(
-      sawOk,
-      true,
-      'helper must return ok before a 401 in this sweep',
-    );
-  });
-
-  void test(`${label} refresh does not apply body after helper returns ok`, async () => {
-    const source = readFileSync(file, 'utf8');
-    const state = seed();
-    let gets = 0;
-    const { session, deps } = pageDeps(state, keys, async (url) => {
-      gets += 1;
-      if (label === 'review' && String(url).includes('/api/profile'))
-        return http(200, reviewProfileOk);
-      return http(200, okBody);
-    });
-    bindExpired(source, deps);
-    expireAfterHelperOk(deps, session, label === 'review' ? 2 : 1);
-    deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-    await deps.refresh();
-    assert.ok(gets >= 1);
-    assert.equal(session.expired, true);
-    assertCleared(label, state);
-  });
+function isEmpty(value) {
+  if (value === null) return true;
+  if (typeof value === 'string') return value === '';
+  if (Array.isArray(value)) return value.length === 0;
+  if (value instanceof Set || value instanceof Map) return value.size === 0;
+  if (value && typeof value === 'object') return Object.keys(value).length === 0;
+  return false;
 }
 
-void test('profile extract 401 expires without restoring candidates', async () => {
-  const source = readFileSync('app/profile/page.tsx', 'utf8');
-  const state = loadedProfile();
-  const unauthorized = http(401, 'Unauthorized');
-  const { session, deps } = pageDeps(state, profileKeys, async (_url, init) => {
-    assert.equal(init?.method, 'POST');
-    return unauthorized;
+for (const entry of pages) {
+  void test(`${entry.label} clears every private field when its session expires`, () => {
+    const source = readFileSync(entry.file, 'utf8');
+    const state = clearedBy(source, entry.loaded);
+    assert.equal(state.signedOut, true);
+    assert.equal(state.busy, false);
+    assert.equal(state.message, '');
+    for (const field of entry.private)
+      assert.equal(
+        isEmpty(state[field]),
+        true,
+        `${entry.label} left ${field} populated after expiry`,
+      );
   });
-  bindExpired(source, deps);
-  deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-  const extract = bindFunction(
-    sliceFrom(source, 'async function extract()', '  const proposed ='),
-    deps,
-  );
-  await extract();
-  assert.equal(session.expired, true);
-  assert.equal(state.signedOut, true);
-  assert.deepEqual(state.candidates, []);
-  assert.equal(state.resume, '');
-  assert.equal(unauthorized.jsonCalls, 0);
-});
 
-void test('profile extract 200 after expiry cannot restore candidates', async () => {
-  const source = readFileSync('app/profile/page.tsx', 'utf8');
-  const state = loadedProfile();
-  const post = deferred();
-  let posts = 0;
-  const { session, deps } = pageDeps(state, profileKeys, async (_url, init) => {
-    if (init?.method === 'POST') {
-      posts += 1;
-      return post.promise;
-    }
-    throw new Error('extract must not refresh');
+  // A page that reimplemented the sequence would pass its own tests while
+  // drifting from the one rule every other page follows, so the wiring itself
+  // is asserted rather than inferred.
+  void test(`${entry.label} routes its requests through the shared runner`, () => {
+    const source = readFileSync(entry.file, 'utf8');
+    assert.match(source, /runPage(Read|SiblingReads|Mutation)\b/);
+    for (const handRolled of [
+      'readAuthorizedJson',
+      'beginPageWork',
+      'pageWorkIsLive',
+    ])
+      assert.equal(
+        source.includes(handRolled),
+        false,
+        `${entry.file} hand-rolls ${handRolled} instead of using the runner`,
+      );
   });
-  bindExpired(source, deps);
-  const extract = bindFunction(
-    sliceFrom(source, 'async function extract()', '  const proposed ='),
-    deps,
-  );
-  const pending = extract();
-  helper.expirePageSession(session);
-  deps.applyExpired();
-  post.resolve(
-    http(200, {
-      candidates: [{ claim: 'PRIVATE_CANDIDATE', evidence: 'e', tag: 'role' }],
-    }),
-  );
-  await pending;
-  assert.equal(state.signedOut, true);
-  assert.deepEqual(state.candidates, []);
-  assert.equal(posts, 1);
-});
-
-void test('profile extract 200 cannot restore across 401 microtask gaps', async () => {
-  const source = readFileSync('app/profile/page.tsx', 'utf8');
-  let sawOk = false;
-  for (let gap = 0; gap < 20; gap++) {
-    const state = loadedProfile();
-    const extractPost = deferred();
-    const mutatePost = deferred();
-    const { session, deps } = pageDeps(
-      state,
-      profileKeys,
-      async (_url, init) => {
-        if (init?.method !== 'POST')
-          throw new Error('extract sweep must not GET');
-        return String(init.body).includes('extract')
-          ? extractPost.promise
-          : mutatePost.promise;
-      },
-    );
-    bindExpired(source, deps);
-    watchAuthorizedJson(deps, (reply) => {
-      if (reply.kind === 'ok') sawOk = true;
-    });
-    const extract = bindFunction(
-      sliceFrom(source, 'async function extract()', '  const proposed ='),
-      deps,
-    );
-    const pendingExtract = extract();
-    const pendingExpiry = (async () => {
-      const response = await deps.fetch('/api/profile', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'probe' }),
-      });
-      if (helper.expireIfUnauthorized(session, response)) deps.applyExpired();
-    })();
-    extractPost.resolve(http(200, extractOk));
-    for (let tick = 0; tick < gap; tick++) await Promise.resolve();
-    mutatePost.resolve(http(401, 'Unauthorized'));
-    await Promise.all([pendingExtract, pendingExpiry]);
-    assert.equal(session.expired, true, `gap ${gap}`);
-    assertCleared('profile', state, `gap ${gap}`);
-  }
-  assert.equal(
-    sawOk,
-    true,
-    'extract helper must return ok before a 401 in this sweep',
-  );
-});
-
-void test('profile extract does not apply candidates after helper returns ok', async () => {
-  const source = readFileSync('app/profile/page.tsx', 'utf8');
-  const state = loadedProfile();
-  const { session, deps } = pageDeps(state, profileKeys, async (_url, init) => {
-    assert.equal(init?.method, 'POST');
-    return http(200, extractOk);
-  });
-  bindExpired(source, deps);
-  expireAfterHelperOk(deps, session);
-  const extract = bindFunction(
-    sliceFrom(source, 'async function extract()', '  const proposed ='),
-    deps,
-  );
-  await extract();
-  assert.equal(session.expired, true);
-  assertCleared('profile', state);
-});
-
-void test('review profile sibling 401 expires while drafts GET is held', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const drafts = deferred();
-  const profile = deferred();
-  const { session, deps } = pageDeps(state, reviewKeys, async (url) => {
-    if (String(url).includes('/api/drafts')) return drafts.promise;
-    if (String(url).includes('/api/profile')) return profile.promise;
-    throw new Error('unexpected ' + url);
-  });
-  bindExpired(source, deps);
-  const refresh = bind(callbackBody(source, 'refresh'), deps);
-  const pending = refresh();
-  profile.resolve(http(401, { error: 'Sign in first.' }));
-  await flush();
-  assert.equal(state.signedOut, true, 'must not wait for Promise.all');
-  assert.deepEqual(state.facts, []);
-  assert.deepEqual(state.drafts, []);
-  drafts.resolve(http(200, reviewDraftsOk));
-  await pending;
-  assert.equal(session.expired, true);
-  assert.equal(state.signedOut, true);
-  assert.deepEqual(state.drafts, []);
-  assert.deepEqual(state.facts, []);
-});
-
-void test('review drafts sibling 401 expires while profile GET is held', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const drafts = deferred();
-  const profile = deferred();
-  const { deps } = pageDeps(state, reviewKeys, async (url) => {
-    if (String(url).includes('/api/drafts')) return drafts.promise;
-    return profile.promise;
-  });
-  bindExpired(source, deps);
-  const refresh = bind(callbackBody(source, 'refresh'), deps);
-  const pending = refresh();
-  drafts.resolve(http(401, 'Unauthorized'));
-  await flush();
-  assert.equal(state.signedOut, true);
-  profile.resolve(http(200, reviewProfileOk));
-  await pending;
-  assert.deepEqual(state.facts, []);
-  assert.deepEqual(state.drafts, []);
-});
-
-void test('review Save correction does not stage proposals after expiry', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const post = deferred();
-  let gets = 0;
-  const { session, deps } = pageDeps(state, reviewKeys, async (_url, init) => {
-    if (init?.method === 'POST') return post.promise;
-    gets += 1;
-    return http(401, 'Unauthorized');
-  });
-  bindExpired(source, deps);
-  deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-  deps.run = bindFunction(
-    sliceFrom(
-      source,
-      'async function run(',
-      '  async function saveCorrection(',
-    ),
-    deps,
-  );
-  const saveCorrection = bindFunction(
-    sliceFrom(source, 'async function saveCorrection(', '  function addRule('),
-    deps,
-  );
-  const pending = saveCorrection('d1');
-  post.resolve(
-    http(200, { ok: true, proposals: ['Keep PRIVATE_PROPOSAL forever.'] }),
-  );
-  await pending;
-  assert.equal(state.signedOut, true);
-  assert.deepEqual(state.proposals, {});
-  assert.equal(session.expired, true);
-  assert.ok(gets >= 1);
-  assert.equal(state.message, '');
-});
-
-void test('review addRule is refused after expiry', () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  state.basket = [];
-  const { session, deps } = pageDeps(state, reviewKeys, async () => {
-    throw new Error('addRule must not fetch');
-  });
-  bindExpired(source, deps);
-  helper.expirePageSession(session);
-  deps.applyExpired();
-  const addRule = bindFunction(
-    sliceFrom(source, 'function addRule(', '  const open ='),
-    deps,
-  );
-  addRule('Do not leak private rules.');
-  assert.deepEqual(state.basket, []);
-  assert.equal(state.signedOut, true);
-});
-
-void test('GET JSON parse that expires mid-read cannot restore profile facts', async () => {
-  const source = readFileSync('app/profile/page.tsx', 'utf8');
-  const state = loadedProfile();
-  const { session, deps } = pageDeps(state, profileKeys, async () =>
-    http(200, profileOk, async () => {
-      helper.expirePageSession(session);
-      deps.applyExpired();
-    }),
-  );
-  bindExpired(source, deps);
-  const refresh = bind(callbackBody(source, 'refresh'), deps);
-  await refresh();
-  assert.equal(state.signedOut, true);
-  assert.deepEqual(state.facts, []);
-});
-
-void test('successful mutation refresh 401 does not return private proposals', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const { session, deps } = pageDeps(state, reviewKeys, async (_url, init) => {
-    if (init?.method === 'POST')
-      return http(200, { ok: true, proposals: ['PRIVATE_PROPOSAL'] });
-    return http(401, 'Unauthorized');
-  });
-  bindExpired(source, deps);
-  deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-  const run = bindFunction(
-    sliceFrom(
-      source,
-      'async function run(',
-      '  async function saveCorrection(',
-    ),
-    deps,
-  );
-  const result = await run({ action: 'correct', id: 'd1' }, 'saved');
-  assert.equal(result, undefined);
-  assert.equal(state.signedOut, true);
-  assert.equal(session.expired, true);
-});
+}

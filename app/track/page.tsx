@@ -8,10 +8,10 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import {
-  beginPageWork,
   createPageSession,
-  pageWorkIsLive,
-  readAuthorizedJson,
+  postJson,
+  runPageMutation,
+  runPageRead,
 } from '../../lib/page-session';
 type Outcome = {
   id: string;
@@ -67,23 +67,17 @@ export default function Track() {
     setSignedOut(true);
   }, []);
   const refresh = useCallback(async () => {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    const r = await fetch('/api/outcomes');
-    const reply = await readAuthorizedJson<Data>(
-      sessionRef.current,
-      started,
-      r,
+    await runPageRead<Data>(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => fetch('/api/outcomes'),
       'Unable to load outcomes.',
+      (body) => setData(body),
     );
-    if (reply.kind === 'expired') {
-      applyExpired();
-      return;
-    }
-    if (reply.kind === 'ignore') return;
-    if (reply.kind === 'error') throw Error(reply.error);
-    if (!pageWorkIsLive(sessionRef.current, started)) return;
-    setData(reply.body);
   }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
@@ -94,37 +88,17 @@ export default function Track() {
       });
   }, [refresh]);
   async function record(body: Record<string, unknown>, note: string) {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    setBusy(true);
-    try {
-      const r = await fetch('/api/outcomes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'record', ...body }),
-      });
-      const reply = await readAuthorizedJson<{ error?: string }>(
-        sessionRef.current,
-        started,
-        r,
-        'Unable to record.',
-      );
-      if (reply.kind === 'expired') {
-        applyExpired();
-        return;
-      }
-      if (reply.kind === 'ignore') return;
-      if (reply.kind === 'error') throw Error(reply.error);
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      await refresh();
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(note);
-    } catch (e) {
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(e instanceof Error ? e.message : 'Unable to record.');
-    } finally {
-      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
-    }
+    await runPageMutation(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => postJson('/api/outcomes', { action: 'record', ...body }),
+      'Unable to record.',
+      { refresh, succeed: () => setMessage(note) },
+    );
   }
   if (signedOut)
     return (

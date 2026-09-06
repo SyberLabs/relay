@@ -18,11 +18,10 @@ import {
   type Fact,
 } from '../../lib/profile';
 import {
-  beginPageWork,
   createPageSession,
-  expireIfUnauthorized,
-  pageWorkIsLive,
-  readAuthorizedJson,
+  postJson,
+  runPageMutation,
+  runPageSiblingReads,
 } from '../../lib/page-session';
 type Trust = {
   cluster: string;
@@ -68,48 +67,32 @@ export default function Review() {
     setSignedOut(true);
   }, []);
   const refresh = useCallback(async () => {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    const session = sessionRef.current;
-    const watch = (request: Promise<Response>) =>
-      request.then((r) => {
-        if (expireIfUnauthorized(session, r)) applyExpired();
-        return r;
-      });
-    const [d, p] = await Promise.all([
-      watch(fetch('/api/drafts')),
-      watch(fetch('/api/profile')),
-    ]);
-    if (!pageWorkIsLive(session, started)) return;
-    const draftReply = await readAuthorizedJson<{
-      drafts: DraftRow[];
-      batches: Batch[];
-      trust: Record<string, Trust>;
-      trigger: { reason: string; ids: string[] } | null;
-      error?: string;
-    }>(session, started, d, 'Unable to load drafts.');
-    if (draftReply.kind === 'expired') {
-      applyExpired();
-      return;
-    }
-    if (draftReply.kind === 'ignore') return;
-    if (draftReply.kind === 'error') throw Error(draftReply.error);
-    const profileReply = await readAuthorizedJson<{
-      facts: Fact[];
-      error?: string;
-    }>(session, started, p, 'Unable to load profile.');
-    if (profileReply.kind === 'expired') {
-      applyExpired();
-      return;
-    }
-    if (profileReply.kind === 'ignore') return;
-    if (profileReply.kind === 'error') throw Error(profileReply.error);
-    if (!pageWorkIsLive(session, started)) return;
-    setDrafts(draftReply.body.drafts);
-    setBatches(draftReply.body.batches);
-    setTrust(draftReply.body.trust);
-    setTrigger(draftReply.body.trigger);
-    setFacts(profileReply.body.facts);
+    await runPageSiblingReads<
+      {
+        drafts: DraftRow[];
+        batches: Batch[];
+        trust: Record<string, Trust>;
+        trigger: { reason: string; ids: string[] } | null;
+        error?: string;
+      },
+      { facts: Fact[]; error?: string }
+    >(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      [() => fetch('/api/drafts'), () => fetch('/api/profile')],
+      ['Unable to load drafts.', 'Unable to load profile.'],
+      (draftBody, profileBody) => {
+        setDrafts(draftBody.drafts);
+        setBatches(draftBody.batches);
+        setTrust(draftBody.trust);
+        setTrigger(draftBody.trigger);
+        setFacts(profileBody.facts);
+      },
+    );
   }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
@@ -120,39 +103,17 @@ export default function Review() {
       });
   }, [refresh]);
   async function run(body: Record<string, unknown>, note: string) {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    setBusy(true);
-    setMessage('');
-    try {
-      const r = await fetch('/api/drafts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const reply = await readAuthorizedJson<{
-        error?: string;
-        proposals?: string[];
-      }>(sessionRef.current, started, r, 'Unable to complete request.');
-      if (reply.kind === 'expired') {
-        applyExpired();
-        return;
-      }
-      if (reply.kind === 'ignore') return;
-      if (reply.kind === 'error') throw Error(reply.error);
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      await refresh();
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(note);
-      return reply.body;
-    } catch (e) {
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(
-        e instanceof Error ? e.message : 'Unable to complete request.',
-      );
-    } finally {
-      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
-    }
+    return runPageMutation<{ error?: string; proposals?: string[] }>(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => postJson('/api/drafts', body),
+      'Unable to complete request.',
+      { clearMessage: true, refresh, succeed: () => setMessage(note) },
+    );
   }
   async function saveCorrection(id: string) {
     if (sessionRef.current.expired) return;

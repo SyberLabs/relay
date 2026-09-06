@@ -4,10 +4,10 @@ import Link from 'next/link';
 import { ArrowLeft, RotateCcw, Scale, Timer } from 'lucide-react';
 import type { Posting, Weights } from '../../lib/utility';
 import {
-  beginPageWork,
   createPageSession,
-  pageWorkIsLive,
-  readAuthorizedJson,
+  postJson,
+  runPageMutation,
+  runPageRead,
 } from '../../lib/page-session';
 type Pair = { a: Posting; b: Posting };
 type State = {
@@ -69,24 +69,20 @@ export default function Preferences() {
     setSignedOut(true);
   }, []);
   const refresh = useCallback(async () => {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    const r = await fetch('/api/preferences');
-    const reply = await readAuthorizedJson<State>(
-      sessionRef.current,
-      started,
-      r,
+    await runPageRead<State>(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => fetch('/api/preferences'),
       'Unable to load preferences.',
+      (body) => {
+        setState(body);
+        setMinutes(body.minutes);
+      },
     );
-    if (reply.kind === 'expired') {
-      applyExpired();
-      return;
-    }
-    if (reply.kind === 'ignore') return;
-    if (reply.kind === 'error') throw Error(reply.error);
-    if (!pageWorkIsLive(sessionRef.current, started)) return;
-    setState(reply.body);
-    setMinutes(reply.body.minutes);
   }, [applyExpired]);
   useEffect(() => {
     void Promise.resolve()
@@ -97,37 +93,17 @@ export default function Preferences() {
       });
   }, [refresh]);
   async function post(body: Record<string, unknown>, note = '') {
-    if (sessionRef.current.expired) return;
-    const started = beginPageWork(sessionRef.current);
-    setBusy(true);
-    try {
-      const r = await fetch('/api/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const reply = await readAuthorizedJson<{ error?: string }>(
-        sessionRef.current,
-        started,
-        r,
-        'Unable to save.',
-      );
-      if (reply.kind === 'expired') {
-        applyExpired();
-        return;
-      }
-      if (reply.kind === 'ignore') return;
-      if (reply.kind === 'error') throw Error(reply.error);
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      await refresh();
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(note);
-    } catch (e) {
-      if (!pageWorkIsLive(sessionRef.current, started)) return;
-      setMessage(e instanceof Error ? e.message : 'Unable to save.');
-    } finally {
-      if (pageWorkIsLive(sessionRef.current, started)) setBusy(false);
-    }
+    await runPageMutation(
+      {
+        session: sessionRef.current,
+        onExpired: applyExpired,
+        setBusy,
+        setMessage,
+      },
+      () => postJson('/api/preferences', body),
+      'Unable to save.',
+      { refresh, succeed: () => setMessage(note) },
+    );
   }
   if (signedOut)
     return (

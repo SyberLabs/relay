@@ -42,6 +42,17 @@ node integrations/relay.mjs grok-draft relay-packet.json draft.txt private-data/
 
 Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; that path has not been tested in a Grok Bot session.
 
+## Public boards → Relay
+
+Greenhouse and Lever publish their boards without authentication, so this needs no credentials and carries no account risk.
+
+```sh
+node integrations/relay.mjs board-pull greenhouse <board> private-data/board.json
+node integrations/relay.mjs board-pull lever <company> private-data/board.json
+```
+
+The board identifier is the one in the public URL. Load the output with **Load research or draft**, preview, then import. Postings normalise onto the same job identity as everything else, so a role found on several boards stays one record, and every row arrives Held. Compensation is parsed from the posting text when published and left unknown otherwise; unknown is scored neutrally, never as zero.
+
 ## Profile, drafts and review
 
 The fact ledger and style card live in the app at `/profile`, and review sessions at `/review`. Neither needs a connector or credentials: extraction runs locally on text you paste, and no resume file leaves your machine.

@@ -6,6 +6,11 @@ Relay is a job-search review workspace for people working with AI assistants. Br
 
 ## Available in this early release
 
+- Set what a job is worth to you by choosing between real postings, not by filling in sliders.
+- Get a weekly plan sized to the minutes you actually have, chosen to maximise the best single offer.
+- Pull public Greenhouse and Lever boards into the same job identity as everything else.
+- Record what came back, with a receipt required before anything counts as submitted.
+- See exactly which claims each live application commits you to defending.
 - Keep a verified fact ledger and a learned style card that direct a writing agent.
 - Seed the ledger from pasted resume text, then verify each candidate line before it can be cited.
 - Let an agent log drafts unattended; a claim not traceable to a verified fact is refused, not queued.
@@ -54,14 +59,33 @@ pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --pe
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_careless_leader.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_job_key_observations.sql
 pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_profile_calibration.sql
+pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_selection_and_outcomes.sql
 pnpm dev
 ```
 
 Open the local URL printed by the server. Local sign-in is simulated by the Sites development plugin; do not expose this development server to the internet. Load fictional examples or import your own records. The product introduction is at `/about`.
 
+## Selection and outcomes
+
+Drafting well is not the largest lever. Which jobs you apply to is, because reply odds vary by orders of magnitude with fit while letter quality varies perhaps twofold. These stages address that.
+
+**Preferences** (`/preferences`) are elicited by forced choice over real postings, because people cannot state trade-off weights in the abstract but choose between two concrete jobs instantly. Around a dozen comparisons fit the five weights well enough to rank a large pool. Until you answer, Relay has no opinion and says so rather than inventing one.
+
+**The plan** (`/plan`) maximises the expected value of the *best single offer*, not the sum over applications, because you accept one job. That is an expected maximum, and computing it exactly produces a spread of odds on its own: once a likely offer is held, further similar roles add almost nothing and a long shot starts winning the comparison. No reach/match/floor ratio is hardcoded. Selection is greedy on gain per minute under the attention budget you set, and every row carries the reason it earned its place.
+
+**The read plane** pulls public Greenhouse and Lever boards through `board-pull`, normalising onto the same `jobKey` identity the workspace already uses. It reads only, needs no credentials and no account, and every posting arrives Held — discovery never implies a decision.
+
+**Outcomes** (`/track`) close the loop. Terminal states are local records of what actually happened and are deliberately not valid import statuses, so the existing import behaviour is unchanged and rediscovery can never reopen an application that has ended. A submission recorded here requires a receipt: the confirmation URL, reference or email subject. Imported submissions are kept and shown, but they arrive without a receipt and are excluded from the reply rates, because counting a send that may never have happened would corrupt every estimate built on it.
+
+Reply rates are reported as intervals with the evidence count that produced them, and they are descriptive. Samples are small, the market moves and a job search cannot be run as an experiment, so nothing here establishes that a change caused an outcome.
+
+**Interview preparation** falls out of the citation graph rather than being a separate feature: because every claim had to cite a verified fact, Relay already knows what each application commits you to defending.
+
+Relay still does not submit applications. There are no write-plane adapters in this release: nothing here fills in a form, sends an email, or messages anyone, and recording a submission is you telling Relay what you already did.
+
 ## Integration boundaries
 
-The connectors are runnable local commands with file import/export in the app. Notion and Claude require your own credentials. Real Notion records were retrieved read-only through the connected Notion tool; that does not validate the standalone Notion command connector. Claude live access has not been tested. Grok Bot uses a documented command/file adapter, not an assumed proprietary API. A draft was exchanged with the installed Bot, transcribed into a validated file, then loaded in the browser; fully automatic Bot file transfer is not validated. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Agents may log and, for a graduated cluster, stage drafts; they cannot accept one or change an application status. Citation enforcement checks that a claim traces to a fact you verified, which is not the same as checking that the surrounding wording is true, so generated text still requires your review. Production deployment has not been validated.
+The connectors are runnable local commands with file import/export in the app. Notion and Claude require your own credentials. Real Notion records were retrieved read-only through the connected Notion tool; that does not validate the standalone Notion command connector. Claude live access has not been tested. Grok Bot uses a documented command/file adapter, not an assumed proprietary API. A draft was exchanged with the installed Bot, transcribed into a validated file, then loaded in the browser; fully automatic Bot file transfer is not validated. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Agents may log and, for a graduated cluster, stage drafts; they cannot accept one or change an application status. Board pulls read public endpoints only and use no account identity. No component submits an application: there are no write-plane adapters, and a recorded submission is your own report of something you did elsewhere, carrying the receipt to prove it. Citation enforcement checks that a claim traces to a fact you verified, which is not the same as checking that the surrounding wording is true, so generated text still requires your review. Production deployment has not been validated.
 
 ## Checks
 
@@ -71,11 +95,12 @@ pnpm exec tsc --noEmit
 pnpm lint
 node tests/api.test.mjs
 node tests/calibration.test.mjs
+node tests/orchestration.test.mjs
 ```
 
-For an existing local database already on migration 0002, apply only 0003 from the setup commands; it only adds the profile, draft and review tables and leaves existing rows untouched. For one still on migration 0001, apply 0002 and then 0003. It preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
+For an existing local database already on migration 0003, apply only 0004; it adds the preference, choice and outcome tables and adds nullable or defaulted posting columns to `jobs`, leaving existing rows untouched. From 0002, apply 0003 then 0004; from 0001, apply 0002 first. It preserves observations and repairs imported Ready records that lack matching accepted text. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
-The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. Profile tests cover claim detection, citation support, resume extraction, review triggers and cluster graduation. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Calibration checks run the whole loop against a local server: extraction writing nothing, an unverified citation and an unsupported claim both refused without a row being written, a correction proposing rules, a closed session advancing the profile version, a cluster graduating into unattended staging that leaves status and acceptance alone, and a retired fact blocking further citation. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. User acceptance and post-acceptance reimport are pending.
+The last command needs a running local server and writes only fictional test records. Domain, import, editor and connector tests cover status preservation, duplicate matching, imported acceptance, observation identity, editor version conflicts, draft review rules, provider errors and pagination. Connector tests mock vendor responses; they do not prove live account access. Profile tests cover claim detection, citation support, resume extraction, review triggers and cluster graduation. Selection tests cover the preference fit, the expected-maximum arithmetic against hand-computed cases, budget-respecting portfolio choice, board normalisation, and the rule that a terminal outcome can never be reopened by import — checked against the real upsert SQL as well as the TypeScript. The two live suites each need a **fresh local database**, because they exercise one signed-in workspace end to end; run them one at a time after re-applying the migrations. API checks verify database read-back, stale edits, exact acceptance, status-preserving follow-up edits and authentication rejection. Calibration checks run the whole loop against a local server: extraction writing nothing, an unverified citation and an unsupported claim both refused without a row being written, a correction proposing rules, a closed session advancing the profile version, a cluster graduating into unattended staging that leaves status and acceptance alone, and a retired fact blocking further citation. Local browser and WebMCP reads/import checks were exercised. Preview works before the first import. Browser file import, save and reload preserved source history. User acceptance and post-acceptance reimport are pending.
 
 ## Hosting and privacy
 

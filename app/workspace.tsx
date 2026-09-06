@@ -26,6 +26,9 @@ import {
   ChevronRight,
   FileText,
   Sparkles,
+  Scale,
+  Target,
+  Activity,
 } from 'lucide-react';
 type Job = {
   id: string;
@@ -222,6 +225,18 @@ export default function Workspace() {
         <Link className="nav" href="/review">
           <Sparkles size={18} />
           Review drafts
+        </Link>
+        <Link className="nav" href="/preferences">
+          <Scale size={18} />
+          Preferences
+        </Link>
+        <Link className="nav" href="/plan">
+          <Target size={18} />
+          This week
+        </Link>
+        <Link className="nav" href="/track">
+          <Activity size={18} />
+          Track outcomes
         </Link>
         <div className="sidebottom">
           <div className="dot" /> History stays with the job.

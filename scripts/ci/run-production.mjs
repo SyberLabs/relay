@@ -174,7 +174,7 @@ try {
       .setIssuer(issuer)
       .setAudience(audience)
       .setIssuedAt()
-      .setExpirationTime('5m')
+      .setExpirationTime('15m')
       .sign(privateKey);
   const first = await token('owner-a');
   const second = await token('owner-b');
@@ -350,8 +350,46 @@ try {
     200,
     'Service identity may prove readiness only',
   );
+  const playwrightPkg = JSON.parse(
+    await readFile(
+      resolve(root, 'node_modules/@playwright/test/package.json'),
+      'utf8',
+    ),
+  );
+  const playwright = resolve(
+    root,
+    'node_modules/@playwright/test',
+    typeof playwrightPkg.bin === 'string'
+      ? playwrightPkg.bin
+      : playwrightPkg.bin.playwright,
+  );
+  await new Promise((accept, reject) => {
+    const child = spawn(
+      process.execPath,
+      [playwright, 'test', 'tests/e2e/isolation.spec.ts'],
+      {
+        cwd: root,
+        env: {
+          ...env,
+          RELAY_TEST_URL: base,
+          RELAY_OWNER_A_JWT: first,
+          RELAY_OWNER_B_JWT: second,
+        },
+        stdio: 'inherit',
+        windowsHide: true,
+      },
+    );
+    child.on('error', reject);
+    child.on('exit', (code, signal) =>
+      code === 0
+        ? accept()
+        : reject(
+            Error(`Browser two-session isolation failed (${code ?? signal})`),
+          ),
+    );
+  });
   console.log(
-    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity.',
+    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation.',
   );
 } finally {
   await finishProductionServer(server, log);

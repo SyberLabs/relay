@@ -65,7 +65,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Install browser and system libraries
-        if: matrix.suite == 'browser'
+        if: matrix.suite == 'browser' || matrix.suite == 'production'
         run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - name: Migrate a new database and exercise the running application

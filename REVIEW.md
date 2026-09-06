@@ -37,6 +37,24 @@ Code implementation used the verified Cursor Grok 4.6 Extra High conversation th
 
 On `3b1efd7`, a local assisted trial accepted an exact saved draft in the browser, reloaded, and reimported the original two research observations. The accepted draft, Ready status, two observations (deduplicated), and review history were retained. No external applications, messages, or Notion writes. Source rows came through the connected Notion tool, not the standalone Notion CLI. Installed Grok Bot JSON was transcribed by hand into a validated file; automatic Bot file transfer was not tested. After this checkout fast-forwarded to `59ec7ac`, a read-only browser reopen still showed the accepted record.
 
+## Round 2 (uncommitted, `2372771`)
+
+Surgical UI on copy/paste, Relay vs source status labels, redundant accepted actions, and dirty navigation. Independent fictional QA only; the earlier assisted real trial on port 3101 was not repeated or mutated.
+
+Astra 6 High review then required four corrections, implemented here without publication:
+
+1. Exact acceptance uses the current job identity/version, no conflict, matching `accepted_draft`, and an unchanged draft and blocker. Queue hint shares that condition. External Ready refresh → conflict → revert to the old base is not labeled accepted.
+2. Pasted input is bounded by UTF-8 byte size (1.8 MB), with a cheap character bound first. A valid JSON envelope under the character limit and over the byte limit is rejected. The 20,000-character draft bound is unchanged.
+3. Docs distinguish outbound `relay.packet.v1` copy/download from inbound `relay.draft.v1` paste/load. Prior assisted-trial Bot JSON remains a hand transcription. No fresh installed-Bot roundtrip is claimed.
+4. Remaining `pnpm audit` after the approved React 19.2.8 / Vite 8.0.16 patch: **19 advisories (8 high, 8 moderate, 3 low)** in esbuild, image-size, sharp, undici, and ws. Baseline was 22 (10 high, 9 moderate, 3 low). Evidence: `work/round2-postpatch-audit.json`. No further dependency updates in this round.
+
+- `pnpm test`: **55 passed, 0 failed**. Coverage adds the conflict-revert acceptance case and a multibyte paste envelope over 1.8 MB bytes. No source-string tests.
+- `pnpm exec tsc --noEmit`, `pnpm lint`, `pnpm build`: passed on Vite 8.0.16. Build kept the framework route-classification notice.
+- Direct dependencies moved only to `react`/`react-dom`/`react-server-dom-webpack` 19.2.8 and `vite` 8.0.16. Lockfile also resolved Vite’s `rolldown` 1.0.1 → 1.0.3 and required `@oxc-project/types` 0.133.0. No overrides.
+- Migrations 0000, 0001, and 0002 applied to this checkout’s `.wrangler/state`. Dev server: `http://localhost:3102/` (listens on `[::1]:3102`).
+- Initial fictional browser pass is retained at ignored `private-data/work/round2-browser-qa-initial.json`. Tightened corrections pass (`private-data/work/round2-corrections-browser-qa.json`): copy serializer matched download (Windows clipboard CRLF vs file LF, normalized equality); induced clipboard rejection showed the fallback and left download available; valid paste staged exact text with no database write; prose/wrong-job/stale/oversized paste left editor and stored state unchanged; unchanged Ready on All opportunities disabled Save/Accept with no extra version or event; word edit dropped the accepted hint; Save revoked Ready; explicit reaccept stored the new text; external Ready v2 plus revert did not label stale text accepted; blocker-only dirty cancel/save; current-filter no-op; same-job reselect; dirty job/filter cancel/confirm; delayed file load across a job switch left the later editor unchanged; held in-flight Maple save did not overwrite the Northstar editor. Source Ready rendered beside Relay Held.
+- Not done here: `tests/api.test.mjs`, live Claude, installed Bot transport, production deploy, commit, or push. Port 3101 / live-trial database were not used.
+
 ## Coverage limits
 
 Original code review (base `6f88ea2`) did not include browser interactions or real-provider accounts; connector responses were mocked. The later local assisted trial above does not validate live Claude, production deployment, independent user adoption, unattended production, or external submissions. Lost observations need source reimport. Acceptance repair is limited to missing/mismatched accepted text. No deployment was performed. Ignored implementation and verification logs remain under `work/`.

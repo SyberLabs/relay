@@ -24,13 +24,13 @@ See [Obsidian workflows](OBSIDIAN.md) for the complete setup, formats, review st
 
 ## Claude → a reviewable draft
 
-Select a job, enter verified facts in the connection panel, and download the packet. Set `ANTHROPIC_API_KEY` and `RELAY_CLAUDE_MODEL` to a model available to your API account. Run:
+Select a job, enter verified facts in the connection panel, and download or copy the packet. Set `ANTHROPIC_API_KEY` and `RELAY_CLAUDE_MODEL` to a model available to your API account. Run:
 
 ```sh
 node integrations/relay.mjs claude-draft relay-packet.json private-data/claude-draft.json
 ```
 
-This sends the selected job, supplied facts and visible draft to Anthropic and incurs normal API charges. It sends no other workspace records. Load the result in Relay, check the claims and wording, and save it. Loading is not acceptance; generated claims are not verified automatically. API errors or incomplete model responses produce no output file. Existing output files are never overwritten. Your Claude chat subscription is not used by this API connector.
+This sends the selected job, supplied facts and visible draft to Anthropic and incurs normal API charges. It sends no other workspace records. Load the result in Relay, check the claims and wording, and save it. You can copy the selected `relay.packet.v1` job packet from Relay, and paste complete `relay.draft.v1` JSON with **Load draft for review**. Loading is not acceptance; generated claims are not verified automatically. API errors or incomplete model responses produce no output file. Existing output files are never overwritten. Your Claude chat subscription is not used by this API connector.
 
 ## Grok Bot → Relay
 
@@ -42,13 +42,13 @@ For research, ask the Bot to write records in the schema in `lib/seed.json`, the
 node integrations/relay.mjs grok-research research.json private-data/research-checked.json
 ```
 
-For drafts, give the Bot a downloaded job packet, have it write plain text, then run:
+For drafts, copy or download a `relay.packet.v1` job packet, have the Bot write plain text, then run:
 
 ```sh
 node integrations/relay.mjs grok-draft relay-packet.json draft.txt private-data/grok-draft.json
 ```
 
-Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; that path has not been tested in a Grok Bot session.
+Load the output file in Relay, or paste the complete `relay.draft.v1` JSON with **Load draft for review**. That result is not the copied packet. The packet's job identity and version must still match; otherwise download or copy a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; that path has not been tested in a Grok Bot session. Copy and paste are explicit handoffs, not automatic remote control of an installed Bot.
 
 ## Privacy and operation
 

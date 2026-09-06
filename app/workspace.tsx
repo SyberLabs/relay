@@ -9,8 +9,12 @@ import {
   acknowledgeSave,
   applyLoadedDraft,
   canSave,
+  editorIsDirty,
+  jobQueueHint,
+  keepEditorOnReselect,
   loadEditor,
   reconcileEditor,
+  showsExactAcceptance,
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
@@ -162,7 +166,22 @@ export default function Workspace() {
   useRelayTools(refresh);
   const protectedState =
       current && ['Submitted', 'Live loop'].includes(current.status),
-    blocked = busy || !editor || !canSave(editor);
+    blocked = busy || !editor || !canSave(editor),
+    acceptedExact = showsExactAcceptance(current, editor);
+  function discardUnsaved() {
+    return window.confirm('Discard unsaved draft and blocker changes?');
+  }
+  function chooseJob(job: Job) {
+    if (keepEditorOnReselect(editor, job.id)) return;
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    setEditor(loadEditor(job));
+  }
+  function chooseFilter(value: string) {
+    if (value === filter) return;
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    setFilter(value);
+    setEditor(null);
+  }
   function save(status: string) {
     if (!editor || !canSave(editor)) return;
     const saved: SaveSnapshot = {
@@ -211,10 +230,7 @@ export default function Workspace() {
           <button
             className={'nav ' + (filter === v ? 'active' : '')}
             key={v}
-            onClick={() => {
-              setFilter(v);
-              setEditor(null);
-            }}
+            onClick={() => chooseFilter(v)}
           >
             <Icon size={18} />
             {label}
@@ -471,20 +487,12 @@ export default function Workspace() {
                     <button
                       key={j.id}
                       className={'job ' + (selected === j.id ? 'selected' : '')}
-                      onClick={() => setEditor(loadEditor(j))}
+                      onClick={() => chooseJob(j)}
                     >
                       <span className="companyicon">{j.name[0]}</span>
                       <span className="jobtext">
                         <b>{j.name}</b>
-                        <small>
-                          {j.blocker
-                            ? 'Needs attention'
-                            : j.status === 'Held'
-                              ? 'Review fit & prepare draft'
-                              : j.status === 'Ready'
-                                ? 'Exact draft accepted'
-                                : j.status}
-                        </small>
+                        <small>{jobQueueHint(j, editor)}</small>
                       </span>
                       <ChevronRight size={16} />
                     </button>
@@ -499,7 +507,9 @@ export default function Workspace() {
                   <>
                     <div className="detailhead">
                       <span className="eyebrow">OPPORTUNITY RECORD</span>
-                      <span className="badge">{current.status}</span>
+                      <span className="badge">
+                        Relay status: {current.status}
+                      </span>
                       <h2>{current.name}</h2>
                       {current.url && (
                         <a href={current.url} target="_blank" rel="noreferrer">
@@ -507,6 +517,11 @@ export default function Workspace() {
                         </a>
                       )}
                     </div>
+                    {showsExactAcceptance(current, editor) && (
+                      <div className="notice">
+                        This exact draft is accepted.
+                      </div>
+                    )}
                     {protectedState && (
                       <div className="notice">
                         You can edit notes and follow-up drafts. Saving keeps
@@ -576,7 +591,7 @@ export default function Workspace() {
                       <div className="actions">
                         <button
                           className="secondary"
-                          disabled={blocked}
+                          disabled={blocked || acceptedExact}
                           onClick={() => save('Held')}
                         >
                           Save draft
@@ -584,7 +599,10 @@ export default function Workspace() {
                         <button
                           className="primary"
                           disabled={
-                            blocked || !draft.trim() || !!blocker.trim()
+                            blocked ||
+                            acceptedExact ||
+                            !draft.trim() ||
+                            !!blocker.trim()
                           }
                           onClick={() => save('Ready')}
                         >
@@ -605,12 +623,18 @@ export default function Workspace() {
                       anything.
                     </small>
                     <h3>Source history</h3>
+                    <small className="muted">
+                      Imported source status is research evidence. Exact draft
+                      acceptance is a local Relay decision.
+                    </small>
                     {sources
                       .filter((s) => s.job_key === current.job_key)
                       .map((s) => (
                         <article className="source" key={s.id}>
                           <b>{s.name}</b>
-                          <span className="badge">{s.status}</span>
+                          <span className="badge">
+                            Source reported: {s.status}
+                          </span>
                           <p>{s.notes || 'No source notes recorded.'}</p>
                           {s.source_url.startsWith('obsidian:') && (
                             <small className="muted">

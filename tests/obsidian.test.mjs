@@ -17,6 +17,8 @@ import {
 import {
   readIntegrationFiles,
   draftFromResult,
+  draftFromPastedJson,
+  selectedJobPacket,
 } from '../lib/integration-files.ts';
 import { loadEditor, applyLoadedDraft } from '../lib/editor.ts';
 import { parseDocument } from 'yaml';
@@ -282,6 +284,155 @@ test('file loading supports Markdown batches, individual drafts and existing JSO
       },
     ]),
     /1.8 MB/,
+  );
+});
+
+test('copy and download share one packet object for the selected job', () => {
+  const job = {
+    id: 'job-123',
+    job_key: 'https://example.com/jobs/a',
+    name: 'Example role',
+    url: 'https://example.com/jobs/a',
+    version: 7,
+    status: 'Held',
+  };
+  const packet = selectedJobPacket(job, 'verified fact', 'visible draft');
+  assert.equal(packet.schema, 'relay.packet.v1');
+  assert.deepEqual(packet.job, {
+    id: job.id,
+    key: job.job_key,
+    name: job.name,
+    url: job.url,
+    version: job.version,
+    status: job.status,
+  });
+  assert.equal(packet.facts, 'verified fact');
+  assert.equal(packet.draft, 'visible draft');
+  assert.equal(
+    JSON.stringify(packet, null, 2),
+    JSON.stringify(
+      selectedJobPacket(job, 'verified fact', 'visible draft'),
+      null,
+      2,
+    ),
+  );
+});
+
+test('pasted draft JSON stages exact text and rejects prose, research, and stale targets', () => {
+  const started = {
+    jobId: handoff.id,
+    session: 'session-1',
+    version: handoff.version,
+    draft: 'Original',
+    job_key: handoff.key,
+  };
+  const exact = '  Exact wording.\nKeep punctuation!  ';
+  const result = {
+    schema: 'relay.draft.v1',
+    job: {
+      id: handoff.id,
+      key: handoff.key,
+      url: handoff.url,
+      version: handoff.version,
+    },
+    draft: exact,
+  };
+  assert.equal(draftFromPastedJson(JSON.stringify(result), started), exact);
+  assert.equal(
+    draftFromPastedJson(JSON.stringify(result), started),
+    result.draft,
+  );
+  assert.throws(
+    () => draftFromPastedJson('Please use this draft: hello', started),
+    /complete relay\.draft\.v1 JSON/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify([{ Name: 'Role', Job: handoff.url, Status: 'Held' }]),
+        started,
+      ),
+    /complete relay\.draft\.v1 JSON/,
+  );
+  assert.throws(
+    () => draftFromPastedJson('x'.repeat(1800001), started),
+    /1.8 MB/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify({ ...result, draft: 'd'.repeat(20001) }),
+        started,
+      ),
+    /nonempty Relay draft/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(JSON.stringify({ ...result, draft: '   ' }), started),
+    /nonempty Relay draft/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify({
+          ...result,
+          job: { ...result.job, url: 'https://example.com/other' },
+        }),
+        started,
+      ),
+    /matching job/,
+  );
+  assert.throws(
+    () =>
+      draftFromPastedJson(
+        JSON.stringify({
+          ...result,
+          job: { ...result.job, version: 8 },
+        }),
+        started,
+      ),
+    /matching job/,
+  );
+});
+
+test('pasted JSON over the 1.8 MB byte bound is rejected even when character count is lower', () => {
+  const started = {
+    jobId: handoff.id,
+    session: 'session-1',
+    version: handoff.version,
+    draft: 'Original',
+    job_key: handoff.key,
+  };
+  const text = JSON.stringify({
+    schema: 'relay.draft.v1',
+    job: {
+      id: handoff.id,
+      key: handoff.key,
+      url: handoff.url,
+      version: handoff.version,
+    },
+    draft: 'Exact wording.',
+    padding: '\u20AC'.repeat(600100),
+  });
+  const bytes = new TextEncoder().encode(text).byteLength;
+  assert.ok(text.length < 1800000);
+  assert.ok(bytes > 1800000);
+  assert.throws(() => draftFromPastedJson(text, started), /1.8 MB/);
+  assert.equal(
+    draftFromPastedJson(
+      JSON.stringify({
+        schema: 'relay.draft.v1',
+        job: {
+          id: handoff.id,
+          key: handoff.key,
+          url: handoff.url,
+          version: handoff.version,
+        },
+        draft: '  Exact wording.\nKeep punctuation!  ',
+      }),
+      started,
+    ),
+    '  Exact wording.\nKeep punctuation!  ',
   );
 });
 

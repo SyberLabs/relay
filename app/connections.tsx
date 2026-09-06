@@ -12,6 +12,8 @@ import {
 import {
   readIntegrationFiles,
   draftFromResult,
+  draftFromPastedJson,
+  selectedJobPacket,
 } from '../lib/integration-files';
 
 function downloadFile(content: string, filename: string, type: string) {
@@ -55,32 +57,56 @@ export function Connections({
 }) {
   const [facts, setFacts] = useState('');
   const [note, setNote] = useState('');
+  const [pasted, setPasted] = useState('');
   const [workflow, setWorkflow] =
     useState<keyof typeof obsidianWorkflows>('research');
   const [loading, setLoading] = useState(false);
+  function editorTarget() {
+    return current?.session
+      ? {
+          jobId: current.id,
+          session: current.session,
+          version: current.version,
+          draft,
+          job_key: current.job_key,
+        }
+      : undefined;
+  }
+  function packetText() {
+    return current
+      ? JSON.stringify(selectedJobPacket(current, facts, draft), null, 2)
+      : '';
+  }
   function download() {
     if (!current) return;
-    const packet = {
-      schema: 'relay.packet.v1',
-      job: {
-        id: current.id,
-        key: current.job_key,
-        name: current.name,
-        url: current.url,
-        version: current.version,
-        status: current.status,
-      },
-      facts,
-      draft,
-    };
-    downloadFile(
-      JSON.stringify(packet, null, 2),
-      'relay-packet.json',
-      'application/json',
-    );
+    downloadFile(packetText(), 'relay-packet.json', 'application/json');
     setNote(
       'Packet downloaded. It includes only this job, the visible draft, and the facts you supplied.',
     );
+  }
+  async function copy() {
+    if (!current) return;
+    try {
+      await navigator.clipboard.writeText(packetText());
+      setNote(
+        'Packet copied. It includes only this job, the visible draft, and the facts you supplied.',
+      );
+    } catch {
+      setNote('Unable to copy to the clipboard. Download the packet instead.');
+    }
+  }
+  function loadPastedDraft() {
+    try {
+      const started = editorTarget();
+      onDraft(draftFromPastedJson(pasted, started), started);
+      setNote(
+        'JSON checked. Review the visible draft before saving; if your selection or draft changed, load it again.',
+      );
+    } catch (error) {
+      setNote(
+        error instanceof Error ? error.message : 'Unable to read draft JSON.',
+      );
+    }
   }
   return (
     <details className="import">
@@ -206,6 +232,13 @@ export function Connections({
         <button className="secondary" disabled={!current} onClick={download}>
           Download selected job packet
         </button>
+        <button
+          className="secondary"
+          disabled={!current}
+          onClick={() => void copy()}
+        >
+          Copy selected job packet
+        </button>
         <label className="secondary">
           Load research or draft
           <input
@@ -218,16 +251,8 @@ export function Connections({
               try {
                 const files = Array.from(e.target.files || []);
                 if (!files.length) return;
+                const started = editorTarget();
                 setLoading(true);
-                const started = current?.session
-                  ? {
-                      jobId: current.id,
-                      session: current.session,
-                      version: current.version,
-                      draft,
-                      job_key: current.job_key,
-                    }
-                  : undefined;
                 const value = await readIntegrationFiles(files);
                 if (Array.isArray(value)) {
                   onImport(JSON.stringify(value, null, 2));
@@ -254,6 +279,24 @@ export function Connections({
             }}
           />
         </label>
+      </div>
+      <label className="field">
+        Paste complete relay.draft.v1 JSON
+        <textarea
+          aria-label="Paste complete relay.draft.v1 JSON"
+          value={pasted}
+          onChange={(e) => setPasted(e.target.value)}
+          placeholder='{"schema":"relay.draft.v1","job":{"id":"…","key":"…","url":"…","version":1},"draft":"…"}'
+        />
+      </label>
+      <div className="actions">
+        <button
+          className="secondary"
+          disabled={!current || loading}
+          onClick={loadPastedDraft}
+        >
+          Load draft for review
+        </button>
       </div>
       {loading && <output>Reading selected files…</output>}
       {note && <output>{note}</output>}

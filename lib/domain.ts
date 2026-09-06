@@ -1,3 +1,4 @@
+import { isTerminal } from './outcomes.ts';
 export type SourceRow = {
   url: string;
   Name: string;
@@ -5,6 +6,18 @@ export type SourceRow = {
   Status: string;
   Notes: string | null;
   createdTime?: string;
+  // Structured attributes supplied by the read plane. Hand-written imports omit
+  // them, so they are optional and every consumer defaults them.
+  company?: string;
+  level?: string;
+  remote?: string;
+  comp_min?: number | null;
+  comp_max?: number | null;
+  location?: string;
+  size?: string;
+  posted?: string | null;
+  source?: string;
+  effort?: number;
 };
 export const states = [
   'Held',
@@ -46,6 +59,10 @@ export function importedJobStatus(status: string) {
 }
 export function mergeJobStatus(existing: string | undefined, incoming: string) {
   if (!existing) return importedJobStatus(incoming);
+  // A job that has already ended stays ended. Terminal outcomes are recorded
+  // locally and never appear in imported rows, so rediscovery cannot resurrect
+  // a closed application.
+  if (isTerminal(existing)) return existing;
   if (existing === 'Live loop' || incoming === 'Live loop') return 'Live loop';
   if (existing === 'Submitted' || incoming === 'Submitted') return 'Submitted';
   return existing;
@@ -100,14 +117,17 @@ export function validateEdit(
   if (b.version !== job.version)
     throw Error('This record changed. Reload before saving.');
   if (
-    !(states as readonly string[]).includes(b.status) ||
+    !(
+      (states as readonly string[]).includes(b.status) || isTerminal(b.status)
+    ) ||
     typeof b.draft !== 'string' ||
     typeof b.blocker !== 'string' ||
     b.draft.length > 20000 ||
     b.blocker.length > 4000
   )
     throw Error('Invalid draft or status.');
-  const active = ['Submitted', 'Live loop'].includes(job.status);
+  const active =
+    ['Submitted', 'Live loop'].includes(job.status) || isTerminal(job.status);
   if (active && b.status !== job.status)
     throw Error(
       'Save notes and drafts without changing the application status.',

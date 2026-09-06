@@ -5,6 +5,7 @@ import {
   draftClaude,
   validatePacket,
   notionRow,
+  pullBoard,
 } from '../integrations/connectors.mjs';
 const packet = {
   schema: 'relay.packet.v1',
@@ -92,5 +93,60 @@ test('packets require verified facts and matching job identity', () => {
   assert.throws(() => validatePacket({ ...packet, facts: '' }));
   assert.throws(() =>
     validatePacket({ ...packet, job: { ...packet.job, key: 'different' } }),
+  );
+});
+
+const greenhousePayload = {
+  jobs: [
+    {
+      absolute_url: 'https://boards.greenhouse.io/northstar/jobs/4001',
+      title: 'Senior Backend Engineer',
+      updated_at: '2026-09-01T00:00:00.000Z',
+      location: { name: 'Remote — US' },
+      content: '<p>Base range $150,000 - $190,000</p>',
+      company_name: 'Northstar',
+    },
+  ],
+};
+const ok = (payload) => async () => ({
+  ok: true,
+  status: 200,
+  json: async () => payload,
+});
+test('a public board pull normalises into importable rows', async () => {
+  const rows = await pullBoard({
+    provider: 'greenhouse',
+    board: 'northstar',
+    fetchImpl: ok(greenhousePayload),
+  });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].Status, 'Held', 'discovery never implies a decision');
+  assert.equal(rows[0].comp_min, 150000);
+  assert.equal(rows[0].remote, 'remote');
+});
+test('board pulls reject unknown providers and unsafe board names', async () => {
+  await assert.rejects(
+    () => pullBoard({ provider: 'linkedin', board: 'x', fetchImpl: ok({}) }),
+    /supported board/,
+  );
+  await assert.rejects(
+    () =>
+      pullBoard({
+        provider: 'greenhouse',
+        board: '../../etc/passwd',
+        fetchImpl: ok({}),
+      }),
+    /board identifier/,
+  );
+});
+test('a failed board response is reported, not treated as empty', async () => {
+  await assert.rejects(
+    () =>
+      pullBoard({
+        provider: 'lever',
+        board: 'harbor',
+        fetchImpl: async () => ({ ok: false, status: 404 }),
+      }),
+    /responded 404/,
   );
 });

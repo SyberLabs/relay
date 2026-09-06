@@ -1,4 +1,10 @@
 import { validateRows, jobKey } from '../lib/domain.ts';
+import {
+  boards,
+  fromGreenhouse,
+  fromLever,
+  validateNormalised,
+} from '../lib/postings.ts';
 
 const text = (value) =>
   (value || [])
@@ -136,4 +142,30 @@ export async function draftClaude({ token, model, packet }, fetcher = fetch) {
     model,
     reviewRequired: true,
   };
+}
+
+// Read plane. Public board endpoints only, no credentials and no account
+// identity, so a failed pull costs nothing and can simply be retried. The rows
+// it returns are the same shape the import already accepts.
+export async function pullBoard({ provider, board, fetchImpl = fetch }) {
+  if (!Object.hasOwn(boards, provider))
+    throw Error('Choose a supported board: greenhouse or lever.');
+  if (!board || !/^[\w.-]{1,80}$/.test(board))
+    throw Error('Give the board identifier used in its public URL.');
+  const response = await fetchImpl(boards[provider](board), {
+    headers: { accept: 'application/json' },
+  });
+  if (!response.ok)
+    throw Error(
+      `${provider} responded ${response.status}. Check the board name.`,
+    );
+  const payload = await response.json();
+  const rows =
+    provider === 'greenhouse'
+      ? fromGreenhouse(payload, board)
+      : fromLever(payload, board);
+  const usable = validateNormalised(rows);
+  // Discovery never implies a decision: every row arrives Held, and the
+  // workspace decides what happens to it.
+  return validateRows(usable);
 }

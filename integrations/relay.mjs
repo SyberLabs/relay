@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { pullNotion, draftClaude, validatePacket } from './connectors.mjs';
+import {
+  pullNotion,
+  draftClaude,
+  validatePacket,
+  pullBoard,
+} from './connectors.mjs';
 import { validateRows } from '../lib/domain.ts';
 const [command, input, output] = process.argv.slice(2);
 async function read(path) {
@@ -18,7 +23,15 @@ async function save(path, data) {
   console.log('Saved. Import the output in Relay for review.');
 }
 try {
-  if (command === 'notion-pull') {
+  if (command === 'board-pull') {
+    // Usage: board-pull greenhouse northstar out.json
+    const [, provider, board, target] = process.argv.slice(2);
+    if (!provider || !board || !target)
+      throw Error('Usage: board-pull <greenhouse|lever> <board> output.json');
+    const rows = await pullBoard({ provider, board });
+    await save(target, rows);
+    console.log(`${rows.length} postings normalised from ${provider}.`);
+  } else if (command === 'notion-pull') {
     // One page per call makes truncation explicit and avoids unbounded API work.
     const page = await pullNotion({
       token: process.env.NOTION_TOKEN,

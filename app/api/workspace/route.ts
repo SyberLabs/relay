@@ -14,6 +14,17 @@ import { packets } from '../../../lib/packets';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
+// Optional posting attributes supplied by the read plane. Hand-written imports
+// omit them, so every field coerces to a safe default rather than failing.
+const text = (v: unknown) => (typeof v === 'string' ? v.slice(0, 300) : '');
+const money = (v: unknown) =>
+  typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 10_000_000
+    ? Math.round(v)
+    : null;
+const minutes = (v: unknown) =>
+  typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 480
+    ? Math.round(v)
+    : 20;
 export async function GET() {
   const user = (await getChatGPTUser())?.userId;
   if (!user) return reply({ error: 'Sign in to open your workspace.' }, 401);
@@ -68,7 +79,7 @@ export async function POST(request: Request) {
         statements.push(
           db
             .prepare(
-              `INSERT INTO jobs (id,owner,job_key,name,url,status,blocker,draft,updated) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,job_key) DO UPDATE SET status=CASE WHEN jobs.status='Live loop' OR excluded.status='Live loop' THEN 'Live loop' WHEN jobs.status='Submitted' OR excluded.status='Submitted' THEN 'Submitted' ELSE jobs.status END, blocker=CASE WHEN jobs.blocker='' AND jobs.status NOT IN ('Ready','Submitted','Live loop') THEN excluded.blocker ELSE jobs.blocker END, accepted_draft=CASE WHEN excluded.status IN ('Submitted','Live loop') THEN NULL ELSE jobs.accepted_draft END, version=jobs.version+1, updated=excluded.updated`,
+              `INSERT INTO jobs (id,owner,job_key,name,url,status,blocker,draft,updated,company,level,remote,comp_min,comp_max,location,posted,source,effort) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,job_key) DO UPDATE SET status=CASE WHEN jobs.status IN ('Offer','Accepted','Closed') THEN jobs.status WHEN jobs.status='Live loop' OR excluded.status='Live loop' THEN 'Live loop' WHEN jobs.status='Submitted' OR excluded.status='Submitted' THEN 'Submitted' ELSE jobs.status END, blocker=CASE WHEN jobs.blocker='' AND jobs.status NOT IN ('Ready','Submitted','Live loop') THEN excluded.blocker ELSE jobs.blocker END, accepted_draft=CASE WHEN excluded.status IN ('Submitted','Live loop') THEN NULL ELSE jobs.accepted_draft END, company=CASE WHEN excluded.company!='' THEN excluded.company ELSE jobs.company END, level=CASE WHEN excluded.level!='' THEN excluded.level ELSE jobs.level END, remote=CASE WHEN excluded.remote!='' THEN excluded.remote ELSE jobs.remote END, comp_min=COALESCE(excluded.comp_min,jobs.comp_min), comp_max=COALESCE(excluded.comp_max,jobs.comp_max), location=CASE WHEN excluded.location!='' THEN excluded.location ELSE jobs.location END, posted=COALESCE(excluded.posted,jobs.posted), source=CASE WHEN excluded.source!='' THEN excluded.source ELSE jobs.source END, effort=excluded.effort, version=jobs.version+1, updated=excluded.updated`,
             )
             .bind(
               crypto.randomUUID(),
@@ -81,6 +92,15 @@ export async function POST(request: Request) {
                 (b.action === 'bootstrap' ? packets[key]?.blocker || '' : ''),
               b.action === 'bootstrap' ? packets[key]?.draft || '' : '',
               now,
+              text(r.company),
+              text(r.level),
+              text(r.remote),
+              money(r.comp_min),
+              money(r.comp_max),
+              text(r.location),
+              text(r.posted) || null,
+              text(r.source),
+              minutes(r.effort),
             ),
         );
         statements.push(

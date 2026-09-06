@@ -24,6 +24,7 @@ const apiCommands = new Set([
   'plan',
   'status',
   'outcome',
+  'hunt',
 ]);
 async function read(path) {
   if (!path) throw Error('An input file is required.');

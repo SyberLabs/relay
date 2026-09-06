@@ -37,6 +37,7 @@ jobs:
       DEPLOY_URL: ${{ vars.DEPLOY_URL }}
       ACCESS_ISSUER: ${{ vars.ACCESS_ISSUER }}
       ACCESS_AUD: ${{ vars.ACCESS_AUD }}
+      WORKERS_DEV_SUBDOMAIN: ${{ vars.WORKERS_DEV_SUBDOMAIN }}
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - name: Verify trusted, successful main-branch CI provenance

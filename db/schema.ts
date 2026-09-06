@@ -157,15 +157,23 @@ export const outcomes = sqliteTable(
   (t) => [index('outcomes_owner_job').on(t.owner, t.job_id)],
 );
 // A refusal record is not a draft. It never enters the review queue, is never
-// citable and never counts toward graduation. It exists so the citation gate's
-// real strictness can be measured instead of guessed at; the refused draft body
-// is still never stored.
+// citable and never counts toward graduation.
+//
+// It holds no text from the refused draft. An earlier revision stored the
+// failing clause, which for a single-sentence draft is the whole body -- so
+// the columns are a one-way summary instead: which rule fired, how many
+// figures the clause carried, its length, and whether an employer possessive
+// governed it. That measures the gate's strictness without retaining a word of
+// what was written.
 export const refusals = sqliteTable('refusals', {
   id: text('id').primaryKey(),
   owner: text('owner').notNull(),
   job_id: text('job_id').notNull(),
   reason: text('reason').notNull(),
-  sentence: text('sentence').notNull().default(''),
+  trigger_kind: text('trigger_kind').notNull().default('other'),
+  numbers: integer('numbers').notNull().default(0),
+  words: integer('words').notNull().default(0),
+  employer_ref: integer('employer_ref').notNull().default(0),
   cited: text('cited').notNull().default(''),
   created: text('created').notNull(),
 });

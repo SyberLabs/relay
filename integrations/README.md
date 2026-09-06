@@ -133,9 +133,13 @@ never below one. An unproven profile is still allowed a single supervised draft,
 
 The governing rule is that Relay never generates more unreviewed work than you have shown you will review. A reviewer facing forty drafts stops reviewing and starts approving.
 
-### Refused drafts are counted, not stored
+### Refused drafts are counted, and no text is kept
 
-A refused draft is still never stored. What is now recorded is that a refusal happened, its reason, and the single clause that failed - never the draft body. Without it Relay could not tell an appropriately strict citation gate from one that is unusable on real prose, and the refusal-rate gate above would have nothing to read.
+A refusal records that it happened, its reason, and a one-way summary of the clause that failed: which rule fired, how many figures the clause carried, its length in words, and whether an employer possessive governed it. No text from the draft is written anywhere.
+
+That distinction matters because for a single-sentence draft the failing clause *is* the whole body, so storing the clause would have stored the draft. The summary answers whether the gate is too strict, and in which direction, while leaving the clause unreconstructable.
+
+Without any of this Relay could not tell an appropriately strict citation gate from one that is unusable on real prose, and the refusal-rate gate above would have nothing to read.
 
 Refusal records are not drafts: they never enter the review queue, are never citable, and never count toward graduation. The server is the only judge of a refusal and the only place one is recorded, so a client cannot shape its own rate.
 

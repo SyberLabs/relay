@@ -111,7 +111,7 @@ writeFileSync(
 );
 r = relay('log', job.id, 'private-data/cli-bad.txt', '--cite', verified.id);
 assert.equal(r.code, EXIT.refused, r.err);
-assert.match(r.err, /refused — nothing was written/);
+assert.match(r.err, /refused — no draft stored, no text kept/);
 assert.match(r.err, /cut infrastructure spend by 40%/, 'names the sentence');
 assert.equal(
   (await api('/api/drafts')).data.drafts.length,

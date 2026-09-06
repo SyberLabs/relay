@@ -3,7 +3,10 @@ CREATE TABLE `refusals` (
 	`owner` text NOT NULL,
 	`job_id` text NOT NULL,
 	`reason` text NOT NULL,
-	`sentence` text DEFAULT '' NOT NULL,
+	`trigger_kind` text DEFAULT 'other' NOT NULL,
+	`numbers` integer DEFAULT 0 NOT NULL,
+	`words` integer DEFAULT 0 NOT NULL,
+	`employer_ref` integer DEFAULT 0 NOT NULL,
 	`cited` text DEFAULT '' NOT NULL,
 	`created` text NOT NULL
 );

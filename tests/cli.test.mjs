@@ -321,7 +321,7 @@ void test('a refused generated draft reaches the log API and keeps the --out fil
       }),
     });
     assert.equal(code, EXIT.refused);
-    assert.match(stderr.join(''), /refused — nothing was written/);
+    assert.match(stderr.join(''), /refused — no draft stored, no text kept/);
     assert.equal(
       logged,
       true,

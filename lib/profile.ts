@@ -374,12 +374,53 @@ export const refusalReasons = [
   'unverified_fact',
   'unknown_fact',
 ] as const;
+export const refusalTriggers = [
+  'digit',
+  'strong_verb',
+  'ambiguous_verb',
+  'other',
+] as const;
+export type RefusalSignature = {
+  trigger: (typeof refusalTriggers)[number];
+  numbers: number;
+  words: number;
+  employer_ref: number;
+};
+// A refusal has to be measurable without keeping the text that was refused.
+// This is a one-way summary of why a clause tripped the gate: which rule fired,
+// how many figures it carried, how long it was, and whether an employer
+// possessive governed one of them. Those four answer "is the gate too strict, and in
+// which direction" while making the clause unreconstructable -- no word of the
+// draft survives.
+// Whether a second-person possessive governs a figure in the clause: "your
+// 2024 launch". isClaim deliberately treats those as claims needing citation,
+// and this changes nothing about that -- it exempts nothing and is read by
+// nothing except the refusal record. It exists so the cost of that deliberate
+// strictness can be seen in evidence rather than argued from memory.
+const employerFigure = /(?:your|yours|their|its)[^.!?]{0,24}?\d/i;
+export function refusalSignature(sentence: string): RefusalSignature {
+  return {
+    trigger: /\d/.test(sentence)
+      ? 'digit'
+      : strongVerbs.test(sentence)
+        ? 'strong_verb'
+        : ambiguousVerbs.test(sentence)
+          ? 'ambiguous_verb'
+          : 'other',
+    numbers: numbersIn(sentence).size,
+    words: words(sentence).length,
+    employer_ref: employerFigure.test(sentence) ? 1 : 0,
+  };
+}
 // A refusal the system should count. Malformed requests are ordinary errors and
 // are deliberately not RefusalErrors: they say nothing about whether the
 // citation gate is calibrated, and counting them would flatter the rate.
 export class RefusalError extends Error {
   reason: (typeof refusalReasons)[number];
+  // Returned to the caller so a person can see which clause failed. It is
+  // deliberately not a stored field: nothing persists the refused text.
   sentence: string;
+  signature: RefusalSignature | null;
   constructor(
     message: string,
     reason: (typeof refusalReasons)[number],
@@ -389,6 +430,7 @@ export class RefusalError extends Error {
     this.name = 'RefusalError';
     this.reason = reason;
     this.sentence = sentence;
+    this.signature = sentence ? refusalSignature(sentence) : null;
   }
 }
 // The agent may log a draft, never accept one. A draft carrying an unsupported

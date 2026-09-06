@@ -6,7 +6,15 @@ import {
   refusalRate,
   thresholds,
 } from '../lib/readiness.ts';
-import { RefusalError, validateDraftLog, limits } from '../lib/profile.ts';
+import {
+  RefusalError,
+  refusalSignature,
+  validateDraftLog,
+  limits,
+} from '../lib/profile.ts';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 const NOW = '2026-09-06T00:00:00.000Z';
 function draft(id, extra = {}) {
@@ -226,4 +234,120 @@ void test('a malformed request is an ordinary error, not a counted refusal', () 
       () => validateDraftLog(bad, [], NOW),
       (e) => e instanceof Error && !(e instanceof RefusalError),
     );
+});
+
+/* ---------------- rejected text is never persisted ---------------- */
+
+// A single-sentence draft is the case that matters: its failing clause IS the
+// whole body, so anything that stored "just the clause" would store the draft.
+const SENSITIVE =
+  'I personally raised 4200000 dollars for Acme Holdings after my divorce settled.';
+const distinctive = [
+  'personally',
+  'raised',
+  'Acme',
+  'Holdings',
+  'divorce',
+  'settled',
+  '4200000',
+];
+
+void test('the refusal signature keeps no word of the refused clause', () => {
+  const signature = refusalSignature(SENSITIVE);
+  const serialised = JSON.stringify(signature).toLowerCase();
+  for (const token of distinctive)
+    assert.ok(
+      !serialised.includes(token.toLowerCase()),
+      `signature leaked "${token}"`,
+    );
+  // Still useful: it says which rule fired and how the clause was shaped.
+  assert.equal(signature.trigger, 'digit');
+  assert.equal(signature.numbers, 1);
+  assert.ok(signature.words > 5);
+});
+
+void test('a refused single-sentence draft leaves no text in any table', () => {
+  // Zero rows in `drafts` is not the same as zero rejected text persisted, so
+  // this applies the real migrations, runs the route's real refusal INSERT and
+  // then scans every column of every table.
+  const drizzle = join(process.cwd(), 'drizzle');
+  const db = new DatabaseSync(':memory:');
+  for (const name of readdirSync(drizzle)
+    .filter((f) => f.endsWith('.sql'))
+    .sort())
+    for (const part of readFileSync(join(drizzle, name), 'utf8').split(
+      '--> statement-breakpoint',
+    )) {
+      const sql = part.trim();
+      if (sql) db.exec(sql);
+    }
+  const routeSrc = readFileSync(
+    join(process.cwd(), 'app/api/drafts/route.ts'),
+    'utf8',
+  );
+  const start = routeSrc.indexOf('INSERT INTO refusals');
+  const insert = routeSrc.slice(start, routeSrc.indexOf("'", start));
+
+  // No column in the statement may carry free text from the draft.
+  const columns = insert
+    .slice(insert.indexOf('(') + 1, insert.indexOf(')'))
+    .split(',')
+    .map((c) => c.trim());
+  assert.deepEqual(columns, [
+    'id',
+    'owner',
+    'job_id',
+    'reason',
+    'trigger_kind',
+    'numbers',
+    'words',
+    'employer_ref',
+    'cited',
+    'created',
+  ]);
+
+  let refusal;
+  try {
+    validateDraftLog({ body: SENSITIVE, cited: [] }, [], NOW);
+    assert.fail('the gate should have refused');
+  } catch (e) {
+    assert.ok(e instanceof RefusalError);
+    refusal = e;
+  }
+  // The message still names the clause for the person who wrote it; that is
+  // returned to their client and is exactly what must not reach the database.
+  assert.ok(refusal.message.includes('divorce'));
+
+  db.prepare(insert).run(
+    'refusal-1',
+    'owner-a',
+    'job-1',
+    refusal.reason,
+    refusal.signature.trigger,
+    refusal.signature.numbers,
+    refusal.signature.words,
+    refusal.signature.employer_ref,
+    '',
+    NOW,
+  );
+  assert.equal(
+    db.prepare('SELECT count(*) AS n FROM refusals').get().n,
+    1,
+    'the refusal is counted, so this test is not vacuous',
+  );
+
+  const tables = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+    .all()
+    .map((t) => String(t.name));
+  assert.ok(tables.includes('refusals') && tables.includes('drafts'));
+  for (const table of tables)
+    for (const row of db.prepare(`SELECT * FROM "${table}"`).all())
+      for (const [column, value] of Object.entries(row))
+        if (typeof value === 'string')
+          for (const token of distinctive)
+            assert.ok(
+              !value.toLowerCase().includes(token.toLowerCase()),
+              `${table}.${column} retained "${token}" from a refused draft`,
+            );
 });

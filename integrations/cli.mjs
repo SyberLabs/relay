@@ -404,7 +404,7 @@ async function invoke(argv) {
   } catch (error) {
     if (error instanceof RelayError) {
       if (error.code === EXIT.refused) {
-        note('refused — nothing was written');
+        note('refused — no draft stored, no text kept');
         note(`  ${error.message}`);
         if (error.detail?.unsupported)
           note('  Cite a verified fact, or remove the claim.');

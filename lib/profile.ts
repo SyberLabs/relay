@@ -25,10 +25,8 @@ export type DraftRow = {
   profile_version: number;
   batch?: string | null;
 };
-export const factStates = ['Proposed', 'Verified', 'Retired'] as const;
-export const factTags = ['metric', 'role', 'credential', 'detail'] as const;
-export const confidences = ['high', 'low'] as const;
-export const verdicts = ['Logged', 'Reviewed', 'Corrected'] as const;
+const factTags = ['metric', 'role', 'credential', 'detail'] as const;
+const confidences = ['high', 'low'] as const;
 export const limits = {
   batchSize: 12,
   lowConfidence: 3,
@@ -76,7 +74,7 @@ export function contentWords(text: string): Set<string> {
       .filter((w) => w.length > 2 && !stop.has(w)),
   );
 }
-export function numbersIn(text: string): Set<string> {
+function numbersIn(text: string): Set<string> {
   return new Set(
     (text.replace(/,(?=\d{3}\b)/g, '').match(/\d+(?:\.\d+)?/g) || []).map((n) =>
       String(Number(n)),
@@ -164,7 +162,7 @@ export function editRatio(a: string, b: string): number {
   }
   return previous[y.length] / Math.max(x.length, y.length);
 }
-export function draftEdit(draft: DraftRow): number {
+function draftEdit(draft: DraftRow): number {
   return draft.corrected ? editRatio(draft.body, draft.corrected) : 0;
 }
 function median(values: number[]): number {

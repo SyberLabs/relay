@@ -33,7 +33,7 @@ export function compFeature(min: number | null, max: number | null): number {
     (Math.log(COMP_CEIL) - Math.log(COMP_FLOOR));
   return Math.min(1, Math.max(0, t));
 }
-export function ordinal(value: string, scale: string[]): number {
+function ordinal(value: string, scale: string[]): number {
   const i = scale.indexOf(value);
   return i < 0
     ? UNKNOWN
@@ -53,7 +53,7 @@ export function remoteFeature(remote: string): number {
 // Domain fit is computed, never learned as one weight per role family: twelve
 // comparisons cannot determine a dozen family weights, and the person's own
 // verified claims already say which domains they come from.
-export function domainFeature(posting: Posting, corpus: Set<string>): number {
+function domainFeature(posting: Posting, corpus: Set<string>): number {
   if (!corpus.size) return UNKNOWN;
   const words = contentWords(`${posting.name} ${posting.company}`);
   if (!words.size) return UNKNOWN;
@@ -75,13 +75,10 @@ export function corpusOf(claims: string[]): Set<string> {
   for (const c of claims) for (const w of contentWords(c)) out.add(w);
   return out;
 }
-export function zeroWeights(): Weights {
-  return { comp: 0, remote: 0, level: 0, size: 0, domain: 0 };
-}
-export function toWeights(v: number[]): Weights {
+function toWeights(v: number[]): Weights {
   return Object.fromEntries(features.map((f, i) => [f, v[i] ?? 0])) as Weights;
 }
-export function toVector(w: Weights): number[] {
+function toVector(w: Weights): number[] {
   return features.map((f) => w[f] ?? 0);
 }
 export function difference(a: number[], b: number[]): number[] {

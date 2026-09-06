@@ -5,8 +5,8 @@
 // is a local record of something that actually happened, set by an explicit
 // action here, so the existing import status matrix is untouched and
 // rediscovery can never resurrect a job that has already ended.
-export const terminalStates = ['Offer', 'Accepted', 'Closed'] as const;
-export const outcomeKinds = [
+const terminalStates = ['Offer', 'Accepted', 'Closed'] as const;
+const outcomeKinds = [
   'submitted',
   'response',
   'screen',
@@ -48,7 +48,7 @@ export function isTerminal(status: string): boolean {
 export function statusAfter(kind: OutcomeKind): string | null {
   return resulting[kind];
 }
-export function countsAsResponse(kind: string): boolean {
+function countsAsResponse(kind: string): boolean {
   return responded.has(kind as OutcomeKind);
 }
 // The receipt invariant. A submission recorded here must carry proof, because a

@@ -31,7 +31,7 @@ export function selectedJobPacket(
   };
 }
 
-export function packetMatchesStarted(
+function packetMatchesStarted(
   job:
     | { id?: string; key?: string; url?: string | null; version?: number }
     | undefined,

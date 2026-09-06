@@ -9,7 +9,7 @@ export type Candidate = {
   effort: number;
 };
 export const prior = { alpha: 1, beta: 14 };
-export const decayDays = 45;
+const decayDays = 45;
 // A cold prior of roughly 6% response, updated per cluster by what actually
 // happened. Early p is a prior, not a measurement, so it is reported with the
 // evidence count that produced it and never as a bare number.
@@ -47,7 +47,7 @@ export function expectedMax(candidates: { u: number; p: number }[]): number {
   }
   return total;
 }
-export function marginalGain(
+function marginalGain(
   chosen: { u: number; p: number }[],
   candidate: { u: number; p: number },
 ): number {

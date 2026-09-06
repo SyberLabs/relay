@@ -1,19 +1,28 @@
 'use client';
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { validateRows } from '../lib/domain';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
 import { TrackerImport } from './tracker-import';
 import {
-  acknowledgeSave,
   applyLoadedDraft,
   canSave,
   loadEditor,
-  reconcileEditor,
   type Editor,
   type SaveSnapshot,
 } from '../lib/editor';
+import {
+  applyAcceptedSave,
+  beginMutation,
+  beginRefresh,
+  createWorkspaceSession,
+  editorForJobs,
+  expiredPrivateWorkspace,
+  mutationIsLive,
+  processMutation,
+  processRefresh,
+} from '../lib/workspace-refresh';
 import {
   ArrowUpRight,
   Search,
@@ -59,12 +68,6 @@ type Report = {
   submitted: number;
   items: { name: string; kind: string; key: string }[];
 };
-type Reply = {
-  jobs: Job[];
-  sources: Source[];
-  events: ReviewEvent[];
-  error?: string;
-} & Report;
 export default function Workspace() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [sources, setSources] = useState<Source[]>([]),
@@ -80,6 +83,21 @@ export default function Workspace() {
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false);
+  const sessionRef = useRef(createWorkspaceSession());
+  const applyExpired = useCallback(() => {
+    const next = expiredPrivateWorkspace();
+    setJobs(next.jobs);
+    setSources(next.sources);
+    setEvents(next.events);
+    setEditor(next.editor);
+    setImportText(next.importText);
+    setPreviewedImport(next.previewedImport);
+    setReport(next.report);
+    setShowImport(next.showImport);
+    setSignedOut(next.signedOut);
+    setLoaded(next.loaded);
+    setMessage('');
+  }, []);
   const researchRows = useMemo(() => {
     try {
       return validateRows(JSON.parse(importText));
@@ -96,27 +114,27 @@ export default function Workspace() {
         (filter === 'All' || j.status === filter) &&
         j.name.toLowerCase().includes(search.toLowerCase()),
     );
-  const refresh = useCallback(async (saved?: SaveSnapshot) => {
-    const r = await fetch('/api/workspace');
-    const data = (await r.json()) as Reply;
-    if (r.status === 401) {
-      setSignedOut(true);
+  const refresh = useCallback(
+    async (saved?: SaveSnapshot) => {
+      if (saved) sessionRef.current.lastAck = saved;
+      const started = beginRefresh(sessionRef.current.gate);
+      const r = await fetch('/api/workspace');
+      const outcome = await processRefresh(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
+      }
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') throw Error(outcome.error);
+      setJobs(outcome.jobs as Job[]);
+      setSources(outcome.sources as Source[]);
+      setEvents(outcome.events as ReviewEvent[]);
+      setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      setSignedOut(false);
       setLoaded(true);
-      return;
-    }
-    if (!r.ok) throw Error(data.error);
-    setJobs(data.jobs);
-    setSources(data.sources);
-    setEvents(data.events);
-    setEditor((e) => {
-      const next = e && saved ? acknowledgeSave(e, saved) : e;
-      return reconcileEditor(
-        next,
-        data.jobs.find((j) => j.id === next?.jobId),
-      );
-    });
-    setLoaded(true);
-  }, []);
+    },
+    [applyExpired],
+  );
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
@@ -126,6 +144,7 @@ export default function Workspace() {
       });
   }, [refresh]);
   async function run(body: Record<string, unknown>, saved?: SaveSnapshot) {
+    const started = beginMutation(sessionRef.current.gate);
     setBusy(true);
     setMessage('');
     try {
@@ -134,16 +153,29 @@ export default function Workspace() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = (await r.json()) as Reply;
-      if (!r.ok) {
-        if (saved && r.status === 409) await refresh();
-        throw Error(data.error);
+      const outcome = await processMutation(
+        sessionRef.current,
+        started,
+        r,
+        saved,
+      );
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
       }
-      if (data.items) setReport(data);
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') {
+        if (saved && outcome.status === 409) await refresh();
+        if (!mutationIsLive(sessionRef.current.gate, started)) return;
+        throw Error(outcome.error);
+      }
+      setEditor((e) => applyAcceptedSave(e, saved));
+      if (outcome.body.items) setReport(outcome.body as Report);
       if (body.action === 'preview')
         setPreviewedImport(JSON.stringify(body.rows));
       if (body.action === 'import') setPreviewedImport('');
       await refresh(saved);
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       setMessage(
         body.action === 'save'
           ? 'Saved. Your review is preserved.'
@@ -342,7 +374,7 @@ export default function Workspace() {
             openImport={() => setShowImport(true)}
           />
         )}
-        {showImport && (
+        {showImport && !signedOut && (
           <section className="import">
             <h2>Import research</h2>
             <p>
@@ -400,7 +432,7 @@ export default function Workspace() {
             </div>
           </section>
         )}
-        {report && (
+        {report && !signedOut && (
           <section className="report">
             <div>
               <b>Research check</b>
@@ -424,7 +456,7 @@ export default function Workspace() {
             </details>
           </section>
         )}
-        {jobs.length > 0 && (
+        {jobs.length > 0 && !signedOut && (
           <>
             <section className="replay">
               <GitMerge size={20} />

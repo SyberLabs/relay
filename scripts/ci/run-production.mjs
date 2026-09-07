@@ -447,7 +447,9 @@ try {
     'progress fixture bootstrap',
   );
   const progressInitial = await (await call(progressUser)).json();
-  const progressJob = progressInitial.jobs[0];
+  const progressJob = progressInitial.jobs.find((item) =>
+    item.job_key.endsWith('/backend'),
+  );
   await expectStatus(
     await call(progressUser, {
       action: 'save',

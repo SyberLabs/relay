@@ -76,6 +76,11 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
         'relay_log_draft',
         'relay_save_progress',
         'relay_stage_draft',
+        'relay_prepare_application',
+        'relay_arm_application',
+        'relay_inspect_application',
+        'relay_begin_application',
+        'relay_finish_application',
       ]);
       // Client navigation unmounts the workspace and removes its tools.
       await page.getByRole('link', { name: 'Your facts', exact: true }).click();

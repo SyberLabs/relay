@@ -485,6 +485,170 @@ git commit -m "Describe Inspect Accept send in public and engineering contracts"
 
 ---
 
+### Task 7: Inspect is the only approve path; ledger cannot Begin
+
+**Files:**
+- Modify: `app/applications/page.tsx`
+- Modify: `tests/e2e/applications.spec.ts`
+- Modify: `docs/agent-applications.md` only if it still tells humans to click Begin on `/applications`
+
+**Interfaces:**
+- Consumes: existing Inspect **Accept and send**; existing POST `begin` (operative / API)
+- Produces: `/applications` is evidence, cancel, and receipt recording. It must not offer **Approve this exact application** or **Begin this application once**.
+
+Spec: “Existing #128 e2e still can propose from `/applications` **or** is updated so Inspect is the only approve path; do not leave two conflicting Begin buttons.” Choose Inspect-only approve. Human Begin on the ledger consumes `execute: true` in the wrong session; the waiting operative then cannot submit.
+
+- [ ] **Step 1: Write the failing e2e assertions** in `tests/e2e/applications.spec.ts`
+
+After the existing prepare+arm API calls (keep those; approve still requires a live arm), replace the ledger Approve click and Begin click:
+
+1. Assert `/applications` has **zero** buttons named `Approve this exact application` and **zero** named `Begin this application once` (before and after arm).
+2. `page.goto('/')`, open the Pilot Engineer job, click **Accept and send**, wait for `Accepted — waiting for the operative to send.`
+3. Operative `begin` via `page.request.post('/api/applications', { data: { action: 'begin', viewer, id, digest } })`. Expect `execute: true`.
+4. Return to `/applications`, reopen the executing row, keep the file-download and `complete` receipt assertions unchanged (including second `begin` 409).
+5. Still assert `/applications` has no Begin button after `begin`.
+
+Do not add a second Accept control on `/applications`. Keep **Cancel proposal** and executing/uncertain receipt controls.
+
+- [ ] **Step 2: Run to fail**
+
+Run: `export PATH="$HOME/.nvm/versions/node/v24.20.0/bin:$PATH" && pnpm test:e2e -- tests/e2e/applications.spec.ts`
+
+Expected: FAIL (Begin/Approve buttons still present, or Accept path not used).
+
+- [ ] **Step 3: Remove ledger Approve and Begin**
+
+In `app/applications/page.tsx`, delete the `proposed` Approve button and the `authorized` Begin button. Add one sentence that Accept and send lives on workspace Inspect and the operative begins after Accept. Do not call `begin` from this page.
+
+- [ ] **Step 4: Run e2e**
+
+Run: `pnpm test:e2e -- tests/e2e/applications.spec.ts tests/e2e/inspect-accept.spec.ts`
+
+Expected: pass. Covering unit suite not required unless you touch `lib/`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "Keep Inspect as the only human approve path (#135)"
+```
+
+---
+
+### Task 8: Human Blocked answers and r.close
+
+**Files:**
+- Modify: `lib/application-automation.ts` (`upsertPreparation` merge, or a dedicated answer helper)
+- Modify: `app/api/applications/route.ts` if a new action is added
+- Modify: `app/inspect.tsx` (`inspectMarkup` only — not `inspectSummaryMarkup`)
+- Modify: `app/agent-tools.ts`
+- Modify: `tests/e2e/agent-tools.spec.ts`, `tests/e2e/inspect-accept.spec.ts`
+- Modify: `integrations/ASSISTANT-WORKFLOW.md`
+- Test: `tests/application-automation.test.mjs`
+
+**Interfaces:**
+- Spec Inspect UI: unknowns list under **Blocked**; Accept disabled; human types the answer → that field `unknown: false` (human mutation); operative must re-arm.
+- Spec CLI: `r.close` → `cancel` if pre-`begin`; else stop. No `relay_approve_application`.
+- Overlay `/apply` must **not** gain the human answer inputs (`inspectSummaryMarkup` stays read-only).
+
+`GET ?job=` must not include file bytes. A full `prepare` from Inspect would wipe stored files if the client only has `name`/`sha256`. Therefore the human answer path **must merge** into the stored preparation: update the named field’s `value` and `unknown: false`, keep destination and stored `files` JSON, set `ready=0`, clear `armed_until`, and cancel a pre-`begin` freeze if the digest would change (same rules as today’s `upsertPreparation`).
+
+Choose one of:
+- `POST { action: 'prepare', merge: true, job, fields: [{ label, value, unknown: false }] }` with `merge: true` requiring the preparation row to exist, or
+- `POST { action: 'answer', job, label, value }` that does the same merge.
+
+Do not invent a second table. Actor stays the existing preparation actor (or `Human` if you must set one — do not require a new actor from the human UI). Weight remains mutation 10. Bound `value` ≤ 20,000 characters. Refuse empty value. Refuse another owner’s job.
+
+WebMCP: register `relay_cancel_application` with `id` + `digest`. Description: cancel only if pre-`begin`; if already `executing`, do not cancel and do not submit. Maps `r.close`. Do not add `relay_approve_application`.
+
+- [ ] **Step 1: Failing tests**
+
+Unit (`tests/application-automation.test.mjs`): prepare two fields (one `unknown: true`) plus a file entry in stored JSON; merge-answer the unknown label; inspect shows that field filled/`unknown: false`; files `name`/`sha256` unchanged; `accept_enabled` false until arm.
+
+E2E (`tests/e2e/inspect-accept.spec.ts`): prepare Full name filled + Work authorization `unknown: true`; workspace Inspect shows **Blocked** and **Work authorization**; fill the Blocked answer and save; Accept still disabled; arm; Accept enabled.
+
+E2E (`tests/e2e/agent-tools.spec.ts`): registered names include `relay_cancel_application` after `relay_finish_application`. Still no `relay_approve_application`.
+
+- [ ] **Step 2: Run to fail**
+
+- [ ] **Step 3: Implement merge-answer UI and cancel tool**
+
+Blocked inputs live only in `inspectMarkup` (workspace). Each unknown field: label, textbox, submit named clearly (e.g. **Save answer**). POST the merge/answer action with `viewer`. After success, reload inspect. Do not nest a second Vinext `<Inspect />` island.
+
+Wire `relay_cancel_application` through existing `applications({ action: 'cancel', id, digest })`. Document `r.close` in `integrations/ASSISTANT-WORKFLOW.md`.
+
+- [ ] **Step 4: Run covering tests**
+
+Run: `node --test tests/application-automation.test.mjs && pnpm test:e2e -- tests/e2e/inspect-accept.spec.ts tests/e2e/agent-tools.spec.ts tests/e2e/apply-overlay.spec.ts`
+
+Expected: pass; overlay still has no Accept and no Blocked save controls.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "Let humans answer Blocked Inspect fields and cancel via r.close (#135)"
+```
+
+---
+
+### Task 9: Full Inspect handshake e2e
+
+**Files:**
+- Modify: `tests/e2e/inspect-accept.spec.ts`
+- Modify: `tests/e2e/apply-overlay.spec.ts` if last-verb can be asserted without new product surface
+
+**Interfaces:** Spec testing: overlay/`prepare` fills three fields; Inspect shows three filled; Accept disabled until arm; Accept; mock operative `begin`+`complete`; job Submitted; file bytes round-trip.
+
+- [ ] **Step 1: Write the failing e2e** `inspect overlay prepare fills three fields then Accept send completes`
+
+Use a distinct fictional job name (`Inspect Handshake Engineer`). Fields: `Full name`, `Work authorization`, `Cover note` (all nonempty, `unknown: false`). One file `resume.txt` with a small unique buffer (do **not** copy the 148000-byte ledger fixture unless needed; ≤ 4 KiB is enough to prove bytes). `prepare` then open `/` Inspect: three labels visible, Accept disabled. `arm`. Accept enabled. Click **Accept and send**. Operative `begin` (`execute: true`). `complete` with receipt `Fictional employer accepted application INS-9`. GET workspace: that job `status === 'Submitted'`. GET operation `?id=` still returns the exact file bytes (existing detail download or JSON `files[].base64`).
+
+Also assert `/apply?job=` shows the three labels, copy “Accept lives on the human workspace, not here.”, and `Last verb result` output exists (`No verb result yet.` until a tool runs). If the apply e2e already covers overlay copy, do not duplicate that page’s chrome assertions; the handshake test may skip `/apply` if Task 5 e2e still passes.
+
+- [ ] **Step 2: Run to fail** (missing three-field/Submitted assertions)
+
+- [ ] **Step 3: Only add test + tiny glue if the handshake already works.** Do not add new routes. If complete does not set Submitted, that is a product bug: fix the existing `complete` path with a regression test, do not add a second status writer.
+
+- [ ] **Step 4: Run** `pnpm test:e2e -- tests/e2e/inspect-accept.spec.ts tests/e2e/apply-overlay.spec.ts tests/e2e/applications.spec.ts`
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "Cover Inspect three-field file handshake through Submitted (#135)"
+```
+
+---
+
+### Task 10: Spec, migration, and begin refresh_required
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-09-07-inspect-accept-send-design.md` (`r.wait_accept` interval)
+- Create: `drizzle/0010_*.sql` (+ journal/snapshot if this repo requires them for 0010)
+- Modify: `app/agent-tools.ts` (`relay_begin_application` catch)
+- Modify: `tests/agent-tools-begin.test.mjs`
+
+**Interfaces:**
+- `r.wait_accept` polls at least every **2 seconds (prefer 3)**, matching `integrations/ASSISTANT-WORKFLOW.md` and the 120 dynamic req/user/min cap. Do not restore 500ms–1s.
+- If an environment already applied the **old** `0009` capacity trigger (`WHEN count>=500` without the existing-row exception), a follow-on migration must `DROP TRIGGER IF EXISTS application_preparations_capacity` then `CREATE TRIGGER` with the current `WHEN` (abort only when there is **no** existing `(owner, job_id)`). Idempotent on the already-fixed trigger.
+- `relay_begin_application` on refresh failure returns `{ execute, operation, refresh_required: true }` like `relay_save_progress`. Update the source-contract test. Do not retry `begin`.
+
+- [ ] **Step 1: Failing tests** — begin test asserts `refresh_required: true` in the catch return. Add or extend a unit that the 0010 SQL contains `DROP TRIGGER` and the `NOT EXISTS` capacity `WHEN` (string inspect of the migration file is enough; do not require a live D1 apply in this task unless the repo already migrates 0010 in unit tests).
+
+- [ ] **Step 2: Run to fail**
+
+- [ ] **Step 3: Implement spec text, 0010, begin catch**
+
+Follow existing drizzle journal style (`0009_new_radioactive_man` is idx 9). Do not rewrite `application_operations`. Do not drop `application_preparations`.
+
+- [ ] **Step 4: Run** `node --test tests/agent-tools-begin.test.mjs tests/application-automation.test.mjs && pnpm public-copy:check` if copy unchanged, skip copy sync.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "Align Inspect wait_accept, capacity trigger, and begin refresh (#135)"
+```
+
+---
+
 ## Spec coverage
 
 | Spec section | Task |
@@ -498,7 +662,11 @@ git commit -m "Describe Inspect Accept send in public and engineering contracts"
 | Public copy / AGENTS / agent-applications | 6 |
 | begin/complete/uncertain unchanged | 2–4 |
 | Owner isolation | 1 tests |
+| Inspect-only approve; no ledger Begin | 7 |
+| Human Blocked answers; `r.close` | 8 |
+| Three-field file handshake e2e through Submitted | 9 |
+| wait_accept 3s; 0010 capacity DROP+CREATE; begin `refresh_required` | 10 |
 
 ## Placeholder scan
 
-No TBD. Arm interval, weights, table name, button name, tool names, and failure codes are fixed above.
+No TBD. Arm interval, weights, table name, button name, tool names, and failure codes are fixed above. Remaining work is Tasks 7–10 (spec completeness after Tasks 1–6).

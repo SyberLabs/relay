@@ -441,6 +441,194 @@ void test('arm of a different digest cancels a pre-begin freeze', async () => {
   db.sqlite.close();
 });
 
+void test('arm after cancel proposes a new freeze; cancelled is not a live arm', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  const first = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-arm-cancelled', actor: 'Fictional applying agent' },
+    now,
+  );
+  assert.equal(first.state, 'proposed');
+  assert.equal(first.accept_enabled, true);
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-arm-cancelled'), 'cancel'),
+    now,
+  );
+  const cancelled = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(cancelled.state, 'cancelled');
+  assert.equal(cancelled.accept_enabled, false);
+  await assert.rejects(
+    () =>
+      armPreparation(
+        db,
+        'alice',
+        {
+          job: 'alice-0',
+          id: 'op-arm-cancelled',
+          actor: 'Fictional applying agent',
+        },
+        now,
+      ),
+    /review|already|id|content/i,
+  );
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-arm-cancelled')).state,
+    'cancelled',
+  );
+  const second = await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'op-arm-after-cancel',
+      actor: 'Fictional applying agent',
+    },
+    now,
+  );
+  assert.equal(second.state, 'proposed');
+  assert.equal(second.accept_enabled, true);
+  assert.equal(second.operation_id, 'op-arm-after-cancel');
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-arm-cancelled')).state,
+    'cancelled',
+  );
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-arm-after-cancel')).state,
+    'proposed',
+  );
+  db.sqlite.close();
+});
+
+void test('same-digest arm refuses executing and submitted operations', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-arm-exec', actor: 'Fictional applying agent' },
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-arm-exec'), 'approve'),
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-arm-exec'), 'begin'),
+    now,
+  );
+  await assert.rejects(
+    () =>
+      armPreparation(
+        db,
+        'alice',
+        { job: 'alice-0', id: 'op-arm-exec', actor: 'Fictional applying agent' },
+        now,
+      ),
+    /execut/i,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-arm-exec'), 'complete', {
+      receipt: 'Fictional employer confirmation ABC',
+    }),
+    now,
+  );
+  await assert.rejects(
+    () =>
+      armPreparation(
+        db,
+        'alice',
+        { job: 'alice-0', id: 'op-arm-exec', actor: 'Fictional applying agent' },
+        now,
+      ),
+    /execut|payload/i,
+  );
+  db.sqlite.close();
+});
+
+void test('ordinary fields under sensitive review refuse inspect arm without leaving an authorized operation', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  await assert.rejects(
+    () =>
+      armPreparation(
+        db,
+        'alice',
+        {
+          job: 'alice-0',
+          id: 'op-arm-sensitive-ordinary',
+          actor: 'Fictional applying agent',
+        },
+        now,
+      ),
+    /review/i,
+  );
+  assert.equal(
+    db.sqlite
+      .prepare(
+        "SELECT COUNT(*) c FROM application_operations WHERE owner='alice'",
+      )
+      .get().c,
+    0,
+  );
+  db.sqlite.close();
+});
+
 void test('exact fields/files survive proposal, restart, execution and confirmation without draft acceptance', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);

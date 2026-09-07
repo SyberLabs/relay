@@ -24,7 +24,8 @@ context between assistants. Their handoff is the persisted workspace.
   context and stage drafts; they do not cover application permits. A host must
   explicitly support same-tab JavaScript requests to use the snippets below.
   If only computer-use controls are available, the signed-in workspace and
-  `/applications` expose the equivalent controls. Record that interface and
+  Inspect in the workspace exposes review, while `/applications` holds
+  permissions, evidence, cancellation and receipts. Record that interface and
   every intervention. Do not inject JavaScript through browser controls that
   do not support it, invent a callable tool, or expose a development server.
 
@@ -34,13 +35,16 @@ in hosts that reject top-level `await`):
 ```js
 (async () => {
   const r = await fetch('/api/workspace', {
-    credentials: 'same-origin', redirect: 'error', cache: 'no-store'
+    credentials: 'same-origin',
+    redirect: 'error',
+    cache: 'no-store',
   });
   return {
-    status: r.status, type: r.headers.get('content-type'),
-    webmcp: typeof document.modelContext?.registerTool === 'function'
+    status: r.status,
+    type: r.headers.get('content-type'),
+    webmcp: typeof document.modelContext?.registerTool === 'function',
   };
-})()
+})();
 ```
 
 Do not export response bodies or session credentials for this probe. A redirect,
@@ -71,14 +75,17 @@ exact operation. These are finite reads, not polling or a background scheduler.
 
    ```json
    {
-     "action": "import", "viewer": "<workspace viewer>",
-     "rows": [{
-       "Name": "Cedar Fictional — Handoff Engineer",
-       "Job": "https://employer.example/jobs/handoff",
-       "url": "https://research.example/evidence/handoff",
-       "Status": "Held",
-       "Notes": "Fictional posting evidence: maintain TypeScript services. No real employer."
-     }]
+     "action": "import",
+     "viewer": "<workspace viewer>",
+     "rows": [
+       {
+         "Name": "Cedar Fictional — Handoff Engineer",
+         "Job": "https://employer.example/jobs/handoff",
+         "url": "https://research.example/evidence/handoff",
+         "Status": "Held",
+         "Notes": "Fictional posting evidence: maintain TypeScript services. No real employer."
+       }
+     ]
    }
    ```
 
@@ -102,39 +109,57 @@ exact operation. These are finite reads, not polling or a background scheduler.
    required missing answers; do not promote research into candidate facts.
 
 3. **Prepare exact content.** Read `/api/applications` for the existing policy.
-   The owner configures allowed jobs, expiry, maximum and review setting through
-   **Application permissions** in `/applications`. Default is disabled/review
-   all. The applying agent must not enable or relax policy for itself. For a
-   test, use fictional candidate facts and explicit fixture-only permission.
-   After policy is configured, POST `/api/applications`:
+   The owner configures allowed jobs, expiry and maximum through **Application
+   permissions** in `/applications`. Inspect requires review of every application.
+   Default is disabled; the applying agent must not enable permission for itself.
+   For a test, use fictional candidate facts and explicit fixture-only permission.
+
+   GET `/api/applications?job=<encoded saved job id>` first. Retain the returned
+   `preparation_revision` from the snapshot used to write the content (`null` only
+   when no preparation exists). POST `/api/applications`:
 
    ```js
    {
-     action: 'propose', viewer, id: crypto.randomUUID(),
-     job: savedJob.id, version: savedJob.version, actor: 'ChatGPT',
-     manifest: {
-       destination: 'https://employer.example/jobs/handoff',
-       fields: [{ label: 'Full name', value: 'Avery Example' }],
-       files: []
-     }
+     action: 'prepare', viewer, job: savedJob.id, actor: 'ChatGPT',
+     preparation_revision: inspected.preparation_revision,
+     destination: 'https://employer.example/jobs/handoff',
+     fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+     files: []
    }
    ```
 
-   The example value is fictional, not Seth's name. Include every exact answer
-   and file (`name`, exact `base64` bytes, SHA-256 `sha256`). Read-only employer
-   inspection may precede preparation, but no form entry/upload may precede the
-   permit. Persist a stable operation ID; on response loss read history/id before
-   deciding anything. An identical proposal reconciles to the saved operation;
-   a reused ID with changed content refuses. Changed content needs a new ID.
+   The value is fictional, not Seth's name. Include every exact answer and file
+   (`name`, exact `base64` bytes, SHA-256 `sha256`). Required unknown answers use
+   `unknown: true`; they prevent arming. Prepare returns a new revision token.
+   Answer and replacement prepare must carry the revision used to create their
+   content. A stale write refuses; never substitute a fresh token onto stale text.
+   Read-only employer inspection may precede preparation; this trial makes no
+   employer-side writes before the one-time permit.
 
-4. **Authorize the saved payload.** Read the returned operation's `manifest`,
-   `digest`, `job_version`, `policy_version`, `state` and `authority`. Review-all
-   yields `proposed`/`review-required`; the owner inspects and uses **Approve this
-   exact application**. Approval sends `{action:"approve", viewer, id, digest}`.
-   Only an already configured policy may produce `authorized`/`policy` for its
-   eligible fields/destination. That is not human review or draft acceptance.
-   Research text, actor names, review comments and generic chat assent grant
-   neither authority. Reread authorization; do not self-approve.
+4. **Arm and review the saved payload.** POST the exact saved revision:
+
+   ```js
+   {
+     action: 'arm', viewer, job: savedJob.id, actor: 'ChatGPT',
+     id: crypto.randomUUID(),
+     preparation_revision: prepared.preparation_revision
+   }
+   ```
+
+   Persist that operation ID before sending. Arming freezes the exact payload
+   into a `proposed` immutable operation and opens a20-second presence window.
+   Read the returned `operation_id` and `digest`, and GET the operation by ID to
+   inspect its complete manifest, job version and policy version. A stale or
+   incomplete preparation refuses. Repeat presence only for the same known
+   snapshot while the operative is present; never retry a refused mutation.
+
+   The human selects the job in the workspace and reviews **Prepared application**
+   → **Inspect**. **Accept and send** authorizes its exact armed operation.
+   **Accept exact draft** remains approval of draft wording only. Earlier policy
+   settings, actor names, research, review comments and generic chat assent do
+   not supply Inspect send authority. The applying agent must not self-approve.
+   On response loss read the saved preparation and operation before deciding
+   anything; changed content needs a new revision and exact review.
 
 5. **Obtain one permit.** Immediately before the first employer-side write,
    POST `{action:"begin", viewer, id, digest}` to `/api/applications`. Only a

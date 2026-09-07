@@ -15,6 +15,25 @@ export type ApplicationPolicy = {
   maximum: number;
   updated: string;
 };
+export type InspectView = {
+  job_id: string;
+  preparation_revision: string | null;
+  destination: string | null;
+  fields: {
+    label: string;
+    filled: boolean;
+    unknown: boolean;
+    value: string;
+  }[];
+  files: { name: string; sha256: string }[];
+  missing: string[];
+  ready: boolean;
+  armed: boolean;
+  operation_id: string | null;
+  digest: string | null;
+  state: string | null;
+  accept_enabled: boolean;
+};
 export type ApplicationOperation = {
   id: string;
   owner: string;
@@ -167,6 +186,500 @@ export async function loadOperation(db: D1Database, owner: string, id: string) {
   requireThat(op, 'Application operation not found.', 404);
   return op;
 }
+export function emptyInspect(jobId: string): InspectView {
+  return {
+    job_id: jobId,
+    preparation_revision: null,
+    destination: null,
+    fields: [],
+    files: [],
+    missing: [],
+    ready: false,
+    armed: false,
+    operation_id: null,
+    digest: null,
+    state: null,
+    accept_enabled: false,
+  };
+}
+const PERMISSION_REFUSAL =
+  'No permission issued. State, policy, job version or capacity changed. Inspect the saved operation; never repeat an employer submission.';
+function inspectAcceptEnabled(
+  ready: boolean,
+  armed: boolean,
+  state: string | null,
+  job: { status: string; version: number; blocker: string },
+  jobId: string,
+  now: string,
+  operation: { job_version: number; policy_version: number } | null,
+  policy: ApplicationPolicy | null,
+) {
+  return (
+    ready &&
+    armed &&
+    state === 'proposed' &&
+    (job.status === 'Held' || job.status === 'Ready') &&
+    job.blocker === '' &&
+    !!operation &&
+    !!policy &&
+    Number(policy.enabled) === 1 &&
+    Date.parse(policy.expires) > Date.parse(now) &&
+    policy.version === operation.policy_version &&
+    job.version === operation.job_version &&
+    (JSON.parse(policy.jobs) as unknown[]).includes(jobId)
+  );
+}
+async function liveFreezeForDigest(
+  db: D1Database,
+  owner: string,
+  jobId: string,
+  hash: string,
+  jobVersion: number,
+) {
+  return db
+    .prepare(
+      `SELECT * FROM application_operations WHERE owner=? AND job_id=? AND digest=? AND job_version=? AND state IN ('proposed','authorized') ORDER BY CASE state WHEN 'authorized' THEN 0 ELSE 1 END, created DESC`,
+    )
+    .bind(owner, jobId, hash, jobVersion)
+    .first<ApplicationOperation>();
+}
+export async function inspectApplication(
+  db: D1Database,
+  owner: string,
+  jobId: string,
+  now: string,
+): Promise<InspectView> {
+  requireThat(shortText(jobId, 100), 'A selected job is unavailable.', 404);
+  const job = await db
+    .prepare('SELECT status,version,blocker FROM jobs WHERE owner=? AND id=?')
+    .bind(owner, jobId)
+    .first<{ status: string; version: number; blocker: string }>();
+  requireThat(job, 'A selected job is unavailable.', 404);
+  const policy = await loadApplicationPolicy(db, owner);
+  const row = await db
+    .prepare(
+      `SELECT p.revision,p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state,o.job_version,o.policy_version
+       FROM application_preparations p
+       LEFT JOIN application_operations o ON o.owner=p.owner AND o.id=p.operation_id
+       WHERE p.owner=? AND p.job_id=?`,
+    )
+    .bind(owner, jobId)
+    .first<{
+      revision: string;
+      destination: string;
+      fields: string;
+      files: string;
+      ready: number;
+      armed_until: string;
+      operation_id: string | null;
+      digest: string | null;
+      state: string | null;
+      job_version: number | null;
+      policy_version: number | null;
+    }>();
+  if (!row) return emptyInspect(jobId);
+  const fields = JSON.parse(row.fields) as {
+    label: string;
+    value: string;
+    unknown: boolean;
+  }[];
+  const files = JSON.parse(row.files) as { name: string; sha256: string }[];
+  const ready = row.ready === 1;
+  const armed = Date.parse(row.armed_until) > Date.parse(now);
+  const state = row.state ?? null;
+  return {
+    job_id: jobId,
+    preparation_revision: row.revision,
+    destination: row.destination,
+    fields: fields.map((f) => ({
+      label: f.label,
+      filled: f.value.length > 0,
+      unknown: Boolean(f.unknown),
+      value: f.value,
+    })),
+    files: files.map(({ name, sha256 }) => ({ name, sha256 })),
+    missing: fields.filter((f) => f.unknown || !f.value).map((f) => f.label),
+    ready,
+    armed,
+    operation_id: row.operation_id,
+    digest: row.digest ?? null,
+    state,
+    accept_enabled: inspectAcceptEnabled(
+      ready,
+      armed,
+      state,
+      job,
+      jobId,
+      now,
+      row.job_version == null || row.policy_version == null
+        ? null
+        : {
+            job_version: row.job_version,
+            policy_version: row.policy_version,
+          },
+      policy,
+    ),
+  };
+}
+function preparationRevision(input: Record<string, unknown>) {
+  const revision = input.preparation_revision;
+  requireThat(
+    revision === null ||
+      (typeof revision === 'string' && revision.length <= 100),
+    'Read the preparation and supply its exact preparation_revision.',
+    409,
+  );
+  return revision;
+}
+// Run immediately after the guarded preparation write in the same D1 batch.
+// Cancellation events identify exactly the operations changed by this write.
+function preparationCancellations(
+  db: D1Database,
+  owner: string,
+  job: string,
+  hash: string,
+  jobVersion: number,
+  now: string,
+) {
+  const eventPrefix = crypto.randomUUID() + ':';
+  return [
+    statement(
+      db,
+      `INSERT INTO events (id,owner,job_id,kind,detail,created)
+       SELECT ? || id,owner,job_id,'Application cancelled',json_object('operation',id),?
+       FROM application_operations WHERE changes()=1 AND owner=? AND job_id=?
+       AND state IN ('proposed','authorized') AND (digest!=? OR job_version!=?)`,
+      eventPrefix,
+      now,
+      owner,
+      job,
+      hash,
+      jobVersion,
+    ),
+    statement(
+      db,
+      `UPDATE application_operations SET state='cancelled',finished=?
+       WHERE owner=? AND job_id=? AND state IN ('proposed','authorized')
+       AND EXISTS (SELECT 1 FROM events e WHERE e.owner=application_operations.owner AND e.id=? || application_operations.id)`,
+      now,
+      owner,
+      job,
+      eventPrefix,
+    ),
+  ];
+}
+export async function upsertPreparation(
+  db: D1Database,
+  owner: string,
+  input: Record<string, unknown>,
+  now: string,
+): Promise<InspectView> {
+  const expected = preparationRevision(input);
+  requireThat(
+    shortText(input.job, 100) && shortText(input.actor, 100),
+    'Supply job and agent name.',
+  );
+  const job = await db
+    .prepare('SELECT version FROM jobs WHERE owner=? AND id=?')
+    .bind(owner, input.job)
+    .first<{ version: number }>();
+  requireThat(job, 'A selected job is unavailable.', 404);
+  requireThat(
+    Array.isArray(input.fields) &&
+      input.fields.every(
+        (f) => f && typeof f === 'object' && typeof f.unknown === 'boolean',
+      ),
+    'Invalid field label or value.',
+  );
+  const manifest = await validateManifest({
+    destination: input.destination,
+    fields: input.fields.map(({ label, value }) => ({ label, value })),
+    files: input.files,
+  });
+  const fieldsJson = JSON.stringify(
+    input.fields.map(({ label, value, unknown }) => ({
+      label,
+      value,
+      unknown,
+    })),
+  );
+  const filesJson = JSON.stringify(manifest.files);
+  requireThat(
+    new TextEncoder().encode(fieldsJson).length +
+      new TextEncoder().encode(filesJson).length <=
+      240000,
+    'Submission exceeds 240,000 bytes.',
+  );
+  const hash = await digest(JSON.stringify(manifest));
+  // Marking a required answer unknown withdraws readiness even if its text is unchanged.
+  const keepHash = input.fields.every(
+    (f) => f.value.length > 0 && f.unknown === false,
+  )
+    ? hash
+    : '';
+  const revision = crypto.randomUUID();
+  const result = await db.batch([
+    statement(
+      db,
+      `INSERT INTO application_preparations (owner,job_id,actor,job_version,destination,fields,files,operation_id,ready,armed_until,updated,revision)
+       SELECT ?,?,?,?,?,?,?,
+         (SELECT id FROM application_operations WHERE owner=? AND job_id=? AND digest=? AND job_version=? AND state IN ('proposed','authorized') ORDER BY CASE state WHEN 'authorized' THEN 0 ELSE 1 END,created DESC LIMIT 1),
+         0,'',?,? FROM jobs j WHERE j.owner=? AND j.id=? AND j.version=?
+       AND NOT EXISTS (SELECT 1 FROM application_operations a WHERE a.owner=j.owner AND a.job_id=j.id AND a.state IN ('executing','uncertain'))
+       AND ((? IS NULL AND NOT EXISTS (SELECT 1 FROM application_preparations p WHERE p.owner=j.owner AND p.job_id=j.id))
+         OR EXISTS (SELECT 1 FROM application_preparations p WHERE p.owner=j.owner AND p.job_id=j.id AND p.revision=?))
+       ON CONFLICT(owner,job_id) DO UPDATE SET actor=excluded.actor,job_version=excluded.job_version,
+         destination=excluded.destination,fields=excluded.fields,files=excluded.files,operation_id=excluded.operation_id,
+         ready=0,armed_until='',updated=excluded.updated,revision=excluded.revision
+       WHERE application_preparations.revision=?`,
+      owner,
+      input.job,
+      input.actor,
+      job.version,
+      manifest.destination,
+      fieldsJson,
+      filesJson,
+      owner,
+      input.job,
+      keepHash,
+      job.version,
+      now,
+      revision,
+      owner,
+      input.job,
+      job.version,
+      expected,
+      expected,
+      expected,
+    ),
+    ...preparationCancellations(
+      db,
+      owner,
+      input.job,
+      keepHash,
+      job.version,
+      now,
+    ),
+  ]);
+  requireThat(
+    result[0].meta.changes === 1,
+    'Preparation changed or execution is locked. Inspect saved work before editing.',
+    409,
+  );
+  return inspectApplication(db, owner, input.job, now);
+}
+export async function answerPreparation(
+  db: D1Database,
+  owner: string,
+  input: Record<string, unknown>,
+  now: string,
+): Promise<InspectView> {
+  const expected = preparationRevision(input);
+  requireThat(shortText(input.job, 100), 'A selected job is unavailable.', 404);
+  requireThat(shortText(input.label, 300), 'Invalid field label or value.');
+  requireThat(shortText(input.value, 20000), 'Invalid field label or value.');
+  const job = await db
+    .prepare('SELECT 1 FROM jobs WHERE owner=? AND id=?')
+    .bind(owner, input.job)
+    .first();
+  requireThat(job, 'A selected job is unavailable.', 404);
+  const prep = await db
+    .prepare(
+      'SELECT actor,destination,fields,files,revision FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .bind(owner, input.job)
+    .first<{
+      actor: string;
+      destination: string;
+      fields: string;
+      files: string;
+      revision: string;
+    }>();
+  requireThat(prep, 'Prepare a complete application first.', 409);
+  requireThat(
+    prep.revision === expected,
+    'Preparation changed. Inspect saved work before answering.',
+    409,
+  );
+  const fields = JSON.parse(prep.fields) as {
+    label: string;
+    value: string;
+    unknown: boolean;
+  }[];
+  const index = fields.findIndex((field) => field.label === input.label);
+  requireThat(index >= 0, 'Invalid field label or value.');
+  fields[index] = {
+    label: fields[index].label,
+    value: String(input.value),
+    unknown: false,
+  };
+  return upsertPreparation(
+    db,
+    owner,
+    {
+      ...input,
+      actor: prep.actor,
+      destination: prep.destination,
+      fields,
+      files: JSON.parse(prep.files),
+    },
+    now,
+  );
+}
+export async function armPreparation(
+  db: D1Database,
+  owner: string,
+  input: Record<string, unknown>,
+  now: string,
+): Promise<InspectView> {
+  const expected = preparationRevision(input);
+  requireThat(
+    shortText(input.job, 100) &&
+      shortText(input.id, 100) &&
+      shortText(input.actor, 100),
+    'Supply job, operation ID and agent name.',
+  );
+  const prep = await db
+    .prepare(
+      'SELECT * FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .bind(owner, input.job)
+    .first<{
+      job_version: number;
+      destination: string;
+      fields: string;
+      files: string;
+      operation_id: string | null;
+      revision: string;
+    }>();
+  requireThat(prep, 'Prepare a complete application first.', 409);
+  requireThat(
+    prep.revision === expected,
+    'Preparation changed. Inspect saved work before arming.',
+    409,
+  );
+  const fields = JSON.parse(prep.fields) as {
+    label: string;
+    value: string;
+    unknown: boolean;
+  }[];
+  requireThat(
+    fields.every((f) => f.value.length > 0 && f.unknown === false),
+    'Provide the complete submission.',
+  );
+  const manifest = await validateManifest({
+    destination: prep.destination,
+    fields: fields.map(({ label, value }) => ({ label, value })),
+    files: JSON.parse(prep.files),
+  });
+  const serialized = JSON.stringify(manifest);
+  const hash = await digest(serialized);
+  const job = await db
+    .prepare('SELECT version,url FROM jobs WHERE owner=? AND id=?')
+    .bind(owner, input.job)
+    .first<{ version: number; url: string }>();
+  requireThat(job, 'A selected job is unavailable.', 404);
+  const existing = await liveFreezeForDigest(
+    db,
+    owner,
+    input.job,
+    hash,
+    job.version,
+  );
+  const id = existing?.id ?? input.id;
+  const prior = await db
+    .prepare('SELECT * FROM application_operations WHERE owner=? AND id=?')
+    .bind(owner, id)
+    .first<ApplicationOperation>();
+  if (prior)
+    requireThat(
+      prior.digest === hash &&
+        prior.job_id === input.job &&
+        prior.job_version === job.version &&
+        (prior.state === 'proposed' || prior.state === 'authorized'),
+      'Operation ID is no longer available for arming. Do not repeat execution.',
+      409,
+    );
+  const policy = await loadApplicationPolicy(db, owner);
+  requireThat(policy, 'Configure application permissions first.', 409);
+  if (!prior && policy.review === 'sensitive' && !requiresReview(manifest)) {
+    requireThat(
+      job.url !== manifest.destination,
+      'Inspect freeze requires review of every application.',
+      409,
+    );
+  }
+  const statements: D1PreparedStatement[] = [];
+  if (!prior) {
+    statements.push(
+      statement(
+        db,
+        `INSERT INTO application_operations (id,owner,job_id,job_version,policy_version,policy_snapshot,actor,manifest,digest,state,authority,created,receipt)
+       SELECT ?,j.owner,j.id,j.version,p.version,?,?,?,?,'proposed','review-required',?,''
+       FROM jobs j JOIN application_policies p ON p.owner=j.owner JOIN application_preparations pr ON pr.owner=j.owner AND pr.job_id=j.id
+       WHERE j.owner=? AND j.id=? AND j.version=? AND j.status IN ('Held','Ready')
+       AND p.version=? AND p.enabled=1 AND p.expires>? AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id)
+       AND pr.revision=? AND pr.job_version=? AND pr.operation_id IS ? AND pr.destination=? AND pr.fields=? AND pr.files=?
+       AND NOT EXISTS (SELECT 1 FROM application_operations a WHERE a.owner=j.owner AND a.job_id=j.id AND a.state IN ('executing','uncertain'))`,
+        id,
+        JSON.stringify(policy),
+        input.actor,
+        serialized,
+        hash,
+        now,
+        owner,
+        input.job,
+        job.version,
+        policy.version,
+        now,
+        expected,
+        prep.job_version,
+        prep.operation_id,
+        prep.destination,
+        prep.fields,
+        prep.files,
+      ),
+      event(db, owner, input.job, id, 'Application proposed', now),
+    );
+  }
+  const armIndex = statements.length;
+  statements.push(
+    statement(
+      db,
+      `UPDATE application_preparations SET ready=1,armed_until=?,operation_id=?,updated=?,job_version=?
+     WHERE owner=? AND job_id=? AND revision=? AND job_version=? AND destination=? AND fields=? AND files=? AND operation_id IS ?
+     AND EXISTS (SELECT 1 FROM application_operations a JOIN application_policies p ON p.owner=a.owner JOIN jobs j ON j.owner=a.owner AND j.id=a.job_id
+       WHERE a.owner=? AND a.id=? AND a.digest=? AND a.state IN ('proposed','authorized')
+       AND j.version=a.job_version AND j.status IN ('Held','Ready') AND p.version=a.policy_version AND p.enabled=1 AND p.expires>?
+       AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id))
+     AND NOT EXISTS (SELECT 1 FROM application_operations a WHERE a.owner=application_preparations.owner AND a.job_id=application_preparations.job_id AND a.state IN ('executing','uncertain'))`,
+      new Date(Date.parse(now) + 20_000).toISOString(),
+      id,
+      now,
+      job.version,
+      owner,
+      input.job,
+      expected,
+      prep.job_version,
+      prep.destination,
+      prep.fields,
+      prep.files,
+      prep.operation_id,
+      owner,
+      id,
+      hash,
+      now,
+    ),
+    ...preparationCancellations(db, owner, input.job, hash, job.version, now),
+  );
+  const result = await db.batch(statements);
+  requireThat(
+    result[armIndex].meta.changes === 1,
+    'Preparation changed or execution is locked. Inspect saved work before arming.',
+    409,
+  );
+  return inspectApplication(db, owner, input.job, now);
+}
 function statement(
   db: D1Database,
   sql: string,
@@ -305,21 +818,11 @@ export async function proposeApplication(
   }
   const policy = await loadApplicationPolicy(db, owner);
   requireThat(policy, 'Configure application permissions first.', 409);
-  const job = await db
-    .prepare('SELECT url FROM jobs WHERE owner=? AND id=? AND version=?')
-    .bind(owner, input.job, input.version)
-    .first<{ url: string }>();
-  const authority =
-    policy.review === 'sensitive' &&
-    job?.url === JSON.parse(manifest).destination &&
-    !requiresReview(JSON.parse(manifest))
-      ? 'policy'
-      : 'review-required';
   const result = await db.batch([
     statement(
       db,
       `INSERT INTO application_operations (id,owner,job_id,job_version,policy_version,policy_snapshot,actor,manifest,digest,state,authority,created,receipt)
-      SELECT ?,?,?,?,?,?,?,?,?, ?,?,?,'' FROM jobs j JOIN application_policies p ON p.owner=j.owner
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,'' FROM jobs j JOIN application_policies p ON p.owner=j.owner
       WHERE j.owner=? AND j.id=? AND j.version=? AND j.status IN ('Held','Ready')
       AND p.version=? AND p.enabled=1 AND p.expires>? AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id)`,
       input.id,
@@ -331,8 +834,8 @@ export async function proposeApplication(
       input.actor,
       manifest,
       hash,
-      authority === 'policy' ? 'authorized' : 'proposed',
-      authority,
+      'proposed',
+      'review-required',
       now,
       owner,
       input.job,
@@ -374,11 +877,54 @@ export async function actOnApplication(
     AND j.version=application_operations.job_version AND j.status IN ('Held','Ready') AND j.blocker=''
     AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id))`;
   if (input.action === 'approve') {
-    sql = `UPDATE application_operations SET state='authorized',authority='explicit-review' WHERE owner=? AND id=? AND state='proposed' AND ${authorized}`;
-    args = [owner, op.id, now];
+    const prep = await db
+      .prepare(
+        'SELECT destination,fields,files,revision FROM application_preparations WHERE owner=? AND job_id=? AND operation_id=?',
+      )
+      .bind(owner, op.job_id, op.id)
+      .first<{
+        destination: string;
+        fields: string;
+        files: string;
+        revision: string;
+      }>();
+    requireThat(prep, 'Operative is not on the page.', 409);
+    const fields = JSON.parse(prep.fields) as {
+      label: string;
+      value: string;
+      unknown: boolean;
+    }[];
+    requireThat(
+      fields.every((f) => f.value.length > 0 && f.unknown === false),
+      'Provide the complete submission.',
+      409,
+    );
+    const manifest = await validateManifest({
+      destination: prep.destination,
+      fields: fields.map(({ label, value }) => ({ label, value })),
+      files: JSON.parse(prep.files),
+    });
+    requireThat(
+      (await digest(JSON.stringify(manifest))) === op.digest,
+      'Content checksum differs from the saved proposal.',
+      409,
+    );
+    sql = `UPDATE application_operations SET state='authorized',authority='explicit-review' WHERE owner=? AND id=? AND state='proposed' AND ${authorized}
+      AND EXISTS (SELECT 1 FROM application_preparations pr WHERE pr.owner=application_operations.owner AND pr.job_id=application_operations.job_id AND pr.operation_id=application_operations.id AND pr.armed_until>?
+      AND pr.revision=? AND pr.destination=? AND pr.fields=? AND pr.files=?)`;
+    args = [
+      owner,
+      op.id,
+      now,
+      now,
+      prep.revision,
+      prep.destination,
+      prep.fields,
+      prep.files,
+    ];
     kind = 'Application explicitly reviewed';
   } else if (input.action === 'begin') {
-    sql = `UPDATE application_operations SET state='executing',started=? WHERE owner=? AND id=? AND state='authorized' AND ${authorized}
+    sql = `UPDATE application_operations SET state='executing',started=? WHERE owner=? AND id=? AND state='authorized' AND authority='explicit-review' AND ${authorized}
       AND (SELECT COUNT(*) FROM application_operations a WHERE a.owner=? AND a.started>=?)<10
       AND (SELECT COUNT(*) FROM application_operations a WHERE a.owner=? AND a.policy_version=? AND a.started IS NOT NULL)<(SELECT maximum FROM application_policies WHERE owner=?)
       AND NOT EXISTS (SELECT 1 FROM application_operations a WHERE a.owner=application_operations.owner AND a.state='executing')
@@ -469,13 +1015,21 @@ export async function actOnApplication(
       ),
     );
   const result = await db.batch(statements);
-  requireThat(
-    result[0].meta.changes === 1,
-    'No permission issued. State, policy, job version or capacity changed. Inspect the saved operation; never repeat an employer submission.',
-    409,
-  );
+  if (result[0].meta.changes !== 1) {
+    let refusal = PERMISSION_REFUSAL;
+    if (input.action === 'approve') {
+      const liveArm = await db
+        .prepare(
+          'SELECT 1 FROM application_preparations WHERE owner=? AND job_id=? AND operation_id=? AND armed_until>?',
+        )
+        .bind(owner, op.job_id, op.id, now)
+        .first();
+      refusal = liveArm ? PERMISSION_REFUSAL : 'Operative is not on the page.';
+    }
+    throw new ApplicationRefusal(refusal, 409);
+  }
   return {
     operation: await loadOperation(db, owner, op.id),
-    execute: input.action === 'begin',
+    execute: input.action === 'begin' || undefined,
   };
 }

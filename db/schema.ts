@@ -4,6 +4,7 @@ import {
   integer,
   uniqueIndex,
   index,
+  primaryKey,
 } from 'drizzle-orm/sqlite-core';
 export const applicationPolicies = sqliteTable('application_policies', {
   owner: text('owner').primaryKey(),
@@ -38,6 +39,24 @@ export const applicationOperations = sqliteTable(
     index('application_operations_owner_id').on(t.owner, t.id),
     index('application_operations_owner_job').on(t.owner, t.job_id),
   ],
+);
+export const applicationPreparations = sqliteTable(
+  'application_preparations',
+  {
+    revision: text('revision').notNull().default(''),
+    owner: text('owner').notNull(),
+    job_id: text('job_id').notNull(),
+    actor: text('actor').notNull(),
+    job_version: integer('job_version').notNull(),
+    destination: text('destination').notNull(),
+    fields: text('fields').notNull(),
+    files: text('files').notNull(),
+    operation_id: text('operation_id'),
+    ready: integer('ready').notNull(),
+    armed_until: text('armed_until').notNull(),
+    updated: text('updated').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.owner, t.job_id] })],
 );
 // Fixed rows per authenticated owner/scope; windows overwrite rather than grow.
 export const securityCounters = sqliteTable('security_counters', {
@@ -76,7 +95,10 @@ export const jobs = sqliteTable(
     effort: integer('effort').notNull().default(20),
     receipt: text('receipt'),
   },
-  (t) => [uniqueIndex('jobs_owner_key').on(t.owner, t.job_key)],
+  (t) => [
+    uniqueIndex('jobs_owner_key').on(t.owner, t.job_key),
+    index('jobs_owner_updated').on(t.owner, t.updated),
+  ],
 );
 export const observations = sqliteTable(
   'observations',
@@ -99,6 +121,7 @@ export const observations = sqliteTable(
       t.status,
       t.notes,
     ),
+    index('observations_owner_created').on(t.owner, t.created),
   ],
 );
 export const events = sqliteTable(
@@ -111,7 +134,11 @@ export const events = sqliteTable(
     detail: text('detail').notNull(),
     created: text('created').notNull(),
   },
-  (t) => [index('security_events_owner').on(t.owner)],
+  (t) => [
+    index('security_events_owner').on(t.owner),
+    index('events_owner_created').on(t.owner, t.created),
+    index('events_owner_job_created').on(t.owner, t.job_id, t.created),
+  ],
 );
 export const profileFacts = sqliteTable(
   'profile_facts',

@@ -61,7 +61,13 @@ For research, ask the Bot to write records in the schema in `lib/seed.json`, the
 node integrations/relay.mjs grok-research research.json private-data/research-checked.json
 ```
 
-For a private local session, the Bot can run `login`, retrieve `context`, write its own draft file and run `stage` to save directly for human review. See [the assistant workflow](ASSISTANT-WORKFLOW.md) for exact versions, explicit blockers, recovery and acceptance. This local path needs no user copying or file transfer.
+When the Bot and a private development Relay server run on the same host/network
+namespace, the Bot can run `login`, retrieve `context`, write its own draft file
+and run `stage` to save directly for human review. A separate Grok VM cannot use
+the user's `127.0.0.1:3197`; installing the checkout does not connect those hosts.
+See the [Grok route table](GROK_BOT.md#choose-a-route-that-exists-on-this-host)
+and [assistant workflow](ASSISTANT-WORKFLOW.md) for the available paths,
+generation-time versions, explicit blockers and separate human acceptance.
 
 For the packet fallback, give the Bot a downloaded job packet, have it write plain text, then run:
 

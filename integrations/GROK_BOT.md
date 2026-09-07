@@ -1,6 +1,37 @@
 # Relay handoff for Grok Bot
 
-Use Relay as the job-history and human-review workspace. Run the local commands in `integrations/README.md` from this checkout in your VM. Never infer that the installed Bot is connected just because this file exists.
+Use Relay as the job-history and human-review workspace. Installing this checkout
+in the Bot's VM makes the file adapters available; it does not connect the VM
+to a Relay process on the user's computer.
+
+## Choose a route that exists on this host
+
+| Route | Required host/session | What success establishes |
+| --- | --- | --- |
+| Browser WebMCP | A signed-in deployed Relay tab in a browser that exposes `document.modelContext.registerTool`, plus an assistant that can discover and call its tools | Read/stage/reread in that authenticated workspace; staging is not acceptance |
+| Same-origin browser API | An assistant runtime permitted to execute requests inside its signed-in Relay tab | Grok GET returned 200 JSON; direct write/reread remains unverified in this evidence |
+| Local `login` / `context` / `stage` | Bot and private development Relay server share the same host/network namespace | Local persistence only; not staging or production evidence |
+| `grok-research` / `grok-draft` file handoff | Node 24 and this checkout in the Bot's VM; user transfers the packet/result | A validated handoff file; Relay changes only after the user loads and saves/imports it |
+| Remote authenticated CLI | Not implemented | No supported remote CLI result |
+
+`127.0.0.1` and `localhost` refer to the machine/network namespace running the
+command. On Grok's Linux VM, `http://127.0.0.1:3197` is not the user's Windows
+or Mac Relay server. Do not solve that mismatch with SSH, a tunnel, public
+development hosting, exported browser cookies, or service-token impersonation.
+The local sign-in is a development mock and must remain private.
+
+Prefer the deployed browser-tool route when it is actually callable. The
+[post-login Grok probe](https://github.com/SyberLabs/relay/issues/117#issuecomment-5569219632)
+found `document.modelContext` absent in Chrome 151.0.7922.169, so that session
+does not establish WebMCP support. Use the explicit file fallback when neither
+browser tools nor same-host local commands are available. Track the deployed
+agent route in [#117](https://github.com/SyberLabs/relay/issues/117); a local CLI
+demonstration cannot close it. A later [same-tab API probe](https://github.com/SyberLabs/relay/issues/117#issuecomment-5569272881)
+returned 200 JSON from `/api/workspace` without exporting cookies or response
+bodies. That proves authenticated reads without WebMCP, not a completed draft
+write or a remote CLI. Any browser API operation must retain the gateway,
+generation-time version, explicit blocker and refusal/recovery rules in the
+[assistant workflow](ASSISTANT-WORKFLOW.md).
 
 For a private local development session, use [the assistant context and staging path](ASSISTANT-WORKFLOW.md): `login`, `context <job_id> --json`, write your own draft file from that context, then `stage <job_id> <draft-file> --version <generation-time-version> --blocker= --json`. Supply a nonempty blocker when information is unresolved. Reread context to verify exact wording, version, blocker and history. No manual copying or packet transfer is needed when the Bot can run these local commands. Stage saves for review only; human exact-text acceptance remains in the signed-in workspace. It does not change Probation or the separate draft ledger's automatic-staging policy.
 

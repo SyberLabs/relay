@@ -10,7 +10,7 @@ async function preparationRevision(page: Page, jobId: string) {
   return (await response.json()).preparation_revision;
 }
 
-test('inspect accept stays off until armed then authorizes send without beginning', async ({
+test('workspace draft saves can re-arm unchanged content before explicit send approval', async ({
   page,
 }) => {
   await page.goto('/');
@@ -66,15 +66,82 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toBeEnabled();
+  await page
+    .getByLabel('Application answer or outreach draft', { exact: true })
+    .fill('Fictional exact draft for the ordinary review-then-send journey.');
+  let operationId = 'op-inspect-1';
+  for (const [index, control] of [
+    'Save draft',
+    'Accept exact draft',
+  ].entries()) {
+    await page
+      .locator('.core')
+      .getByRole('button', { name: control, exact: true })
+      .click();
+    await expect
+      .poll(async () => {
+        const current = await (await page.request.get('/api/workspace')).json();
+        return current.jobs.find((row: { id: string }) => row.id === job.id)
+          ?.version;
+      })
+      .toBe(job.version + index + 1);
+    await expect(
+      page.getByRole('button', { name: 'Accept and send' }),
+    ).toBeDisabled();
+    // Both a direct heartbeat and an unchanged re-prepare must recover after save.
+    if (index === 1) {
+      const unchanged = await page.request.post('/api/applications', {
+        data: {
+          action: 'prepare',
+          preparation_revision: await preparationRevision(page, job.id),
+          viewer: ws.viewer,
+          job: job.id,
+          actor: 'Fictional applying agent',
+          destination: job.url,
+          fields: [
+            { label: 'Full name', value: 'Avery Example', unknown: false },
+          ],
+          files: [],
+        },
+      });
+      expect(unchanged.ok()).toBe(true);
+    }
+    const oldOperationId = operationId;
+    operationId = `op-inspect-after-save-${index}`;
+    const rearmed = await page.request.post('/api/applications', {
+      data: {
+        action: 'arm',
+        preparation_revision: await preparationRevision(page, job.id),
+        viewer: ws.viewer,
+        job: job.id,
+        id: operationId,
+        actor: 'Fictional applying agent',
+      },
+    });
+    expect(rearmed.ok()).toBe(true);
+    const next = await rearmed.json();
+    expect(next.operation_id).toBe(operationId);
+    expect(next.state).toBe('proposed');
+    const staleBegin = await page.request.post('/api/applications', {
+      data: {
+        action: 'begin',
+        viewer: ws.viewer,
+        id: oldOperationId,
+        digest: next.digest,
+      },
+    });
+    expect(staleBegin.status()).toBe(409);
+    await expect(
+      page.getByRole('button', { name: 'Accept and send' }),
+    ).toBeEnabled();
+  }
   await page.getByRole('button', { name: 'Accept and send' }).click();
   await expect(
     page.getByText(/waiting for the operative to send/i),
   ).toBeVisible();
   await expect(page.getByText('Operative is not on the page')).toHaveCount(0);
   const data = await (await page.request.get('/api/applications')).json();
-  const op = data.operations.find(
-    (o: { id: string }) => o.id === 'op-inspect-1',
-  );
+  const op = data.operations.find((o: { id: string }) => o.id === operationId);
   expect(op.state).toBe('authorized');
   const begun = await page.request.post('/api/applications', {
     data: {

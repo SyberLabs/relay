@@ -449,6 +449,9 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
     { path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: env, status: 403 },
     { path: '/api/workspace', headers: {}, config: env, status: 401 },
     { path: '/api/workspace', headers: {}, config: {}, status: 503 },
+    { path: '/api/applications', headers: {}, config: env, status: 401 },
+    { path: '/api/applications', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: { ...env, RELAY_PAUSE: 'writes' }, status: 503 },
+    { path: '/api/applications', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: { ...env, DB: null }, status: 503 },
     { path: '/signin-with-chatgpt', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: env, status: 302 },
   ]) {
     let cancelled = false;

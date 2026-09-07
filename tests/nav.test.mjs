@@ -27,14 +27,14 @@ void test('queue labels and workspace hrefs stay next to the list they change', 
   assert.equal(queueHref('All'), '/?queue=All');
 });
 
-void test('pilot page links stay facts, outcomes and advanced', () => {
+void test('page links expose applications, facts, outcomes and advanced', () => {
   assert.deepEqual(
     PAGE_LINKS.map((item) => item.href),
-    ['/profile', '/track', '/advanced'],
+    ['/applications', '/profile', '/track', '/advanced'],
   );
   assert.deepEqual(
     PORTFOLIO_PAGE_LINKS.map((item) => item.page),
-    ['track'],
+    ['applications', 'track'],
   );
   assert.deepEqual(
     CONTEXT_PAGE_LINKS.map((item) => item.page),

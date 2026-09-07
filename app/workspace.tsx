@@ -375,6 +375,7 @@ export default function Workspace() {
     });
   }
   function openImport(tab: ImportTab = 'json') {
+    if (!loaded || signedOut) return;
     setImportTab(tab);
     setShowImport(true);
   }
@@ -593,6 +594,7 @@ export default function Workspace() {
               <button
                 aria-controls="import-dock"
                 aria-expanded={showImport}
+                disabled={!loaded}
                 className="secondary"
                 onClick={() => {
                   if (showImport) {

@@ -82,11 +82,15 @@ void test('stale save ack after A to B to A does not bless the reloaded editor',
 });
 void test('save acknowledgement ignores a job switched during the request', () => {
   const submitted = loadEditor(job('A'));
-  let editor = loadEditor(job('B', { version: 2, draft: 'draft-B' }));
+  let editor = {
+    ...loadEditor(job('B', { version: 2, draft: 'draft-B' })),
+    progressNote: 'Keep the note for B',
+  };
   editor = acknowledgeSave(editor, submitted);
   assert.equal(editor.jobId, 'B');
   assert.equal(editor.version, 2);
   assert.equal(editor.draft, 'draft-B');
+  assert.equal(editor.progressNote, 'Keep the note for B');
 });
 void test('edits made while a save is in flight stay unsaved on that editor session', () => {
   let editor = loadEditor(job('A'));
@@ -182,10 +186,30 @@ void test('dirty compares draft and blocker against the loaded base', () => {
   assert.equal(editorIsDirty(editor), false);
   assert.equal(editorIsDirty({ ...editor, draft: 'typed' }), true);
   assert.equal(editorIsDirty({ ...editor, blocker: 'other fact' }), true);
+  assert.equal(editorIsDirty({ ...editor, progressNote: 'Review next' }), true);
   assert.equal(
     editorIsDirty({ ...editor, draft: 'original', blocker: 'need fact' }),
     false,
   );
+});
+void test('progress notes survive unrelated saves, concurrent edits, and stale refreshes', () => {
+  const original = loadEditor(job('A'));
+  const editor = { ...original, progressNote: 'Draft complete; review next.' };
+  const { progressNote: _note, ...draftSave } = editor;
+  assert.equal(
+    acknowledgeSave(editor, draftSave).progressNote,
+    editor.progressNote,
+  );
+  assert.equal(acknowledgeSave(editor, editor).progressNote, '');
+  assert.equal(
+    acknowledgeSave({ ...editor, progressNote: 'Typed during save' }, editor)
+      .progressNote,
+    'Typed during save',
+  );
+  const stale = reconcileEditor(editor, job('A', { version: 2 }));
+  assert.equal(stale.progressNote, editor.progressNote);
+  assert.equal(stale.conflict, true);
+  assert.equal(canSave(stale), false);
 });
 void test('same-job reselect keeps the editor; another job does not', () => {
   const editor = loadEditor(job('A'));
@@ -206,6 +230,13 @@ void test('exact local acceptance is Ready with an unchanged draft and blocker',
     job('A', { draft: 'Exact accepted', blocker: '' }),
   );
   assert.equal(showsExactAcceptance(ready, accepted), true);
+  assert.equal(
+    showsExactAcceptance(ready, {
+      ...accepted,
+      progressNote: 'Review recorded',
+    }),
+    true,
+  );
   assert.equal(
     showsExactAcceptance(ready, { ...accepted, draft: 'Exact accepted ' }),
     false,

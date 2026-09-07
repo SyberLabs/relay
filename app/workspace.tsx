@@ -322,7 +322,9 @@ export default function Workspace() {
     blocked = busy || !editor || !canSave(editor),
     acceptedExact = showsExactAcceptance(current, editor);
   function discardUnsaved() {
-    return window.confirm('Discard unsaved draft and blocker changes?');
+    return window.confirm(
+      'Discard unsaved draft, blocker, and progress note changes?',
+    );
   }
   function confirmLeave(event: { preventDefault: () => void }) {
     if (editorIsDirty(editor) && !discardUnsaved()) event.preventDefault();
@@ -401,12 +403,15 @@ export default function Workspace() {
       version: editor.version,
       draft: current.draft,
       blocker: editor.blocker,
+      progressNote: editor.progressNote,
     };
     const body = {
       action: 'progress',
       id: saved.jobId,
       version: saved.version,
-      note: 'Next action updated',
+      note: editor.progressNote.trim()
+        ? editor.progressNote
+        : 'Blocker updated',
       blocker: saved.blocker,
       viewer: sessionRef.current.viewer,
     };
@@ -922,25 +927,41 @@ export default function Workspace() {
                             ed ? { ...ed, blocker: e.target.value } : ed,
                           )
                         }
-                        placeholder={
-                          protectedState
-                            ? 'Interview notes, next steps, or missing information…'
-                            : 'What needs to be resolved before accepting this draft?'
+                        placeholder="What needs to be resolved before accepting this draft?"
+                        maxLength={4000}
+                      />
+                    </label>
+                    <label className="field">
+                      Progress note
+                      <textarea
+                        value={editor?.progressNote ?? ''}
+                        onChange={(e) =>
+                          setEditor((ed) =>
+                            ed ? { ...ed, progressNote: e.target.value } : ed,
+                          )
                         }
+                        maxLength={4000}
+                        placeholder="Completed work or a next action that does not prevent accepting the draft."
                       />
                     </label>
                     <div className="actions">
                       <button
                         className="secondary"
-                        disabled={blocked || blocker === editor?.baseBlocker}
+                        disabled={
+                          blocked ||
+                          (!editor?.progressNote.trim() &&
+                            blocker === editor?.baseBlocker)
+                        }
                         onClick={() => void saveProgress()}
                       >
                         Save progress only
                       </button>
                     </div>
                     <p className="muted">
-                      Save the next action without changing saved wording or
-                      application status. Draft edits below remain unsaved.
+                      Save the note to review history and any explicit blocker
+                      edits. Notes do not block acceptance. Saved wording and
+                      application status stay unchanged; draft edits below
+                      remain unsaved.
                     </p>
                     <label className="field">
                       Application answer or outreach draft

@@ -41,7 +41,7 @@ export function validateProgress(value: unknown): ApplicationProgress {
     (b.viewer !== undefined && typeof b.viewer !== 'string')
   )
     throw Error(
-      'Progress requires a job ID, version, operation ID, note, and next action (up to 4000 characters each).',
+      'Progress requires a job ID, version, operation ID, note, and explicit blocker (up to 4000 characters each).',
     );
   return b as ApplicationProgress;
 }

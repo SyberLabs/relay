@@ -73,6 +73,25 @@ void test('website product data is escaped before rendering', () => {
   }
 });
 
+void test('shipped copy names Inspect Accept send without claiming Relay POSTs the employer form', () => {
+  const capability = copy.capabilities.find(
+    (item) =>
+      /human Inspect Accept on a complete armed payload authorizes the waiting operative to send once/i.test(
+        item,
+      ) && /does not POST the employer form/i.test(item),
+  );
+  assert.ok(capability);
+  assert.match(copy.boundary, /does not POST the employer form/);
+  assert.match(copy.boundary, /Inspect Accept/);
+  assert.match(copy.boundary, /execute:true/);
+  assert.doesNotMatch(copy.boundary, /Relay does not send applications/);
+  for (const target of ['project', 'organization', 'profile', 'website']) {
+    const content = render(copy, target);
+    assert.doesNotMatch(content, /Relay does not send applications/);
+    assert.match(content, /does not POST the employer form/);
+  }
+});
+
 void test('public links reject executable schemes, other hosts and embedded credentials', () => {
   for (const field of ['repository', 'leadProfile', 'peerProfile']) {
     for (const value of [

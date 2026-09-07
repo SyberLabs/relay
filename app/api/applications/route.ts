@@ -5,9 +5,14 @@ import {
   ApplicationRefusal,
   actOnApplication,
   changeApplicationPolicy,
+  emptyInspect,
+  inspectApplication,
   loadApplicationPolicy,
   loadOperation,
   proposeApplication,
+  upsertPreparation,
+  answerPreparation,
+  armPreparation,
 } from '../../../lib/application-automation';
 export const dynamic = 'force-dynamic';
 const reply = (body: unknown, status = 200) =>
@@ -21,6 +26,24 @@ export async function GET(request: Request) {
     const id = url.searchParams.get('id');
     if (id)
       return reply({ viewer, operation: await loadOperation(db, viewer, id) });
+    const job = url.searchParams.get('job');
+    if (job) {
+      try {
+        return reply({
+          viewer,
+          ...(await inspectApplication(
+            db,
+            viewer,
+            job,
+            new Date().toISOString(),
+          )),
+        });
+      } catch (e) {
+        if (e instanceof ApplicationRefusal && e.status === 404)
+          return reply({ viewer, ...emptyInspect(job) }, 404);
+        throw e;
+      }
+    }
     const cursor = url.searchParams.get('after') || '';
     if (cursor.length > 100)
       return reply({ error: 'Invalid page cursor.' }, 400);
@@ -84,6 +107,21 @@ export async function POST(request: Request) {
       return reply({
         viewer,
         operation: await proposeApplication(db, viewer, b, now),
+      });
+    if (b.action === 'prepare')
+      return reply({
+        viewer,
+        ...(await upsertPreparation(db, viewer, b, now)),
+      });
+    if (b.action === 'arm')
+      return reply({
+        viewer,
+        ...(await armPreparation(db, viewer, b, now)),
+      });
+    if (b.action === 'answer')
+      return reply({
+        viewer,
+        ...(await answerPreparation(db, viewer, b, now)),
       });
     return reply({ viewer, ...(await actOnApplication(db, viewer, b, now)) });
   } catch (e) {

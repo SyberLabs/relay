@@ -7,7 +7,8 @@ const EARLY =
   /\b(intern(?:ship)?s?|co-?ops?|new[\s-]*grads?|early[\s-]*career|university|campus)\b/i;
 const JUNIOR = /\b(junior|entry[ -]?level|swe\s*i\b|software engineer i\b)/i;
 const HARDWARE = /\bhardware\b/i;
-const SENIORISH = /\b(senior|staff|principal|director|manager)\b/i;
+const SENIORISH = /\b(senior|staff|principal|director|manager|lead|sr\.?)\b/i;
+const MIDMIX = /\bi\s*\/\s*ii\b/i;
 const US_NAMES =
   /\b(united states|usa|u\.s\.a\.|u\.s\.|utah|salt lake|california|walnut creek)\b/i;
 const US_ABBR = /(^|[^A-Za-z])US(A)?([^A-Za-z]|$)/;
@@ -29,7 +30,8 @@ export function roleTitle(name) {
 
 export function internTitleMatch(name) {
   const title = roleTitle(name);
-  if (SENIORISH.test(title)) return { ok: false, reason: 'senior' };
+  if (SENIORISH.test(title) || MIDMIX.test(title))
+    return { ok: false, reason: 'senior' };
   const software = SOFTWARE.test(title);
   const early = EARLY.test(title);
   const junior = JUNIOR.test(title);

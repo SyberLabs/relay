@@ -48,6 +48,12 @@ void test('intern regex keeps software internships and rejects internal/hardware
     internTitleMatch('Software Corp — Mechanical Engineering Intern').ok,
     false,
   );
+  assert.equal(internTitleMatch('Acme — Sr. Software Engineer I').ok, false);
+  assert.equal(internTitleMatch('Acme — Lead Software Engineer I').ok, false);
+  assert.equal(
+    internTitleMatch('Acme — Embedded Software Engineer I/II').ok,
+    false,
+  );
 });
 
 void test('usHuntLocation requires a US seat, not bare remote', () => {

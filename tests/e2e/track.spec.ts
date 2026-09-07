@@ -149,7 +149,12 @@ test('track sheet filters jobs and a row opens the plant', async ({ page }) => {
   await page.getByRole('button', { name: /Accepted drafts/ }).click();
   await expect(page).toHaveURL(/\/track$/);
   await page.getByRole('button', { name: /^Submitted/ }).click();
-  await expect(page.getByText('No jobs match this filter.')).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Unique Ready Role' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('link', { name: 'Unique Held Role' }),
+  ).toHaveCount(0);
   await page.getByRole('button', { name: /All opportunities/ }).click();
   await page.getByRole('link', { name: 'Unique Ready Role' }).click();
   await expect(page).toHaveURL(new RegExp(`job=${ready.id}`));

@@ -8,6 +8,7 @@ import type {
 } from '../../lib/application-automation';
 import { digest } from '../../lib/application-automation';
 import { ApplicationPermissions } from './permissions';
+import { ApplicationEvidence } from './evidence';
 
 type Job = {
   id: string;
@@ -132,9 +133,6 @@ export default function Applications() {
       await refresh();
     });
   }
-  const manifest: SubmissionManifest | null = selected
-    ? JSON.parse(selected.manifest)
-    : null;
   return (
     <main
       style={{
@@ -230,7 +228,7 @@ export default function Applications() {
                 Next page
               </button>
             )}
-            {selected && manifest && (
+            {selected && (
               <article
                 style={{
                   border: '1px solid currentColor',
@@ -238,77 +236,12 @@ export default function Applications() {
                   marginTop: 16,
                 }}
               >
-                <h3>
-                  {snapshot.jobs.find((j) => j.id === selected.job_id)?.name}
-                </h3>
-                <p>
-                  {selected.state} ·{' '}
-                  {selected.authority === 'policy'
-                    ? 'Policy-authorized; not individually reviewed'
-                    : selected.authority === 'explicit-review'
-                      ? 'Explicit approval recorded'
-                      : 'Review required'}
-                </p>
-                <p>
-                  Agent: {selected.actor} · Created: {selected.created}
-                </p>
-                <p>
-                  Destination:{' '}
-                  <a
-                    href={manifest.destination}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {manifest.destination}
-                  </a>
-                </p>
-                <dl>
-                  {manifest.fields.map((f) => (
-                    <div key={f.label}>
-                      <dt>
-                        <strong>{f.label}</strong>
-                      </dt>
-                      <dd
-                        style={{
-                          whiteSpace: 'pre-wrap',
-                          overflowWrap: 'anywhere',
-                        }}
-                      >
-                        {f.value || '(empty)'}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <ul>
-                  {manifest.files.map((f, i) => (
-                    <li key={i}>
-                      <a
-                        download={f.name}
-                        href={`data:application/octet-stream;base64,${f.base64}`}
-                      >
-                        {f.name} · download exact file
-                      </a>
-                      <small
-                        style={{ display: 'block', overflowWrap: 'anywhere' }}
-                      >
-                        SHA-256: {f.sha256}
-                      </small>
-                    </li>
-                  ))}
-                </ul>
-                <p style={{ overflowWrap: 'anywhere' }}>
-                  Operation: {selected.id}
-                  <br />
-                  Content checksum: {selected.digest}
-                  <br />
-                  Job version: {selected.job_version} · Policy version:{' '}
-                  {selected.policy_version}
-                </p>
-                {selected.receipt && (
-                  <p style={{ whiteSpace: 'pre-wrap' }}>
-                    Reported result: {selected.receipt}
-                  </p>
-                )}
+                <ApplicationEvidence
+                  selected={selected}
+                  name={
+                    snapshot.jobs.find((j) => j.id === selected.job_id)?.name
+                  }
+                />
                 {selected.state === 'proposed' && (
                   <button disabled={busy} onClick={() => void act('approve')}>
                     Approve this exact application

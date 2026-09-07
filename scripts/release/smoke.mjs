@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 export const SMOKE_RETRY_WINDOW_MS = 90_000;
 export const SMOKE_RETRY_DELAY_MS = 2_000;
 const REQUEST_TIMEOUT_MS = 30_000;
+const RELEASE_SHA = /^[a-f0-9]{40}$/;
 
 function accessHeaders(env) {
   const clientId = env.ACCESS_CLIENT_ID;
@@ -15,9 +16,15 @@ function accessHeaders(env) {
   };
 }
 
-function isRetryableMiss(response, body, expectedSha) {
+function isRetryableMiss(response, body, expectedSha, expectedStatus) {
   if (response.status === 404) return true;
-  return response.ok && typeof body?.release === 'string' && body.release !== expectedSha;
+  return Boolean(
+    response.ok
+      && body?.status === expectedStatus
+      && typeof body.release === 'string'
+      && RELEASE_SHA.test(body.release)
+      && body.release !== expectedSha,
+  );
 }
 
 async function readProtectedRelease(path, expectedStatus, { origin, headers, env, fetchImpl, sleep, now, retryWindowMs, retryDelayMs }) {
@@ -31,7 +38,7 @@ async function readProtectedRelease(path, expectedStatus, { origin, headers, env
     });
     const body = response.ok ? await response.json() : null;
     if (body?.release === env.RELEASE_SHA && body.status === expectedStatus) return;
-    if (!isRetryableMiss(response, body, env.RELEASE_SHA) || now() - started >= retryWindowMs) {
+    if (!isRetryableMiss(response, body, env.RELEASE_SHA, expectedStatus) || now() - started >= retryWindowMs) {
       if (response.ok) throw new Error(`${path} did not return the expected release (${body.status}, ${body.release})`);
       throw new Error(`${path} returned ${response.status}`);
     }

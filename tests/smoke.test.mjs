@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { smokeRelease, SMOKE_RETRY_DELAY_MS, SMOKE_RETRY_WINDOW_MS } from '../scripts/release/smoke.mjs';
 
 const sha = 'a'.repeat(40);
-const stale = 'b'.repeat(40);
+const other = 'b'.repeat(40);
 const origin = 'https://relay-production.example.workers.dev';
 const env = {
   DEPLOY_URL: origin,
@@ -11,6 +11,10 @@ const env = {
   ACCESS_CLIENT_ID: 'smoke-client-id',
   ACCESS_CLIENT_SECRET: 'smoke-client-secret',
 };
+const endpoints = [
+  { path: '/healthz', expectedStatus: 'ok' },
+  { path: '/readyz', expectedStatus: 'ready' },
+];
 
 function jsonResponse(status, body) {
   return new Response(JSON.stringify(body), {
@@ -37,6 +41,38 @@ function assertAccessHeaders(init, redirect) {
   assert.equal(init.cache, 'no-store');
 }
 
+function expectedBody(path) {
+  return path === '/healthz' ? { status: 'ok', release: sha } : { status: 'ready', release: sha };
+}
+
+async function assertFailsWithoutRetry(target, invalidBody) {
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    const path = new URL(url).pathname;
+    seen.push(path);
+    if (path === '/healthz') {
+      assertAccessHeaders(init, 'error');
+      if (target.path === '/readyz') return jsonResponse(200, expectedBody('/healthz'));
+    } else {
+      assertAccessHeaders(init, path === '/api/workspace' ? 'manual' : 'error');
+    }
+    if (path === target.path && seen.filter((entry) => entry === target.path).length === 1) {
+      return jsonResponse(200, invalidBody);
+    }
+    assert.fail(`must not request ${path} after invalid ${target.path}`);
+  };
+  await assert.rejects(
+    () => smokeRelease({
+      env,
+      fetchImpl,
+      sleep: async () => assert.fail(`must not sleep after invalid ${target.path}`),
+      now: () => 0,
+    }),
+    new RegExp(`${target.path} did not return the expected release`),
+  );
+  assert.deepEqual(seen, target.path === '/healthz' ? ['/healthz'] : ['/healthz', '/readyz']);
+}
+
 void test('protected smoke retries workers.dev 404s until health, readiness, and service isolation succeed', async () => {
   const time = clock();
   const hits = { '/healthz': 0, '/readyz': 0, '/api/workspace': 0 };
@@ -46,12 +82,12 @@ void test('protected smoke retries workers.dev 404s until health, readiness, and
     if (path === '/healthz') {
       assertAccessHeaders(init, 'error');
       if (hits[path] < 3) return new Response('', { status: 404 });
-      return jsonResponse(200, { status: 'ok', release: sha });
+      return jsonResponse(200, expectedBody(path));
     }
     if (path === '/readyz') {
       assertAccessHeaders(init, 'error');
       if (hits[path] < 2) return new Response('', { status: 404 });
-      return jsonResponse(200, { status: 'ready', release: sha });
+      return jsonResponse(200, expectedBody(path));
     }
     assert.equal(path, '/api/workspace');
     assertAccessHeaders(init, 'manual');
@@ -62,21 +98,17 @@ void test('protected smoke retries workers.dev 404s until health, readiness, and
   assert.equal(time.elapsed(), SMOKE_RETRY_DELAY_MS * 3);
 });
 
-void test('protected smoke retries a prior Worker SHA until the published release is visible', async () => {
+void test('a different 40-hex release with the expected endpoint status can retry and converge', async () => {
   const time = clock();
   const hits = { '/healthz': 0, '/readyz': 0, '/api/workspace': 0 };
   const fetchImpl = async (url, init) => {
     const path = new URL(url).pathname;
     hits[path] += 1;
-    if (path === '/healthz') {
+    if (path === '/healthz' || path === '/readyz') {
       assertAccessHeaders(init, 'error');
-      if (hits[path] < 3) return jsonResponse(200, { status: 'ok', release: stale });
-      return jsonResponse(200, { status: 'ok', release: sha });
-    }
-    if (path === '/readyz') {
-      assertAccessHeaders(init, 'error');
-      if (hits[path] < 2) return jsonResponse(200, { status: 'ready', release: stale });
-      return jsonResponse(200, { status: 'ready', release: sha });
+      const expected = expectedBody(path);
+      if (hits[path] < (path === '/healthz' ? 3 : 2)) return jsonResponse(200, { ...expected, release: other });
+      return jsonResponse(200, expected);
     }
     assert.equal(path, '/api/workspace');
     assertAccessHeaders(init, 'manual');
@@ -87,32 +119,65 @@ void test('protected smoke retries a prior Worker SHA until the published releas
   assert.equal(time.elapsed(), SMOKE_RETRY_DELAY_MS * 3);
 });
 
-void test('401 and 403 on health fail immediately without retrying as routing 404s', async () => {
+void test('empty, malformed, missing, and non-string releases fail immediately on both endpoints', async () => {
+  const cases = [
+    { release: '' },
+    { release: 'not-a-sha' },
+    { release: 'c'.repeat(39) },
+    { release: 'c'.repeat(41) },
+    { release: 'C'.repeat(40) },
+    {},
+    { release: 1 },
+    { release: null },
+  ];
+  for (const endpoint of endpoints) {
+    for (const body of cases) {
+      await assertFailsWithoutRetry(endpoint, { ...body, status: endpoint.expectedStatus });
+    }
+  }
+});
+
+void test('a different 40-hex release with missing or unexpected status fails immediately on both endpoints', async () => {
+  for (const endpoint of endpoints) {
+    const unexpected = endpoint.path === '/healthz' ? 'ready' : 'ok';
+    await assertFailsWithoutRetry(endpoint, { release: other });
+    await assertFailsWithoutRetry(endpoint, { status: unexpected, release: other });
+    await assertFailsWithoutRetry(endpoint, { status: 'error', release: other });
+  }
+});
+
+void test('401, 403, and 500 fail immediately on both endpoints', async () => {
   for (const status of [401, 403, 500]) {
-    let calls = 0;
-    const fetchImpl = async () => {
-      calls += 1;
-      return new Response('', { status });
-    };
-    await assert.rejects(
-      () => smokeRelease({ env, fetchImpl, sleep: async () => assert.fail('must not sleep'), now: () => 0 }),
-      new RegExp(`/healthz returned ${status}`),
-    );
-    assert.equal(calls, 1);
+    for (const target of endpoints) {
+      const seen = [];
+      const fetchImpl = async (url) => {
+        const path = new URL(url).pathname;
+        seen.push(path);
+        if (path === '/healthz' && target.path === '/readyz') return jsonResponse(200, expectedBody(path));
+        if (path === target.path && seen.filter((entry) => entry === target.path).length === 1) {
+          return new Response('', { status });
+        }
+        assert.fail(`must not request ${path} after ${status} on ${target.path}`);
+      };
+      await assert.rejects(
+        () => smokeRelease({
+          env,
+          fetchImpl,
+          sleep: async () => assert.fail('must not sleep'),
+          now: () => 0,
+        }),
+        new RegExp(`${target.path} returned ${status}`),
+      );
+      assert.deepEqual(seen, target.path === '/healthz' ? ['/healthz'] : ['/healthz', '/readyz']);
+    }
   }
 });
 
 void test('matching SHA with the wrong readiness status fails without retry', async () => {
-  let calls = 0;
-  const fetchImpl = async () => {
-    calls += 1;
-    return jsonResponse(200, { status: 'ready', release: sha });
-  };
-  await assert.rejects(
-    () => smokeRelease({ env, fetchImpl, sleep: async () => assert.fail('must not sleep'), now: () => 0 }),
-    /\/healthz did not return the expected release \(ready, a{40}\)/,
-  );
-  assert.equal(calls, 1);
+  for (const endpoint of endpoints) {
+    const unexpected = endpoint.path === '/healthz' ? 'ready' : 'ok';
+    await assertFailsWithoutRetry(endpoint, { status: unexpected, release: sha });
+  }
 });
 
 void test('persistent 404s fail after the bounded retry window', async () => {
@@ -130,19 +195,32 @@ void test('persistent 404s fail after the bounded retry window', async () => {
   assert.equal(calls, SMOKE_RETRY_WINDOW_MS / SMOKE_RETRY_DELAY_MS + 1);
 });
 
-void test('a prior Worker SHA that never updates fails after the bounded retry window', async () => {
-  const time = clock();
-  let calls = 0;
-  const fetchImpl = async () => {
-    calls += 1;
-    return jsonResponse(200, { status: 'ok', release: stale });
-  };
-  await assert.rejects(
-    () => smokeRelease({ env, fetchImpl, sleep: time.sleep, now: time.now }),
-    new RegExp(`/healthz did not return the expected release \\(ok, ${stale}\\)`),
-  );
-  assert.equal(time.elapsed(), SMOKE_RETRY_WINDOW_MS);
-  assert.equal(calls, SMOKE_RETRY_WINDOW_MS / SMOKE_RETRY_DELAY_MS + 1);
+void test('a persistent different 40-hex release fails after that endpoint window', async () => {
+  for (const endpoint of endpoints) {
+    const time = clock();
+    const hits = { '/healthz': 0, '/readyz': 0, '/api/workspace': 0 };
+    const fetchImpl = async (url) => {
+      const path = new URL(url).pathname;
+      hits[path] += 1;
+      if (path === '/healthz' && endpoint.path === '/readyz') return jsonResponse(200, expectedBody(path));
+      if (path === endpoint.path) {
+        return jsonResponse(200, { status: endpoint.expectedStatus, release: other });
+      }
+      assert.fail(`must not request ${path}`);
+    };
+    await assert.rejects(
+      () => smokeRelease({ env, fetchImpl, sleep: time.sleep, now: time.now }),
+      new RegExp(`${endpoint.path} did not return the expected release \\(${endpoint.expectedStatus}, ${other}\\)`),
+    );
+    assert.equal(time.elapsed(), SMOKE_RETRY_WINDOW_MS);
+    if (endpoint.path === '/healthz') {
+      assert.equal(hits['/healthz'], SMOKE_RETRY_WINDOW_MS / SMOKE_RETRY_DELAY_MS + 1);
+      assert.equal(hits['/readyz'], 0);
+    } else {
+      assert.equal(hits['/healthz'], 1);
+      assert.equal(hits['/readyz'], SMOKE_RETRY_WINDOW_MS / SMOKE_RETRY_DELAY_MS + 1);
+    }
+  }
 });
 
 void test('workspace access through the service token does not retry', async () => {
@@ -150,8 +228,7 @@ void test('workspace access through the service token does not retry', async () 
   const fetchImpl = async (url) => {
     calls += 1;
     const path = new URL(url).pathname;
-    if (path === '/healthz') return jsonResponse(200, { status: 'ok', release: sha });
-    if (path === '/readyz') return jsonResponse(200, { status: 'ready', release: sha });
+    if (path === '/healthz' || path === '/readyz') return jsonResponse(200, expectedBody(path));
     return new Response('', { status: 200 });
   };
   await assert.rejects(

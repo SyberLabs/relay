@@ -8,18 +8,18 @@ All deployed traffic must enter `deploy/worker.mjs` through the production ident
 
 Cloudflare Access authenticates users before any account quota is read or written. Quota keys derive from the verified subject, never a client-supplied owner, email, API key identifier, or forwarded header. Edge rate limiting uses Cloudflare's connecting IP and groups missing IPs together. Access, origin checks, owner isolation, and exact-text acceptance remain separate requirements; CAPTCHA replaces none of them.
 
-| Resource | Initial invited-pilot limit |
-| --- | --- |
-| Every gateway request, including anonymous and assets | 300 per IP per minute at each edge location |
-| Dynamic requests, all routes combined | 120 per verified user per minute |
-| Mutations, all routes combined | 20 per user per minute |
-| Planner | 6 per user per minute |
-| Application work | 3,000 units/user/UTC day; 100,000 units/global/UTC day; 2,000,000 units/global/UTC month |
-| Work weight | 10 per mutation or planner request; 1 per other dynamic request |
-| Request bodies | 2,000,000 actual bytes for workspace; 256,000 elsewhere; 8,192 for CAPTCHA submission; 10-second read deadline |
-| Cumulative input | 100,000,000 bytes/user, with no automatic reset |
-| Worker CPU | Cloudflare Workers paid default (30 seconds). Do not lower `cpu_ms` until a measured p99 exists; local tests do not enforce it |
-| Human verification | Required after 20 write attempts in a UTC hour; successful verification lasts one hour |
+| Resource                                              | Initial invited-pilot limit                                                                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Every gateway request, including anonymous and assets | 300 per IP per minute at each edge location                                                                                    |
+| Dynamic requests, all routes combined                 | 120 per verified user per minute                                                                                               |
+| Mutations, all routes combined                        | 20 per user per minute                                                                                                         |
+| Planner                                               | 6 per user per minute                                                                                                          |
+| Application work                                      | 3,000 units/user/UTC day; 100,000 units/global/UTC day; 2,000,000 units/global/UTC month                                       |
+| Work weight                                           | 10 per mutation or planner request; 1 per other dynamic request                                                                |
+| Request bodies                                        | 2,000,000 actual bytes for workspace; 256,000 elsewhere; 8,192 for CAPTCHA submission; 10-second read deadline                 |
+| Cumulative input                                      | 100,000,000 bytes/user, with no automatic reset                                                                                |
+| Worker CPU                                            | Cloudflare Workers paid default (30 seconds). Do not lower `cpu_ms` until a measured p99 exists; local tests do not enforce it |
+| Human verification                                    | Required after 20 write attempts in a UTC hour; successful verification lasts one hour                                         |
 
 These are conservative starting policies, not measured capacity or a currency-denominated bill ceiling. Tune them only with review and recorded cohort workload/cost evidence. Fixed windows allow boundary bursts. Edge limiting is eventually consistent and is **not** billing accounting; D1 conditional reservations enforce the application budgets atomically, including concurrent requests across isolates. Older windows cannot overwrite newer ones. Reservations precede work and are never refunded, including failed requests or a later quota rejection. This prevents failure/retry loops from becoming free work, but can consume quota for unsuccessful operations.
 
@@ -46,6 +46,8 @@ Quota overrides require an operator to identify the hashed authenticated subject
 ## Controls for future changes
 
 Application coordination (`/applications`, `/api/applications`, #112) uses the same gateway and mutation weight. It adds one policy row and at most 500 immutable submission manifests per owner, each at most 240,000 UTF-8 bytes, 100 fields, and two files of at most 160,000 bytes each. History lists 20 summaries per page; exact manifests are retrieved individually. Starts are bounded to ten per UTC day, the current policy maximum, and one executing operation per owner. Starts are never automatically retried or refunded; uncertain outcomes retain the job lock. External assistants supply their own browser execution and resources. Relay does not call or enqueue an upstream provider.
+
+Inspect presence (`POST /api/applications` `action=arm`, #135) is not a mutation: work weight 1 and 6 arm requests per verified user per minute. The operative refreshes the arm about every 10 seconds; Accept is enabled only while `armed_until` is in the future (20-second window). Workspace and `/apply` Inspect poll `GET /api/applications?job=` every 3 seconds plus on visibility change, staying under the 120 dynamic requests per user per minute. Prepare remains mutation weight 10. Approve authorizes the frozen payload only while that arm is live and does not begin execution.
 
 Before introducing any new expensive operation, document its owner, admission weight, input/batch/pagination limits, worst-case work and storage, retry/idempotency behavior, and failure mode. Add regression coverage showing a refused request cannot mutate data or reach an upstream provider. New database tables need owner-scoped storage limits. Do not disable a failing quota or test to make a feature pass.
 

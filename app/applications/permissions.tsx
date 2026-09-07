@@ -15,7 +15,6 @@ export function ApplicationPermissions({
 }) {
   const [policyVersion, setPolicyVersion] = useState(policy?.version || 0);
   const [enabled, setEnabled] = useState(Boolean(policy?.enabled));
-  const [review, setReview] = useState(policy?.review || 'all');
   const [allowed, setAllowed] = useState<string[]>(
     policy ? JSON.parse(policy.jobs) : [],
   );
@@ -37,7 +36,7 @@ export function ApplicationPermissions({
             const saved = await save({
               version: policyVersion,
               enabled,
-              review,
+              review: 'all',
               jobs: allowed,
               expires: `${expires}:00.000Z`,
               maximum,
@@ -56,17 +55,13 @@ export function ApplicationPermissions({
             Enable application execution
           </label>
         </p>
-        <p>
-          <label>
-            Approval setting{' '}
-            <select value={review} onChange={(e) => setReview(e.target.value)}>
-              <option value="all">Review every application</option>
-              <option value="sensitive">
-                Automatic for standard contact fields; review other questions
-              </option>
-            </select>
-          </label>
-        </p>
+        <p>Approval setting: Review every application in Inspect.</p>
+        {policy?.review === 'sensitive' && (
+          <p>
+            Your saved policy uses the earlier automatic setting. Save
+            permissions to require Inspect approval for every application.
+          </p>
+        )}
         <p>
           <label>
             Expires (UTC){' '}

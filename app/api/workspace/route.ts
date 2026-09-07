@@ -33,6 +33,7 @@ import {
   completeOwnerImportWrite,
   ownerImportWritePending,
 } from '../../../lib/tracker-submit';
+import { saveJobReview } from '../../../lib/job-review';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -198,45 +199,14 @@ export async function POST(request: Request) {
           409,
         );
       validateEdit(job, b);
-      const result = await db.batch([
-        db
-          .prepare(
-            "UPDATE jobs SET drafting_direction=CASE WHEN blocker=? THEN drafting_direction ELSE '' END,draft=?,blocker=?,status=?,accepted_draft=?,version=version+1,updated=? WHERE id=? AND owner=? AND version=?",
-          )
-          .bind(
-            b.blocker,
-            b.draft,
-            b.blocker,
-            b.status,
-            b.status === 'Ready' ? b.draft : null,
-            now,
-            b.id,
-            user,
-            b.version,
-          ),
-        db
-          .prepare(
-            'INSERT INTO events (id,owner,job_id,kind,detail,created) SELECT ?,?,?,?,?,? WHERE changes()=1 AND EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner=? AND version=? AND updated=?)',
-          )
-          .bind(
-            crypto.randomUUID(),
-            user,
-            b.id,
-            b.status === 'Ready' ? 'Draft accepted' : 'Review saved',
-            JSON.stringify({
-              status: b.status,
-              draft: b.draft,
-              blocker: b.blocker,
-            }),
-            now,
-            b.id,
-            user,
-            b.version + 1,
-            now,
-          ),
-      ]);
-      if (!result[0].meta.changes)
-        return reply({ error: 'Record changed. Reload before saving.' }, 409);
+      if (!(await saveJobReview(db, user, b, now)))
+        return reply(
+          {
+            error:
+              'Record changed or application execution is locked. Reload before saving.',
+          },
+          409,
+        );
       return reply({ ok: true });
     }
     if (b.action === 'history') {

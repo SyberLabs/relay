@@ -23,7 +23,15 @@ If the browser exposes Relay's WebMCP tools, prefer them over files for drafting
 
 If blocked, state the specific blocker and preserve the work. Do not repeatedly research the same posting or overwrite earlier evidence to make progress appear larger.
 
-## Local Relay URL and auth
+## Browser authentication and local Relay URL
+
+For deployed Relay, use the normal Access login in the Bot's actual browser.
+The user's desktop login does not unlock the Bot VM. Session expiry and
+revocation can require login again; preserve work and reread the saved version
+before deliberately retrying. See [assistant browser sessions](../docs/hosting.md#assistant-browser-sessions)
+for the pilot session target, effective-policy verification and logout scope.
+Access login never grants exact-draft acceptance and does not establish WebMCP
+availability. Do not copy cookies or use service tokens to impersonate the user.
 
 Use the Vite URL from `pnpm dev`: `http://localhost:3000/`. Ignore any workerd `127.0.0.1:NNNN` bind. Browser sign-in is `/signin-with-chatgpt?return_to=/` on that URL only.
 

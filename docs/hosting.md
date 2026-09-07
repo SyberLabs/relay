@@ -70,6 +70,38 @@ For actual database corruption, sdcarlson owns the separate incident decision: s
 
 Confirm staging CI and protected smoke passed; sign in separately as sdcarlson and Mateo; verify each can import, edit, save, and reload their own fictional records and cannot read or change the other's records. Confirm logout and expired sessions. Rehearse a compatible artifact rollback and staging database recovery. Then approve the first production deployment and repeat the two-user check. Record actual URLs and successful run links in the launch ticket, without copying secrets.
 
+## Assistant browser sessions
+
+Complete Cloudflare Access login in the browser the assistant actually uses.
+A desktop login does not authenticate a separate Grok VM or cloud browser.
+Cold profiles, cleared sessions, expiry or revocation can stop work before
+Relay loads. Login establishes identity; it never accepts draft wording.
+
+The invited-pilot target above is **one hour**, not an audited live timeout.
+The operator must verify the All Workers application duration and matching
+policy override. A valid global session can permit renewal without another
+identity-provider prompt, so do not promise a human unlock exactly every hour.
+Persistent devices or longer sessions are not provisioned by Relay.
+
+The application's `/cdn-cgi/access/logout` ends the user's Access session
+across applications, not just the current tab. Operators can revoke application
+tokens or a user's sessions in Zero Trust; a still-allowed identity may sign
+in again. All Workers application revocation affects its other protected Workers.
+See [Cloudflare session management](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/).
+
+After an authentication failure, preserve unsaved text and stop. Complete login,
+reread the saved job/version/history, and reconcile uncertain writes before a
+deliberate retry. Never replace a draft's generation-time version to force it
+through. CAPTCHA and quotas remain separate [abuse controls](abuse-controls.md).
+Do not export cookies, impersonate a user with service tokens, weaken Access,
+or expose the development server.
+
+Record the browser, deployment commit, effective policy and normal/expired/revoked
+outcomes in [#119](https://github.com/SyberLabs/relay/issues/119), without tokens
+or private data. Check assistant tool calls separately under
+[#117](https://github.com/SyberLabs/relay/issues/117); an Access login is not tool
+availability or exact-draft acceptance.
+
 ## Provider references
 
 - [workers.dev routing](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/)

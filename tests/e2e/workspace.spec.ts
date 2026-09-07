@@ -143,9 +143,13 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await page
-    .getByRole('button', { name: 'Import research', exact: true })
-    .click();
+  await expect(page.locator('#workspace-queue')).toBeVisible();
+  const importBtn = page.getByRole('button', {
+    name: 'Import research',
+    exact: true,
+  });
+  await importBtn.click();
+  await expect(importBtn).toHaveAttribute('aria-expanded', 'true');
   await page.getByRole('tab', { name: 'Tracker CSV' }).click();
   const panel = page.locator('#import-panel-csv');
   const csv =

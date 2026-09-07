@@ -323,7 +323,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
   )[1];
   const runSrc = src.slice(
     src.indexOf('async function run('),
-    src.indexOf('  useRelayTools(refresh);'),
+    src.indexOf('  const toolStatus = useRelayTools(refresh);'),
   );
   function deferred() {
     let resolve;

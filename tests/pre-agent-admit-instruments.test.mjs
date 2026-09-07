@@ -134,8 +134,38 @@ void test('corpus scoring reports regex then lexical counts without embedding', 
   assert.equal(report.lexical.matched, 2);
   assert.equal(report.regex_us.matched, 1);
   assert.equal(report.lexical_us.matched, 1);
+  assert.equal(report.regex_us_fresh.matched, 1);
+  assert.equal(report.lexical_us_fresh.matched, 1);
   assert.equal(report.embedder, 'none');
   assert.equal(report.llm, 'asleep');
+});
+
+void test('freshness drops stale intern seats from the US lexical count', () => {
+  const stale = posting(
+    'Globex — Software Engineer Intern',
+    'Globex',
+    'https://jobs.ashbyhq.com/globex/stale',
+    'United States',
+    '',
+  );
+  stale.row.posted = '2025-01-01T00:00:00.000Z';
+  const report = scoreCorpus(
+    [
+      posting('Acme — Software Engineer Intern', 'Acme', 'https://jobs.ashbyhq.com/acme/intern'),
+      stale,
+    ],
+    {
+      known: { companies: [], boards: [] },
+      packet: 'software engineer intern internship',
+      min_cosine: 0.08,
+      now: NOW,
+      freshness_days: 180,
+    },
+  );
+  assert.equal(report.regex_us.matched, 2);
+  assert.equal(report.lexical_us.matched, 2);
+  assert.equal(report.regex_us_fresh.matched, 1);
+  assert.equal(report.lexical_us_fresh.matched, 1);
 });
 
 void test('a local full-directory cap can cover the LastRound snapshot', () => {

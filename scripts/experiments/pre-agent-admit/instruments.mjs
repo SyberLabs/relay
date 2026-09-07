@@ -82,7 +82,7 @@ export function compactPosting(posting) {
 
 export function instrumentHits(
   postings,
-  { known, packet, min_cosine = 0.08 } = {},
+  { known, packet, min_cosine = 0.08, now, freshness_days } = {},
 ) {
   const hunt = packet || DEFAULT_HUNT_PACKET;
   const huntWords = contentWords(hunt);
@@ -110,6 +110,7 @@ export function instrumentHits(
       cosine,
       us: usHuntLocation(compact),
       lexical: cosine >= min_cosine,
+      fresh: isFresh(compact.row, now, freshness_days),
     });
   }
   return hits;
@@ -129,7 +130,19 @@ export function scoreCorpus(postings, options = {}) {
     lexical: tally(hits.filter((item) => item.lexical)),
     regex_us: tally(hits.filter((item) => item.us)),
     lexical_us: tally(hits.filter((item) => item.lexical && item.us)),
+    regex_us_fresh: tally(hits.filter((item) => item.us && item.fresh)),
+    lexical_us_fresh: tally(
+      hits.filter((item) => item.lexical && item.us && item.fresh),
+    ),
   };
+}
+
+function isFresh(row, now, freshness_days) {
+  if (freshness_days == null || now == null) return true;
+  if (!row?.posted) return true;
+  const posted = Date.parse(row.posted);
+  if (!Number.isFinite(posted)) return true;
+  return (now - posted) / 86_400_000 <= freshness_days;
 }
 
 function tally(items) {

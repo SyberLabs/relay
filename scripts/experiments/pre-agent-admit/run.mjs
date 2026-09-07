@@ -76,6 +76,8 @@ export async function runCompare(options) {
       known: options.known,
       packet: options.huntPacket,
       min_cosine: options.minCosine,
+      now,
+      freshness_days: options.spec?.freshness_days,
     });
   }
   return compared;

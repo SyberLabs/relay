@@ -4,7 +4,7 @@
 
 **Goal:** Owner-scoped workspace list queries use dedicated non-unique indexes, and outcomes/preferences POST bodies over 2,000,000 characters return 413 without changing stored state.
 
-**Architecture:** Hand-written additive `0009` migration (no drizzle-kit). Copy the drafts/profile size checks onto the two uncapped mutation routes. Do not change SQL query strings or owner predicates.
+**Architecture:** Hand-written additive `0012` migration (no drizzle-kit). Copy the drafts/profile size checks onto the two uncapped mutation routes. Do not change SQL query strings or owner predicates.
 
 **Tech Stack:** SQLite/D1, Drizzle schema, Node test runner, existing orchestration HTTP suite.
 
@@ -23,9 +23,9 @@
 
 **Files:**
 
-- Create: `drizzle/0009_owner_read_indexes.sql`
+- Create: `drizzle/0012_owner_read_indexes.sql`
 - Modify: `db/schema.ts` (append indexes on jobs, observations, events)
-- Modify: `drizzle/meta/_journal.json` (idx 9)
+- Modify: `drizzle/meta/_journal.json` (idx 12)
 - Test: `tests/import.test.mjs`
 
 **Interfaces:**
@@ -37,7 +37,7 @@
 
 - [ ] **Step 2: Run** `pnpm test -- tests/import.test.mjs` (or `node --test tests/import.test.mjs`). Expected: FAIL — `SCAN events` / missing index names.
 
-- [x] **Step 3: Add schema extras, `0009` SQL, journal row** exactly as the spec SQL block.
+- [x] **Step 3: Add schema extras, `0012` SQL, journal row** exactly as the spec SQL block.
 
 - [ ] **Step 4: Re-run the same test.** Expected: PASS.
 

@@ -885,6 +885,10 @@
   margin: 16px 24px 0;
 }
 @media (max-width: 1120px) {
+  /* Wrapped navigation must scroll away so it cannot cover page actions. */
+  .bar {
+    position: static;
+  }
   .stage {
     align-items: flex-start;
   }

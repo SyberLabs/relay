@@ -80,6 +80,14 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
     page.getByText('Notes and version-bound draft files from your vault.'),
   ).toBeVisible();
   await expect(page.getByText('Reads listings, submits forms')).toHaveCount(0);
+  await expect(
+    page.getByText('Approval setting: Review every application.', {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('option', { name: /Automatic for standard/ }),
+  ).toHaveCount(0);
   await page.getByRole('button', { name: 'Done' }).click();
 
   await page
@@ -116,7 +124,7 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   });
 });
 
-test('dirty editor asks before Approve and send and modal Your facts', async ({
+test('dirty editor asks before Review prepared application and modal Your facts', async ({
   page,
 }) => {
   await page.goto('/');
@@ -153,11 +161,17 @@ test('dirty editor asks before Approve and send and modal Your facts', async ({
 
   await page.getByRole('button', { name: 'Accept exact draft' }).click();
   await expect(
-    page.getByRole('link', { name: 'Approve and send' }),
+    page.getByRole('link', { name: 'Review prepared application' }),
   ).toBeVisible();
   await draft.fill('Unsaved plant draft before Applications.');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('link', { name: 'Approve and send' }).click();
-  await expect(page).not.toHaveURL(/\/applications/);
+  await page.getByRole('link', { name: 'Review prepared application' }).click();
+  await expect(page).not.toHaveURL(/#application-inspect$/);
   await expect(draft).toHaveValue('Unsaved plant draft before Applications.');
+  await draft.fill('Unsaved plant draft before Your facts.');
+  await page.getByRole('link', { name: 'Review prepared application' }).click();
+  await expect(page).toHaveURL(/#application-inspect$/);
+  await expect(
+    page.getByRole('region', { name: 'Prepared application' }),
+  ).toBeVisible();
 });

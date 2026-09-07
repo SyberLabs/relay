@@ -4,6 +4,7 @@ import {
   integer,
   uniqueIndex,
   index,
+  primaryKey,
 } from 'drizzle-orm/sqlite-core';
 export const applicationPolicies = sqliteTable('application_policies', {
   owner: text('owner').primaryKey(),
@@ -38,6 +39,24 @@ export const applicationOperations = sqliteTable(
     index('application_operations_owner_id').on(t.owner, t.id),
     index('application_operations_owner_job').on(t.owner, t.job_id),
   ],
+);
+export const applicationPreparations = sqliteTable(
+  'application_preparations',
+  {
+    revision: text('revision').notNull().default(''),
+    owner: text('owner').notNull(),
+    job_id: text('job_id').notNull(),
+    actor: text('actor').notNull(),
+    job_version: integer('job_version').notNull(),
+    destination: text('destination').notNull(),
+    fields: text('fields').notNull(),
+    files: text('files').notNull(),
+    operation_id: text('operation_id'),
+    ready: integer('ready').notNull(),
+    armed_until: text('armed_until').notNull(),
+    updated: text('updated').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.owner, t.job_id] })],
 );
 // Fixed rows per authenticated owner/scope; windows overwrite rather than grow.
 export const securityCounters = sqliteTable('security_counters', {

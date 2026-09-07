@@ -4,7 +4,7 @@
 **Date:** 2026-09-07
 **Decision owner:** Seth Carlson
 
-Red-teamed in two independent passes plus a third pass on this text, then re-checked against current `main` (`cd69537`, migrations through `0008`). Round 1: [security](e518e7a1-ff6c-4e45-87d7-75fcf487f28c), [D1/indexes](d0a346b9-1485-4ce2-a1e5-5150370a9495). Round 2: [patched spec](3b61bffd-30af-45e6-a92f-af7b4d67b994). Round 3: [written spec](1154237a-901c-4773-b5d7-2a29908d5c6a).
+Red-teamed in two independent passes plus a third pass on this text, then re-checked against the initial base `cd69537` (migrations through `0008`). Round 1: [security](e518e7a1-ff6c-4e45-87d7-75fcf487f28c), [D1/indexes](d0a346b9-1485-4ce2-a1e5-5150370a9495). Round 2: [patched spec](3b61bffd-30af-45e6-a92f-af7b4d67b994). Round 3: [written spec](1154237a-901c-4773-b5d7-2a29908d5c6a).
 
 ## Problem
 
@@ -53,7 +53,7 @@ Do not change the query strings. Indexes cannot return another owner’s rows un
 
 ### Migration
 
-Hand-write `drizzle/0009_owner_read_indexes.sql` and append a `_journal.json` entry `{ "idx": 9, "version": "6", "tag": "0009_owner_read_indexes", "breakpoints": true }`. Current `main` already has `0006`–`0008` and snapshots through `0008`.
+Hand-write `drizzle/0012_owner_read_indexes.sql` and append a `_journal.json` entry `{ "idx": 12, "version": "6", "tag": "0012_owner_read_indexes", "breakpoints": true }`. The integration preserves PR #152’s `0009`–`0011` migrations and snapshots unchanged; the owner-read indexes follow them as `0012`.
 
 ```sql
 CREATE INDEX `events_owner_created` ON `events` (`owner`,`created`);--> statement-breakpoint
@@ -64,7 +64,7 @@ CREATE INDEX `jobs_owner_updated` ON `jobs` (`owner`,`updated`);
 
 Do not run `drizzle-kit generate`. `db/schema.ts` still omits `refusals_owner_created`; generate would emit `DROP INDEX`. Do not add or rewrite snapshots. Do not `DROP INDEX`. Do not `UPDATE` rows. Do not use `CREATE INDEX IF NOT EXISTS`. First-pilot tables are tiny; `CREATE INDEX` is not a 30s risk on this data.
 
-Shipping 0009 means artifact rollback to a pre-0009 commit is refused by the existing `drizzle/` diff gate. That is the current rollback rule, not a new one. Older Workers remain compatible with extra non-unique indexes.
+Shipping 0012 means artifact rollback to a pre-0012 commit is refused by the existing `drizzle/` diff gate. That is the current rollback rule, not a new one. Older Workers remain compatible with extra non-unique indexes.
 
 ### Body caps
 

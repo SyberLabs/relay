@@ -4,6 +4,7 @@ import type {
   ApplicationPolicy,
 } from '../../lib/application-automation';
 import type { Fact } from '../../lib/profile';
+import type { InspectSnapshot } from '../../lib/inspect-view';
 
 type Workspace = {
   viewer: string;
@@ -157,17 +158,42 @@ test('same-tab API handoff survives independent sessions without WebMCP or conte
       fields: [{ label: 'Full name', value: candidate.claim }],
       files: [],
     };
-    const proposed = await call<OperationReply>(applying, '/api/applications', {
-      action: 'propose',
+    const inspection = await call<InspectSnapshot>(
+      applying,
+      `/api/applications?job=${encodeURIComponent(job.id)}`,
+    );
+    expect(inspection.status).toBe(200);
+    const prepared = await call<InspectSnapshot>(
+      applying,
+      '/api/applications',
+      {
+        action: 'prepare',
+        viewer: workspace.viewer,
+        job: job.id,
+        preparation_revision: inspection.data.preparation_revision,
+        actor: 'ChatGPT',
+        destination: manifest.destination,
+        fields: manifest.fields.map((field) => ({ ...field, unknown: false })),
+        files: manifest.files,
+      },
+    );
+    expect(prepared.status).toBe(200);
+    const armed = await call<InspectSnapshot>(applying, '/api/applications', {
+      action: 'arm',
       viewer: workspace.viewer,
       id: crypto.randomUUID(),
       job: job.id,
-      version: job.version,
+      preparation_revision: prepared.data.preparation_revision,
       actor: 'ChatGPT',
-      manifest,
     });
-    expect(proposed.status).toBe(200);
-    const op = proposed.data.operation;
+    expect(armed.status).toBe(200);
+    expect(armed.data.accept_enabled).toBe(true);
+    const op = (
+      await call<OperationReply>(
+        applying,
+        `/api/applications?id=${encodeURIComponent(armed.data.operation_id!)}`,
+      )
+    ).data.operation;
     expect(op.state).toBe('proposed');
     expect(JSON.parse(op.manifest)).toEqual(manifest);
     const begin = {
@@ -178,19 +204,20 @@ test('same-tab API handoff survives independent sessions without WebMCP or conte
     };
     expect((await call(applying, '/api/applications', begin)).status).toBe(409);
 
-    await owner.goto('/applications');
+    await owner.goto('/');
     await owner
       .getByRole('button', {
-        name: 'Cedar Fictional — API Handoff · proposed · ChatGPT',
+        name: 'Cedar Fictional — API Handoff',
         exact: true,
       })
       .click();
-    await expect(owner.getByRole('article')).toContainText(candidate.claim);
-    await owner
-      .getByRole('button', { name: 'Approve this exact application' })
+    const inspect = owner.getByRole('region', { name: 'Prepared application' });
+    await expect(inspect).toContainText(candidate.claim);
+    await inspect
+      .getByRole('button', { name: 'Accept and send', exact: true })
       .click();
-    await expect(owner.getByRole('article')).toContainText(
-      'Explicit approval recorded',
+    await expect(inspect).toContainText(
+      'Accepted — waiting for the operative to send.',
     );
 
     // New evidence and a different job do not rewrite the approved payload,

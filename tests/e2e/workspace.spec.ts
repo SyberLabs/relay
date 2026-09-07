@@ -373,6 +373,7 @@ test('tracker import actions stay inside the window after a long preview', async
   expect(box!.y + box!.height).toBeLessThanOrEqual(640);
 
   await page.setViewportSize({ width: 390, height: 720 });
+  await importAction.scrollIntoViewIfNeeded();
   await expect(importAction).toBeVisible();
   const narrow = await importAction.boundingBox();
   expect(narrow).toBeTruthy();
@@ -380,11 +381,21 @@ test('tracker import actions stay inside the window after a long preview', async
   expect(narrow!.y + narrow!.height).toBeLessThanOrEqual(720);
 });
 
+async function openImportDock(page: import('@playwright/test').Page) {
+  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  const importBtn = page.getByRole('button', {
+    name: 'Import research',
+    exact: true,
+  });
+  await expect(importBtn).toHaveAttribute('aria-expanded', 'false');
+  await importBtn.click();
+  await expect(importBtn).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#import-dock')).toBeVisible();
+}
+
 test('keyboard users can reach and use both import modes', async ({ page }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await page
-    .getByRole('button', { name: 'Import research', exact: true })
-    .click();
+  await openImportDock(page);
   const jsonTab = page.getByRole('tab', { name: 'Research JSON' });
   const csvTab = page.getByRole('tab', { name: 'Tracker CSV' });
   await jsonTab.focus();
@@ -444,9 +455,7 @@ test('delayed tracker preview cannot replace a saved import', async ({
   page,
 }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await page
-    .getByRole('button', { name: 'Import research', exact: true })
-    .click();
+  await openImportDock(page);
   await page.getByRole('tab', { name: 'Tracker CSV' }).click();
   const panel = page.locator('#import-panel-csv');
   await panel.getByLabel('Choose tracker CSV').setInputFiles({

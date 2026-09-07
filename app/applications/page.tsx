@@ -183,6 +183,10 @@ export default function Applications() {
           />
           <section>
             <h2>History and review</h2>
+            <p>
+              Accept and send lives on workspace Inspect; the operative begins
+              after Accept.
+            </p>
             {snapshot.operations.length === 0 && (
               <p>No application proposals yet.</p>
             )}
@@ -244,16 +248,6 @@ export default function Applications() {
                     snapshot.jobs.find((j) => j.id === selected.job_id)?.name
                   }
                 />
-                {selected.state === 'proposed' && (
-                  <button disabled={busy} onClick={() => void act('approve')}>
-                    Approve this exact application
-                  </button>
-                )}
-                {selected.state === 'authorized' && (
-                  <button disabled={busy} onClick={() => void act('begin')}>
-                    Begin this application once
-                  </button>
-                )}
                 {['proposed', 'authorized'].includes(selected.state) && (
                   <button disabled={busy} onClick={() => void act('cancel')}>
                     Cancel proposal

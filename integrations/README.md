@@ -61,13 +61,15 @@ For research, ask the Bot to write records in the schema in `lib/seed.json`, the
 node integrations/relay.mjs grok-research research.json private-data/research-checked.json
 ```
 
-For drafts, give the Bot a downloaded job packet, have it write plain text, then run:
+For a private local session, the Bot can run `login`, retrieve `context`, write its own draft file and run `stage` to save directly for human review. See [the assistant workflow](ASSISTANT-WORKFLOW.md) for exact versions, explicit blockers, recovery and acceptance. This local path needs no user copying or file transfer.
+
+For the packet fallback, give the Bot a downloaded job packet, have it write plain text, then run:
 
 ```sh
 node integrations/relay.mjs grok-draft relay-packet.json draft.txt private-data/grok-draft.json
 ```
 
-Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; that path has not been tested in a Grok Bot session.
+Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; the tested installed Grok Bot session did not expose those tools.
 
 ## Public boards → Relay
 
@@ -89,6 +91,7 @@ node integrations/relay.mjs login                 # cache a local session
 node integrations/relay.mjs plan                  # this week, with ids and reasons
 node integrations/relay.mjs brief <job_id> --json # facts you may cite + style rules
 node integrations/relay.mjs context <job_id> --json # job, research, saved facts and history
+node integrations/relay.mjs stage <job_id> draft.txt --version <generation-time-version> --blocker= --json
 node integrations/relay.mjs log <job_id> draft.txt --cite f1,f2
 node integrations/relay.mjs draft <job_id> [--out file] [--force]
 node integrations/relay.mjs status                # cluster trust, review due
@@ -110,7 +113,7 @@ An unattended agent relies on these. The distinction that matters is 3 against 4
 | 4    | Server or network failure    | Preserve input; inspect state before deliberately retrying |
 | 5    | Nothing to do                | Stop cleanly                              |
 
-A refused draft prints the offending sentence and writes nothing, including `--out`. `relay draft --out` writes that file only after the draft is logged. An existing file is left untouched unless `--force` is passed.
+A citation-refused `log` or `draft` prints the offending sentence and writes no draft, including `--out`. `relay draft --out` writes that file only after the draft is logged. An existing file is left untouched unless `--force` is passed. `stage` is a separate explicit workspace save for human review; it preserves its input file on all outcomes, never accepts text, and does not change ledger trust or automatic-staging rules.
 
 `--json` prints one object on stdout and sends every diagnostic to stderr.
 

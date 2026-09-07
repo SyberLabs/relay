@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, rmSync } from 'node:fs';
 const base = process.env.RELAY_TEST_URL || 'http://localhost:3000';
 
 // Only run against a local development server, which uses mock authentication.
@@ -119,6 +119,120 @@ r = relay('brief', 'no-such-job');
 assert.equal(r.code, EXIT.refused, 'an unknown id is a refusal, not a crash');
 
 /* -- log: the refusal must write nothing ---------------------------------- */
+// Explicit staging is a versioned workspace save, independent of the ledger's
+// Probation automatic-staging policy. Keep this fixture separate from log tests.
+await api('/api/workspace', {
+  action: 'import',
+  rows: [
+    {
+      url: 'https://example.com/research/cli-stage',
+      Name: 'Fictional Stage — Backend Engineer',
+      Job: 'https://example.com/jobs/cli-stage',
+      Status: 'Held',
+      Notes: 'Preserved research.',
+    },
+  ],
+});
+const stagedJob = (await api('/api/workspace')).data.jobs.find((j) =>
+  j.job_key.endsWith('/jobs/cli-stage'),
+);
+const stageFile = 'private-data/cli-stage.txt';
+const exact = ' Original fictional words.\r\n';
+writeFileSync(stageFile, exact);
+const ledgerBeforeStage = (await api('/api/drafts')).data.drafts;
+const stage = (version, blocker = '') =>
+  relay(
+    'stage',
+    stagedJob.id,
+    stageFile,
+    '--version',
+    String(version),
+    `--blocker=${blocker}`,
+    '--json',
+  );
+const stageContext = () => {
+  const result = relay('context', stagedJob.id, '--json');
+  assert.equal(result.code, 0, result.err);
+  return JSON.parse(result.out);
+};
+r = stage(stagedJob.version, 'Confirm fictional availability.');
+assert.equal(r.code, 0, r.err);
+let saved = stageContext();
+assert.equal(saved.job.version, stagedJob.version + 1);
+assert.equal(saved.job.draft, exact);
+assert.equal(saved.job.blocker, 'Confirm fictional availability.');
+assert.equal(saved.job.status, 'Held');
+assert.equal(saved.job.accepted_draft, null);
+assert.equal(saved.research[0].notes, 'Preserved research.');
+assert.equal(JSON.parse(saved.history.events[0].detail).draft, exact);
+assert.equal(saved.history.events[0].kind, 'Review saved');
+assert.equal(
+  stage(stagedJob.version).code,
+  3,
+  'generation-time version cannot be silently refreshed',
+);
+assert.deepEqual(
+  stageContext(),
+  saved,
+  'stale stage changes neither job nor history',
+);
+assert.equal(readFileSync(stageFile, 'utf8'), exact);
+// Synthetic acceptance belongs only to this regression fixture, never the demo.
+assert.equal(
+  (
+    await api('/api/workspace', {
+      action: 'save',
+      id: stagedJob.id,
+      version: saved.job.version,
+      draft: exact,
+      blocker: '',
+      status: 'Ready',
+    })
+  ).status,
+  200,
+);
+saved = stageContext();
+assert.equal(saved.job.accepted_draft, exact);
+const changed = ' Changed fictional wording.\n';
+writeFileSync(stageFile, changed);
+assert.equal(stage(saved.job.version).code, 0);
+saved = stageContext();
+assert.equal(saved.job.version, stagedJob.version + 3);
+assert.equal(saved.job.draft, changed);
+assert.equal(saved.job.blocker, '');
+assert.equal(saved.job.status, 'Held');
+assert.equal(
+  saved.job.accepted_draft,
+  null,
+  'changed wording never inherits acceptance',
+);
+assert.equal(saved.history.events.length, 3);
+assert.ok(
+  saved.history.events.some(
+    (e) => e.kind === 'Draft accepted' && JSON.parse(e.detail).draft === exact,
+  ),
+);
+assert.ok(
+  saved.history.events.some(
+    (e) => e.kind === 'Review saved' && JSON.parse(e.detail).draft === changed,
+  ),
+);
+assert.deepEqual(
+  (await api('/api/drafts')).data.drafts,
+  ledgerBeforeStage,
+  'stage does not change the separate ledger',
+);
+assert.equal(
+  JSON.parse(relay('status', '--json').out).trust.backend?.state ?? 'Probation',
+  'Probation',
+);
+assert.deepEqual(
+  stageContext(),
+  saved,
+  'fresh retrieval preserves exact state and history',
+);
+rmSync(stageFile);
+
 const before = (await api('/api/drafts')).data.drafts.length;
 writeFileSync(
   'private-data/cli-bad.txt',

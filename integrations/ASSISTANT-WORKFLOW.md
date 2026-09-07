@@ -21,9 +21,13 @@ With a private local development server running:
 node integrations/relay.mjs login
 node integrations/relay.mjs context <job_id> --json
 node integrations/relay.mjs context <job_id> --before <history.next> --json
+node integrations/relay.mjs stage <job_id> private-data/draft.txt --version <generation-time-version> --blocker= --json
+node integrations/relay.mjs context <job_id> --json
 ```
 
-`context` always prints JSON and shares the browser tool's context reader. Existing `brief` output is unchanged. `log` still writes a separate citation-checked draft ledger and requires a file; first-use logging does not stage into the workspace. `draft` calls the paid Anthropic API and is not needed when your current assistant writes the text. No new generation service was added.
+`context` always prints JSON and shares the browser tool's context reader. Your assistant chooses relevant confirmed facts, writes its own UTF-8 draft file and runs `stage` itself; the user does not copy text or transfer files. Supply the version from the context used to draft, never a newly fetched version to force an old draft through. `--blocker=` explicitly means no unresolved blocker; otherwise supply the actual uncertainty. The file is read exactly, including whitespace and newlines, with limits of 80000 bytes and 20000 text characters; blockers are limited to 4000 characters. Stage preserves the input file on every outcome and makes no automatic retry. After an uncertain response, retrieve state before deciding what to do.
+
+`stage` shares `relay_stage_draft` semantics: authenticated workspace save, one new version and review-history event, no acceptance or sending. Ready becomes Held and current acceptance is cleared; existing Submitted, Live loop and terminal lifecycle restrictions remain. Earlier acceptance events and research remain retrievable. Staging is an explicit save for human review, not citation verification or automatic ledger staging. `log` still writes the separate citation-checked draft ledger with unchanged Probation and automatic-staging rules. Existing `brief` output is unchanged. `draft` calls the paid Anthropic API and is not needed when your current assistant writes the text. No new generation service was added.
 
 The CLI deliberately refuses deployed hostnames: it supports development mock sign-in only. It cannot present production Cloudflare Access identity, accept exact wording, confirm facts, or submit applications. Do not expose the development server or use service tokens to work around that boundary.
 

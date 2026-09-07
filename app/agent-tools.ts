@@ -1,6 +1,6 @@
 'use client';
 import { useEffect } from 'react';
-import { isTerminal } from '../lib/outcomes';
+import { stageDraft } from '../lib/draft-stage';
 import { readApplicationContext } from '../lib/application-context';
 type Json = Record<string, unknown>;
 type Tool = {
@@ -181,21 +181,7 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
           ['id', 'version', 'draft', 'blocker'],
         ),
         run: async (input) => {
-          const snapshot = (await call('/api/workspace')) as {
-            jobs: { id: string; status: string }[];
-          };
-          const job = snapshot.jobs.find((j) => j.id === input.id);
-          if (!job) throw Error('Record not found.');
-          const status =
-            ['Submitted', 'Live loop'].includes(job.status) ||
-            isTerminal(job.status)
-              ? job.status
-              : 'Held';
-          const result = await call('/api/workspace', {
-            ...input,
-            action: 'save',
-            status,
-          });
+          const result = await stageDraft(call, input);
           await refresh();
           return result;
         },

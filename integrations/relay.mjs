@@ -20,6 +20,7 @@ const apiCommands = new Set([
   'login',
   'brief',
   'context',
+  'stage',
   'log',
   'draft',
   'plan',

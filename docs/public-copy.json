@@ -19,7 +19,7 @@
     "Advanced tools preserve experimental agent batch review, preference fitting and weekly planning. Planning uses estimated reply rates, not offer probabilities. Staging never accepts or sends a draft.",
     "Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.",
     "Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.",
-    "Drive agent draft logging from a local command line with heuristic citation checks. Domain refusals exit 3 without saving a draft. The CLI cannot accept drafts, confirm facts, or submit applications.",
+    "An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.",
     "Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. Exact acceptance remains in the signed-in workspace."
   ],
   "integrations": [

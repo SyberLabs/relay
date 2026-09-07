@@ -27,7 +27,7 @@ function compileSaveFirstJob(deps) {
   )[1];
   const saveSrc = src.slice(
     src.indexOf('async function saveFirstJob'),
-    src.indexOf('  return (\n    <div className="shell">'),
+    src.indexOf('\n  const connections ='),
   );
   const bind = (source) =>
     // oxlint-disable-next-line typescript/no-implied-eval -- compile actual Workspace callbacks

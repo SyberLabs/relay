@@ -13,6 +13,7 @@ import {
   pageWorkIsLive,
   readAuthorizedJson,
 } from '../../lib/page-session';
+import { ProductShell } from '../shell';
 type Outcome = {
   id: string;
   job_id: string;
@@ -128,7 +129,7 @@ export default function Track() {
   }
   if (signedOut)
     return (
-      <main className="productpage">
+      <ProductShell current="track">
         <h1>Track</h1>
         <p className="lead">Sign in to see your live applications.</p>
         {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
@@ -139,12 +140,12 @@ export default function Track() {
         >
           Sign in with ChatGPT
         </a>
-      </main>
+      </ProductShell>
     );
   const unreceipted =
     data?.prep.filter((p) => p.status !== 'Ready' && !p.receipt).length ?? 0;
   return (
-    <main className="productpage">
+    <ProductShell current="track">
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
@@ -316,6 +317,6 @@ export default function Track() {
         </section>
       )}
       <footer>Relay / SyberLabs</footer>
-    </main>
+    </ProductShell>
   );
 }

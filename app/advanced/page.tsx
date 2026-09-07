@@ -1,8 +1,9 @@
 import Link from 'next/link';
+import { ProductShell } from '../shell';
 
 export default function Advanced() {
   return (
-    <main className="productpage">
+    <ProductShell current="advanced">
       <Link className="backlink" href="/">
         ← Workspace
       </Link>
@@ -36,6 +37,6 @@ export default function Advanced() {
         </p>
       </section>
       <footer>Relay / SyberLabs</footer>
-    </main>
+    </ProductShell>
   );
 }

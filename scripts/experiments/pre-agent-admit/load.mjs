@@ -152,8 +152,14 @@ export function boardKey(entry) {
 
 export function loadKnown(raw) {
   return {
-    companies: asStringList(raw?.companies),
-    boards: asStringList(raw?.boards),
+    companies: asStringList(raw?.companies, {
+      max: 250,
+      label: 'known companies',
+    }),
+    boards: asStringList(raw?.boards, {
+      max: 250,
+      label: 'known boards',
+    }),
   };
 }
 
@@ -170,10 +176,10 @@ export function loadLabels(raw) {
   return labels;
 }
 
-function asStringList(value) {
+function asStringList(value, { max = 40, label = 'A spec list' } = {}) {
   if (value == null) return [];
   if (!Array.isArray(value)) throw Error('Expected a string array.');
-  if (value.length > 40) throw Error('A spec list may have at most 40 entries.');
+  if (value.length > max) throw Error(`${label} may have at most ${max} entries.`);
   return value.map((item) => {
     if (typeof item !== 'string' || !item.trim() || item.length > 80)
       throw Error('List entries must be non-empty strings of 80 characters or fewer.');

@@ -50,6 +50,16 @@ void test('a spec without title or query terms is refused', () => {
   );
 });
 
+void test('the known-company list can hold a full hunt tracker', () => {
+  const companies = Array.from({ length: 91 }, (_, i) => `Co${i}`);
+  const known = loadKnown({ companies, boards: ['northstar'] });
+  assert.equal(known.companies.length, 91);
+  assert.throws(
+    () => loadKnown({ companies: Array.from({ length: 251 }, (_, i) => `Co${i}`) }),
+    /known companies/,
+  );
+});
+
 void test('Ashby skips unlisted jobs and trusts workplaceType over isRemote', () => {
   const rows = fromAshby(
     {

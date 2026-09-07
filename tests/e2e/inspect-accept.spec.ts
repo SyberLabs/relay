@@ -138,3 +138,70 @@ test('set aside cancels a pre-begin freeze so send cannot begin', async ({
     })
     .toBe('cancelled');
 });
+
+test('human can answer a Blocked inspect field then arm to enable Accept', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          Name: 'Cedar Example — Inspect Blocked Engineer',
+          Job: 'https://employer.example/jobs/inspect-blocked',
+          url: 'https://scout.example/observations/inspect-blocked',
+          Status: 'Held',
+          Notes: 'Fictional inspect-blocked fixture.',
+        },
+      ],
+    },
+  });
+  const ws = await (await page.request.get('/api/workspace')).json();
+  const job = ws.jobs.find((j: { name: string }) =>
+    j.name.includes('Inspect Blocked'),
+  );
+  await enableInspectJob(page, ws.viewer, job.id);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Inspect Blocked/ }).click();
+  const prepared = await page.request.post('/api/applications', {
+    data: {
+      action: 'prepare',
+      viewer: ws.viewer,
+      job: job.id,
+      actor: 'Fictional applying agent',
+      destination: job.url,
+      fields: [
+        { label: 'Full name', value: 'Avery Example', unknown: false },
+        { label: 'Work authorization', value: '', unknown: true },
+      ],
+      files: [],
+    },
+  });
+  expect(prepared.ok()).toBe(true);
+  await expect(page.getByRole('heading', { name: 'Blocked' })).toBeVisible();
+  await page
+    .getByRole('textbox', { name: 'Work authorization' })
+    .fill('Authorized to work in the example country');
+  await page.getByRole('button', { name: 'Save answer' }).click();
+  await expect(page.getByRole('button', { name: 'Save answer' })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeDisabled();
+  const armed = await page.request.post('/api/applications', {
+    data: {
+      action: 'arm',
+      viewer: ws.viewer,
+      job: job.id,
+      id: 'op-inspect-blocked',
+      actor: 'Fictional applying agent',
+    },
+  });
+  expect(armed.ok()).toBe(true);
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeEnabled();
+});

@@ -60,6 +60,9 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save answer' })).toHaveCount(
+    0,
+  );
   await expect(page.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Applications' })).toHaveCount(0);
 

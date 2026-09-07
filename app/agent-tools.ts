@@ -355,6 +355,28 @@ export function useRelayTools(
           return result;
         },
       },
+      {
+        name: 'relay_cancel_application',
+        description:
+          'Cancel this application only if it has not begun execution (pre-begin). If already executing, do not cancel and do not submit. Maps r.close. Does not click Accept or submit.',
+        readOnly: false,
+        schema: object(
+          {
+            id: { type: 'string', minLength: 1, maxLength: 100 },
+            digest: { type: 'string', minLength: 1, maxLength: 64 },
+          },
+          ['id', 'digest'],
+        ),
+        run: async (input) => {
+          const result = await applications({
+            action: 'cancel',
+            id: input.id,
+            digest: input.digest,
+          });
+          await refresh();
+          return result;
+        },
+      },
     ];
     Promise.all(
       tools.map(async (tool) =>

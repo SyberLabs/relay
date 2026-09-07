@@ -23,6 +23,7 @@ If browser tools are unavailable, the existing packet download/assistant respons
 4. `relay_begin_application` consumes the one permit. If `execute` is not true, do not click the employer submit control.
 5. Click the employer Submit **once**. Do not retry: a lost `begin` response is inspected on GET; `executing` is not permission to submit again.
 6. `relay_finish_application` records `complete`, `uncertain`, or `not-submitted` with a receipt. Only `complete` may set the job to Submitted. Never invent a receipt.
+7. If the human closes the attempt or the form cannot be sent, `relay_cancel_application` (`r.close`) cancels only while pre-`begin`. If already `executing`, do not cancel and do not submit. There is no `relay_approve_application`.
 
 ### Resolve a question without rewriting the agent's notes
 

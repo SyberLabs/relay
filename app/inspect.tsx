@@ -83,12 +83,15 @@ export function inspectMarkup({
   busy,
   error,
   onAccept,
+  onAnswer,
 }: {
   view: InspectSnapshot | null;
   busy: boolean;
   error: string;
   onAccept: () => void;
+  onAnswer: (label: string, value: string) => void;
 }): ReactNode {
+  const blocked = view?.fields.filter((field) => field.unknown) ?? [];
   return (
     <div className="import">
       <h3>Inspect</h3>
@@ -97,6 +100,30 @@ export function inspectMarkup({
         Ready.
       </p>
       {inspectSummaryMarkup(view)}
+      {blocked.map((field) => (
+        <form
+          key={field.label}
+          onSubmit={(event) => {
+            event.preventDefault();
+            const raw = new FormData(event.currentTarget).get('value');
+            onAnswer(field.label, typeof raw === 'string' ? raw : '');
+          }}
+        >
+          <label>
+            {field.label}
+            <input
+              name="value"
+              type="text"
+              maxLength={20000}
+              autoComplete="off"
+              disabled={busy}
+            />
+          </label>
+          <button type="submit" disabled={busy}>
+            Save answer
+          </button>
+        </form>
+      ))}
       {inspectShowsReadyNotArmed(view) && <p>Operative is not on the page.</p>}
       {inspectShowsAuthorizedWaiting(view) && (
         <p>Accepted — waiting for the operative to send.</p>
@@ -258,10 +285,40 @@ export function useInspect(jobId: string | undefined) {
     }
   }
 
+  async function answer(label: string, value: string) {
+    if (!jobId || !inspect.viewer) return;
+    inspect.setBusy(true);
+    inspect.setError('');
+    try {
+      const r = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'answer',
+          viewer: inspect.viewer,
+          job: jobId,
+          label,
+          value,
+        }),
+      });
+      const data = (await r.json()) as { error?: string };
+      if (!r.ok) throw Error(data.error || 'Unable to save this answer.');
+      await inspect.load();
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      inspect.setError(
+        e instanceof Error ? e.message : 'Unable to save this answer.',
+      );
+    } finally {
+      inspect.setBusy(false);
+    }
+  }
+
   return inspectMarkup({
     view: shown,
     busy: inspect.busy,
     error: inspect.error,
     onAccept: () => void approve(),
+    onAnswer: (label, value) => void answer(label, value),
   });
 }

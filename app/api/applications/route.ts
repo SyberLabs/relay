@@ -11,6 +11,7 @@ import {
   loadOperation,
   proposeApplication,
   upsertPreparation,
+  answerPreparation,
   armPreparation,
 } from '../../../lib/application-automation';
 export const dynamic = 'force-dynamic';
@@ -116,6 +117,11 @@ export async function POST(request: Request) {
       return reply({
         viewer,
         ...(await armPreparation(db, viewer, b, now)),
+      });
+    if (b.action === 'answer')
+      return reply({
+        viewer,
+        ...(await answerPreparation(db, viewer, b, now)),
       });
     return reply({ viewer, ...(await actOnApplication(db, viewer, b, now)) });
   } catch (e) {

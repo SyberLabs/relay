@@ -12,6 +12,7 @@ import {
   digest,
   inspectApplication,
   upsertPreparation,
+  answerPreparation,
   cancelPreBeginForJob,
 } from '../lib/application-automation.ts';
 
@@ -1273,6 +1274,229 @@ void test('completion reconciles progress edits and preserves later terminal sta
   assert.equal(
     (await loadOperation(db, 'alice', second.id)).receipt,
     'Earlier submission confirmed',
+  );
+  db.sqlite.close();
+});
+
+void test('answer fills a blocked inspect field without replacing stored files', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  const bytes = new TextEncoder().encode('Fictional resume for blocked answer');
+  const file = {
+    name: 'resume.txt',
+    base64: btoa(new TextDecoder().decode(bytes)),
+    sha256: await digest(bytes),
+  };
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [
+        { label: 'Full name', value: 'Avery Example', unknown: false },
+        { label: 'Work authorization', value: '', unknown: true },
+      ],
+      files: [file],
+    },
+    now,
+  );
+  const answered = await answerPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      label: 'Work authorization',
+      value: 'Authorized to work in the example country',
+    },
+    now,
+  );
+  const work = answered.fields.find(
+    (field) => field.label === 'Work authorization',
+  );
+  assert.equal(work?.unknown, false);
+  assert.equal(work?.filled, true);
+  assert.equal(work?.value, 'Authorized to work in the example country');
+  assert.equal(answered.files.length, 1);
+  assert.equal(answered.files[0].name, 'resume.txt');
+  assert.equal(answered.files[0].sha256, file.sha256);
+  assert.equal('base64' in answered.files[0], false);
+  assert.equal(answered.accept_enabled, false);
+  assert.equal(answered.ready, false);
+  assert.equal(answered.armed, false);
+  const stored = db.sqlite
+    .prepare(
+      'SELECT actor, files, ready, armed_until FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get('alice', 'alice-0');
+  assert.equal(stored.actor, 'Fictional applying agent');
+  assert.equal(stored.ready, 0);
+  assert.equal(stored.armed_until, '');
+  const storedFiles = JSON.parse(stored.files);
+  assert.equal(storedFiles[0].name, 'resume.txt');
+  assert.equal(storedFiles[0].sha256, file.sha256);
+  assert.equal(storedFiles[0].base64, file.base64);
+  const armed = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-answer-1', actor: 'Fictional applying agent' },
+    now,
+  );
+  assert.equal(armed.accept_enabled, true);
+  db.sqlite.close();
+});
+
+void test('answer refuses empty value, oversized value, missing preparation, missing label, executing op, and another owner job', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [
+        { label: 'Full name', value: 'Avery Example', unknown: false },
+        { label: 'Work authorization', value: '', unknown: true },
+      ],
+      files: [],
+    },
+    now,
+  );
+  await assert.rejects(
+    () =>
+      answerPreparation(
+        db,
+        'alice',
+        { job: 'alice-0', label: 'Work authorization', value: '' },
+        now,
+      ),
+    /invalid field|empty/i,
+  );
+  await assert.rejects(
+    () =>
+      answerPreparation(
+        db,
+        'alice',
+        {
+          job: 'alice-0',
+          label: 'Work authorization',
+          value: 'x'.repeat(20001),
+        },
+        now,
+      ),
+    /invalid field|20,?000/i,
+  );
+  await assert.rejects(
+    () =>
+      answerPreparation(
+        db,
+        'alice',
+        { job: 'alice-1', label: 'Work authorization', value: 'Yes' },
+        now,
+      ),
+    /prepar/i,
+  );
+  await assert.rejects(
+    () =>
+      answerPreparation(
+        db,
+        'alice',
+        { job: 'alice-0', label: 'Salary expectation', value: 'Example range' },
+        now,
+      ),
+    /invalid field|label/i,
+  );
+  await assert.rejects(
+    () =>
+      answerPreparation(
+        db,
+        'alice',
+        { job: 'bob-0', label: 'Work authorization', value: 'Yes' },
+        now,
+      ),
+    /unavailable/i,
+  );
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-answer-exec', actor: 'Fictional applying agent' },
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-answer-exec'), 'approve'),
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-answer-exec'), 'begin'),
+    now,
+  );
+  await assert.rejects(
+    () =>
+      answerPreparation(
+        db,
+        'alice',
+        { job: 'alice-0', label: 'Full name', value: 'Changed after send' },
+        now,
+      ),
+    /execut/i,
+  );
+  db.sqlite.close();
+});
+
+void test('answer of a different digest cancels a pre-begin freeze', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep('Digest A'), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-answer-a', actor: 'Fictional applying agent' },
+    now,
+  );
+  const frozen = await loadOperation(db, 'alice', 'op-answer-a');
+  await actOnApplication(db, 'alice', action(frozen, 'approve'), now);
+  await answerPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', label: 'Full name', value: 'Digest B' },
+    now,
+  );
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-answer-a')).state,
+    'cancelled',
+  );
+  const view = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(view.accept_enabled, false);
+  await assert.rejects(
+    actOnApplication(
+      db,
+      'alice',
+      action(await loadOperation(db, 'alice', 'op-answer-a'), 'begin'),
+      now,
+    ),
   );
   db.sqlite.close();
 });

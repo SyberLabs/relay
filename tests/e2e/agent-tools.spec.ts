@@ -81,7 +81,9 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
         'relay_inspect_application',
         'relay_begin_application',
         'relay_finish_application',
+        'relay_cancel_application',
       ]);
+      expect(await activeNames()).not.toContain('relay_approve_application');
       // Client navigation unmounts the workspace and removes its tools.
       await page.getByRole('link', { name: 'Your facts', exact: true }).click();
       await expect(page).toHaveURL(/\/profile$/);

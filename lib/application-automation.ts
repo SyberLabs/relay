@@ -345,6 +345,84 @@ export async function upsertPreparation(
   ).run();
   return inspectApplication(db, owner, input.job, now);
 }
+export async function answerPreparation(
+  db: D1Database,
+  owner: string,
+  input: Record<string, unknown>,
+  now: string,
+): Promise<InspectView> {
+  requireThat(shortText(input.job, 100), 'A selected job is unavailable.', 404);
+  requireThat(shortText(input.label, 300), 'Invalid field label or value.');
+  requireThat(shortText(input.value, 20000), 'Invalid field label or value.');
+  const job = await db
+    .prepare('SELECT version FROM jobs WHERE owner=? AND id=?')
+    .bind(owner, input.job)
+    .first<{ version: number }>();
+  requireThat(job, 'A selected job is unavailable.', 404);
+  requireThat(
+    !(await db
+      .prepare(
+        "SELECT 1 FROM application_operations WHERE owner=? AND job_id=? AND state='executing'",
+      )
+      .bind(owner, input.job)
+      .first()),
+    'An application is already executing. Do not change the payload.',
+    409,
+  );
+  const prep = await db
+    .prepare(
+      'SELECT destination,fields,files FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .bind(owner, input.job)
+    .first<{ destination: string; fields: string; files: string }>();
+  requireThat(prep, 'Prepare a complete application first.', 409);
+  const fields = JSON.parse(prep.fields) as {
+    label: string;
+    value: string;
+    unknown: boolean;
+  }[];
+  const index = fields.findIndex((field) => field.label === input.label);
+  requireThat(index >= 0, 'Invalid field label or value.');
+  fields[index] = {
+    label: fields[index].label,
+    value: String(input.value),
+    unknown: false,
+  };
+  const fieldsJson = JSON.stringify(fields);
+  requireThat(
+    new TextEncoder().encode(fieldsJson).length +
+      new TextEncoder().encode(prep.files).length <=
+      240000,
+    'Submission exceeds 240,000 bytes.',
+  );
+  const manifest = await validateManifest({
+    destination: prep.destination,
+    fields: fields.map(({ label, value }) => ({ label, value })),
+    files: JSON.parse(prep.files),
+  });
+  await cancelPreBeginForJob(
+    db,
+    owner,
+    input.job,
+    now,
+    await digest(JSON.stringify(manifest)),
+  );
+  await statement(
+    db,
+    `UPDATE application_preparations SET
+       fields=?,
+       operation_id=NULL,
+       ready=0,
+       armed_until='',
+       updated=?
+     WHERE owner=? AND job_id=?`,
+    fieldsJson,
+    now,
+    owner,
+    input.job,
+  ).run();
+  return inspectApplication(db, owner, input.job, now);
+}
 export async function cancelPreBeginForJob(
   db: D1Database,
   owner: string,

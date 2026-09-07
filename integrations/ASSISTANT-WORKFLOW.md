@@ -33,7 +33,7 @@ The CLI deliberately refuses deployed hostnames: it supports development mock si
 
 ## Capability evidence and remaining boundaries
 
-Open **Connect your tools** in the signed-in workspace to check this tab's
+Open **Prepare this job for an assistant** in the signed-in workspace to check this tab's
 browser assistant tool status. Relay requires
 `document.modelContext.registerTool`; a reachable workspace alone does not
 establish that capability. An unavailable status requires a compatible host or

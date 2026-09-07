@@ -40,7 +40,17 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto('/');
     await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
-    await page.getByText('Connect your tools', { exact: true }).click();
+    await page.getByRole('button', { name: 'Add job', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Role title' })
+      .fill(`Tool QA ${mode}`);
+    await page
+      .getByRole('textbox', { name: 'Posting URL' })
+      .fill(`https://example.com/tool-qa/${mode}`);
+    await page.getByRole('button', { name: 'Save job' }).click();
+    await page
+      .getByText('Prepare this job for an assistant', { exact: true })
+      .click();
     const status = page.getByRole('status', {
       name: 'Browser assistant tools',
     });

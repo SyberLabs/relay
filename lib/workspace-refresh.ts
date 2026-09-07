@@ -62,6 +62,7 @@ export type ExpiredPrivateWorkspace = {
   previewedImport: '';
   report: null;
   showImport: false;
+  showAddJob: false;
   signedOut: true;
   loaded: true;
 };
@@ -98,6 +99,7 @@ export function expiredPrivateWorkspace(): ExpiredPrivateWorkspace {
     previewedImport: '',
     report: null,
     showImport: false,
+    showAddJob: false,
     signedOut: true,
     loaded: true,
   };

@@ -93,7 +93,9 @@ void test('refresh records include usable facts and default them to empty', asyn
     http(
       200,
       records({
-        facts: [{ id: 'f1', claim: 'Built a Kubernetes platform at Northstar' }],
+        facts: [
+          { id: 'f1', claim: 'Built a Kubernetes platform at Northstar' },
+        ],
       }),
     ),
   );
@@ -377,6 +379,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     'previewedImport',
     'report',
     'showImport',
+    'showAddJob',
     'signedOut',
     'loaded',
     'busy',
@@ -453,6 +456,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
     'previewedImport',
     'report',
     'showImport',
+    'showAddJob',
     'signedOut',
     'loaded',
     'message',
@@ -545,6 +549,7 @@ void test('history JSON that expires during parse cannot restore events', async 
     'previewedImport',
     'report',
     'showImport',
+    'showAddJob',
     'signedOut',
     'loaded',
     'message',

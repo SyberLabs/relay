@@ -1,12 +1,13 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { validateRows } from '../lib/domain';
+import { jobKey, validateRows, type SourceRow } from '../lib/domain';
 import { isTerminal } from '../lib/outcomes';
 import { type Fact } from '../lib/profile';
 import { assessJob } from '../lib/fit';
 import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
+import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
 import {
   acknowledgeSave,
@@ -100,6 +101,7 @@ export default function Workspace() {
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false),
+    [showAddJob, setShowAddJob] = useState(false),
     [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
   const sessionRef = useRef(createWorkspaceSession());
   const workspaceEpoch = sessionRef.current.gate.epoch;
@@ -114,6 +116,7 @@ export default function Workspace() {
     setPreviewedImport(next.previewedImport);
     setReport(next.report);
     setShowImport(next.showImport);
+    setShowAddJob(next.showAddJob);
     setSignedOut(next.signedOut);
     setLoaded(next.loaded);
     setHistoryNext({});
@@ -187,7 +190,8 @@ export default function Workspace() {
       if (outcome.type === 'ignore') return;
       if (!refreshIsLive(sessionRef.current.gate, started)) return;
       if (outcome.type === 'error') throw Error(outcome.error);
-      setJobs(outcome.jobs as Job[]);
+      const nextJobs = outcome.jobs as Job[];
+      setJobs(nextJobs);
       setSources(outcome.sources as Source[]);
       setEvents(outcome.events as ReviewEvent[]);
       setFacts(outcome.facts as Fact[]);
@@ -195,6 +199,7 @@ export default function Workspace() {
       setSignedOut(false);
       setLoaded(true);
       if (selectedRef.current) void loadJobHistory(selectedRef.current);
+      return nextJobs;
     },
     [applyExpired, loadJobHistory],
   );
@@ -303,6 +308,65 @@ export default function Workspace() {
       saved,
     );
   }
+  function openAddJob() {
+    setShowAddJob(true);
+  }
+  async function saveFirstJob(row: SourceRow) {
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    const started = beginMutation(sessionRef.current.gate);
+    setBusy(true);
+    setMessage('');
+    try {
+      const r = await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'import', rows: [row] }),
+      });
+      const outcome = await processMutation(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
+      }
+      if (outcome.type === 'ignore') return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      if (outcome.type === 'error') throw Error(outcome.error);
+      const key = jobKey(row.Job, row.url);
+      let nextJobs: Job[] | undefined;
+      try {
+        nextJobs = await refresh();
+      } catch {
+        if (!mutationIsLive(sessionRef.current.gate, started)) return;
+        setShowAddJob(false);
+        setMessage(
+          'Job was saved, but the workspace could not refresh. Reload the page to see it.',
+        );
+        return;
+      }
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      const savedJob = nextJobs?.find((job) => job.job_key === key);
+      if (savedJob) {
+        selectedRef.current = savedJob.id;
+        setFilter((currentFilter) =>
+          currentFilter === 'All' || currentFilter === savedJob.status
+            ? currentFilter
+            : savedJob.status,
+        );
+        setEditor(loadEditor(savedJob));
+        void loadJobHistory(savedJob.id);
+      }
+      const kind = (outcome.body as Report).items?.[0]?.kind;
+      setShowAddJob(false);
+      setMessage(
+        kind && kind !== 'new'
+          ? 'Research added to the existing job.'
+          : 'Job saved. Continue from the selected record.',
+      );
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Unable to save.');
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -358,13 +422,21 @@ export default function Workspace() {
             <h1>Workspace</h1>
             <p>Choose a job, prepare a draft, and review the exact words.</p>
           </div>
-          <button
-            className="secondary"
-            onClick={() => setShowImport(!showImport)}
-          >
-            <Upload size={16} />
-            Import research
-          </button>
+          <div className="actions">
+            {loaded && !signedOut && jobs.length > 0 && (
+              <button className="primary" onClick={openAddJob} type="button">
+                Add job
+              </button>
+            )}
+            <button
+              className="secondary"
+              onClick={() => setShowImport(!showImport)}
+              type="button"
+            >
+              <Upload size={16} />
+              Import research
+            </button>
+          </div>
         </header>
         <section className="stats">
           <div>
@@ -408,30 +480,44 @@ export default function Workspace() {
               Sign in with ChatGPT <ArrowRight size={16} />
             </a>
           </section>
-        ) : loaded && jobs.length === 0 ? (
+        ) : loaded && jobs.length === 0 && !showAddJob ? (
           <section className="welcome">
             <h2>No jobs yet</h2>
             <p>
-              Import your research or explore fictional examples. Earlier
-              submissions, notes and blockers stay attached to each job.
+              Add a posting with its role title and URL. Optional notes are
+              saved as research.
             </p>
-            <button
-              className="primary"
-              disabled={busy}
-              onClick={() => run({ action: 'bootstrap' })}
-            >
-              Explore example jobs <ArrowRight size={16} />
-            </button>
+            <div className="actions">
+              <button className="primary" onClick={openAddJob} type="button">
+                Add job <ArrowRight size={16} />
+              </button>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() => run({ action: 'bootstrap' })}
+                type="button"
+              >
+                Explore example jobs
+              </button>
+            </div>
             <small>Example companies and records are fictional.</small>
           </section>
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
+        {showAddJob && !signedOut && (
+          <FirstJob
+            busy={busy}
+            jobs={jobs}
+            onCancel={() => setShowAddJob(false)}
+            onSave={saveFirstJob}
+          />
+        )}
         {!signedOut && loaded && (
           <TrackerImport
             onImported={() =>
               mutationIsLive(sessionRef.current.gate, { epoch: workspaceEpoch })
-                ? refresh()
+                ? refresh().then(() => undefined)
                 : Promise.resolve()
             }
             onUnauthorized={() => {

@@ -30,7 +30,7 @@ async function call(url: string, body?: Json) {
   if (!r.ok) throw Error(result.error);
   return result;
 }
-export function useRelayTools(refresh: () => Promise<void>) {
+export function useRelayTools(refresh: () => Promise<unknown>) {
   useEffect(() => {
     const context = (
       document as Document & {

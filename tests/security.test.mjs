@@ -528,6 +528,7 @@ void test(
         return new Response('unexpected');
       },
     };
+    let refusedAttempts = 0;
     for (const [size, status] of [
       [256001, 413],
       [1, 408],
@@ -552,12 +553,12 @@ void test(
       assert.equal((await result.json()).code, 'invalid_body');
       assert.equal(cancelled, true);
       assert.equal(calls, 0);
-      assert.equal(
-        db.sqlite
-          .prepare('SELECT COUNT(*) AS count FROM security_counters')
-          .get().count,
-        0,
-      );
+      refusedAttempts += 1;
+      const counters = db.sqlite
+        .prepare('SELECT used FROM security_counters')
+        .all();
+      assert.equal(counters.length, 4);
+      assert.ok(counters.every((counter) => counter.used === refusedAttempts));
       assert.equal(
         db.sqlite
           .prepare('SELECT COUNT(*) AS count FROM application_operations')
@@ -568,6 +569,108 @@ void test(
     db.sqlite.close();
   },
 );
+
+void test(
+  'exhausted admission refuses before reading a stalled arm body',
+  { timeout: 2000 },
+  async () => {
+    const user = await principalKey(request());
+    for (const [scope, period, cap] of [
+      [`${user}:minute`, Math.floor(now / 60_000), 120],
+      [`${user}:day`, Math.floor(now / 86_400_000), 3000],
+      ['global:day', Math.floor(now / 86_400_000), 100_000],
+      ['global:month', '2026-09', 2_000_000],
+    ]) {
+      const db = database();
+      await reserve(db, scope, String(period), cap, cap);
+      let reads = 0;
+      const stream = new ReadableStream(
+        {
+          pull() {
+            reads += 1;
+            return new Promise(() => {});
+          },
+        },
+        { highWaterMark: 0 },
+      );
+      const req = new Request('https://relay.example/api/applications', {
+        method: 'POST',
+        duplex: 'half',
+        body: stream,
+        headers: {
+          'oai-authenticated-user-id': 'cloudflare:alice',
+          'content-length': '16',
+        },
+      });
+      try {
+        const denied = await usageGuard(req, { DB: db }, now);
+        assert.equal(denied.status, 429, scope);
+        assert.equal((await denied.json()).code, 'usage_limit');
+        assert.equal(reads, 0, scope + ' must refuse before classifier reads');
+        assert.equal(
+          db.sqlite
+            .prepare('SELECT used FROM security_counters WHERE scope=?')
+            .get(scope).used,
+          cap,
+        );
+        assert.equal(
+          db.sqlite
+            .prepare('SELECT COUNT(*) AS n FROM application_operations')
+            .get().n,
+          0,
+        );
+      } finally {
+        await req.body.cancel();
+        db.sqlite.close();
+      }
+    }
+  },
+);
+
+void test('successful arm, mutation and planner retain exact work weights after admission', async () => {
+  for (const [method, path, body, weight, specific] of [
+    ['POST', '/api/applications', '{"action":"arm"}', 1, 'arm-minute'],
+    ['POST', '/api/applications', '{"action":"prepare"}', 10, 'write-minute'],
+    ['POST', '/api/applications', '{invalid', 10, 'write-minute'],
+    ['GET', '/api/plan', undefined, 10, 'plan-minute'],
+  ]) {
+    const db = database();
+    const req = request(method, path, 'cloudflare:alice', body);
+    if (body)
+      req.headers.set('content-length', String(Buffer.byteLength(body)));
+    const user = await principalKey(req);
+    assert.equal(await usageGuard(req, { DB: db }, now), null);
+    for (const scope of [`${user}:day`, 'global:day', 'global:month'])
+      assert.equal(
+        db.sqlite
+          .prepare('SELECT used FROM security_counters WHERE scope=?')
+          .get(scope).used,
+        weight,
+      );
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT used FROM security_counters WHERE scope=?')
+        .get(`${user}:${specific}`).used,
+      1,
+    );
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT used FROM security_counters WHERE scope=?')
+        .get(`${user}:minute`).used,
+      1,
+    );
+    if (weight === 1)
+      assert.equal(
+        db.sqlite
+          .prepare(
+            'SELECT COUNT(*) AS n FROM security_counters WHERE scope IN (?,?)',
+          )
+          .get(`${user}:write-minute`, `${user}:challenge-hour`).n,
+        0,
+      );
+    db.sqlite.close();
+  }
+});
 
 void test('application arm is presence weight 1 and six per minute, not a mutation of 10', async () => {
   const db = database(),

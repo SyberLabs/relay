@@ -93,6 +93,20 @@ async function applicationsArm(request, path) {
   }
 }
 
+async function reserveBudgets(db, budgets) {
+  for (const [scope, period, amount, limit, retry] of budgets) {
+    if (!(await reserve(db, scope, String(period), amount, limit))) {
+      return refusal(
+        429,
+        'usage_limit',
+        'Relay usage limit reached. Please try after the reset.',
+        retry,
+      );
+    }
+  }
+  return null;
+}
+
 export async function usageGuard(request, env, now = Date.now()) {
   const user = await principalKey(request);
   const path = routePath(request);
@@ -105,9 +119,6 @@ export async function usageGuard(request, env, now = Date.now()) {
       300,
     );
   }
-  const arm = await applicationsArm(request, path);
-  if (arm instanceof Response) return arm;
-  const mutation = write && !arm;
   const minute = Math.floor(now / 60_000);
   const day = Math.floor(now / 86_400_000);
   const date = new Date(now);
@@ -115,42 +126,45 @@ export async function usageGuard(request, env, now = Date.now()) {
   const monthRetry = Math.ceil(
     (Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) - now) / 1000,
   );
-  const work = arm ? 1 : write || path === '/api/plan' ? 10 : 1;
-  // Reserve before work. Failed/denied requests are deliberately not refunded.
-  // Separate scopes may be conservatively charged when a later scope refuses.
-  const budgets = [
+  const workBudgets = [
+    [`${user}:day`, day, 3_000, 86_400 - (Math.floor(now / 1000) % 86_400)],
+    ['global:day', day, 100_000, 86_400 - (Math.floor(now / 1000) % 86_400)],
+    ['global:month', month, 2_000_000, monthRetry],
+  ];
+  // Admit even classification work before reading a body. Refusals retain this
+  // minimum charge; successful mutations/planning reserve nine more below.
+  const admission = await reserveBudgets(env.DB, [
     [`${user}:minute`, minute, 1, 120, 60],
+    ...workBudgets.map(([scope, period, limit, retry]) => [
+      scope,
+      period,
+      1,
+      limit,
+      retry,
+    ]),
+  ]);
+  if (admission) return admission;
+  const arm = await applicationsArm(request, path);
+  if (arm instanceof Response) return arm;
+  const mutation = write && !arm;
+  const remainingWork = !arm && (write || path === '/api/plan') ? 9 : 0;
+  const denied = await reserveBudgets(env.DB, [
     ...(mutation ? [[`${user}:write-minute`, minute, 1, 20, 60]] : []),
     ...(path === '/api/plan'
       ? [[`${user}:plan-minute`, minute, 1, 6, 60]]
       : []),
     ...(arm ? [[`${user}:arm-minute`, minute, 1, 6, 60]] : []),
-    [
-      `${user}:day`,
-      day,
-      work,
-      3_000,
-      86_400 - (Math.floor(now / 1000) % 86_400),
-    ],
-    [
-      'global:day',
-      day,
-      work,
-      100_000,
-      86_400 - (Math.floor(now / 1000) % 86_400),
-    ],
-    ['global:month', month, work, 2_000_000, monthRetry],
-  ];
-  for (const [scope, period, amount, limit, retry] of budgets) {
-    if (!(await reserve(env.DB, scope, String(period), amount, limit))) {
-      return refusal(
-        429,
-        'usage_limit',
-        'Relay usage limit reached. Please try after the reset.',
-        retry,
-      );
-    }
-  }
+    ...(remainingWork
+      ? workBudgets.map(([scope, period, limit, retry]) => [
+          scope,
+          period,
+          remainingWork,
+          limit,
+          retry,
+        ])
+      : []),
+  ]);
+  if (denied) return denied;
   // Human verification is a step-up for sustained writes, not a quota bypass.
   if (mutation && path !== '/security/check') {
     const count = await reserve(

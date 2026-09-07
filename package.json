@@ -14,6 +14,7 @@
     "format": "oxfmt",
     "db:generate": "drizzle-kit generate",
     "test": "node scripts/ci/run-unit.mjs",
+    "context:check": "node scripts/agent-context.mjs --check",
     "typecheck": "tsc --noEmit",
     "test:api": "node scripts/ci/run-integration.mjs api",
     "test:calibration": "node scripts/ci/run-integration.mjs calibration",

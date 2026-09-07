@@ -38,6 +38,23 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   expect(imported.ok()).toBe(true);
   await page.reload();
 
+  const saved = await (await page.request.get('/api/workspace')).json();
+  const allOpportunities = page.getByRole('button', {
+    name: `All opportunities ${saved.jobs.length}`,
+    exact: true,
+  });
+  await expect(allOpportunities.locator('.nav-end')).toBeVisible();
+  await allOpportunities.click();
+  await expect(
+    page.getByRole('heading', { name: 'Queued opportunities', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Other saved jobs appear under Stuck and Sent.'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'All opportunities', exact: true }),
+  ).toHaveCount(0);
+
   await expect(
     page.getByRole('button', { name: /Runtime Plant — Held Engineer/ }),
   ).toBeVisible();

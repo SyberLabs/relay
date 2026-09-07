@@ -157,7 +157,7 @@ for (const width of [1280, 390]) {
       ).toBeVisible();
       await next.getByRole('button', { name: /All opportunities/ }).click();
       await expect(
-        next.getByRole('heading', { name: 'All opportunities', exact: true }),
+        next.getByRole('heading', { name: 'Queued opportunities', exact: true }),
       ).toBeVisible();
       for (const original of jobs) {
         const persisted = saved.jobs.find((job) => job.id === original.id)!;

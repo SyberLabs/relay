@@ -111,8 +111,7 @@
   clip: rect(0, 0, 0, 0);
 }
 .bar-nav .navhint,
-.bar-nav .nav svg,
-.bar-nav .nav-end {
+.bar-nav .nav svg {
   display: none;
 }
 .bar-nav .nav {

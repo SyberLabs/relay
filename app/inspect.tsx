@@ -266,7 +266,6 @@ export function useInspect(
   async function approve() {
     if (!shown?.operation_id || !shown.digest || !inspect.viewer) return;
     const job = jobId;
-    const generation = inspect.generation();
     inspect.setBusy(true);
     inspect.setError('');
     try {
@@ -280,7 +279,7 @@ export function useInspect(
           digest: shown.digest,
         }),
       });
-      if (job !== jobId || generation !== inspect.generation()) return;
+      if (job !== jobId) return;
       if (r.status === 401) {
         await inspect.load();
         return;
@@ -291,20 +290,18 @@ export function useInspect(
       await inspect.load();
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      if (job !== jobId || generation !== inspect.generation()) return;
+      if (job !== jobId) return;
       inspect.setError(
         e instanceof Error ? e.message : 'Unable to accept this application.',
       );
     } finally {
-      if (job === jobId && generation === inspect.generation())
-        inspect.setBusy(false);
+      if (job === jobId) inspect.setBusy(false);
     }
   }
 
   async function answer(label: string, value: string) {
     if (!jobId || !inspect.viewer || shown?.revision == null) return;
     const job = jobId;
-    const generation = inspect.generation();
     inspect.setBusy(true);
     inspect.setError('');
     try {
@@ -320,7 +317,7 @@ export function useInspect(
           revision: shown.revision,
         }),
       });
-      if (job !== jobId || generation !== inspect.generation()) return;
+      if (job !== jobId) return;
       if (r.status === 401) {
         await inspect.load();
         return;
@@ -330,13 +327,12 @@ export function useInspect(
       await inspect.load();
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      if (job !== jobId || generation !== inspect.generation()) return;
+      if (job !== jobId) return;
       inspect.setError(
         e instanceof Error ? e.message : 'Unable to save this answer.',
       );
     } finally {
-      if (job === jobId && generation === inspect.generation())
-        inspect.setBusy(false);
+      if (job === jobId) inspect.setBusy(false);
     }
   }
 

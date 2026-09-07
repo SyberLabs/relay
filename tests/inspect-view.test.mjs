@@ -202,7 +202,7 @@ void test('overlay operative status is armed until authorized waiting', () => {
   assert.equal(inspectOperativeStatus(null), null);
 });
 
-void test('inspect POSTs handle 401 before JSON and bind job generation', () => {
+void test('inspect POSTs handle 401 before JSON and bind the selected job', () => {
   const src = readFileSync('app/inspect.tsx', 'utf8');
   const workspace = readFileSync('app/workspace.tsx', 'utf8');
   assert.match(src, /export function useInspect\(/);
@@ -216,10 +216,8 @@ void test('inspect POSTs handle 401 before JSON and bind job generation', () => 
     const status = fn.indexOf('r.status === 401');
     const json = fn.indexOf('await r.json()');
     assert.ok(status >= 0 && json > status);
-    assert.match(fn, /generation !== inspect\.generation\(\)/);
-    assert.match(
-      fn,
-      /if \(job === jobId && generation === inspect\.generation\(\)\)/,
-    );
+    assert.match(fn, /if \(job !== jobId\) return;/);
+    assert.match(fn, /if \(job === jobId\) inspect\.setBusy\(false\)/);
+    assert.doesNotMatch(fn, /inspect\.generation\(\)/);
   }
 });

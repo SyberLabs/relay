@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -14,6 +15,7 @@ import {
   selectInspectJob,
   type InspectSnapshot,
 } from '../lib/inspect-view';
+import type { WorkspaceSession } from '../lib/workspace-refresh';
 
 // Vinext hydrates a nested Inspect component as a second Accept button.
 // Workspace calls useInspect so this markup stays in the existing client tree.
@@ -147,8 +149,7 @@ export function inspectMarkup({
 }
 
 type InspectSession = {
-  epoch: number;
-  viewer: string | undefined;
+  sessionRef: { current: WorkspaceSession };
   onUnauthorized: () => void;
 };
 
@@ -161,6 +162,7 @@ export function useInspectSnapshot(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [signedOut, setSignedOut] = useState(false);
+  const [renderedJob, setRenderedJob] = useState(jobId);
   const gateRef = useRef(createInspectPollGate());
   const inflightRef = useRef<AbortController | null>(null);
   // Poll generations change every refresh. Mutation generations change only
@@ -174,30 +176,30 @@ export function useInspectSnapshot(
     pending: false,
     answerRevisions: new Map<string, string | null>(),
   });
-  // This ref is a cancellation gate, not rendered data. Invalidate it before
-  // any callback from a previously selected job/session can run.
-  /* oxlint-disable react/react-compiler */
-  const context = contextRef.current;
-  if (
-    context.jobId !== jobId ||
-    context.session?.epoch !== session?.epoch ||
-    context.session?.viewer !== session?.viewer
-  ) {
-    context.jobId = jobId;
-    context.generation += 1;
-    context.viewer = '';
-    context.expired = false;
-    context.pending = false;
-    context.answerRevisions.clear();
-    selectInspectJob(gateRef.current, jobId);
+  // Rendering a newly selected job must never expose the previous snapshot.
+  if (renderedJob !== jobId) {
+    setRenderedJob(jobId);
     setView(null);
     setViewer('');
     setBusy(false);
     setError('');
     setSignedOut(false);
   }
-  context.session = session;
-  /* oxlint-enable react/react-compiler */
+  // Commit the callback gate before pending promise continuations can run.
+  // Session refs are read only in effects and callbacks, never during render.
+  useLayoutEffect(() => {
+    const context = contextRef.current;
+    if (context.jobId !== jobId) {
+      context.jobId = jobId;
+      context.generation += 1;
+      context.viewer = '';
+      context.expired = false;
+      context.pending = false;
+      context.answerRevisions.clear();
+      selectInspectJob(gateRef.current, jobId);
+    }
+    context.session = session;
+  });
 
   const expire = useCallback(() => {
     const current = contextRef.current;
@@ -228,10 +230,15 @@ export function useInspectSnapshot(
       generation: beginInspectPoll(gateRef.current),
     };
     const generation = context.generation;
+    const workspace = context.session?.sessionRef.current;
+    const epoch = workspace?.gate.epoch;
+    const owner = workspace?.viewer;
     const live = () =>
       generation === contextRef.current.generation &&
       started.generation === gateRef.current.generation &&
-      job === contextRef.current.jobId;
+      job === contextRef.current.jobId &&
+      epoch === context.session?.sessionRef.current.gate.epoch &&
+      owner === context.session?.sessionRef.current.viewer;
     const clear = () => {
       setView(null);
       setViewer('');
@@ -267,7 +274,7 @@ export function useInspectSnapshot(
         clear();
         return;
       }
-      const expectedViewer = contextRef.current.session?.viewer;
+      const expectedViewer = context.session?.sessionRef.current.viewer;
       if (expectedViewer && outcome.viewer !== expectedViewer) {
         expire();
         return;
@@ -295,9 +302,7 @@ export function useInspectSnapshot(
   useEffect(() => {
     selectInspectJob(gateRef.current, jobId);
     if (!jobId) return;
-    // load only sets state after the asynchronous GET.
-    // oxlint-disable-next-line react/react-compiler
-    void load();
+    void Promise.resolve().then(() => load());
     const context = contextRef.current;
     const timer = window.setInterval(() => void load(), 3000);
     function onVisibility() {
@@ -310,7 +315,7 @@ export function useInspectSnapshot(
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [jobId, session?.epoch, session?.viewer, load]);
+  }, [jobId, load]);
 
   async function mutate(body: Record<string, unknown>, failure: string) {
     const current = contextRef.current;
@@ -324,11 +329,17 @@ export function useInspectSnapshot(
     )
       return;
     const generation = current.generation;
+    const workspace = current.session?.sessionRef.current;
+    const epoch = workspace?.gate.epoch;
+    const owner = workspace?.viewer;
+    if (workspace && owner !== viewer) return;
     const live = () =>
       generation === contextRef.current.generation &&
       jobId === contextRef.current.jobId &&
       viewer === contextRef.current.viewer &&
-      !contextRef.current.expired;
+      !contextRef.current.expired &&
+      epoch === current.session?.sessionRef.current.gate.epoch &&
+      owner === current.session?.sessionRef.current.viewer;
     current.pending = true;
     setBusy(true);
     setError('');

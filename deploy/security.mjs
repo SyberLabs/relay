@@ -63,7 +63,7 @@ export async function principalKey(request) {
   ).join('');
 }
 
-function routePath(request) {
+export function routePath(request) {
   // Match encoded/trailing-slash aliases before assigning a resource policy.
   return (
     decodeURIComponent(new URL(request.url).pathname)

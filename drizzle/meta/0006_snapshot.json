@@ -217,7 +217,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "security_events_owner": {
+          "name": "security_events_owner",
+          "columns": [
+            "owner"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -858,7 +866,15 @@
           "default": 0
         }
       },
-      "indexes": {},
+      "indexes": {
+        "security_batches_owner": {
+          "name": "security_batches_owner",
+          "columns": [
+            "owner"
+          ],
+          "isUnique": false
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},

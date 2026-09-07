@@ -22,7 +22,7 @@ function assertGatewayBindings(config) {
   assert.equal(config.main, './dist/gateway/worker.js');
   assert.equal(config.no_bundle, true);
   assert.equal(config.d1_databases[0].binding, 'DB');
-  assert.equal(config.limits.cpu_ms, 100);
+  assert.equal(Object.hasOwn(config, 'limits'), false);
   assert.equal(config.ratelimits[0].name, 'EDGE_RATE_LIMITER');
   assert.deepEqual(config.ratelimits[0].simple, { limit: 300, period: 60 });
   assert.equal(config.vars.TURNSTILE_SITE_KEY, env.TURNSTILE_SITE_KEY);

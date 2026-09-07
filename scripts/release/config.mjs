@@ -41,7 +41,6 @@ export function releaseConfig(env, build, { bundled = true } = {}) {
     compatibility_flags: build.compatibility_flags ?? ['nodejs_compat'],
     workers_dev: workersDev,
     preview_urls: false,
-    limits: { cpu_ms: 100 },
     ratelimits: [{ name: 'EDGE_RATE_LIMITER', namespace_id: env.WORKER_NAME === 'relay-production' ? '1002' : '1001',
       simple: { limit: 300, period: 60 } }],
     ...(workersDev ? {} : { routes: [{ pattern: hostname, custom_domain: true }] }),

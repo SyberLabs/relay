@@ -18,7 +18,7 @@ Cloudflare Access authenticates users before any account quota is read or writte
 | Work weight | 10 per mutation or planner request; 1 per other dynamic request |
 | Request bodies | 2,000,000 actual bytes for workspace; 256,000 elsewhere; 8,192 for CAPTCHA submission; 10-second read deadline |
 | Cumulative input | 100,000,000 bytes/user, with no automatic reset |
-| Worker CPU | 100 ms per invocation |
+| Worker CPU | Cloudflare Workers paid default (30 seconds). Do not lower `cpu_ms` until a measured p99 exists; local tests do not enforce it |
 | Human verification | Required after 20 write attempts in a UTC hour; successful verification lasts one hour |
 
 These are conservative starting policies, not measured capacity or a currency-denominated bill ceiling. Tune them only with review and recorded cohort workload/cost evidence. Fixed windows allow boundary bursts. Edge limiting is eventually consistent and is **not** billing accounting; D1 conditional reservations enforce the application budgets atomically, including concurrent requests across isolates. Older windows cannot overwrite newer ones. Reservations precede work and are never refunded, including failed requests or a later quota rejection. This prevents failure/retry loops from becoming free work, but can consume quota for unsuccessful operations.
@@ -29,7 +29,7 @@ Storage caps are enforced in the database for every insertion and owner transfer
 
 The gateway returns 429 with `Retry-After` for throttles and timed quotas; 403 with `verification_url` for step-up; 413 for oversized bodies; 408 for slow/failed bodies; and 503 when enforcement or verification is unavailable. Lifetime storage/input exhaustion requires support rather than a fictitious reset time. Database storage errors use the existing route error handling. Do not automatically retry mutations: preserve unsaved text and let the user deliberately retry after resolving the refusal.
 
-The shared **Verify access** link opens `/security/check` in a separate tab to preserve unsaved work. The authenticated form submits a Turnstile token to server-side Siteverify. Success, exact deployment hostname, and the `relay_write` action must all match. Tokens expire and are single-use at the provider. Origin checking prevents another site from submitting verification. Clearance is stored against the verified account, shared by its sessions, expires after an hour, and cannot lift a quota. Missing keys, network failures, invalid tokens, and stale clearances never grant access.
+A `verification_required` refusal includes `verification_url: /security/check`. Open that URL in another tab to preserve unsaved work, complete the check, then retry the original action. The authenticated form submits a Turnstile token to server-side Siteverify. Success, exact deployment hostname, and the `relay_write` action must all match. Tokens expire and are single-use at the provider. Origin checking prevents another site from submitting verification. Clearance is stored against the verified account, shared by its sessions, expires after an hour, and cannot lift a quota. Missing keys, network failures, invalid tokens, and stale clearances never grant access.
 
 ## Provision and release
 

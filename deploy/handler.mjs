@@ -1,5 +1,5 @@
 import { accessConfig, authenticatedRequest, authenticatedReadiness } from './access.mjs';
-import { edgeGuard, usageGuard, bodyGuard, refusal } from './security.mjs';
+import { edgeGuard, usageGuard, bodyGuard, refusal, routePath } from './security.mjs';
 import { captchaPage } from './captcha.mjs';
 import { drainBoundedBody } from '../lib/request-origin.ts';
 
@@ -29,9 +29,9 @@ export async function handleRequest(request, env, context, app, keyResolver) {
     }
     try {
       if (!env.TURNSTILE_SITE_KEY || !env.TURNSTILE_SECRET_KEY) throw new Error('Verification unavailable');
-      await env.DB.prepare('SELECT 1 FROM jobs LIMIT 1').all();
-      await env.DB.prepare('SELECT 1 FROM security_counters LIMIT 1').all();
-      await env.DB.prepare('SELECT 1 FROM security_clearances LIMIT 1').all();
+      await env.DB.prepare(
+        'SELECT (SELECT 1 FROM jobs LIMIT 1), (SELECT 1 FROM security_counters LIMIT 1), (SELECT 1 FROM security_clearances LIMIT 1)',
+      ).all();
       return Response.json({ status: 'ready', release: env.RELEASE_SHA }, {
         headers: { 'cache-control': 'no-store' },
       });
@@ -60,11 +60,14 @@ export async function handleRequest(request, env, context, app, keyResolver) {
   try {
     const denied = await usageGuard(request, env);
     if (denied) return deny(denied);
-    if (url.pathname === '/security/check') return captchaPage(request, env);
+    if (routePath(request) === '/security/check') return captchaPage(request, env);
     const bounded = await bodyGuard(request, env);
     if (bounded instanceof Response) return deny(bounded);
     request = bounded;
-  } catch {
+  } catch (error) {
+    if (error instanceof URIError) {
+      return deny(refusal(400, 'invalid_path', 'Invalid request path.'));
+    }
     return deny(refusal(503, 'security_unavailable', 'Service unavailable', 60));
   }
   if ((request.method === 'GET' || request.method === 'HEAD') && !staticPath) {

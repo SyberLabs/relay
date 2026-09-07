@@ -11,14 +11,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
-        {children}
-        <footer style={{ padding: '1rem', textAlign: 'center' }}>
-          <a href="/security/check" target="_blank" rel="noreferrer">
-            Verify access
-          </a>
-        </footer>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

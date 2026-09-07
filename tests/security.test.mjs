@@ -227,6 +227,29 @@ void test('storage caps reject inserts atomically but allow updates, deletion, a
       .get().n,
     500,
   );
+  const caps = {
+    jobs: 500,
+    observations: 5000,
+    events: 20000,
+    profile_facts: 500,
+    style_rules: 500,
+    drafts: 5000,
+    review_batches: 1000,
+    choices: 2000,
+    outcomes: 5000,
+    refusals: 5000,
+  };
+  for (const [table, cap] of Object.entries(caps)) {
+    for (const kind of ['insert', 'update']) {
+      const sql = db.sqlite
+        .prepare(
+          "SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?",
+        )
+        .get(`security_${table}_${kind}_quota`).sql;
+      assert.match(sql, new RegExp(`LIMIT ${cap + 1}`));
+      assert.match(sql, new RegExp(`> ${cap}`));
+    }
+  }
   db.sqlite.close();
 });
 
@@ -273,6 +296,15 @@ void test('CAPTCHA fails closed on missing secrets, token failure/replay, wrong 
     (await captchaPage(request('GET', '/security/check'), {})).status,
     503,
   );
+  const page = await captchaPage(request('GET', '/security/check'), {
+    ...env,
+    TURNSTILE_SITE_KEY: 'fictional',
+  });
+  assert.equal(page.status, 200);
+  assert.match(
+    page.headers.get('content-security-policy'),
+    /style-src 'unsafe-inline'/,
+  );
   assert.equal(
     (
       await captchaPage(request('POST', '/security/check'), {
@@ -291,6 +323,8 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
     DB: db,
     ACCESS_ISSUER: 'https://relay.cloudflareaccess.com',
     ACCESS_AUD: 'a'.repeat(64),
+    TURNSTILE_SITE_KEY: 'fictional',
+    TURNSTILE_SECRET_KEY: 'fictional',
     EDGE_RATE_LIMITER: {
       async limit() {
         return { success: true };
@@ -397,6 +431,19 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
       )
     ).status,
     401,
+  );
+  for (const path of [
+    '/security/check',
+    '/security/check/',
+    '/security%2Fcheck',
+  ]) {
+    const response = await handleRequest(req(path), env, {}, app, publicKey);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /cf-turnstile/);
+  }
+  assert.equal(
+    (await handleRequest(req('/%E0%A4%A'), env, {}, app, publicKey)).status,
+    400,
   );
   assert.equal(calls, 1);
   db.sqlite.close();

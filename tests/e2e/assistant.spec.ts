@@ -165,7 +165,6 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
     .fill('Continue the first job only.');
   await research.fill('Research for the first job only.');
   await page.getByRole('button', { name: /Other Context Job/ }).click();
-  await page.getByText('Prepare this job for an assistant', { exact: true }).click();
   await expect(
     page.getByRole('textbox', { name: 'Facts to share for this draft' }),
   ).toHaveValue('');

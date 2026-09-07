@@ -48,6 +48,9 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
       .getByRole('textbox', { name: 'Posting URL' })
       .fill(`https://example.com/tool-qa/${mode}`);
     await page.getByRole('button', { name: 'Save job' }).click();
+    await expect(
+      page.getByRole('heading', { name: `Tool QA ${mode}`, exact: true }),
+    ).toBeVisible();
     await page
       .getByText('Prepare this job for an assistant', { exact: true })
       .click();

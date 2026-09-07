@@ -310,7 +310,14 @@ void test(
       const text = await readFile(logPath, 'utf8');
       assert.match(text, /GRANDCHILD_TERM_STDOUT/);
       assert.match(text, /GRANDCHILD_TERM_STDERR/);
-      assert.equal(posixTerminated(grandchild), true);
+      const deadline = Date.now() + 1_000;
+      while (!posixTerminated(grandchild) && Date.now() < deadline)
+        await delay(10);
+      assert.equal(
+        posixTerminated(grandchild),
+        true,
+        'descendant remained alive after bounded SIGKILL cleanup',
+      );
     } finally {
       const pid = child.pid;
       if (typeof pid === 'number') {

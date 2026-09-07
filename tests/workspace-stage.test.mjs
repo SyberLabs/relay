@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadEditor, showsExactAcceptance } from '../lib/editor.ts';
 import {
+  handoffIntro,
   headerAddJobIsPrimary,
   loopStepLead,
   primaryAction,
@@ -186,6 +187,18 @@ void test('dirty editor does not change stage or the legal primary action', () =
   assert.equal(workspaceStage(held), 'job_loop');
   assert.equal(primaryAction(held), 'review_held');
   assert.equal(headerAddJobIsPrimary(held), false);
+});
+
+void test('handoff intro requires a selected job to bind a packet', () => {
+  assert.match(handoffIntro(true), /this selected job/i);
+  assert.doesNotMatch(handoffIntro(true), /select a job to bind/i);
+  assert.match(handoffIntro(false), /select a job to bind a packet/i);
+  assert.doesNotMatch(handoffIntro(false), /this selected job/i);
+  for (const text of [handoffIntro(true), handoffIntro(false)]) {
+    assert.match(text, /obsidian, notion or grok bot/i);
+    assert.match(text, /accounts are not connected automatically/i);
+    assert.doesNotMatch(text, /connect your tools/i);
+  }
 });
 
 void test('header Add job is primary only between jobs', () => {

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { RelayToolStatus } from './agent-tools';
 import { assistantPrompt, type Assistant } from '../lib/assistant-handoff';
 import { type EditorTarget } from '../lib/editor';
+import { handoffIntro } from '../lib/workspace-stage';
 import {
   obsidianNote,
   obsidianExample,
@@ -29,6 +30,8 @@ function downloadFile(content: string, filename: string, type: string) {
 
 export function Connections({
   toolStatus,
+  open,
+  onOpenChange,
   current,
   draft,
   notes,
@@ -38,6 +41,8 @@ export function Connections({
   openImport,
 }: {
   toolStatus: RelayToolStatus;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   current?: {
     id: string;
     job_key: string;
@@ -133,7 +138,11 @@ export function Connections({
     );
   }
   return (
-    <details className="import">
+    <details
+      className="import"
+      open={open}
+      onToggle={(event) => onOpenChange(event.currentTarget.open)}
+    >
       <summary>
         <b>Prepare this job for an assistant</b>
       </summary>
@@ -150,11 +159,7 @@ export function Connections({
           }[toolStatus]
         }
       </output>
-      <p>
-        Packet and draft files for this selected job. Bring research from
-        Obsidian, Notion or Grok Bot, then review wording prepared with
-        ChatGPT, Codex or Claude. Accounts are not connected automatically.
-      </p>
+      <p>{handoffIntro(Boolean(current))}</p>
       <p>
         <Link href="/about">About Relay handoffs ↗</Link>
       </p>

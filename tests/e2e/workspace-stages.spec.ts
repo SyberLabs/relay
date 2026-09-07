@@ -27,6 +27,22 @@ test('held job primary control is accept, not Advanced or add job', async ({
       'Select a job to continue its review. Adding or importing is between jobs.',
     ),
   ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Select a role' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Prepare this job for an assistant', { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByText('Prepare this job for an assistant', { exact: true })
+    .click();
+  await expect(page.getByText(/Select a job to bind a packet/)).toBeVisible();
+  await expect(
+    page.getByRole('status', { name: 'Browser assistant tools' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Download selected job packet' }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: /Stage Held — Engineer/ }).click();
   await expect(addJob).toHaveClass(/secondary/);
   await expect(addJob).not.toHaveClass(/primary/);
@@ -40,7 +56,9 @@ test('held job primary control is accept, not Advanced or add job', async ({
   await expect(
     page.getByRole('heading', { name: 'Advanced', exact: true }),
   ).toHaveCount(0);
-  await page.getByText('Prepare this job for an assistant', { exact: true }).click();
+  await expect(
+    page.getByRole('status', { name: 'Browser assistant tools' }),
+  ).toBeVisible();
   await expect(
     page.getByText(/Packet and draft files for this selected job/),
   ).toBeVisible();

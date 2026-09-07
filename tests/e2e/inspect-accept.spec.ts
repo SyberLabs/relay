@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { enableInspectJob } from './enable-inspect-job';
 
@@ -204,4 +205,143 @@ test('human can answer a Blocked inspect field then arm to enable Accept', async
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toBeEnabled();
+});
+
+test('inspect overlay prepare fills three fields then Accept send completes', async ({
+  page,
+}) => {
+  const resumeBytes = Buffer.from(
+    `Cedar Example — Inspect Handshake Engineer resume (fictional)\n${'INS-9 '.repeat(80)}`,
+  );
+  expect(resumeBytes.length).toBeLessThanOrEqual(4096);
+  const resume = {
+    name: 'resume.txt',
+    base64: resumeBytes.toString('base64'),
+    sha256: createHash('sha256').update(resumeBytes).digest('hex'),
+  };
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          Name: 'Cedar Example — Inspect Handshake Engineer',
+          Job: 'https://employer.example/jobs/inspect-handshake',
+          url: 'https://scout.example/observations/inspect-handshake',
+          Status: 'Held',
+          Notes: 'Fictional inspect-handshake fixture.',
+        },
+      ],
+    },
+  });
+  const ws = await (await page.request.get('/api/workspace')).json();
+  const job = ws.jobs.find((j: { name: string }) =>
+    j.name.includes('Inspect Handshake'),
+  );
+  await enableInspectJob(page, ws.viewer, job.id);
+  const prepared = await page.request.post('/api/applications', {
+    data: {
+      action: 'prepare',
+      viewer: ws.viewer,
+      job: job.id,
+      actor: 'Fictional applying agent',
+      destination: job.url,
+      fields: [
+        { label: 'Full name', value: 'Avery Example', unknown: false },
+        {
+          label: 'Work authorization',
+          value: 'Authorized to work in the example country',
+          unknown: false,
+        },
+        {
+          label: 'Cover note',
+          value: 'Fictional cover note for Inspect Handshake Engineer.',
+          unknown: false,
+        },
+      ],
+      files: [resume],
+    },
+  });
+  expect(prepared.ok()).toBe(true);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Inspect Handshake/ }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Inspect', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('Full name')).toBeVisible();
+  await expect(page.getByText('Work authorization')).toBeVisible();
+  await expect(page.getByText('Cover note')).toBeVisible();
+  await expect(page.getByText('resume.txt', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeDisabled();
+  const armed = await page.request.post('/api/applications', {
+    data: {
+      action: 'arm',
+      viewer: ws.viewer,
+      job: job.id,
+      id: 'op-inspect-handshake',
+      actor: 'Fictional applying agent',
+    },
+  });
+  expect(armed.ok()).toBe(true);
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Accept and send' }).click();
+  await expect(
+    page.getByText(/waiting for the operative to send/i),
+  ).toBeVisible();
+  const ledger = await (await page.request.get('/api/applications')).json();
+  for (const leftover of ledger.operations.filter(
+    (o: { state: string }) => o.state === 'executing',
+  )) {
+    const cleared = await page.request.post('/api/applications', {
+      data: {
+        action: 'not-submitted',
+        viewer: ws.viewer,
+        id: leftover.id,
+        digest: leftover.digest,
+        receipt:
+          'Fictional e2e isolation: prior fixture did not submit at the employer.',
+      },
+    });
+    expect(cleared.ok()).toBe(true);
+  }
+  const armedView = await armed.json();
+  const begun = await page.request.post('/api/applications', {
+    data: {
+      action: 'begin',
+      viewer: ws.viewer,
+      id: 'op-inspect-handshake',
+      digest: armedView.digest,
+    },
+  });
+  expect(begun.ok()).toBe(true);
+  const begunBody = await begun.json();
+  expect(begunBody.execute).toBe(true);
+  const completed = await page.request.post('/api/applications', {
+    data: {
+      action: 'complete',
+      viewer: ws.viewer,
+      id: begunBody.operation.id,
+      digest: begunBody.operation.digest,
+      receipt: 'Fictional employer accepted application INS-9',
+    },
+  });
+  expect(completed.ok()).toBe(true);
+  const workspace = await (await page.request.get('/api/workspace')).json();
+  const submitted = workspace.jobs.find((j: { id: string }) => j.id === job.id);
+  expect(submitted.status).toBe('Submitted');
+  const detail = await (
+    await page.request.get(
+      `/api/applications?id=${encodeURIComponent(begunBody.operation.id)}`,
+    )
+  ).json();
+  const manifest = JSON.parse(detail.operation.manifest) as {
+    files: { name: string; base64: string }[];
+  };
+  expect(manifest.files[0].name).toBe('resume.txt');
+  expect(manifest.files[0].base64).toBe(resume.base64);
 });

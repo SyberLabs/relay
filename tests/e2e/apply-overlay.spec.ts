@@ -56,6 +56,9 @@ test('apply overlay shows inspect summary without Accept and send', async ({
       exact: true,
     }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('status', { name: 'Last verb result' }),
+  ).toHaveText('No verb result yet.');
   await expect(page.getByText('Operative status: armed')).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),

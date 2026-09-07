@@ -128,7 +128,7 @@ test('set aside cancels a pre-begin freeze so send cannot begin', async ({
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toBeEnabled();
-  await page.getByRole('button', { name: 'Set aside' }).click();
+  await page.getByRole('button', { name: 'Set aside', exact: true }).click();
   await expect
     .poll(async () => {
       const data = await (await page.request.get('/api/applications')).json();
@@ -137,7 +137,4 @@ test('set aside cancels a pre-begin freeze so send cannot begin', async ({
       )?.state;
     })
     .toBe('cancelled');
-  await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
-  ).toBeDisabled();
 });

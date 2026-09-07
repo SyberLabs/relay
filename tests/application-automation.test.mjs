@@ -2429,3 +2429,230 @@ void test('Skip preserves uncertain work and rolls back if cancellation history 
   assert.equal((await loadOperation(db, 'alice', op.id)).state, 'uncertain');
   db.sqlite.close();
 });
+
+for (const status of ['Held', 'Ready']) {
+  for (const previouslyApproved of [false, true]) {
+    for (const prepareAgain of [false, true]) {
+      void test(`job ${status} save replaces ${previouslyApproved ? 'authorized' : 'proposed'} same-digest freeze via ${prepareAgain ? 'prepare and arm' : 'arm'}`, async () => {
+        const db = database();
+        await changeApplicationPolicy(
+          db,
+          'alice',
+          config({ review: 'all' }),
+          now,
+        );
+        await upsertPreparation(db, 'alice', completePrep(), now);
+        await armPreparation(
+          db,
+          'alice',
+          { job: 'alice-0', id: 'old-version', actor: 'Fixture agent' },
+          now,
+        );
+        const old = await loadOperation(db, 'alice', 'old-version');
+        if (previouslyApproved)
+          await actOnApplication(db, 'alice', action(old, 'approve'), now);
+        assert.equal(
+          await saveJobReview(
+            db,
+            'alice',
+            {
+              id: 'alice-0',
+              version: 1,
+              draft: 'Exact fictional draft.',
+              blocker: '',
+              status,
+            },
+            now,
+          ),
+          true,
+        );
+        assert.equal(
+          (await inspectApplication(db, 'alice', 'alice-0', now))
+            .accept_enabled,
+          false,
+        );
+        if (prepareAgain)
+          await upsertPreparation(db, 'alice', completePrep(), now);
+        const armed = await armPreparation(
+          db,
+          'alice',
+          { job: 'alice-0', id: 'current-version', actor: 'Fixture agent' },
+          now,
+        );
+        assert.equal(armed.operation_id, 'current-version');
+        assert.equal(armed.state, 'proposed');
+        assert.equal(armed.accept_enabled, true);
+        const current = await loadOperation(db, 'alice', armed.operation_id);
+        assert.equal(current.job_version, 2);
+        assert.equal(current.digest, old.digest);
+        assert.equal(current.manifest, old.manifest);
+        assert.equal(
+          db.sqlite
+            .prepare(
+              "SELECT job_version FROM application_preparations WHERE owner='alice' AND job_id='alice-0'",
+            )
+            .get().job_version,
+          2,
+        );
+        assert.equal(
+          (await loadOperation(db, 'alice', old.id)).state,
+          'cancelled',
+        );
+        await assert.rejects(
+          actOnApplication(db, 'alice', action(old, 'begin'), now),
+          (e) => e.status === 409,
+        );
+        await assert.rejects(
+          actOnApplication(db, 'alice', action(current, 'begin'), now),
+          (e) => e.status === 409,
+        );
+        const job = db.sqlite
+          .prepare("SELECT * FROM jobs WHERE owner='alice' AND id='alice-0'")
+          .get();
+        assert.equal(
+          job.accepted_draft,
+          status === 'Ready' ? 'Exact fictional draft.' : null,
+        );
+        await actOnApplication(db, 'alice', action(current, 'approve'), now);
+        assert.equal(
+          (await actOnApplication(db, 'alice', action(current, 'begin'), now))
+            .execute,
+          true,
+        );
+        await assert.rejects(
+          actOnApplication(db, 'alice', action(current, 'begin'), now),
+          (e) => e.status === 409,
+        );
+        assert.equal(
+          db.sqlite
+            .prepare(
+              "SELECT COUNT(*) n FROM events WHERE kind='Application cancelled'",
+            )
+            .get().n,
+          1,
+        );
+        db.sqlite.close();
+      });
+    }
+  }
+}
+
+void test('a job save racing arm cannot leave an orphan proposal or stamp a stale preparation version', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config({ review: 'all' }), now);
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  const pause = pauseNextBatch(db);
+  const attempt = armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'racing-version', actor: 'Fixture agent' },
+    now,
+  ).then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  await pause.paused;
+  assert.equal(
+    await saveJobReview(
+      db,
+      'alice',
+      {
+        id: 'alice-0',
+        version: 1,
+        draft: 'New exact draft.',
+        blocker: '',
+        status: 'Ready',
+      },
+      now,
+    ),
+    true,
+  );
+  const before = counts(db);
+  const prep = db.sqlite
+    .prepare('SELECT * FROM application_preparations')
+    .get();
+  pause.release();
+  assert.equal((await attempt).error.status, 409);
+  assert.deepEqual(counts(db), before);
+  assert.deepEqual(
+    db.sqlite.prepare('SELECT * FROM application_preparations').get(),
+    prep,
+  );
+  await assert.rejects(
+    loadOperation(db, 'alice', 'racing-version'),
+    (e) => e.status === 404,
+  );
+  const fresh = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'after-version-race', actor: 'Fixture agent' },
+    now,
+  );
+  assert.equal(
+    (await loadOperation(db, 'alice', fresh.operation_id)).job_version,
+    2,
+  );
+  assert.equal(fresh.state, 'proposed');
+  db.sqlite.close();
+});
+
+void test('concurrent replacement arms cannot overwrite the winning current-version freeze', async () => {
+  const db = database();
+  const { op } = await authorizedPreparation(db);
+  assert.equal(
+    await saveJobReview(
+      db,
+      'alice',
+      {
+        id: 'alice-0',
+        version: 1,
+        draft: 'New exact draft.',
+        blocker: '',
+        status: 'Ready',
+      },
+      now,
+    ),
+    true,
+  );
+  const pause = pauseNextBatch(db);
+  const attempt = armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'losing-replacement', actor: 'Older fixture agent' },
+    now,
+  ).then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  await pause.paused;
+  const winning = await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'winning-replacement',
+      actor: 'Current fixture agent',
+    },
+    now,
+  );
+  const before = counts(db);
+  const prep = db.sqlite
+    .prepare('SELECT * FROM application_preparations')
+    .get();
+  pause.release();
+  assert.equal((await attempt).error.status, 409);
+  assert.deepEqual(counts(db), before);
+  assert.deepEqual(
+    db.sqlite.prepare('SELECT * FROM application_preparations').get(),
+    prep,
+  );
+  await assert.rejects(
+    loadOperation(db, 'alice', 'losing-replacement'),
+    (e) => e.status === 404,
+  );
+  assert.equal(winning.operation_id, 'winning-replacement');
+  assert.equal(winning.state, 'proposed');
+  assert.equal((await loadOperation(db, 'alice', op.id)).state, 'cancelled');
+  assert.equal(prep.job_version, 2);
+  db.sqlite.close();
+});

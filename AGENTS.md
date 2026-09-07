@@ -11,7 +11,8 @@ For development, read the [context router](docs/development/CONTEXT.md), then on
 - Imports add evidence; they cannot grant approval or reset an active application.
 - A stale editor or assistant packet must not overwrite newer work.
 - Keep research and application history intact; personal records and credentials never enter Git, logs, public issues, or build artifacts.
-- External agents may submit applications only under the explicit, version-bound user policy in [application coordination](docs/agent-applications.md). Policy authorization is not human draft acceptance; retain exact payloads and ambiguous outcomes, and never retry a submission automatically. Product-market fit is unvalidated until users voluntarily return.
+- Inspect Accept on a complete armed payload is send authorization for that frozen operation: the waiting operative may begin once and submit at the employer. Relay does not POST the employer form. Draft Ready is not send permission. Never retry `executing`. See [application coordination](docs/agent-applications.md).
+- Product-market fit is unvalidated until users voluntarily return.
 
 ## Delivery
 

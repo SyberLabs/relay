@@ -308,7 +308,13 @@ export function useRelayTools(
             id: input.id,
             digest: input.digest,
           })) as { execute?: unknown; operation: unknown };
-          await refresh();
+          try {
+            await refresh();
+          } catch {
+            // Begin already consumed the permit. A failed display refresh
+            // cannot undo it; still return { execute, operation }.
+            return { execute: result.execute, operation: result.operation };
+          }
           return { execute: result.execute, operation: result.operation };
         },
       },

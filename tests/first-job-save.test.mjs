@@ -71,6 +71,7 @@ function baseDeps(state, session, fetcher) {
     'report',
     'showImport',
     'showAddJob',
+    'handoffOpen',
     'signedOut',
     'loaded',
     'busy',

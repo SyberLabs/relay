@@ -56,9 +56,9 @@ test('held job primary control is accept, not Advanced or add job', async ({
   await expect(
     page.getByRole('heading', { name: 'Advanced', exact: true }),
   ).toHaveCount(0);
-  await page
-    .getByText('Prepare this job for an assistant', { exact: true })
-    .click();
+  await expect(
+    page.getByRole('status', { name: 'Browser assistant tools' }),
+  ).toBeVisible();
   await expect(
     page.getByText(/Packet and draft files for this selected job/),
   ).toBeVisible();

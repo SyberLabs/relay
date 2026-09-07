@@ -30,6 +30,8 @@ function downloadFile(content: string, filename: string, type: string) {
 
 export function Connections({
   toolStatus,
+  open,
+  onOpenChange,
   current,
   draft,
   notes,
@@ -39,6 +41,8 @@ export function Connections({
   openImport,
 }: {
   toolStatus: RelayToolStatus;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   current?: {
     id: string;
     job_key: string;
@@ -134,7 +138,11 @@ export function Connections({
     );
   }
   return (
-    <details className="import">
+    <details
+      className="import"
+      open={open}
+      onToggle={(event) => onOpenChange(event.currentTarget.open)}
+    >
       <summary>
         <b>Prepare this job for an assistant</b>
       </summary>

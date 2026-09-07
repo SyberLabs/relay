@@ -118,6 +118,7 @@ export default function Workspace() {
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false),
     [showAddJob, setShowAddJob] = useState(false),
+    [handoffOpen, setHandoffOpen] = useState(false),
     [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
   const sessionRef = useRef(createWorkspaceSession());
   const importRef = useRef<HTMLElement>(null);
@@ -135,6 +136,7 @@ export default function Workspace() {
     setReport(next.report);
     setShowImport(next.showImport);
     setShowAddJob(next.showAddJob);
+    setHandoffOpen(next.handoffOpen);
     setSignedOut(next.signedOut);
     setLoaded(next.loaded);
     setHistoryNext({});
@@ -542,6 +544,8 @@ export default function Workspace() {
     <Connections
       key={current?.id ?? 'no-job'}
       toolStatus={toolStatus}
+      open={handoffOpen}
+      onOpenChange={setHandoffOpen}
       current={
         current && editor
           ? {

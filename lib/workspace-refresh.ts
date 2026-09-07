@@ -66,6 +66,7 @@ export type ExpiredPrivateWorkspace = {
   report: null;
   showImport: false;
   showAddJob: false;
+  handoffOpen: false;
   signedOut: true;
   loaded: true;
 };
@@ -103,6 +104,7 @@ export function expiredPrivateWorkspace(): ExpiredPrivateWorkspace {
     report: null,
     showImport: false,
     showAddJob: false,
+    handoffOpen: false,
     signedOut: true,
     loaded: true,
   };

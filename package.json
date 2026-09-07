@@ -23,6 +23,7 @@
     "test:e2e": "node scripts/ci/run-integration.mjs browser",
     "test:production": "node scripts/ci/run-production.mjs",
     "relay": "node integrations/relay.mjs",
+    "experiment:pre-agent-admit": "node scripts/experiments/pre-agent-admit/run.mjs",
     "public-copy:sync": "node scripts/sync-public-copy.mjs --target project --root .",
     "public-copy:check": "node scripts/sync-public-copy.mjs --target project --root . --check",
     "ensure-node": "node scripts/ensure-node.mjs",

@@ -1,0 +1,8 @@
+{
+  "boards": [
+    { "provider": "greenhouse", "board": "northstar", "company": "Northstar" },
+    { "provider": "greenhouse", "board": "exampleco", "company": "ExampleCo" },
+    { "provider": "lever", "board": "harbor", "company": "Harbor Labs" },
+    { "provider": "ashby", "board": "acme", "company": "Acme Labs" }
+  ]
+}

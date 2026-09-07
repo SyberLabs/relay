@@ -1,0 +1,28 @@
+{
+  "jobs": [
+    {
+      "absolute_url": "https://boards.greenhouse.io/exampleco/jobs/5101",
+      "title": "Senior Backend Engineer",
+      "updated_at": "2026-08-15T00:00:00.000Z",
+      "location": { "name": "Remote — US" },
+      "content": "<p>Distributed systems. $160,000</p>",
+      "company_name": "ExampleCo"
+    },
+    {
+      "absolute_url": "https://boards.greenhouse.io/exampleco/jobs/5102",
+      "title": "Senior Backend Engineer",
+      "updated_at": "2026-08-16T00:00:00.000Z",
+      "location": { "name": "London, UK" },
+      "content": "<p>On-site London only.</p>",
+      "company_name": "ExampleCo"
+    },
+    {
+      "absolute_url": "https://boards.greenhouse.io/exampleco/jobs/5103",
+      "title": "Staff Platform Engineer",
+      "updated_at": "2026-08-20T00:00:00.000Z",
+      "location": { "name": "Remote — US" },
+      "content": "<p>Platform runtime.</p>",
+      "company_name": "ExampleCo"
+    }
+  ]
+}

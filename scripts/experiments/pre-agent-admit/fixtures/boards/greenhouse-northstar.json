@@ -1,0 +1,28 @@
+{
+  "jobs": [
+    {
+      "absolute_url": "https://boards.greenhouse.io/northstar/jobs/4001",
+      "title": "Senior Backend Engineer",
+      "updated_at": "2026-08-01T00:00:00.000Z",
+      "location": { "name": "Remote — US" },
+      "content": "<p>Build APIs. Base range $150,000 - $190,000</p>",
+      "company_name": "Northstar"
+    },
+    {
+      "absolute_url": "https://boards.greenhouse.io/northstar/jobs/4002",
+      "title": "Account Executive",
+      "updated_at": "2026-08-20T00:00:00.000Z",
+      "location": { "name": "Remote — US" },
+      "content": "<p>Quota-carrying sales.</p>",
+      "company_name": "Northstar"
+    },
+    {
+      "absolute_url": "https://boards.greenhouse.io/northstar/jobs/4003",
+      "title": "Junior Backend Engineer",
+      "updated_at": "2026-08-18T00:00:00.000Z",
+      "location": { "name": "Remote — US" },
+      "content": "<p>Entry-level APIs.</p>",
+      "company_name": "Northstar"
+    }
+  ]
+}

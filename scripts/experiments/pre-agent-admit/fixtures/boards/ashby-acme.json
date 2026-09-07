@@ -1,0 +1,42 @@
+{
+  "jobs": [
+    {
+      "title": "Senior Infrastructure Engineer",
+      "location": "California, US",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "descriptionPlain": "Own runtime infrastructure.",
+      "publishedAt": "2026-08-10T00:00:00.000Z",
+      "jobUrl": "https://jobs.ashbyhq.com/acme/infra-1"
+    },
+    {
+      "title": "Onsite Infrastructure Engineer",
+      "location": "California, US",
+      "isListed": true,
+      "isRemote": true,
+      "workplaceType": "OnSite",
+      "descriptionPlain": "Same title family, on-site only.",
+      "publishedAt": "2026-08-11T00:00:00.000Z",
+      "jobUrl": "https://jobs.ashbyhq.com/acme/infra-onsite"
+    },
+    {
+      "title": "Product Designer",
+      "location": "Remote — US",
+      "isListed": true,
+      "workplaceType": "Remote",
+      "descriptionPlain": "Design systems.",
+      "publishedAt": "2026-08-12T00:00:00.000Z",
+      "jobUrl": "https://jobs.ashbyhq.com/acme/design-1"
+    },
+    {
+      "title": "Senior Infrastructure Engineer",
+      "location": "Remote — US",
+      "isListed": false,
+      "workplaceType": "Remote",
+      "descriptionPlain": "Unlisted, must not admit.",
+      "publishedAt": "2026-08-12T00:00:00.000Z",
+      "jobUrl": "https://jobs.ashbyhq.com/acme/infra-hidden"
+    }
+  ]
+}

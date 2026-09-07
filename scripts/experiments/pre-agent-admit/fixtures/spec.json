@@ -1,0 +1,18 @@
+{
+  "title_any": ["backend", "platform", "infrastructure"],
+  "title_none": ["junior", "intern", "marketing", "account executive", "sales"],
+  "levels": ["senior", "staff", "principal"],
+  "remote_any": ["remote", "hybrid"],
+  "location_any": ["us", "united states", "remote", "california"],
+  "location_none": ["london", "united kingdom"],
+  "freshness_days": 180,
+  "queries": ["senior backend"],
+  "query_k": 1,
+  "caps": {
+    "max_boards": 8,
+    "max_admitted": 200,
+    "concurrency": 2,
+    "request_timeout_ms": 5000,
+    "min_interval_ms": 1
+  }
+}

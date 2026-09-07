@@ -11,7 +11,7 @@ function handler(route, signedIn = true) {
   const source = readFileSync(
     new URL(`../app/api/${route}/route.ts`, import.meta.url),
     'utf8',
-  );
+  ).replaceAll('\r\n', '\n');
   // Run the actual route body with isolated auth/storage dependencies. These
   // handler checks supplement the separate production gateway byte-limit tests.
   const code = stripTypeScriptTypes(

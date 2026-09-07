@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { runInNewContext } from 'node:vm';
 
-const source = readFileSync('app/inspect.tsx', 'utf8');
+const source = readFileSync('app/inspect.tsx', 'utf8').replaceAll('\r\n', '\n');
 const start = source.indexOf('  async function mutate(');
 const end = source.indexOf('\n  return {\n    view:', start);
 assert.ok(start >= 0 && end > start);

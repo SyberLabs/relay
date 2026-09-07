@@ -330,7 +330,7 @@ export default function Workspace() {
       setBusy(false);
     }
   }
-  useRelayTools(refresh);
+  const toolStatus = useRelayTools(refresh);
   const protectedState =
       current &&
       (['Submitted', 'Live loop'].includes(current.status) ||
@@ -541,6 +541,7 @@ export default function Workspace() {
   const connections = !signedOut ? (
     <Connections
       key={current?.id ?? 'no-job'}
+      toolStatus={toolStatus}
       current={
         current && editor
           ? {

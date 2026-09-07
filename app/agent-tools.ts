@@ -1,8 +1,13 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { stageDraft } from '../lib/draft-stage';
 import { readApplicationContext } from '../lib/application-context';
 type Json = Record<string, unknown>;
+export type RelayToolStatus =
+  | 'checking'
+  | 'unavailable'
+  | 'registered'
+  | 'failed';
 type Tool = {
   name: string;
   description: string;
@@ -45,7 +50,9 @@ async function call(url: string, body?: Json) {
   return result;
 }
 export function useRelayTools(refresh: () => Promise<unknown>) {
+  const [status, setStatus] = useState<RelayToolStatus>('checking');
   useEffect(() => {
+    const lifecycle = new AbortController();
     const context = (
       document as Document & {
         modelContext?: {
@@ -56,8 +63,12 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
         };
       }
     ).modelContext;
-    if (!context?.registerTool) return;
-    const lifecycle = new AbortController();
+    if (typeof context?.registerTool !== 'function') {
+      void Promise.resolve().then(() => {
+        if (!lifecycle.signal.aborted) setStatus('unavailable');
+      });
+      return () => lifecycle.abort();
+    }
     const tools: Tool[] = [
       {
         name: 'relay_read_application',
@@ -187,8 +198,8 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
         },
       },
     ];
-    for (const tool of tools)
-      Promise.resolve(
+    Promise.all(
+      tools.map(async (tool) =>
         context.registerTool(
           {
             name: tool.name,
@@ -202,7 +213,18 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
           },
           { signal: lifecycle.signal },
         ),
-      ).catch(() => console.warn('Relay agent tools could not register.'));
+      ),
+    ).then(
+      () => {
+        if (!lifecycle.signal.aborted) setStatus('registered');
+      },
+      () => {
+        if (lifecycle.signal.aborted) return;
+        lifecycle.abort();
+        setStatus('failed');
+      },
+    );
     return () => lifecycle.abort();
   }, [refresh]);
+  return status;
 }

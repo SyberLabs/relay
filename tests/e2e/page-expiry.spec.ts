@@ -183,7 +183,7 @@ for (const [format, payload] of Object.entries(unauthorized)) {
     await page.getByRole('button', { name: 'Open review session' }).click();
     await assertSignedOut(
       page,
-      'Review',
+      'Batch review',
       ['PRIVATE_REVIEW_REASON', 'PRIVATE_REVIEW_FACT', 'PRIVATE_REVIEW_DRAFT'],
       ['Open review session'],
       url,

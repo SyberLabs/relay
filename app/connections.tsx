@@ -96,7 +96,7 @@ export function Connections({
       const started = editorTarget();
       onDraft(draftFromPastedJson(pasted, started), started);
       setNote(
-        'JSON checked. Review the visible draft before saving; if your selection or draft changed, load it again.',
+        'Draft format, job identity and version checked; claims were not citation-checked. Review the visible wording before saving. If your selection or draft changed, load it again.',
       );
     } catch (error) {
       setNote(
@@ -208,7 +208,7 @@ export function Connections({
               'text/markdown',
             );
             setNote(
-              'Job context downloaded with this job’s source history, visible notes and draft, including unsaved edits. Keep it in your vault as a reference; it cannot be imported. Verified facts and review events are not included.',
+              'Job context downloaded with this job’s source history, visible notes and draft, including unsaved edits. Keep it in your vault as a reference; it cannot be imported. Profile facts and review events are not included.',
             );
           }}
         >
@@ -249,13 +249,17 @@ export function Connections({
         an application.
       </p>
       <label className="field">
-        Verified facts for this draft
+        Facts to share for this draft
         <textarea
           value={facts}
           onChange={(e) => setFacts(e.target.value)}
           placeholder="Only include facts you want to share with your chosen assistant. These facts are not saved here."
         />
       </label>
+      <p>
+        Copy only facts you have confirmed from Your facts. This separate text
+        box is not saved or linked to your ledger.
+      </p>
       <details>
         <summary>Continue a task with ChatGPT or Codex</summary>
         <p>
@@ -305,8 +309,8 @@ export function Connections({
         </label>
         <p>
           Review and shorten the selection before sharing. Research is separate
-          from verified candidate facts. Limit: 30,000 characters; longer text
-          is rejected, never silently shortened.
+          from candidate facts you confirm. Limit: 30,000 characters; longer
+          text is rejected, never silently shortened.
         </p>
       </details>
       <div className="actions">
@@ -362,7 +366,7 @@ export function Connections({
                 } else {
                   onDraft(draftFromResult(value, started), started);
                   setNote(
-                    'File checked. Review the visible draft before saving; if your selection or draft changed while reading, load the file again.',
+                    'Draft format, job identity and version checked; claims were not citation-checked. Review the visible wording before saving. If your selection or draft changed while reading, load the file again.',
                   );
                 }
               } catch (error) {
@@ -380,11 +384,11 @@ export function Connections({
         </label>
       </div>
       <p>
-        For ChatGPT or Codex, enter verified facts, download the prepared
-        prompt, and share it with that assistant. Save its JSON response as a
-        .json file and load it here. Codex can also prepare a draft through the
-        local command tool. Returned wording needs review; loading never accepts
-        or sends it.
+        For ChatGPT or Codex, enter facts you have confirmed, download the
+        prepared prompt, and share it with that assistant. Save its JSON
+        response as a .json file and load it here. Codex can also prepare a
+        draft through the local command tool. Returned wording needs review;
+        loading never accepts or sends it.
       </p>
       <label className="field">
         Paste complete relay.draft.v1 JSON

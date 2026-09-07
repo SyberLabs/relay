@@ -1,0 +1,29 @@
+name: Promote production
+run-name: Promote ${{ inputs.release_sha }} to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Current main commit with successful staging and completed human acceptance (40 characters)
+        required: true
+        type: string
+      run_id:
+        description: Successful main CI run that built the staged artifact (not the Deploy run)
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  actions: read
+  deployments: write
+
+jobs:
+  production:
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/release-environment.yml
+    with:
+      environment: production
+      release_sha: ${{ inputs.release_sha }}
+      run_id: ${{ inputs.run_id }}
+    secrets: inherit

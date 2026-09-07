@@ -2,15 +2,17 @@
 
 Use your existing assistant to prepare wording, then return it to Relay's review record. **Seth Carlson is Relay's lead engineer.** These integrations do not accept drafts or send applications.
 
+ChatGPT/Codex computer use can also work directly in a signed-in Relay tab. See [saved progress and recovery](PROGRESS.md) for the shared browser controls and optional page tools, including progress-only updates that preserve accepted wording. Actual tool support must be checked in the chosen assistant/browser; the local CLI is not a production connection.
+
 ## ChatGPT or Codex: prompt and file handoff
 
 1. Select a job in Relay and open **Connect your tools**.
-2. Enter the verified facts you want to share. Choose **Prepare for ChatGPT** or **Prepare for Codex**.
+2. Enter facts you have confirmed in **Facts to share for this draft**. This separate, unsaved text box does not select from your saved ledger. Choose **Prepare for ChatGPT** or **Prepare for Codex**.
 3. Review the downloaded prompt, then paste its contents or attach it to your chosen assistant. It contains only the selected job, visible draft and supplied facts.
 4. Save the assistant's JSON response as `relay-result.json` (without Markdown fences), then choose **Load research or draft** in Relay.
 5. Review the wording and facts. Save it or explicitly accept it in Relay. If the job changed, prepare a fresh handoff.
 
-This is an explicit prompt/file integration, not a ChatGPT app installation, account connection, background sync or hosted MCP endpoint. It needs no API key in Relay. Your chosen assistant's account and data settings apply when you share the prompt. JSON structure does not verify the truth of the wording.
+This is an explicit prompt/file integration, not a ChatGPT app installation, account connection, background sync or hosted MCP endpoint. It needs no API key in Relay. Your chosen assistant's account and data settings apply when you share the prompt. Loading checks draft format, job identity and version, not citations or factual accuracy. Workspace saves do not run the separate agent draft-log citation check. Check every claim before accepting exact text.
 
 For a Codex task with repository and packet access, ask it to use this guide and the exact selected packet path. The equivalent local commands are:
 

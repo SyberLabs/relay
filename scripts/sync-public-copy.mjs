@@ -37,7 +37,7 @@ export function render(copy, target) {
   }
   const guide = `${copy.repository}/blob/main/integrations/OPENAI.md`;
   const integrations = copy.integrations.map((item) => item.name).join(', ');
-  const credit = `**Lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).** Application development: [${copy.peerEngineer}](${copy.peerProfile}).`;
+  const credit = `**Relay lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).** **Product: [${copy.peerEngineer}](${copy.peerProfile}).**`;
   if (target === 'project')
     return `**${copy.tagline}**
 
@@ -60,22 +60,31 @@ ${copy.openaiBoundary}
 
 [Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)`;
   if (target === 'organization')
-    return `## RELAY - our flagship project
+    return `A two-person lab. **[${copy.peerEngineer}](${copy.peerProfile})** · SyberLabs / RISE. **[${copy.leadEngineer}](${copy.leadProfile})** · Relay lead engineer; systems on RISE and OSAHR.
+
+## RELAY - our flagship project
 
 **[${copy.name}](${copy.repository}) is SyberLabs' current product focus.**
 
-${copy.summary} It is the project at the center of our development effort.
+${copy.summary}
 
 ${credit}
 
+${copy.stage}. Review and approve wording for each job; Relay does not send applications.
+
+<details>
+<summary>Integrations and review boundaries</summary>
+
 Works with **${integrations}** through explicit integrations. ${copy.openaiBoundary}
 
-${copy.stage}. ${copy.boundary}
+${copy.boundary}
+
+</details>
 
 **[Explore RELAY](${copy.repository})** | [ChatGPT and Codex setup](${guide})`;
   if (target === 'profile')
-    return `- **[${copy.name}](${copy.repository}) - Lead engineer.** ${copy.summary} Integrations include ${integrations}. [ChatGPT and Codex](${guide}) use explicit prompt/file handoffs, with an additional local Codex CLI adapter. ${copy.stage.toLowerCase()}; drafts require human review.`;
-  return `<p class="relay-release">${escapeHtml(copy.stage)}. Works with ${escapeHtml(integrations)}. ${escapeHtml(copy.openaiBoundary)} ${escapeHtml(copy.boundary)} <a href="${escapeHtml(guide)}" target="_blank" rel="noopener">ChatGPT and Codex setup &#8599;</a></p>`;
+    return `- **[${copy.name}](${copy.repository}) - Lead engineer.** ${copy.summary} ${copy.stage}; drafts require human review and Relay does not send applications. [Integration guides, including ChatGPT and Codex](${guide}).`;
+  return `<p class="relay-release">${escapeHtml(copy.summary)} ${escapeHtml(copy.stage)}. ${escapeHtml(copy.boundary)} <a href="${escapeHtml(guide)}" target="_blank" rel="noopener">ChatGPT and Codex setup &#8599;</a></p>`;
 }
 
 export function replaceBlock(source, content) {

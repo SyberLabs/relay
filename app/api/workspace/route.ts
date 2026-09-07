@@ -19,6 +19,11 @@ import { refuseUntrustedOrigin } from '../../../lib/request-origin';
 import { usableFact } from '../../../lib/profile';
 import { loadFacts } from '../../../lib/store';
 import {
+  loadDraftingPreference,
+  saveDraftingDecision,
+  validateDraftingDecision,
+} from '../../../lib/drafting-decision';
+import {
   saveProgress,
   validateProgress,
 } from '../../../lib/application-progress';
@@ -65,6 +70,7 @@ export async function GET() {
     sources: sources.results,
     events: events.results,
     facts,
+    draftingPreference: await loadDraftingPreference(db, user),
   });
 }
 export async function POST(request: Request) {
@@ -160,6 +166,15 @@ export async function POST(request: Request) {
         if (write) completeOwnerImportWrite(user, write);
       }
     }
+    if (b.action === 'drafting-decision') {
+      const result = await saveDraftingDecision(
+        db,
+        user,
+        validateDraftingDecision(b),
+        now,
+      );
+      return reply(result.data, result.status);
+    }
     if (b.action === 'progress') {
       const progress = validateProgress(b);
       if (progress.viewer !== undefined && progress.viewer !== user)
@@ -185,9 +200,10 @@ export async function POST(request: Request) {
       const result = await db.batch([
         db
           .prepare(
-            'UPDATE jobs SET draft=?,blocker=?,status=?,accepted_draft=?,version=version+1,updated=? WHERE id=? AND owner=? AND version=?',
+            "UPDATE jobs SET drafting_direction=CASE WHEN blocker=? THEN drafting_direction ELSE '' END,draft=?,blocker=?,status=?,accepted_draft=?,version=version+1,updated=? WHERE id=? AND owner=? AND version=?",
           )
           .bind(
+            b.blocker,
             b.draft,
             b.blocker,
             b.status,

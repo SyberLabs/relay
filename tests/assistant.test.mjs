@@ -197,3 +197,32 @@ void test('CLI prompt and draft file round trip rejects output overwrite', async
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+void test('downloaded assistant prompts carry bounded drafting choices without approval authority', () => {
+  const drafting = {
+    routine: true,
+    direction: 'Use the confirmed project and omit optional motivation.',
+  };
+  for (const provider of ['chatgpt', 'codex']) {
+    const prompt = assistantPrompt({ ...packet, drafting }, provider);
+    const data = JSON.parse(
+      prompt.split('Input:\n')[1].split('\n\nRequired output:')[0],
+    );
+    assert.deepEqual(data.drafting, drafting);
+    assert.match(
+      prompt,
+      /cannot confirm new facts, remove a hold or grant approval/,
+    );
+    assert.equal(
+      assistantResult({ ...packet, drafting }, 'Fictional answer.', provider)
+        .reviewRequired,
+      true,
+    );
+  }
+  assert.throws(() =>
+    assistantPrompt(
+      { ...packet, drafting: { routine: true, direction: 'x'.repeat(2001) } },
+      'codex',
+    ),
+  );
+});

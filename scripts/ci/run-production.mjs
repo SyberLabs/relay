@@ -445,6 +445,33 @@ try {
           ),
     );
   });
+  const decisionUser = await token('decision-fixture');
+  await expectStatus(await call(decisionUser, { action: 'import', rows: [{
+    Name: 'Cedar Example — Decision Engineer', Job: 'https://example.com/jobs/production-decision',
+    url: 'https://example.com/research/production-decision', Status: 'Held', Notes: 'Fictional decision fixture.',
+  }] }), 200, 'decision fixture import');
+  let decisionWorkspace = await (await call(decisionUser)).json();
+  const decisionJob = decisionWorkspace.jobs[0];
+  await expectStatus(await call(decisionUser, { action: 'save', id: decisionJob.id, version: decisionJob.version,
+    status: 'Held', draft: 'Fictional saved draft.', blocker: 'Required location answer; preserve the submission hold.',
+  }), 200, 'decision fixture stage');
+  decisionWorkspace = await (await call(decisionUser)).json();
+  const decisionInput = { action: 'drafting-decision', id: decisionJob.id, version: decisionWorkspace.jobs[0].version,
+    preference_version: decisionWorkspace.draftingPreference.version, viewer: decisionWorkspace.viewer,
+    operation_id: 'production-decision', choice: 'delegate', remember: true, answer: '',
+  };
+  await expectStatus(await call(null, decisionInput), 401, 'unsigned decision');
+  await expectStatus(await call(second, { ...decisionInput, viewer: saved.viewer }), 409, 'other-account decision');
+  await expectStatus(await call(decisionUser, decisionInput, { origin: 'https://untrusted.example.com' }), 403, 'cross-origin decision');
+  assert.deepEqual(await (await call(decisionUser)).json(), decisionWorkspace, 'Rejected decisions cannot change jobs, preferences or history');
+  await expectStatus(await call(decisionUser, decisionInput), 200, 'owner decision');
+  const decided = await (await call(decisionUser)).json();
+  assert.equal(decided.draftingPreference.routine, true);
+  assert.equal(decided.jobs[0].blocker, decisionWorkspace.jobs[0].blocker);
+  assert.equal(decided.jobs[0].draft, decisionWorkspace.jobs[0].draft);
+  assert.equal(decided.jobs[0].accepted_draft, null);
+  await expectStatus(await call(decisionUser, decisionInput), 200, 'decision receipt replay');
+  assert.deepEqual(await (await call(decisionUser)).json(), decided, 'Decision replay must not perform work twice');
   const limitedUser = await token('quota-fixture');
   console.log('Checking concurrent planner throttling.');
   const planReplies = await Promise.all(Array.from({ length: 15 }, () => fetch(`${base}/api/plan`, {

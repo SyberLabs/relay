@@ -5,6 +5,7 @@ import {
   type JobFields,
   type SaveSnapshot,
 } from './editor.ts';
+import type { DraftingPreference } from './drafting-decision.ts';
 
 export type SessionGate = {
   epoch: number;
@@ -18,6 +19,7 @@ export type WorkspaceSession = {
 };
 
 export type WorkspaceReply = {
+  draftingPreference?: DraftingPreference;
   jobs?: JobFields[];
   sources?: unknown[];
   events?: unknown[];
@@ -47,6 +49,7 @@ export type RefreshOutcome =
       sources: unknown[];
       events: unknown[];
       facts: unknown[];
+      draftingPreference?: DraftingPreference;
     };
 
 export type MutationOutcome =
@@ -193,6 +196,9 @@ export async function processRefresh(
     sources: reply.body.sources ?? [],
     events: reply.body.events ?? [],
     facts: reply.body.facts ?? [],
+    ...(reply.body.draftingPreference
+      ? { draftingPreference: reply.body.draftingPreference }
+      : {}),
   };
 }
 

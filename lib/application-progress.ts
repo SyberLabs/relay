@@ -107,11 +107,12 @@ export async function saveProgress(
     // entire receipt prevents an operation-ID collision from changing the job.
     // Neither statement depends on connection-local changes() state.
     db
-      .prepare(`UPDATE jobs SET blocker=?,version=version+1,updated=?
+      .prepare(`UPDATE jobs SET drafting_direction=CASE WHEN blocker=? THEN drafting_direction ELSE '' END,blocker=?,version=version+1,updated=?
       WHERE id=? AND owner=? AND version=?
       AND EXISTS (SELECT 1 FROM events WHERE id=? AND owner=? AND job_id=?
         AND kind='Progress saved' AND detail=?)`)
       .bind(
+        b.blocker,
         b.blocker,
         now,
         b.id,

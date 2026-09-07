@@ -6,6 +6,7 @@ import { jobKey } from '../lib/domain.ts';
 import { editorIsDirty, loadEditor } from '../lib/editor.ts';
 import { firstJobShouldSelectSaved } from '../lib/first-job.ts';
 import * as helper from '../lib/workspace-refresh.ts';
+import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
 
 function deferred() {
   let resolve;
@@ -46,6 +47,7 @@ function compileSaveFirstJob(deps) {
 function baseDeps(state, session, fetcher) {
   const deps = {
     ...helper,
+    defaultDraftingPreference,
     jobKey,
     editorIsDirty,
     loadEditor,
@@ -65,6 +67,7 @@ function baseDeps(state, session, fetcher) {
     'sources',
     'events',
     'facts',
+    'draftingPreference',
     'editor',
     'importText',
     'previewedImport',

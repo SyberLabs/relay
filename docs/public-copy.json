@@ -12,6 +12,7 @@
     "One history per job: matching posting URLs join the same record, and earlier research stays visible.",
     "Add a job from a role title, HTTP(S) posting URL, and optional notes. Matching URLs join that existing record without resetting status or accepted drafts.",
     "Exact draft acceptance: you approve specific wording; changing it requires review again.",
+    "A focused question review lets you delegate routine writing choices, remember that preference, or share a short answer. Your assistant receives the direction on its next context read; required facts and exact draft acceptance remain separate.",
     "Interview notes and follow-ups that do not reset a submitted or live-loop application.",
     "Import a tracker CSV through column mapping and a record preview. Imported statuses stay research; existing Relay status and accepted drafts are preserved.",
     "A reusable candidate fact ledger: you confirm accuracy. Agent draft logs check selected claim patterns using word and number overlap with cited facts; unsupported claims can still pass.",

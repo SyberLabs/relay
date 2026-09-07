@@ -73,7 +73,7 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
       {
         name: 'relay_read_application',
         description:
-          'Read one application: job id/version, research, saved candidate facts, saved and accepted wording, and a page of action history. Start here before drafting; reuse saved context instead of asking for it again. Facts are user-confirmed, not automatically selected for relevance. No writes or approval. Pass history.next as before for older events.',
+          'Read one application: job id/version, research, saved candidate facts, saved and accepted wording, and a page of action history. Start here before drafting; reuse saved context and the user’s drafting preference/direction instead of asking again. Choose grounded wording and omit optional unsupported claims. Ask one short question only for a required missing answer. Facts are user-confirmed, not automatically selected for relevance. No writes or approval. Pass history.next as before for older events.',
         readOnly: true,
         schema: object({ id: { type: 'string' }, before: { type: 'string' } }, [
           'id',
@@ -88,7 +88,7 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
       {
         name: 'relay_read_workspace',
         description:
-          'Read opportunities, blockers and exact saved drafts. Does not modify records.',
+          'Read opportunities, blockers, saved drafting preferences and per-job drafting_direction alongside exact saved drafts. Use relay_read_application before drafting or asking the user another question. Does not modify records.',
         readOnly: true,
         schema: object({}),
         run: async () => ({
@@ -180,7 +180,7 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
       {
         name: 'relay_stage_draft',
         description:
-          'Save a draft into a job record for human review. Never accepts a draft or submits an application. Requires id, current version, draft and blocker.',
+          'Save a draft into a job record for human review. Never accepts a draft or submits an application. Requires id, current version, draft and blocker. Read application context first and follow the saved drafting preference. Use an empty blocker when resolved; routine wording choices and optional examples are not blockers. Keep a true blocker to one short required question and put explanations in progress notes.',
         readOnly: false,
         schema: object(
           {

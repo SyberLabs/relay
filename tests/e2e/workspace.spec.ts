@@ -64,6 +64,7 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
     .click();
   const draft =
     'I reviewed this exact answer against the fictional role requirements.';
+  await page.locator('details.review-notes > summary').click();
   await page.getByRole('textbox', { name: 'Blocker or missing fact' }).fill('');
   await page
     .getByRole('textbox', { name: 'Application answer or outreach draft' })
@@ -205,6 +206,7 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
     .getByRole('button', { name: /CSV Browser Example — Engineer/ })
     .click();
   const draft = 'My exact reviewed CSV application answer.';
+  await page.locator('details.review-notes > summary').click();
   await page.getByRole('textbox', { name: 'Blocker or missing fact' }).fill('');
   await page
     .getByRole('textbox', { name: 'Application answer or outreach draft' })

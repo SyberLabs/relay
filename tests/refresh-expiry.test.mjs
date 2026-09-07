@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/workspace-refresh.ts';
+import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
 
 void test('a refresh cannot restore records after a synchronous expiry callback', async () => {
   const source = readFileSync('app/workspace.tsx', 'utf8');
@@ -26,6 +27,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
     const state = { jobs: [], editor: null, signedOut: false };
     const deps = {
       ...helper,
+      defaultDraftingPreference,
       sessionRef: { current: session },
       selectedRef: { current: '' },
       loadJobHistory: async () => {},
@@ -37,6 +39,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       'sources',
       'events',
       'facts',
+      'draftingPreference',
       'editor',
       'importText',
       'previewedImport',

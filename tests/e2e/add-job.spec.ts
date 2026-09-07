@@ -179,6 +179,7 @@ test('normalized duplicate URL adds research without losing accepted work', asyn
     .getByRole('textbox', { name: 'Research notes' })
     .fill('First fictional look.');
   await page.getByRole('button', { name: 'Save job' }).click();
+  await page.locator('details.review-notes > summary').click();
   await page.getByRole('textbox', { name: 'Blocker or missing fact' }).fill('');
   const draft = 'Exact fictional accepted wording for the duplicate check.';
   await page
@@ -309,6 +310,8 @@ for (const field of ['draft', 'progressNote'] as const) {
           ? 'Application answer or outreach draft'
           : 'Progress note',
     });
+    if (field !== 'draft')
+      await page.locator('details.review-notes > summary').click();
     await draft.fill('Typed while add-job was in flight.');
     releaseImport();
     await expect(page.getByText(/Job saved/)).toBeVisible();

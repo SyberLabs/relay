@@ -50,6 +50,9 @@ const noteField = (page: Page) =>
   page.getByRole('textbox', { name: 'Progress note', exact: true });
 async function select(page: Page, job: Job) {
   await page.getByRole('button', { name: new RegExp(job.name) }).click();
+  const notes = page.locator('details.review-notes');
+  if ((await notes.getAttribute('open')) === null)
+    await notes.locator('summary').click();
 }
 async function saveProgress(page: Page) {
   const response = page.waitForResponse(

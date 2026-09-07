@@ -13,3 +13,5 @@ Seth (`@sdcarlson`) and Mateo (`@sykosyber`) use [the development board](https:/
 `priority:P0` interrupts work for an incident or critical vulnerability. `priority:P1` blocks the next user/release outcome. `priority:P2` waits until that outcome is met. Put dependencies in the issue and use Blocked rather than silently leaving work In progress.
 
 See [delivery and operations](docs/delivery.md) and [hosting setup](docs/hosting.md) for exact checks and release configuration. Ask for one peer approval; adding more approval layers does not improve a two-person team.
+
+Every feature must also satisfy [abuse and cost controls](docs/abuse-controls.md), including bounded work, usage/storage quotas, and tests proving refused work cannot proceed.

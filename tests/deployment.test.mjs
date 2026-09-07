@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { releaseConfig } from '../scripts/release/config.mjs';
 import { verifyManifest } from '../scripts/release/artifact.mjs';
 
-const env = { ACCESS_ISSUER: 'https://relay.cloudflareaccess.com', ACCESS_AUD: 'a'.repeat(64),
+const env = { ACCESS_ISSUER: 'https://relay.cloudflareaccess.com', ACCESS_AUD: 'a'.repeat(64), TURNSTILE_SITE_KEY: 'fictional-site-key',
   CLOUDFLARE_ACCOUNT_ID: 'b'.repeat(32), D1_DATABASE_ID: '11111111-1111-4111-8111-111111111111',
   WORKER_NAME: 'relay-staging', RELEASE_SHA: 'c'.repeat(40), DEPLOY_URL: 'https://staging.relay.example' };
 const workersLabel = 'acct';
@@ -22,6 +22,11 @@ function assertGatewayBindings(config) {
   assert.equal(config.main, './dist/gateway/worker.js');
   assert.equal(config.no_bundle, true);
   assert.equal(config.d1_databases[0].binding, 'DB');
+  assert.equal(config.limits.cpu_ms, 100);
+  assert.equal(config.ratelimits[0].name, 'EDGE_RATE_LIMITER');
+  assert.deepEqual(config.ratelimits[0].simple, { limit: 300, period: 60 });
+  assert.equal(config.vars.TURNSTILE_SITE_KEY, env.TURNSTILE_SITE_KEY);
+  assert.equal(config.vars.RELAY_PAUSE, '');
 }
 
 void test('production configuration cannot expose static assets before identity verification', () => {

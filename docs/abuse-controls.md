@@ -1,0 +1,58 @@
+# Relay abuse and cost controls
+
+Owner: Seth. Peer reviewer: Mateo. This is a release requirement for every future Relay change.
+
+## Enforcement contract
+
+All deployed traffic must enter `deploy/worker.mjs` through the production identity gateway. Do not deploy the development server, Sites development identity, or raw compiled application as an alternate public entry point. New pages, API routes, aliases, and unknown paths automatically inherit the gateway controls. Health checks, identity redirects, and authenticated static assets have the edge burst limit; application work also has durable quotas. Only known static path prefixes can skip durable accounting, and only on an actual asset hit.
+
+Cloudflare Access authenticates users before any account quota is read or written. Quota keys derive from the verified subject, never a client-supplied owner, email, API key identifier, or forwarded header. Edge rate limiting uses Cloudflare's connecting IP and groups missing IPs together. Access, origin checks, owner isolation, and exact-text acceptance remain separate requirements; CAPTCHA replaces none of them.
+
+| Resource | Initial invited-pilot limit |
+| --- | --- |
+| Every gateway request, including anonymous and assets | 300 per IP per minute at each edge location |
+| Dynamic requests, all routes combined | 120 per verified user per minute |
+| Mutations, all routes combined | 20 per user per minute |
+| Planner | 6 per user per minute |
+| Application work | 3,000 units/user/UTC day; 100,000 units/global/UTC day; 2,000,000 units/global/UTC month |
+| Work weight | 10 per mutation or planner request; 1 per other dynamic request |
+| Request bodies | 2,000,000 actual bytes for workspace; 256,000 elsewhere; 8,192 for CAPTCHA submission; 10-second read deadline |
+| Cumulative input | 100,000,000 bytes/user, with no automatic reset |
+| Worker CPU | 100 ms per invocation |
+| Human verification | Required after 20 write attempts in a UTC hour; successful verification lasts one hour |
+
+These are conservative starting policies, not measured capacity or a currency-denominated bill ceiling. Tune them only with review and recorded cohort workload/cost evidence. Fixed windows allow boundary bursts. Edge limiting is eventually consistent and is **not** billing accounting; D1 conditional reservations enforce the application budgets atomically, including concurrent requests across isolates. Older windows cannot overwrite newer ones. Reservations precede work and are never refunded, including failed requests or a later quota rejection. This prevents failure/retry loops from becoming free work, but can consume quota for unsuccessful operations.
+
+Storage caps are enforced in the database for every insertion and owner transfer, including paths outside the gateway: jobs 500, observations 5,000, events 20,000, profile facts 500, style rules 500, drafts 5,000, review batches 1,000, choices 2,000, outcomes 5,000, and refusals 5,000 per owner. Existing over-limit data remains intact; updates to existing rows and deletion remain possible. An insert that exceeds the cap aborts its SQL statement/transaction. Do not silently prune application history. The lifetime input allowance is conservative admission accounting, not a measurement of current stored bytes; deleting records does not automatically refund it.
+
+## CAPTCHA and refusal behavior
+
+The gateway returns 429 with `Retry-After` for throttles and timed quotas; 403 with `verification_url` for step-up; 413 for oversized bodies; 408 for slow/failed bodies; and 503 when enforcement or verification is unavailable. Lifetime storage/input exhaustion requires support rather than a fictitious reset time. Database storage errors use the existing route error handling. Do not automatically retry mutations: preserve unsaved text and let the user deliberately retry after resolving the refusal.
+
+The shared **Verify access** link opens `/security/check` in a separate tab to preserve unsaved work. The authenticated form submits a Turnstile token to server-side Siteverify. Success, exact deployment hostname, and the `relay_write` action must all match. Tokens expire and are single-use at the provider. Origin checking prevents another site from submitting verification. Clearance is stored against the verified account, shared by its sessions, expires after an hour, and cannot lift a quota. Missing keys, network failures, invalid tokens, and stale clearances never grant access.
+
+## Provision and release
+
+1. Track implementation and acceptance in [issue #87](https://github.com/SyberLabs/relay/issues/87), owned by Seth, with peer review by Mateo. Future changes must also link their implementation issue and record how they preserve this framework.
+2. Create separate staging/production Turnstile widgets restricted to each exact deployed hostname. Set the environment variable `TURNSTILE_SITE_KEY` in GitHub. Store `TURNSTILE_SECRET_KEY` as a Cloudflare Worker secret in each environment using the existing operator secret workflow. Never place a secret in GitHub variables, Wrangler JSON, source, logs, or an artifact. The release config requires the site key, and authenticated readiness refuses an absent secret or missing security tables.
+3. Apply migration `0006_strong_stark_industries.sql` using the existing release pipeline. It adds security tables, indexes, and storage triggers without deleting or rewriting user records. Its generated snapshot also records the already hand-authored migrations 0002–0005; its SQL deliberately does not recreate those tables.
+4. Run required CI, review the final branch, stage the immutable release, and obtain the existing peer production approval. Verify real Turnstile success/replay rejection on staging, a normal save/reload, a 429 without writes, and missing-binding/key refusal. Local tests use fictional identities and stub provider replies; they cannot certify deployed Turnstile, account-level WAF, or actual cloud billing.
+5. Keep migration 0006 when rolling back application code; use the release system's schema compatibility checks. An older gateway loses request/CAPTCHA controls, although storage triggers remain. Do not roll back security enforcement without an explicit incident decision and temporary edge restriction. Never drop the counters as routine rollback: that resets budgets.
+
+`RELAY_PAUSE=writes` stops mutations while retaining reads; `all` stops dynamic application work. Health checks, static assets, and identity redirects remain available under their edge limit. Set this Worker variable for incident response and mirror it in the GitHub environment before the next deployment. An empty string resumes service; other values fail release configuration. This is an application circuit breaker, not an account-wide billing shutdown.
+
+Quota overrides require an operator to identify the hashed authenticated subject and exact counter, record a reason and new allowance, and verify the change; there is no user-accessible reset endpoint. Do not reset global counters to solve an individual support request. Security counters have fixed rows per authenticated account/scope; windows replace rows rather than accumulating records. Account deletion must also remove that account's hashed counter prefix and clearance, while preserving global totals. Never retain CAPTCHA tokens or user content in telemetry.
+
+## Controls for future changes
+
+Before introducing any new expensive operation, document its owner, admission weight, input/batch/pagination limits, worst-case work and storage, retry/idempotency behavior, and failure mode. Add regression coverage showing a refused request cannot mutate data or reach an upstream provider. New database tables need owner-scoped storage limits. Do not disable a failing quota or test to make a feature pass.
+
+Relay currently makes no paid server-side AI generation calls. External assistants and CLI connectors run outside the deployed gateway and use the caller's resources. Before adding a Relay-funded model, search, email, scraping, or queue operation, require an atomic reservation of the maximum possible charge against both user and global daily/monthly currency budgets. Enforce provider/model allowlists, output-token and batch caps, maximum attempts, timeouts, concurrency limits, durable idempotency, and a kill switch. Reserve before enqueue and reconcile against actual usage without double refunds; ambiguous outcomes retain the reservation. A queue consumer must re-check authorization and admission independently. No unbounded paid work may ship behind the generic work-unit quota alone.
+
+Track 429/403/413/503 rates, admitted units, D1 rows read/written, storage, CPU, and actual provider spend using content-free metrics. Configure provider billing notifications at 50%, 80%, and 100% of the operator-approved budget, plus account/zone edge protections. Billing alerts do not stop spending; global application quotas do not cap rejected gateway invocation charges or account-wide costs. These external settings require operator verification and are not provisioned by source code.
+
+## References
+
+- [Cloudflare rate limiting semantics](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
+- [Turnstile server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/) (hostname/action validation and single-use tokens)
+- [Existing delivery gates](delivery.md) and [hosting operations](hosting.md)

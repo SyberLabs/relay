@@ -5,6 +5,16 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/sqlite-core';
+// Fixed rows per authenticated owner/scope; windows overwrite rather than grow.
+export const securityCounters = sqliteTable('security_counters', {
+  scope: text('scope').primaryKey(),
+  period: text('period').notNull(),
+  used: integer('used').notNull(),
+});
+export const securityClearances = sqliteTable('security_clearances', {
+  owner: text('owner').primaryKey(),
+  expires: integer('expires').notNull(),
+});
 export const jobs = sqliteTable(
   'jobs',
   {

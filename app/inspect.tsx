@@ -149,16 +149,11 @@ export function useInspectSnapshot(jobId: string | undefined) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [signedOut, setSignedOut] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState(jobId);
   const gateRef = useRef(createInspectPollGate());
   const inflightRef = useRef<AbortController | null>(null);
-  const selectedRef = useRef(jobId);
-  // Invalidate in-flight polls during render so Accept cannot keep the previous job.
-  // oxlint-disable-next-line react/react-compiler
-  if (selectedRef.current !== jobId) {
-    // oxlint-disable-next-line react/react-compiler
-    selectedRef.current = jobId;
-    // oxlint-disable-next-line react/react-compiler
-    selectInspectJob(gateRef.current, jobId);
+  if (selectedJobId !== jobId) {
+    setSelectedJobId(jobId);
     setView(null);
     setBusy(false);
     setError('');
@@ -220,12 +215,9 @@ export function useInspectSnapshot(jobId: string | undefined) {
   }, []);
 
   useEffect(() => {
-    if (gateRef.current.jobId !== jobId)
-      selectInspectJob(gateRef.current, jobId);
+    selectInspectJob(gateRef.current, jobId);
+    inflightRef.current?.abort();
     if (!jobId) return;
-    // Fetch now; setState runs after the GET, not synchronously in this effect.
-    // oxlint-disable-next-line react/react-compiler
-    void load();
     const timer = window.setInterval(() => {
       void load();
     }, 3000);
@@ -233,6 +225,10 @@ export function useInspectSnapshot(jobId: string | undefined) {
       if (document.visibilityState === 'visible') void load();
     }
     document.addEventListener('visibilitychange', onVisibility);
+    void Promise.resolve().then(() => {
+      if (gateRef.current.jobId !== jobId) return;
+      void load();
+    });
     return () => {
       inflightRef.current?.abort();
       window.clearInterval(timer);
@@ -260,7 +256,8 @@ export function useInspect(
   const inspect = useInspectSnapshot(jobId);
   const shown = inspect.view;
   useEffect(() => {
-    if (inspect.signedOut) onSignedOut?.();
+    if (!inspect.signedOut) return;
+    void Promise.resolve().then(() => onSignedOut?.());
   }, [inspect.signedOut, onSignedOut]);
 
   async function approve() {

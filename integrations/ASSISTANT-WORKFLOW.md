@@ -33,6 +33,25 @@ The CLI deliberately refuses deployed hostnames: it supports development mock si
 
 ## Capability evidence and remaining boundaries
 
+Open **Prepare this job for an assistant** in the signed-in workspace to check this tab's
+browser assistant tool status. Relay requires
+`document.modelContext.registerTool`; a reachable workspace alone does not
+establish that capability. An unavailable status requires a compatible host or
+file handoff. A registration failure removes this attempt's tools; preserve
+unsaved work before reloading. Registered means all Relay registrations
+completed, not that the assistant can discover or call them. The host must
+provide that connection too. See the [current browser API](https://developer.chrome.com/docs/ai/webmcp/imperative-api).
+
+For [#117](https://github.com/SyberLabs/relay/issues/117), record the deployment
+commit, browser/version, displayed registration status, assistant-visible tool
+names, and actual call results. In the authenticated assistant session, use a
+fictional job to read context, stage exact wording with its generation-time
+version and an explicit blocker, then reread wording, version and history.
+Record elapsed time and human interventions separately. Keep exact acceptance
+as a human action. Do not put private drafts, cookies or credentials in issue
+evidence. A mocked registration test or a different assistant's successful run
+does not establish Grok compatibility.
+
 Baseline inspected: `b45422f34d3e86f8a09138d064f2381d94a8a942` (issue #99). A local Codex in-app browser exposed real Relay WebMCP tools. The active Astra assistant retrieved a fictional job and saved fictional facts, wrote a draft and persisted it through `relay_stage_draft`. An additional CLI probe logged the wording but reported `staged: false` for the probationary cluster. Neither operation accepted it. Baseline tool reads omitted research/history; the selected-application read closes that context gap.
 
 The demonstration used a dedicated local database and the existing development mock identity. Fictional confirmed facts were seeded test fixtures, not evidence of human verification of real qualifications. An actual human exact-text approval and its retrieval are recorded separately in the PR evidence, or remain explicitly pending. Automated browser acceptance tests do not establish human approval or independent usability.

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import type { RelayToolStatus } from './agent-tools';
 import { assistantPrompt, type Assistant } from '../lib/assistant-handoff';
 import { type EditorTarget } from '../lib/editor';
 import {
@@ -27,6 +28,7 @@ function downloadFile(content: string, filename: string, type: string) {
 }
 
 export function Connections({
+  toolStatus,
   current,
   draft,
   notes,
@@ -35,6 +37,7 @@ export function Connections({
   onImport,
   openImport,
 }: {
+  toolStatus: RelayToolStatus;
   current?: {
     id: string;
     job_key: string;
@@ -134,6 +137,19 @@ export function Connections({
       <summary>
         <b>Prepare this job for an assistant</b>
       </summary>
+      <output aria-label="Browser assistant tools">
+        {
+          {
+            checking: 'Checking browser assistant tools…',
+            unavailable:
+              'This browser does not provide WebMCP tools. Use a compatible assistant browser or a file handoff.',
+            registered:
+              'Relay tools registered in this tab. Your assistant must also support discovering and calling them; registration alone does not confirm a connection.',
+            failed:
+              'Relay tools could not register in this tab. Reload to try registration again. Keep unsaved work before reloading, or use a file handoff.',
+          }[toolStatus]
+        }
+      </output>
       <p>
         Packet and draft files for this selected job. Bring research from
         Obsidian, Notion or Grok Bot, then review wording prepared with

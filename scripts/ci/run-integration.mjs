@@ -140,7 +140,11 @@ try {
       `Development server did not become ready. See outputs/ci/${suite}-server.log.`,
     );
   if (suite === 'browser')
-    await run([await bin('@playwright/test', 'playwright'), 'test']);
+    await run([
+      await bin('@playwright/test', 'playwright'),
+      'test',
+      ...process.argv.slice(3).filter((arg) => arg !== '--'),
+    ]);
   else await run([nodeSuites[suite]]);
 } finally {
   if (server?.pid && server.exitCode === null) {

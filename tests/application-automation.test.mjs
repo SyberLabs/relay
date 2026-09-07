@@ -394,6 +394,40 @@ const completePrep = (value = 'Avery Example') => ({
   fields: [{ label: 'Full name', value, unknown: false }],
   files: [],
 });
+async function inspectAuthorize(db, owner, op, at = now) {
+  const manifest = JSON.parse(op.manifest);
+  await upsertPreparation(
+    db,
+    owner,
+    {
+      job: op.job_id,
+      actor: op.actor,
+      destination: manifest.destination,
+      fields: manifest.fields.map((field) => ({
+        ...field,
+        unknown: false,
+      })),
+      files: manifest.files,
+    },
+    at,
+  );
+  await armPreparation(
+    db,
+    owner,
+    { job: op.job_id, id: op.id, actor: op.actor },
+    at,
+  );
+  await actOnApplication(db, owner, action(op, 'approve'), at);
+  return loadOperation(db, owner, op.id);
+}
+function grantExplicitReview(db, id) {
+  const result = db.sqlite
+    .prepare(
+      "UPDATE application_operations SET state='authorized', authority='explicit-review' WHERE id=? AND state='proposed'",
+    )
+    .run(id);
+  assert.equal(result.changes, 1);
+}
 
 void test('prepare of a different digest cancels a frozen op so begin cannot execute', async () => {
   const db = database();
@@ -456,7 +490,10 @@ void test('same-digest prepare clears arm without cancel so re-arm then begin st
     .get('alice', 'alice-0');
   assert.equal(stored.ready, 0);
   assert.equal(stored.armed_until, '');
-  assert.equal(stored.operation_id, null);
+  assert.equal(stored.operation_id, 'op-prep-same');
+  const view = await inspectApplication(db, 'alice', 'alice-0', expired);
+  assert.equal(view.state, 'proposed');
+  assert.equal(view.accept_enabled, false);
   const rearmed = await armPreparation(
     db,
     'alice',
@@ -478,6 +515,133 @@ void test('same-digest prepare clears arm without cancel so re-arm then begin st
     expired,
   );
   assert.equal(begun.execute, true);
+  db.sqlite.close();
+});
+
+void test('same-digest prepare after Accept keeps authorized freeze so re-arm does not cancel begin', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-prep-auth', actor: 'Fictional applying agent' },
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-prep-auth'), 'approve'),
+    now,
+  );
+  const later = '2026-09-07T12:00:10.000Z';
+  await upsertPreparation(db, 'alice', completePrep(), later);
+  const view = await inspectApplication(db, 'alice', 'alice-0', later);
+  assert.equal(view.state, 'authorized');
+  assert.equal(view.operation_id, 'op-prep-auth');
+  assert.equal(view.accept_enabled, false);
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-prep-auth')).state,
+    'authorized',
+  );
+  const rearmed = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-prep-auth', actor: 'Fictional applying agent' },
+    later,
+  );
+  assert.equal(rearmed.state, 'authorized');
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-prep-auth')).state,
+    'authorized',
+  );
+  const begun = await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-prep-auth'), 'begin'),
+    later,
+  );
+  assert.equal(begun.execute, true);
+  db.sqlite.close();
+});
+
+void test('blocked job keeps accept_enabled false even while armed', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  const armed = await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'op-blocked-accept',
+      actor: 'Fictional applying agent',
+    },
+    now,
+  );
+  assert.equal(armed.accept_enabled, true);
+  db.sqlite
+    .prepare(
+      "UPDATE jobs SET blocker='Unknown required answer' WHERE id='alice-0'",
+    )
+    .run();
+  const blocked = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(blocked.armed, true);
+  assert.equal(blocked.state, 'proposed');
+  assert.equal(blocked.accept_enabled, false);
+  db.sqlite.close();
+});
+
+void test('expired arm approve names the absent operative; policy miss does not', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-409-copy', actor: 'Fictional applying agent' },
+    now,
+  );
+  const op = await loadOperation(db, 'alice', 'op-409-copy');
+  const expired = '2026-09-07T12:00:21.000Z';
+  await assert.rejects(
+    () => actOnApplication(db, 'alice', action(op, 'approve'), expired),
+    (err) => {
+      assert.equal(err.message, 'Operative is not on the page.');
+      assert.equal(err.status, 409);
+      return true;
+    },
+  );
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    config({ version: 1, review: 'all', enabled: false }),
+    now,
+  );
+  await assert.rejects(
+    () => actOnApplication(db, 'alice', action(op, 'approve'), now),
+    (err) => {
+      assert.match(err.message, /No permission issued/);
+      assert.doesNotMatch(err.message, /Operative is not on the page/);
+      assert.equal(err.status, 409);
+      return true;
+    },
+  );
   db.sqlite.close();
 });
 
@@ -812,10 +976,16 @@ void test('exact fields/files survive proposal, restart, execution and confirmat
     },
   ];
   const op = await proposeApplication(db, 'alice', body, now);
-  assert.equal(op.authority, 'policy');
+  assert.equal(op.state, 'proposed');
+  assert.equal(op.authority, 'review-required');
   assert.deepEqual(JSON.parse(op.manifest), body.manifest);
   assert.equal(JSON.parse(op.policy_snapshot).version, 1);
   assert.deepEqual(await proposeApplication(db, 'alice', body, now), op);
+  await assert.rejects(
+    actOnApplication(db, 'alice', action(op, 'begin'), now),
+    /No permission issued/,
+  );
+  await inspectAuthorize(db, 'alice', op, now);
   const before = counts(db);
   assert.equal(
     (await actOnApplication(db, 'alice', action(op, 'begin'), now)).execute,
@@ -848,17 +1018,40 @@ void test('exact fields/files survive proposal, restart, execution and confirmat
   db.sqlite.close();
 });
 
+void test('policy-authority leftover cannot begin without explicit Inspect Accept', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  const op = await proposeApplication(db, 'alice', proposal(), now);
+  db.sqlite
+    .prepare(
+      "UPDATE application_operations SET state='authorized', authority='policy' WHERE id=?",
+    )
+    .run(op.id);
+  await assert.rejects(
+    actOnApplication(db, 'alice', action(op, 'begin'), now),
+    (err) => {
+      assert.match(err.message, /No permission issued/);
+      assert.doesNotMatch(err.message, /Operative is not on the page/);
+      return true;
+    },
+  );
+  db.sqlite.close();
+});
+
 void test('two agents cannot start the same job or execute concurrently; uncertainty never frees its job', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
   const a = await proposeApplication(db, 'alice', proposal(), now);
+  const other = await proposeApplication(db, 'alice', proposal(1), now);
+  await inspectAuthorize(db, 'alice', a, now);
   const b = await proposeApplication(
     db,
     'alice',
     proposal(0, { id: 'other-agent', actor: 'Other agent' }),
     now,
   );
-  const other = await proposeApplication(db, 'alice', proposal(1), now);
+  grantExplicitReview(db, b.id);
+  await inspectAuthorize(db, 'alice', other, now);
   await actOnApplication(db, 'alice', action(a, 'begin'), now);
   await assert.rejects(actOnApplication(db, 'alice', action(b, 'begin'), now));
   await assert.rejects(
@@ -951,6 +1144,7 @@ void test('stale job, revoked or expired policy, wrong owner and reused IDs refu
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
   const op = await proposeApplication(db, 'alice', proposal(), now);
+  await inspectAuthorize(db, 'alice', op, now);
   const before = counts(db);
   await assert.rejects(loadOperation(db, 'bob', op.id));
   await assert.rejects(actOnApplication(db, 'bob', action(op, 'begin'), now));
@@ -979,6 +1173,7 @@ void test('stale job, revoked or expired policy, wrong owner and reused IDs refu
   await changeApplicationPolicy(db, 'alice', config({ version: 2 }), now);
   await assert.rejects(actOnApplication(db, 'alice', action(op, 'begin'), now));
   const fresh = await proposeApplication(db, 'alice', proposal(1), now);
+  await inspectAuthorize(db, 'alice', fresh, now);
   db.sqlite
     .prepare('UPDATE jobs SET version=version+1 WHERE id=?')
     .run('alice-1');
@@ -993,6 +1188,7 @@ void test('daily and policy capacity count uncertain starts and cannot be exceed
   await changeApplicationPolicy(db, 'alice', config(), now);
   for (let i = 0; i < 10; i++) {
     const op = await proposeApplication(db, 'alice', proposal(i), now);
+    await inspectAuthorize(db, 'alice', op, now);
     await actOnApplication(db, 'alice', action(op, 'begin'), now);
     await actOnApplication(
       db,
@@ -1002,6 +1198,7 @@ void test('daily and policy capacity count uncertain starts and cannot be exceed
     );
   }
   const eleventh = await proposeApplication(db, 'alice', proposal(10), now);
+  await inspectAuthorize(db, 'alice', eleventh, now);
   const before = counts(db);
   await assert.rejects(
     actOnApplication(db, 'alice', action(eleventh, 'begin'), now),
@@ -1030,6 +1227,7 @@ void test('blockers and policy capacity prevent starts; explicit no-submission e
   const db = database();
   await changeApplicationPolicy(db, 'alice', config({ maximum: 1 }), now);
   const op = await proposeApplication(db, 'alice', proposal(), now);
+  await inspectAuthorize(db, 'alice', op, now);
   db.sqlite
     .prepare(
       "UPDATE jobs SET blocker='Unknown required answer' WHERE id='alice-0'",
@@ -1052,6 +1250,7 @@ void test('blockers and policy capacity prevent starts; explicit no-submission e
     proposal(0, { id: 'fresh' }),
     now,
   );
+  await inspectAuthorize(db, 'alice', fresh, now);
   await assert.rejects(
     actOnApplication(db, 'alice', action(fresh, 'begin'), now),
   );
@@ -1067,6 +1266,7 @@ void test('blockers and policy capacity prevent starts; explicit no-submission e
     proposal(0, { id: 'new-policy' }),
     now,
   );
+  grantExplicitReview(db, newlyPermitted.id);
   await actOnApplication(db, 'alice', action(newlyPermitted, 'begin'), now);
   assert.equal(
     (await loadOperation(db, 'alice', op.id)).state,
@@ -1177,6 +1377,7 @@ void test('overlapping uncertainty reports persist only the first report', async
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
   const op = await proposeApplication(db, 'alice', proposal(), now);
+  await inspectAuthorize(db, 'alice', op, now);
   await actOnApplication(db, 'alice', action(op, 'begin'), now);
   const reports = await Promise.allSettled([
     actOnApplication(
@@ -1238,6 +1439,7 @@ void test('completion reconciles progress edits and preserves later terminal sta
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
   const first = await proposeApplication(db, 'alice', proposal(), now);
+  await inspectAuthorize(db, 'alice', first, now);
   await actOnApplication(db, 'alice', action(first, 'begin'), now);
   db.sqlite
     .prepare(
@@ -1267,6 +1469,7 @@ void test('completion reconciles progress edits and preserves later terminal sta
     1,
   );
   const second = await proposeApplication(db, 'alice', proposal(1), now);
+  await inspectAuthorize(db, 'alice', second, now);
   await actOnApplication(db, 'alice', action(second, 'begin'), now);
   db.sqlite
     .prepare(

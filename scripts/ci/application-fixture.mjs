@@ -90,10 +90,46 @@ export async function verifyApplicationGateway({
     '148KB application through compiled gateway',
   );
   const { operation } = await response.json();
+  assert.equal(operation.state, 'proposed');
+  assert.equal(operation.authority, 'review-required');
   await expectStatus(
     await call(other, undefined, `?id=${operation.id}`),
     404,
     'cross-owner evidence read',
+  );
+  await expectStatus(
+    await call(owner, {
+      action: 'prepare',
+      viewer: initial.viewer,
+      job: job.id,
+      actor: 'Fictional applying agent',
+      destination: job.url,
+      fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+      files: proposed.manifest.files,
+    }),
+    200,
+    'prepare exact proposal for Inspect',
+  );
+  await expectStatus(
+    await call(owner, {
+      action: 'arm',
+      viewer: initial.viewer,
+      job: job.id,
+      id: operation.id,
+      actor: 'Fictional applying agent',
+    }),
+    200,
+    'arm exact proposal for Inspect',
+  );
+  await expectStatus(
+    await call(owner, {
+      action: 'approve',
+      viewer: initial.viewer,
+      id: operation.id,
+      digest: operation.digest,
+    }),
+    200,
+    'Inspect Accept before begin',
   );
   const start = {
     action: 'begin',
@@ -102,7 +138,10 @@ export async function verifyApplicationGateway({
     digest: operation.digest,
   };
   const competing = await Promise.all([call(owner, start), call(owner, start)]);
-  assert.deepEqual(competing.map((r) => r.status).sort((a, b) => a - b), [200, 409]);
+  assert.deepEqual(
+    competing.map((r) => r.status).sort((a, b) => a - b),
+    [200, 409],
+  );
   const uncertain = await Promise.all([
     call(owner, {
       ...start,
@@ -115,7 +154,10 @@ export async function verifyApplicationGateway({
       receipt: 'Fictional observation B',
     }),
   ]);
-  assert.deepEqual(uncertain.map((r) => r.status).sort((a, b) => a - b), [200, 409]);
+  assert.deepEqual(
+    uncertain.map((r) => r.status).sort((a, b) => a - b),
+    [200, 409],
+  );
   const observed = await (
     await call(owner, undefined, `?id=${operation.id}`)
   ).json();

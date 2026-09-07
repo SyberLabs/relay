@@ -200,6 +200,46 @@ export function emptyInspect(jobId: string): InspectView {
     accept_enabled: false,
   };
 }
+const PERMISSION_REFUSAL =
+  'No permission issued. State, policy, job version or capacity changed. Inspect the saved operation; never repeat an employer submission.';
+function inspectAcceptEnabled(
+  ready: boolean,
+  armed: boolean,
+  state: string | null,
+  job: { status: string; version: number; blocker: string },
+  jobId: string,
+  now: string,
+  operation: { job_version: number; policy_version: number } | null,
+  policy: ApplicationPolicy | null,
+) {
+  return (
+    ready &&
+    armed &&
+    state === 'proposed' &&
+    (job.status === 'Held' || job.status === 'Ready') &&
+    job.blocker === '' &&
+    !!operation &&
+    !!policy &&
+    Number(policy.enabled) === 1 &&
+    Date.parse(policy.expires) > Date.parse(now) &&
+    policy.version === operation.policy_version &&
+    job.version === operation.job_version &&
+    (JSON.parse(policy.jobs) as unknown[]).includes(jobId)
+  );
+}
+async function liveFreezeForDigest(
+  db: D1Database,
+  owner: string,
+  jobId: string,
+  hash: string,
+) {
+  return db
+    .prepare(
+      `SELECT * FROM application_operations WHERE owner=? AND job_id=? AND digest=? AND state IN ('proposed','authorized') ORDER BY CASE state WHEN 'authorized' THEN 0 ELSE 1 END, created DESC`,
+    )
+    .bind(owner, jobId, hash)
+    .first<ApplicationOperation>();
+}
 export async function inspectApplication(
   db: D1Database,
   owner: string,
@@ -208,13 +248,14 @@ export async function inspectApplication(
 ): Promise<InspectView> {
   requireThat(shortText(jobId, 100), 'A selected job is unavailable.', 404);
   const job = await db
-    .prepare('SELECT status FROM jobs WHERE owner=? AND id=?')
+    .prepare('SELECT status,version,blocker FROM jobs WHERE owner=? AND id=?')
     .bind(owner, jobId)
-    .first<{ status: string }>();
+    .first<{ status: string; version: number; blocker: string }>();
   requireThat(job, 'A selected job is unavailable.', 404);
+  const policy = await loadApplicationPolicy(db, owner);
   const row = await db
     .prepare(
-      `SELECT p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state
+      `SELECT p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state,o.job_version,o.policy_version
        FROM application_preparations p
        LEFT JOIN application_operations o ON o.owner=p.owner AND o.id=p.operation_id
        WHERE p.owner=? AND p.job_id=?`,
@@ -229,6 +270,8 @@ export async function inspectApplication(
       operation_id: string | null;
       digest: string | null;
       state: string | null;
+      job_version: number | null;
+      policy_version: number | null;
     }>();
   if (!row) return emptyInspect(jobId);
   const fields = JSON.parse(row.fields) as {
@@ -256,11 +299,21 @@ export async function inspectApplication(
     operation_id: row.operation_id,
     digest: row.digest ?? null,
     state,
-    accept_enabled:
-      ready &&
-      armed &&
-      state === 'proposed' &&
-      (job.status === 'Held' || job.status === 'Ready'),
+    accept_enabled: inspectAcceptEnabled(
+      ready,
+      armed,
+      state,
+      job,
+      jobId,
+      now,
+      row.job_version == null || row.policy_version == null
+        ? null
+        : {
+            job_version: row.job_version,
+            policy_version: row.policy_version,
+          },
+      policy,
+    ),
   };
 }
 export async function upsertPreparation(
@@ -313,24 +366,20 @@ export async function upsertPreparation(
       240000,
     'Submission exceeds 240,000 bytes.',
   );
-  await cancelPreBeginForJob(
-    db,
-    owner,
-    input.job,
-    now,
-    await digest(JSON.stringify(manifest)),
-  );
+  const hash = await digest(JSON.stringify(manifest));
+  await cancelPreBeginForJob(db, owner, input.job, now, hash);
+  const keep = await liveFreezeForDigest(db, owner, input.job, hash);
   await statement(
     db,
     `INSERT INTO application_preparations (owner,job_id,actor,job_version,destination,fields,files,operation_id,ready,armed_until,updated)
-     VALUES (?,?,?,?,?,?,?,NULL,0,'',?)
+     VALUES (?,?,?,?,?,?,?,?,0,'',?)
      ON CONFLICT(owner,job_id) DO UPDATE SET
        actor=excluded.actor,
        job_version=excluded.job_version,
        destination=excluded.destination,
        fields=excluded.fields,
        files=excluded.files,
-       operation_id=NULL,
+       operation_id=excluded.operation_id,
        ready=0,
        armed_until='',
        updated=excluded.updated`,
@@ -341,6 +390,7 @@ export async function upsertPreparation(
     manifest.destination,
     fieldsJson,
     filesJson,
+    keep?.id ?? null,
     now,
   ).run();
   return inspectApplication(db, owner, input.job, now);
@@ -400,23 +450,20 @@ export async function answerPreparation(
     fields: fields.map(({ label, value }) => ({ label, value })),
     files: JSON.parse(prep.files),
   });
-  await cancelPreBeginForJob(
-    db,
-    owner,
-    input.job,
-    now,
-    await digest(JSON.stringify(manifest)),
-  );
+  const hash = await digest(JSON.stringify(manifest));
+  await cancelPreBeginForJob(db, owner, input.job, now, hash);
+  const keep = await liveFreezeForDigest(db, owner, input.job, hash);
   await statement(
     db,
     `UPDATE application_preparations SET
        fields=?,
-       operation_id=NULL,
+       operation_id=?,
        ready=0,
        armed_until='',
        updated=?
      WHERE owner=? AND job_id=?`,
     fieldsJson,
+    keep?.id ?? null,
     now,
     owner,
     input.job,
@@ -492,16 +539,19 @@ export async function armPreparation(
     files: JSON.parse(prep.files),
   });
   const hash = await digest(JSON.stringify(manifest));
-  const linked = prep.operation_id
+  const byId = prep.operation_id
     ? await db
         .prepare('SELECT * FROM application_operations WHERE owner=? AND id=?')
         .bind(owner, prep.operation_id)
         .first<ApplicationOperation>()
     : null;
-  const liveFreeze =
-    linked?.digest === hash &&
-    (linked.state === 'proposed' || linked.state === 'authorized');
-  let operationId = liveFreeze ? linked.id : null;
+  const matchingFreeze =
+    byId?.digest === hash &&
+    (byId.state === 'proposed' || byId.state === 'authorized')
+      ? byId
+      : await liveFreezeForDigest(db, owner, input.job, hash);
+  const linked = matchingFreeze ?? byId;
+  let operationId = matchingFreeze?.id ?? null;
   if (!operationId) {
     const policy = await loadApplicationPolicy(db, owner);
     const jobRow = await db
@@ -556,20 +606,12 @@ export async function armPreparation(
       },
       now,
     );
-    if (op.state !== 'proposed') {
-      if (op.state === 'authorized')
-        await actOnApplication(
-          db,
-          owner,
-          { id: op.id, digest: op.digest, action: 'cancel' },
-          now,
-        );
-      requireThat(
-        false,
-        'Inspect freeze requires review of every application.',
-        409,
-      );
-    }
+    requireThat(
+      op.state === 'proposed' ||
+        (op.state === 'authorized' && op.digest === hash),
+      'Inspect freeze requires review of every application.',
+      409,
+    );
     operationId = op.id;
   }
   await statement(
@@ -721,21 +763,11 @@ export async function proposeApplication(
   }
   const policy = await loadApplicationPolicy(db, owner);
   requireThat(policy, 'Configure application permissions first.', 409);
-  const job = await db
-    .prepare('SELECT url FROM jobs WHERE owner=? AND id=? AND version=?')
-    .bind(owner, input.job, input.version)
-    .first<{ url: string }>();
-  const authority =
-    policy.review === 'sensitive' &&
-    job?.url === JSON.parse(manifest).destination &&
-    !requiresReview(JSON.parse(manifest))
-      ? 'policy'
-      : 'review-required';
   const result = await db.batch([
     statement(
       db,
       `INSERT INTO application_operations (id,owner,job_id,job_version,policy_version,policy_snapshot,actor,manifest,digest,state,authority,created,receipt)
-      SELECT ?,?,?,?,?,?,?,?,?, ?,?,?,'' FROM jobs j JOIN application_policies p ON p.owner=j.owner
+      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,'' FROM jobs j JOIN application_policies p ON p.owner=j.owner
       WHERE j.owner=? AND j.id=? AND j.version=? AND j.status IN ('Held','Ready')
       AND p.version=? AND p.enabled=1 AND p.expires>? AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id)`,
       input.id,
@@ -747,8 +779,8 @@ export async function proposeApplication(
       input.actor,
       manifest,
       hash,
-      authority === 'policy' ? 'authorized' : 'proposed',
-      authority,
+      'proposed',
+      'review-required',
       now,
       owner,
       input.job,
@@ -795,7 +827,7 @@ export async function actOnApplication(
     args = [owner, op.id, now, now];
     kind = 'Application explicitly reviewed';
   } else if (input.action === 'begin') {
-    sql = `UPDATE application_operations SET state='executing',started=? WHERE owner=? AND id=? AND state='authorized' AND ${authorized}
+    sql = `UPDATE application_operations SET state='executing',started=? WHERE owner=? AND id=? AND state='authorized' AND authority='explicit-review' AND ${authorized}
       AND (SELECT COUNT(*) FROM application_operations a WHERE a.owner=? AND a.started>=?)<10
       AND (SELECT COUNT(*) FROM application_operations a WHERE a.owner=? AND a.policy_version=? AND a.started IS NOT NULL)<(SELECT maximum FROM application_policies WHERE owner=?)
       AND NOT EXISTS (SELECT 1 FROM application_operations a WHERE a.owner=application_operations.owner AND a.state='executing')
@@ -886,13 +918,19 @@ export async function actOnApplication(
       ),
     );
   const result = await db.batch(statements);
-  requireThat(
-    result[0].meta.changes === 1,
-    input.action === 'approve'
-      ? 'Operative is not on the page.'
-      : 'No permission issued. State, policy, job version or capacity changed. Inspect the saved operation; never repeat an employer submission.',
-    409,
-  );
+  if (result[0].meta.changes !== 1) {
+    let refusal = PERMISSION_REFUSAL;
+    if (input.action === 'approve') {
+      const liveArm = await db
+        .prepare(
+          'SELECT 1 FROM application_preparations WHERE owner=? AND job_id=? AND operation_id=? AND armed_until>?',
+        )
+        .bind(owner, op.job_id, op.id, now)
+        .first();
+      refusal = liveArm ? PERMISSION_REFUSAL : 'Operative is not on the page.';
+    }
+    throw new ApplicationRefusal(refusal, 409);
+  }
   return {
     operation: await loadOperation(db, owner, op.id),
     execute: input.action === 'begin' || undefined,

@@ -151,11 +151,13 @@ void test('Ready lead does not claim visible wording is accepted', () => {
   };
   const accepted = loadEditor(job);
   const edited = { ...accepted, draft: 'Changed visible wording' };
-  const progressNote = { ...accepted, blocker: 'Call back Thursday' };
+  const blockerEdit = { ...accepted, blocker: 'Call back Thursday' };
+  const progressNote = { ...accepted, progressNote: 'Review recorded' };
   const conflicted = { ...accepted, conflict: true };
   assert.equal(showsExactAcceptance(job, accepted), true);
+  assert.equal(showsExactAcceptance(job, progressNote), true);
   assert.equal(showsExactAcceptance(job, edited), false);
-  assert.equal(showsExactAcceptance(job, progressNote), false);
+  assert.equal(showsExactAcceptance(job, blockerEdit), false);
   assert.equal(showsExactAcceptance(job, conflicted), false);
 
   const lead = loopStepLead('Ready');

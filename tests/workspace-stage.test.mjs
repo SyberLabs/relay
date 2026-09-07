@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { loadEditor, showsExactAcceptance } from '../lib/editor.ts';
 import {
   headerAddJobIsPrimary,
   loopStepLead,
@@ -137,6 +138,39 @@ void test('loop copy names the legal next work without sending applications', ()
   assert.match(loopStepLead('Submitted'), /status/i);
   assert.match(loopStepLead('Closed'), /cannot reopen/i);
   assert.doesNotMatch(loopStepLead('Held'), /send/i);
+});
+
+void test('Ready lead does not claim visible wording is accepted', () => {
+  const job = {
+    id: 'A',
+    version: 1,
+    status: 'Ready',
+    draft: 'Exact accepted',
+    blocker: '',
+    accepted_draft: 'Exact accepted',
+  };
+  const accepted = loadEditor(job);
+  const edited = { ...accepted, draft: 'Changed visible wording' };
+  const progressNote = { ...accepted, blocker: 'Call back Thursday' };
+  const conflicted = { ...accepted, conflict: true };
+  assert.equal(showsExactAcceptance(job, accepted), true);
+  assert.equal(showsExactAcceptance(job, edited), false);
+  assert.equal(showsExactAcceptance(job, progressNote), false);
+  assert.equal(showsExactAcceptance(job, conflicted), false);
+
+  const lead = loopStepLead('Ready');
+  const dirtyHeader = stageLead({
+    page: 'workspace',
+    signedOut: false,
+    jobCount: 1,
+    selectedStatus: 'Ready',
+    editorDirty: true,
+  });
+  for (const text of [lead, dirtyHeader]) {
+    assert.doesNotMatch(text, /this wording is accepted/i);
+    assert.match(text, /receipt/i);
+    assert.doesNotMatch(text, /review research and accept/i);
+  }
 });
 
 void test('dirty editor does not change stage or the legal primary action', () => {

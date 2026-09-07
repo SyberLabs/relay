@@ -71,7 +71,7 @@ export function stageLead(view: StageView): string {
 
 export function loopStepLead(status: string | null): string {
   if (status === 'Ready')
-    return 'This wording is accepted. Record a submission with a receipt when you send it yourself.';
+    return 'Record a submission with a receipt when you send the saved accepted draft yourself.';
   if (status === 'Submitted' || status === 'Live loop')
     return 'Save notes and follow-up drafts. Saving keeps this application status.';
   if (status === 'Skip')

@@ -1463,7 +1463,10 @@ export default function Workspace() {
                         Acceptance records your approval of these exact words.
                         Changed wording needs fresh acceptance. Nothing is sent.
                       </small>
-                      <section id="application-inspect" aria-label="Prepared application">
+                      <section
+                        id="application-inspect"
+                        aria-label="Prepared application"
+                      >
                         {inspect}
                       </section>
                       {connections}

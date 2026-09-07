@@ -10,10 +10,10 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.match(workspace, /What the agent knows about you/);
   assert.match(workspace, /Stuck, needs your answer/);
   assert.match(workspace, /Inspect what the agent wrote/);
-  assert.match(workspace, /Approve and send/);
+  assert.match(workspace, /Review prepared application/);
   assert.match(
     workspace,
-    /href="\/applications"[\s\S]{0,80}onClick=\{confirmLeave\}/,
+    /href="#application-inspect"[\s\S]{0,80}onClick=\{confirmLeave\}/,
   );
   assert.match(modals, /Open Your facts/);
   assert.match(modals, /onClick=\{onNavigate\}/);

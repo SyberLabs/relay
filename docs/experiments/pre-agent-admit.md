@@ -42,6 +42,8 @@ The comparison of interest is **treatment versus `control_known`**: same spec, s
 - Compare JSON contains counts and rates only. Import files that contain posting text stay in `--out` (use ignored `private-data/` for live hunts).
 - This process is not admitted through the production Worker. It uses the operator’s machine. Do not add a Relay-funded crawl, embedder, or queue here; that would require the currency-budget controls in `docs/abuse-controls.md`.
 
+Which public directories can fill `--directory` (already slugs vs name/website scout corpora) is recorded in [directory-sources.md](directory-sources.md). The live ranking: LastRound AI’s CC BY 4.0 Greenhouse/Lever/Ashby map as the primary snapshot; do not commit it.
+
 ## Decision (from #105)
 
 After one frozen live run with human labels (`relevant` / `not` / `duplicate`):

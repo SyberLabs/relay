@@ -302,6 +302,7 @@ export default function Workspace() {
     [applyExpired, loadJobHistory],
   );
   const loadRuntimeContext = useCallback(async () => {
+    if (!sessionRef.current.viewer) return;
     const started = beginMutation(sessionRef.current.gate);
     const apply = async (
       response: Response,

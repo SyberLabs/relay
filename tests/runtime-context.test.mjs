@@ -174,6 +174,28 @@ void test('policy POST 401 expires without parsing and a delayed 200 cannot rest
   assert.equal(state.autopilot, false);
 });
 
+void test('runtime context waits for a bound workspace viewer', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
+  const session = helper.createWorkspaceSession();
+  let fetches = 0;
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    fetch: async () => {
+      fetches += 1;
+      return { status: 200, ok: true, json: async () => ({}) };
+    },
+    sessionRef: { current: session },
+    applyExpired: () => {
+      throw Error('must not expire');
+    },
+  };
+  const loadRuntimeContext = bind(loadSrc, deps);
+  await loadRuntimeContext();
+  assert.equal(fetches, 0);
+});
+
 void test('policy GET 401 expires without parsing JSON', async () => {
   const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
   const expiry = useCallbackBody(src, 'applyExpired');

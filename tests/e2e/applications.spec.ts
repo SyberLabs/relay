@@ -107,6 +107,15 @@ test('scout research becomes an exact reviewed application with one execution an
   await expect(
     page.getByText('Accepted — waiting for the operative to send.'),
   ).toBeVisible();
+  await page.goto('/applications');
+  await page
+    .getByRole('button', {
+      name: 'Cedar Example — Application Pilot Engineer · authorized · ChatGPT',
+    })
+    .click();
+  await expect(page.getByRole('article')).toContainText('authorized');
+  await expect(page.getByRole('button', { name: approveName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: beginName })).toHaveCount(0);
   const begun = await page.request.post('/api/applications', {
     data: {
       action: 'begin',

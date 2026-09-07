@@ -446,12 +446,26 @@ export async function actOnApplication(
     statements.push(
       statement(
         db,
-        "UPDATE jobs SET status='Submitted',receipt=?,version=version+1,updated=? WHERE changes()=1 AND owner=? AND id=? AND version=? AND status IN ('Held','Ready')",
+        "UPDATE jobs SET status=CASE WHEN status IN ('Held','Ready') THEN 'Submitted' ELSE status END,receipt=CASE WHEN status IN ('Held','Ready') THEN ? ELSE COALESCE(receipt,?) END,version=version+1,updated=? WHERE changes()=1 AND owner=? AND id=?",
+        String(input.receipt),
         String(input.receipt),
         now,
         owner,
         op.job_id,
-        op.job_version,
+      ),
+    );
+  if (input.action === 'complete')
+    statements.push(
+      statement(
+        db,
+        "INSERT INTO outcomes (id,owner,job_id,kind,detail,receipt,occurred,created) SELECT ?,?,?,'submitted',?,?,?,? WHERE changes()=1",
+        crypto.randomUUID(),
+        owner,
+        op.job_id,
+        `Application operation ${op.id}`,
+        String(input.receipt),
+        now,
+        now,
       ),
     );
   const result = await db.batch(statements);

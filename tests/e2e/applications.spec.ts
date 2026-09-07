@@ -137,60 +137,81 @@ test('expired application session clears proposed private fields before any work
   await expect(page.getByText('Private fictional answer')).toHaveCount(0);
 });
 
-test('late file reads cannot replace the most recent selection', async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    const originalRead = Object.getOwnPropertyDescriptor(
-      Blob.prototype,
-      'arrayBuffer',
-    )?.value as (this: File) => Promise<ArrayBuffer>;
-    const originalDigest = crypto.subtle.digest.bind(crypto.subtle);
-    let hashFinished: () => void;
-    const oldHashDone = new Promise<void>((resolve) => {
-      hashFinished = resolve;
-    });
-    Object.assign(window, { oldHashDone });
-    File.prototype.arrayBuffer = function () {
-      if (this.name !== 'older.txt') return originalRead.call(this);
-      return new Promise<ArrayBuffer>((resolve) => {
-        Object.assign(window, {
-          releaseOlder: async () => resolve(await originalRead.call(this)),
+for (const first of ['older', 'newer']) {
+  test(`file selection stays exact and unsavable until newest read completes (${first} finishes first)`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const originalRead = Object.getOwnPropertyDescriptor(
+        Blob.prototype,
+        'arrayBuffer',
+      )?.value as (this: File) => Promise<ArrayBuffer>;
+      const originalDigest = crypto.subtle.digest.bind(crypto.subtle);
+      const readers: Record<string, () => Promise<void>> = {};
+      const hashes: Record<string, Promise<void>> = {};
+      const finished: Record<string, () => void> = {};
+      for (const name of ['older', 'newer'])
+        hashes[name] = new Promise<void>((resolve) => {
+          finished[name] = resolve;
         });
+      Object.assign(window, { readers, hashes });
+      File.prototype.arrayBuffer = function () {
+        return new Promise<ArrayBuffer>((resolve) => {
+          readers[this.name.split('.')[0]] = async () =>
+            resolve(await originalRead.call(this));
+        });
+      };
+      crypto.subtle.digest = async (algorithm, data) => {
+        const result = await originalDigest(algorithm, data);
+        if (data instanceof Uint8Array)
+          finished[data[0] === 65 ? 'older' : 'newer']();
+        return result;
+      };
+    });
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+    await page.goto('/applications');
+    await page.getByText('Prepare an application', { exact: true }).click();
+    await page
+      .getByLabel('Exact files')
+      .setInputFiles({
+        name: 'older.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('AAAA'),
       });
-    };
-    crypto.subtle.digest = async (algorithm, data) => {
-      const result = await originalDigest(algorithm, data);
-      if (data instanceof Uint8Array && data[0] === 65) hashFinished();
-      return result;
-    };
+    await page
+      .getByLabel('Exact files')
+      .setInputFiles({
+        name: 'newer.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('BBBB'),
+      });
+    const finish = async (name: string) =>
+      page.evaluate(async (name) => {
+        const control = window as unknown as {
+          readers: Record<string, () => Promise<void>>;
+          hashes: Record<string, Promise<void>>;
+        };
+        await control.readers[name]();
+        await control.hashes[name];
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+      }, name);
+    await finish(first);
+    if (first === 'older') {
+      await expect(
+        page.getByRole('button', { name: 'Save exact proposal' }),
+      ).toBeDisabled();
+      await expect(
+        page.getByText('Finish selecting files before saving.'),
+      ).toBeVisible();
+    } else
+      await expect(page.getByText('newer.txt', { exact: true })).toBeVisible();
+    await finish(first === 'older' ? 'newer' : 'older');
+    await expect(page.getByText('newer.txt', { exact: true })).toBeVisible();
+    await expect(page.getByText('older.txt', { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Save exact proposal' }),
+    ).toBeEnabled();
   });
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
-  await page.goto('/applications');
-  await page.getByText('Prepare an application', { exact: true }).click();
-  await page.getByLabel('Exact files').setInputFiles({
-    name: 'older.txt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from('AAAA'),
-  });
-  await page.getByLabel('Exact files').setInputFiles({
-    name: 'newer.txt',
-    mimeType: 'text/plain',
-    buffer: Buffer.from('BBBB'),
-  });
-  await expect(page.getByText('newer.txt', { exact: true })).toBeVisible();
-  await page.evaluate(async () => {
-    const control = window as unknown as {
-      releaseOlder: () => Promise<void>;
-      oldHashDone: Promise<void>;
-    };
-    await control.releaseOlder();
-    await control.oldHashDone;
-    // Observe the render following the older read/hash completion.
-    await new Promise(requestAnimationFrame);
-    await new Promise(requestAnimationFrame);
-  });
-  await expect(page.getByText('newer.txt', { exact: true })).toBeVisible();
-  await expect(page.getByText('older.txt', { exact: true })).toHaveCount(0);
-});
+}

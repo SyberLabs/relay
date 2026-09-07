@@ -456,3 +456,60 @@ void test('148KB fictional resume round-trips exactly within unchanged gateway l
   );
   db.sqlite.close();
 });
+
+void test('completion reconciles progress edits and preserves later terminal status', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  const first = await proposeApplication(db, 'alice', proposal(), now);
+  await actOnApplication(db, 'alice', action(first, 'begin'), now);
+  db.sqlite
+    .prepare(
+      "UPDATE jobs SET version=version+1,draft='Newer unsent draft',blocker='Later follow-up question' WHERE id='alice-0'",
+    )
+    .run();
+  await actOnApplication(
+    db,
+    'alice',
+    action(first, 'complete', { receipt: 'Observed confirmation' }),
+    now,
+  );
+  const saved = db.sqlite
+    .prepare("SELECT * FROM jobs WHERE id='alice-0'")
+    .get();
+  assert.equal(saved.status, 'Submitted');
+  assert.equal(saved.receipt, 'Observed confirmation');
+  assert.equal(saved.draft, 'Newer unsent draft');
+  assert.equal(saved.blocker, 'Later follow-up question');
+  assert.equal(saved.version, 3);
+  assert.equal(
+    db.sqlite
+      .prepare(
+        "SELECT COUNT(*) AS n FROM outcomes WHERE job_id='alice-0' AND kind='submitted'",
+      )
+      .get().n,
+    1,
+  );
+  const second = await proposeApplication(db, 'alice', proposal(1), now);
+  await actOnApplication(db, 'alice', action(second, 'begin'), now);
+  db.sqlite
+    .prepare(
+      "UPDATE jobs SET version=version+1,status='Closed',receipt='Later closure evidence' WHERE id='alice-1'",
+    )
+    .run();
+  await actOnApplication(
+    db,
+    'alice',
+    action(second, 'complete', { receipt: 'Earlier submission confirmed' }),
+    now,
+  );
+  const terminal = db.sqlite
+    .prepare("SELECT * FROM jobs WHERE id='alice-1'")
+    .get();
+  assert.equal(terminal.status, 'Closed');
+  assert.equal(terminal.receipt, 'Later closure evidence');
+  assert.equal(
+    (await loadOperation(db, 'alice', second.id)).receipt,
+    'Earlier submission confirmed',
+  );
+  db.sqlite.close();
+});

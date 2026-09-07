@@ -38,6 +38,7 @@ export default function Applications() {
   const [destination, setDestination] = useState('');
   const [fields, setFields] = useState([{ label: 'Full name', value: '' }]);
   const [files, setFiles] = useState<SubmissionManifest['files']>([]);
+  const [filesReady, setFilesReady] = useState(true);
   const [receipt, setReceipt] = useState('');
   const operationId = useRef('');
   const fileGeneration = useRef(0);
@@ -314,6 +315,8 @@ export default function Applications() {
                 e.preventDefault();
                 void run(async () => {
                   const job = snapshot.jobs.find((j) => j.id === jobId);
+                  if (!filesReady)
+                    throw Error('Finish selecting files before saving.');
                   if (!job) throw Error('Choose a job.');
                   operationId.current ||= crypto.randomUUID();
                   const b = await request('/api/applications', {
@@ -433,6 +436,7 @@ export default function Applications() {
                     onChange={(e) => {
                       const chosen = Array.from(e.target.files || []);
                       const generation = ++fileGeneration.current;
+                      setFilesReady(false);
                       setFiles([]);
                       void run(async () => {
                         if (
@@ -459,15 +463,20 @@ export default function Applications() {
                         if (
                           !stopped.current &&
                           generation === fileGeneration.current
-                        )
+                        ) {
                           setFiles(prepared);
+                          setFilesReady(true);
+                        }
                       });
                     }}
                   />
                 </label>
               </p>
               <p>{files.map((f) => f.name).join(', ')}</p>
-              <button disabled={busy}>Save exact proposal</button>
+              {!filesReady && <p>Finish selecting files before saving.</p>}
+              <button disabled={busy || !filesReady}>
+                Save exact proposal
+              </button>
             </form>
           </details>
         </>

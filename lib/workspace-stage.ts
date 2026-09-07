@@ -84,3 +84,10 @@ export function loopStepLead(status: string | null): string {
 export function headerAddJobIsPrimary(view: StageView): boolean {
   return view.page === 'workspace' && primaryAction(view) === 'select_job';
 }
+
+export function handoffIntro(hasSelectedJob: boolean): string {
+  if (hasSelectedJob) {
+    return 'Packet and draft files for this selected job. Bring research from Obsidian, Notion or Grok Bot, then review wording prepared with ChatGPT, Codex or Claude. Accounts are not connected automatically.';
+  }
+  return 'Select a job to bind a packet. Bring research from Obsidian, Notion or Grok Bot, then review wording prepared with ChatGPT, Codex or Claude. Accounts are not connected automatically.';
+}

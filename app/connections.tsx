@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { RelayToolStatus } from './agent-tools';
 import { assistantPrompt, type Assistant } from '../lib/assistant-handoff';
 import { type EditorTarget } from '../lib/editor';
+import { handoffIntro } from '../lib/workspace-stage';
 import {
   obsidianNote,
   obsidianExample,
@@ -150,11 +151,7 @@ export function Connections({
           }[toolStatus]
         }
       </output>
-      <p>
-        Packet and draft files for this selected job. Bring research from
-        Obsidian, Notion or Grok Bot, then review wording prepared with
-        ChatGPT, Codex or Claude. Accounts are not connected automatically.
-      </p>
+      <p>{handoffIntro(Boolean(current))}</p>
       <p>
         <Link href="/about">About Relay handoffs ↗</Link>
       </p>

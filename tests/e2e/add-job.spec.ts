@@ -18,12 +18,27 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
     page.getByRole('heading', { name: 'No jobs yet' }),
   ).toBeVisible();
   await expect(
-    page.locator('header').getByText(/Your facts and Advanced tools are optional/),
+    page
+      .locator('header')
+      .getByText(/Your facts and Advanced tools are optional/),
   ).toBeVisible();
   await expect(
     page.locator('aside').getByRole('group', { name: 'Job list' }),
   ).toHaveCount(0);
   await expect(page).not.toHaveURL(/\/profile/);
+  await expect(
+    page.getByText('Prepare this job for an assistant', { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByText('Prepare this job for an assistant', { exact: true })
+    .click();
+  await expect(page.getByText(/Select a job to bind a packet/)).toBeVisible();
+  await expect(
+    page.getByRole('status', { name: 'Browser assistant tools' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Download selected job packet' }),
+  ).toBeDisabled();
   await page.getByRole('button', { name: 'Add job', exact: true }).click();
   await page
     .getByRole('textbox', { name: 'Role title' })

@@ -850,6 +850,7 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
+        {!signedOut && loaded && jobs.length === 0 && connections}
         {!signedOut && loaded && jobs.length > 0 && (
           <>
             {jobs.length > 0 && !current && (
@@ -1175,6 +1176,7 @@ export default function Workspace() {
                     <p>
                       Open a job to continue its review, or add another posting.
                     </p>
+                    {connections}
                   </div>
                 )}
               </section>

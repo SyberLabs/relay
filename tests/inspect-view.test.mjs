@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   applyInspectPoll,
   beginInspectPoll,
@@ -199,4 +200,26 @@ void test('overlay operative status is armed until authorized waiting', () => {
     null,
   );
   assert.equal(inspectOperativeStatus(null), null);
+});
+
+void test('inspect POSTs handle 401 before JSON and bind job generation', () => {
+  const src = readFileSync('app/inspect.tsx', 'utf8');
+  const workspace = readFileSync('app/workspace.tsx', 'utf8');
+  assert.match(src, /export function useInspect\(/);
+  assert.match(src, /onSignedOut\?\.\(\)/);
+  assert.match(src, /Sign in to inspect this application/);
+  assert.match(src, /revision: shown\.revision/);
+  assert.match(workspace, /useInspect\(current\?\.id, applyExpired\)/);
+  const approve = src.slice(src.indexOf('async function approve()'));
+  const answer = src.slice(src.indexOf('async function answer('));
+  for (const fn of [approve, answer]) {
+    const status = fn.indexOf('r.status === 401');
+    const json = fn.indexOf('await r.json()');
+    assert.ok(status >= 0 && json > status);
+    assert.match(fn, /generation !== inspect\.generation\(\)/);
+    assert.match(
+      fn,
+      /if \(job === jobId && generation === inspect\.generation\(\)\)/,
+    );
+  }
 });

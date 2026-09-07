@@ -32,6 +32,7 @@ export type InspectView = {
   digest: string | null;
   state: string | null;
   accept_enabled: boolean;
+  revision: number;
 };
 export type ApplicationOperation = {
   id: string;
@@ -198,6 +199,7 @@ export function emptyInspect(jobId: string): InspectView {
     digest: null,
     state: null,
     accept_enabled: false,
+    revision: 0,
   };
 }
 const PERMISSION_REFUSAL =
@@ -240,6 +242,51 @@ async function liveFreezeForDigest(
     .bind(owner, jobId, hash)
     .first<ApplicationOperation>();
 }
+function cancelPreBeginStatement(
+  db: D1Database,
+  owner: string,
+  jobId: string,
+  now: string,
+  keepDigest?: string,
+) {
+  return keepDigest
+    ? statement(
+        db,
+        "UPDATE application_operations SET state='cancelled',finished=? WHERE owner=? AND job_id=? AND state IN ('proposed','authorized') AND digest!=?",
+        now,
+        owner,
+        jobId,
+        keepDigest,
+      )
+    : statement(
+        db,
+        "UPDATE application_operations SET state='cancelled',finished=? WHERE owner=? AND job_id=? AND state IN ('proposed','authorized')",
+        now,
+        owner,
+        jobId,
+      );
+}
+async function refuseUnchangedPreparation(
+  db: D1Database,
+  owner: string,
+  jobId: string,
+) {
+  requireThat(
+    !(await db
+      .prepare(
+        "SELECT 1 FROM application_operations WHERE owner=? AND job_id=? AND state='executing'",
+      )
+      .bind(owner, jobId)
+      .first()),
+    'An application is already executing. Do not change the payload.',
+    409,
+  );
+  requireThat(
+    false,
+    'Preparation changed. Inspect the current snapshot; do not overwrite a newer answer.',
+    409,
+  );
+}
 export async function inspectApplication(
   db: D1Database,
   owner: string,
@@ -255,7 +302,7 @@ export async function inspectApplication(
   const policy = await loadApplicationPolicy(db, owner);
   const row = await db
     .prepare(
-      `SELECT p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state,o.job_version,o.policy_version
+      `SELECT p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,p.revision,o.digest,o.state,o.job_version,o.policy_version
        FROM application_preparations p
        LEFT JOIN application_operations o ON o.owner=p.owner AND o.id=p.operation_id
        WHERE p.owner=? AND p.job_id=?`,
@@ -268,6 +315,7 @@ export async function inspectApplication(
       ready: number;
       armed_until: string;
       operation_id: string | null;
+      revision: number;
       digest: string | null;
       state: string | null;
       job_version: number | null;
@@ -299,6 +347,7 @@ export async function inspectApplication(
     operation_id: row.operation_id,
     digest: row.digest ?? null,
     state,
+    revision: row.revision,
     accept_enabled: inspectAcceptEnabled(
       ready,
       armed,
@@ -332,16 +381,6 @@ export async function upsertPreparation(
     .first<{ version: number }>();
   requireThat(job, 'A selected job is unavailable.', 404);
   requireThat(
-    !(await db
-      .prepare(
-        "SELECT 1 FROM application_operations WHERE owner=? AND job_id=? AND state='executing'",
-      )
-      .bind(owner, input.job)
-      .first()),
-    'An application is already executing. Do not change the payload.',
-    409,
-  );
-  requireThat(
     Array.isArray(input.fields) &&
       input.fields.every(
         (f) => f && typeof f === 'object' && typeof f.unknown === 'boolean',
@@ -367,32 +406,54 @@ export async function upsertPreparation(
     'Submission exceeds 240,000 bytes.',
   );
   const hash = await digest(JSON.stringify(manifest));
-  await cancelPreBeginForJob(db, owner, input.job, now, hash);
   const keep = await liveFreezeForDigest(db, owner, input.job, hash);
-  await statement(
-    db,
-    `INSERT INTO application_preparations (owner,job_id,actor,job_version,destination,fields,files,operation_id,ready,armed_until,updated)
-     VALUES (?,?,?,?,?,?,?,?,0,'',?)
-     ON CONFLICT(owner,job_id) DO UPDATE SET
-       actor=excluded.actor,
-       job_version=excluded.job_version,
-       destination=excluded.destination,
-       fields=excluded.fields,
-       files=excluded.files,
-       operation_id=excluded.operation_id,
-       ready=0,
-       armed_until='',
-       updated=excluded.updated`,
-    owner,
-    input.job,
-    input.actor,
-    job.version,
-    manifest.destination,
-    fieldsJson,
-    filesJson,
-    keep?.id ?? null,
-    now,
-  ).run();
+  const expectedRevision = Number.isInteger(input.revision)
+    ? Number(input.revision)
+    : -1;
+  const written = await db.batch([
+    cancelPreBeginStatement(db, owner, input.job, now, hash),
+    statement(
+      db,
+      `INSERT INTO application_preparations (owner,job_id,actor,job_version,destination,fields,files,operation_id,ready,armed_until,updated,revision)
+       SELECT ?,?,?,?,?,?,?,?,0,'',?,1
+       WHERE NOT EXISTS (
+         SELECT 1 FROM application_operations
+         WHERE owner=? AND job_id=? AND state='executing'
+       )
+       ON CONFLICT(owner,job_id) DO UPDATE SET
+         actor=excluded.actor,
+         job_version=excluded.job_version,
+         destination=excluded.destination,
+         fields=excluded.fields,
+         files=excluded.files,
+         operation_id=excluded.operation_id,
+         ready=0,
+         armed_until='',
+         updated=excluded.updated,
+         revision=application_preparations.revision+1
+       WHERE NOT EXISTS (
+         SELECT 1 FROM application_operations
+         WHERE owner=application_preparations.owner
+           AND job_id=application_preparations.job_id
+           AND state='executing'
+       )
+       AND application_preparations.revision=?`,
+      owner,
+      input.job,
+      input.actor,
+      job.version,
+      manifest.destination,
+      fieldsJson,
+      filesJson,
+      keep?.id ?? null,
+      now,
+      owner,
+      input.job,
+      expectedRevision,
+    ),
+  ]);
+  if (written[1].meta.changes !== 1)
+    await refuseUnchangedPreparation(db, owner, input.job);
   return inspectApplication(db, owner, input.job, now);
 }
 export async function answerPreparation(
@@ -409,23 +470,23 @@ export async function answerPreparation(
     .bind(owner, input.job)
     .first<{ version: number }>();
   requireThat(job, 'A selected job is unavailable.', 404);
-  requireThat(
-    !(await db
-      .prepare(
-        "SELECT 1 FROM application_operations WHERE owner=? AND job_id=? AND state='executing'",
-      )
-      .bind(owner, input.job)
-      .first()),
-    'An application is already executing. Do not change the payload.',
-    409,
-  );
   const prep = await db
     .prepare(
-      'SELECT destination,fields,files FROM application_preparations WHERE owner=? AND job_id=?',
+      'SELECT destination,fields,files,revision FROM application_preparations WHERE owner=? AND job_id=?',
     )
     .bind(owner, input.job)
-    .first<{ destination: string; fields: string; files: string }>();
+    .first<{
+      destination: string;
+      fields: string;
+      files: string;
+      revision: number;
+    }>();
   requireThat(prep, 'Prepare a complete application first.', 409);
+  requireThat(
+    Number.isInteger(input.revision) && Number(input.revision) === prep.revision,
+    'Preparation changed. Inspect the current snapshot; do not overwrite a newer answer.',
+    409,
+  );
   const fields = JSON.parse(prep.fields) as {
     label: string;
     value: string;
@@ -451,23 +512,35 @@ export async function answerPreparation(
     files: JSON.parse(prep.files),
   });
   const hash = await digest(JSON.stringify(manifest));
-  await cancelPreBeginForJob(db, owner, input.job, now, hash);
   const keep = await liveFreezeForDigest(db, owner, input.job, hash);
-  await statement(
-    db,
-    `UPDATE application_preparations SET
-       fields=?,
-       operation_id=?,
-       ready=0,
-       armed_until='',
-       updated=?
-     WHERE owner=? AND job_id=?`,
-    fieldsJson,
-    keep?.id ?? null,
-    now,
-    owner,
-    input.job,
-  ).run();
+  const written = await db.batch([
+    cancelPreBeginStatement(db, owner, input.job, now, hash),
+    statement(
+      db,
+      `UPDATE application_preparations SET
+         fields=?,
+         operation_id=?,
+         ready=0,
+         armed_until='',
+         updated=?,
+         revision=revision+1
+       WHERE owner=? AND job_id=? AND revision=?
+         AND NOT EXISTS (
+           SELECT 1 FROM application_operations
+           WHERE owner=? AND job_id=? AND state='executing'
+         )`,
+      fieldsJson,
+      keep?.id ?? null,
+      now,
+      owner,
+      input.job,
+      prep.revision,
+      owner,
+      input.job,
+    ),
+  ]);
+  if (written[1].meta.changes !== 1)
+    await refuseUnchangedPreparation(db, owner, input.job);
   return inspectApplication(db, owner, input.job, now);
 }
 export async function cancelPreBeginForJob(
@@ -477,26 +550,7 @@ export async function cancelPreBeginForJob(
   now: string,
   keepDigest?: string,
 ) {
-  const leftovers = keepDigest
-    ? await db
-        .prepare(
-          "SELECT id,digest FROM application_operations WHERE owner=? AND job_id=? AND state IN ('proposed','authorized') AND digest!=?",
-        )
-        .bind(owner, jobId, keepDigest)
-        .all<{ id: string; digest: string }>()
-    : await db
-        .prepare(
-          "SELECT id,digest FROM application_operations WHERE owner=? AND job_id=? AND state IN ('proposed','authorized')",
-        )
-        .bind(owner, jobId)
-        .all<{ id: string; digest: string }>();
-  for (const old of leftovers.results)
-    await actOnApplication(
-      db,
-      owner,
-      { id: old.id, digest: old.digest, action: 'cancel' },
-      now,
-    );
+  await cancelPreBeginStatement(db, owner, jobId, now, keepDigest).run();
 }
 export async function armPreparation(
   db: D1Database,
@@ -614,15 +668,42 @@ export async function armPreparation(
     );
     operationId = op.id;
   }
-  await statement(
+  const attached = await statement(
     db,
-    `UPDATE application_preparations SET ready=1,armed_until=?,operation_id=?,updated=? WHERE owner=? AND job_id=?`,
+    `UPDATE application_preparations SET ready=1,armed_until=?,operation_id=?,updated=?
+     WHERE owner=? AND job_id=? AND fields=? AND files=? AND destination=?
+       AND NOT EXISTS (
+         SELECT 1 FROM application_operations
+         WHERE owner=? AND job_id=? AND state='executing'
+       )`,
     new Date(Date.parse(now) + 20_000).toISOString(),
     operationId,
     now,
     owner,
     input.job,
+    prep.fields,
+    prep.files,
+    prep.destination,
+    owner,
+    input.job,
   ).run();
+  if (attached.meta.changes !== 1) {
+    requireThat(
+      !(await db
+        .prepare(
+          "SELECT 1 FROM application_operations WHERE owner=? AND job_id=? AND state='executing'",
+        )
+        .bind(owner, input.job)
+        .first()),
+      'An application is already executing. Do not change the payload.',
+      409,
+    );
+    requireThat(
+      false,
+      'Preparation changed. Inspect the current snapshot; do not arm a stale payload.',
+      409,
+    );
+  }
   return inspectApplication(db, owner, input.job, now);
 }
 function statement(
@@ -822,9 +903,34 @@ export async function actOnApplication(
     AND j.version=application_operations.job_version AND j.status IN ('Held','Ready') AND j.blocker=''
     AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id))`;
   if (input.action === 'approve') {
+    const prep = await db
+      .prepare(
+        'SELECT destination,fields,files FROM application_preparations WHERE owner=? AND job_id=? AND operation_id=?',
+      )
+      .bind(owner, op.job_id, op.id)
+      .first<{ destination: string; fields: string; files: string }>();
+    requireThat(prep, 'Operative is not on the page.', 409);
+    const snapshot = JSON.parse(prep.fields) as {
+      label: string;
+      value: string;
+    }[];
+    const hashed = await digest(
+      JSON.stringify(
+        await validateManifest({
+          destination: prep.destination,
+          fields: snapshot.map(({ label, value }) => ({ label, value })),
+          files: JSON.parse(prep.files),
+        }),
+      ),
+    );
+    requireThat(
+      hashed === op.digest,
+      'Content checksum differs from the saved proposal.',
+      409,
+    );
     sql = `UPDATE application_operations SET state='authorized',authority='explicit-review' WHERE owner=? AND id=? AND state='proposed' AND ${authorized}
-      AND EXISTS (SELECT 1 FROM application_preparations pr WHERE pr.owner=application_operations.owner AND pr.job_id=application_operations.job_id AND pr.operation_id=application_operations.id AND pr.armed_until>?)`;
-    args = [owner, op.id, now, now];
+      AND EXISTS (SELECT 1 FROM application_preparations pr WHERE pr.owner=application_operations.owner AND pr.job_id=application_operations.job_id AND pr.operation_id=application_operations.id AND pr.armed_until>? AND pr.destination=? AND pr.fields=? AND pr.files=?)`;
+    args = [owner, op.id, now, now, prep.destination, prep.fields, prep.files];
     kind = 'Application explicitly reviewed';
   } else if (input.action === 'begin') {
     sql = `UPDATE application_operations SET state='executing',started=? WHERE owner=? AND id=? AND state='authorized' AND authority='explicit-review' AND ${authorized}

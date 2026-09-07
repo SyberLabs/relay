@@ -249,15 +249,24 @@ export function useInspectSnapshot(jobId: string | undefined) {
     setBusy,
     setError,
     load,
+    generation: () => gateRef.current.generation,
   };
 }
 
-export function useInspect(jobId: string | undefined) {
+export function useInspect(
+  jobId: string | undefined,
+  onSignedOut?: () => void,
+) {
   const inspect = useInspectSnapshot(jobId);
   const shown = inspect.view;
+  useEffect(() => {
+    if (inspect.signedOut) onSignedOut?.();
+  }, [inspect.signedOut, onSignedOut]);
 
   async function approve() {
     if (!shown?.operation_id || !shown.digest || !inspect.viewer) return;
+    const job = jobId;
+    const generation = inspect.generation();
     inspect.setBusy(true);
     inspect.setError('');
     try {
@@ -271,22 +280,31 @@ export function useInspect(jobId: string | undefined) {
           digest: shown.digest,
         }),
       });
+      if (job !== jobId || generation !== inspect.generation()) return;
+      if (r.status === 401) {
+        await inspect.load();
+        return;
+      }
       const data = (await r.json()) as { error?: string };
       if (!r.ok)
         throw Error(data.error || 'Unable to accept this application.');
       await inspect.load();
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
+      if (job !== jobId || generation !== inspect.generation()) return;
       inspect.setError(
         e instanceof Error ? e.message : 'Unable to accept this application.',
       );
     } finally {
-      inspect.setBusy(false);
+      if (job === jobId && generation === inspect.generation())
+        inspect.setBusy(false);
     }
   }
 
   async function answer(label: string, value: string) {
-    if (!jobId || !inspect.viewer) return;
+    if (!jobId || !inspect.viewer || shown?.revision == null) return;
+    const job = jobId;
+    const generation = inspect.generation();
     inspect.setBusy(true);
     inspect.setError('');
     try {
@@ -299,20 +317,36 @@ export function useInspect(jobId: string | undefined) {
           job: jobId,
           label,
           value,
+          revision: shown.revision,
         }),
       });
+      if (job !== jobId || generation !== inspect.generation()) return;
+      if (r.status === 401) {
+        await inspect.load();
+        return;
+      }
       const data = (await r.json()) as { error?: string };
       if (!r.ok) throw Error(data.error || 'Unable to save this answer.');
       await inspect.load();
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
+      if (job !== jobId || generation !== inspect.generation()) return;
       inspect.setError(
         e instanceof Error ? e.message : 'Unable to save this answer.',
       );
     } finally {
-      inspect.setBusy(false);
+      if (job === jobId && generation === inspect.generation())
+        inspect.setBusy(false);
     }
   }
+
+  if (inspect.signedOut)
+    return (
+      <div className="import">
+        <h3>Inspect</h3>
+        <p>Sign in to inspect this application.</p>
+      </div>
+    );
 
   return inspectMarkup({
     view: shown,

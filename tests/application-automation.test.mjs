@@ -111,7 +111,7 @@ const counts = (db) =>
 void test('prepare streams field fill into inspect without creating an operation', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
-  const view = await upsertPreparation(
+  const view = await prep(
     db,
     'alice',
     {
@@ -156,7 +156,7 @@ void test('prepare refuses another owner job and oversized snapshots', async () 
   await changeApplicationPolicy(db, 'alice', config(), now);
   await assert.rejects(
     () =>
-      upsertPreparation(
+      prep(
         db,
         'alice',
         {
@@ -172,7 +172,7 @@ void test('prepare refuses another owner job and oversized snapshots', async () 
   );
   await assert.rejects(
     () =>
-      upsertPreparation(
+      prep(
         db,
         'alice',
         {
@@ -220,7 +220,7 @@ void test('prepare refuses another owner job and oversized snapshots', async () 
 void test('inspect of another owner job is unavailable', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -256,7 +256,7 @@ void test('arm refuses incomplete or unknown fields and freezes a complete snaps
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -278,7 +278,7 @@ void test('arm refuses incomplete or unknown fields and freezes a complete snaps
       ),
     /complete/i,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -313,7 +313,7 @@ void test('approve without a live arm refuses; approve with arm authorizes and d
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -368,7 +368,7 @@ void test('approve without a live arm refuses; approve with arm authorizes and d
   );
   await assert.rejects(
     () =>
-      upsertPreparation(
+      prep(
         db,
         'alice',
         {
@@ -394,9 +394,35 @@ const completePrep = (value = 'Avery Example') => ({
   fields: [{ label: 'Full name', value, unknown: false }],
   files: [],
 });
+async function prep(db, owner, input, at = now) {
+  const row = db.sqlite
+    .prepare(
+      'SELECT revision FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get(owner, input.job);
+  return upsertPreparation(
+    db,
+    owner,
+    row ? { ...input, revision: row.revision } : input,
+    at,
+  );
+}
+async function answer(db, owner, input, at = now) {
+  const row = db.sqlite
+    .prepare(
+      'SELECT revision FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get(owner, input.job);
+  return answerPreparation(
+    db,
+    owner,
+    row ? { ...input, revision: row.revision } : input,
+    at,
+  );
+}
 async function inspectAuthorize(db, owner, op, at = now) {
   const manifest = JSON.parse(op.manifest);
-  await upsertPreparation(
+  await prep(
     db,
     owner,
     {
@@ -437,7 +463,7 @@ void test('prepare of a different digest cancels a frozen op so begin cannot exe
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep('Digest A'), now);
+  await prep(db, 'alice', completePrep('Digest A'), now);
   await armPreparation(
     db,
     'alice',
@@ -446,7 +472,7 @@ void test('prepare of a different digest cancels a frozen op so begin cannot exe
   );
   const frozen = await loadOperation(db, 'alice', 'op-prep-a');
   await actOnApplication(db, 'alice', action(frozen, 'approve'), now);
-  await upsertPreparation(db, 'alice', completePrep('Digest B'), now);
+  await prep(db, 'alice', completePrep('Digest B'), now);
   assert.equal(
     (await loadOperation(db, 'alice', 'op-prep-a')).state,
     'cancelled',
@@ -470,7 +496,7 @@ void test('same-digest prepare clears arm without cancel so re-arm then begin st
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   await armPreparation(
     db,
     'alice',
@@ -478,7 +504,7 @@ void test('same-digest prepare clears arm without cancel so re-arm then begin st
     now,
   );
   const expired = '2026-09-07T12:00:21.000Z';
-  await upsertPreparation(db, 'alice', completePrep(), expired);
+  await prep(db, 'alice', completePrep(), expired);
   assert.equal(
     (await loadOperation(db, 'alice', 'op-prep-same')).state,
     'proposed',
@@ -526,7 +552,7 @@ void test('same-digest prepare after Accept keeps authorized freeze so re-arm do
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   await armPreparation(
     db,
     'alice',
@@ -540,7 +566,7 @@ void test('same-digest prepare after Accept keeps authorized freeze so re-arm do
     now,
   );
   const later = '2026-09-07T12:00:10.000Z';
-  await upsertPreparation(db, 'alice', completePrep(), later);
+  await prep(db, 'alice', completePrep(), later);
   const view = await inspectApplication(db, 'alice', 'alice-0', later);
   assert.equal(view.state, 'authorized');
   assert.equal(view.operation_id, 'op-prep-auth');
@@ -578,7 +604,7 @@ void test('blocked job keeps accept_enabled false even while armed', async () =>
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   const armed = await armPreparation(
     db,
     'alice',
@@ -610,7 +636,7 @@ void test('expired arm approve names the absent operative; policy miss does not'
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   await armPreparation(
     db,
     'alice',
@@ -653,7 +679,7 @@ void test('skip cancels pre-begin operations for that job', async () => {
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   await armPreparation(
     db,
     'alice',
@@ -692,7 +718,7 @@ void test('inspect accept_enabled requires a sendable Held or Ready job', async 
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   const armed = await armPreparation(
     db,
     'alice',
@@ -715,7 +741,7 @@ void test('arm of a different digest cancels a pre-begin freeze', async () => {
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -733,7 +759,7 @@ void test('arm of a different digest cancels a pre-begin freeze', async () => {
     { job: 'alice-0', id: 'op-arm-old', actor: 'Fictional applying agent' },
     now,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -771,7 +797,7 @@ void test('arm after cancel proposes a new freeze; cancelled is not a live arm',
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -854,7 +880,7 @@ void test('same-digest arm refuses executing and submitted operations', async ()
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -926,7 +952,7 @@ void test('same-digest arm refuses executing and submitted operations', async ()
 void test('ordinary fields under sensitive review refuse inspect arm without leaving an authorized operation', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -1101,7 +1127,7 @@ void test('sensitive questions and changed destinations require exact review; wr
     ),
   );
   assert.deepEqual(counts(db), before);
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -1333,7 +1359,7 @@ void test('0010 drops and recreates the preparations capacity trigger with the e
 void test('preparations cap allows overwrite of an existing job at 500 and aborts a 501st distinct job', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   const template = db.sqlite
     .prepare(
       'SELECT * FROM application_preparations WHERE owner=? AND job_id=?',
@@ -1354,7 +1380,7 @@ void test('preparations cap allows overwrite of an existing job at 500 and abort
       .get('alice').c,
     500,
   );
-  await upsertPreparation(db, 'alice', completePrep('Updated at cap'), now);
+  await prep(db, 'alice', completePrep('Updated at cap'), now);
   const stored = db.sqlite
     .prepare(
       'SELECT fields FROM application_preparations WHERE owner=? AND job_id=?',
@@ -1369,8 +1395,70 @@ void test('preparations cap allows overwrite of an existing job at 500 and abort
 
 void test('workspace Skip save cancels pre-begin operations', async () => {
   const src = readFileSync('app/api/workspace/route.ts', 'utf8');
-  assert.match(src, /cancelPreBeginForJob/);
   assert.match(src, /b\.status === ['"]Skip['"]/);
+  assert.match(src, /state=\\'executing\\'/);
+  assert.match(
+    src,
+    /UPDATE application_operations SET state='cancelled',finished=\? WHERE owner=\? AND job_id=\? AND state IN \('proposed','authorized'\)/,
+  );
+  assert.doesNotMatch(src, /cancelPreBeginForJob/);
+});
+
+void test('workspace Skip update refuses while send is executing', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await prep(db, 'alice', completePrep('Skip executing'), now);
+  await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'op-skip-exec',
+      actor: 'Fictional applying agent',
+    },
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-skip-exec'), 'approve'),
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-skip-exec'), 'begin'),
+    now,
+  );
+  const job = db.sqlite
+    .prepare('SELECT status,version FROM jobs WHERE owner=? AND id=?')
+    .get('alice', 'alice-0');
+  const skipped = db.sqlite
+    .prepare(
+      `UPDATE jobs SET status='Skip',accepted_draft=NULL,version=version+1,updated=?
+       WHERE id=? AND owner=? AND version=?
+         AND NOT EXISTS (
+           SELECT 1 FROM application_operations
+           WHERE owner=? AND job_id=? AND state='executing'
+         )`,
+    )
+    .run(now, 'alice-0', 'alice', job.version, 'alice', 'alice-0');
+  assert.equal(skipped.changes, 0);
+  assert.equal(
+    db.sqlite.prepare('SELECT status FROM jobs WHERE id=?').get('alice-0')
+      .status,
+    job.status,
+  );
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-skip-exec')).state,
+    'executing',
+  );
+  db.sqlite.close();
 });
 
 void test('overlapping uncertainty reports persist only the first report', async () => {
@@ -1508,7 +1596,7 @@ void test('answer fills a blocked inspect field without replacing stored files',
     base64: btoa(new TextDecoder().decode(bytes)),
     sha256: await digest(bytes),
   };
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -1523,7 +1611,7 @@ void test('answer fills a blocked inspect field without replacing stored files',
     },
     now,
   );
-  const answered = await answerPreparation(
+  const answered = await answer(
     db,
     'alice',
     {
@@ -1576,7 +1664,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(
+  await prep(
     db,
     'alice',
     {
@@ -1593,7 +1681,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
   );
   await assert.rejects(
     () =>
-      answerPreparation(
+      answer(
         db,
         'alice',
         { job: 'alice-0', label: 'Work authorization', value: '' },
@@ -1603,7 +1691,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
   );
   await assert.rejects(
     () =>
-      answerPreparation(
+      answer(
         db,
         'alice',
         {
@@ -1617,7 +1705,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
   );
   await assert.rejects(
     () =>
-      answerPreparation(
+      answer(
         db,
         'alice',
         { job: 'alice-1', label: 'Work authorization', value: 'Yes' },
@@ -1627,7 +1715,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
   );
   await assert.rejects(
     () =>
-      answerPreparation(
+      answer(
         db,
         'alice',
         { job: 'alice-0', label: 'Salary expectation', value: 'Example range' },
@@ -1637,7 +1725,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
   );
   await assert.rejects(
     () =>
-      answerPreparation(
+      answer(
         db,
         'alice',
         { job: 'bob-0', label: 'Work authorization', value: 'Yes' },
@@ -1645,7 +1733,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
       ),
     /unavailable/i,
   );
-  await upsertPreparation(db, 'alice', completePrep(), now);
+  await prep(db, 'alice', completePrep(), now);
   await armPreparation(
     db,
     'alice',
@@ -1666,7 +1754,7 @@ void test('answer refuses empty value, oversized value, missing preparation, mis
   );
   await assert.rejects(
     () =>
-      answerPreparation(
+      answer(
         db,
         'alice',
         { job: 'alice-0', label: 'Full name', value: 'Changed after send' },
@@ -1685,7 +1773,7 @@ void test('answer of a different digest cancels a pre-begin freeze', async () =>
     { ...config(), review: 'all' },
     now,
   );
-  await upsertPreparation(db, 'alice', completePrep('Digest A'), now);
+  await prep(db, 'alice', completePrep('Digest A'), now);
   await armPreparation(
     db,
     'alice',
@@ -1694,7 +1782,7 @@ void test('answer of a different digest cancels a pre-begin freeze', async () =>
   );
   const frozen = await loadOperation(db, 'alice', 'op-answer-a');
   await actOnApplication(db, 'alice', action(frozen, 'approve'), now);
-  await answerPreparation(
+  await answer(
     db,
     'alice',
     { job: 'alice-0', label: 'Full name', value: 'Digest B' },
@@ -1715,4 +1803,140 @@ void test('answer of a different digest cancels a pre-begin freeze', async () =>
     ),
   );
   db.sqlite.close();
+});
+
+void test('stale preparation revision cannot overwrite a newer answer', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  const first = await prep(db, 'alice', completePrep('Payload A'), now);
+  await answer(
+    db,
+    'alice',
+    { job: 'alice-0', label: 'Full name', value: 'Human answer' },
+    now,
+  );
+  await assert.rejects(
+    () =>
+      upsertPreparation(
+        db,
+        'alice',
+        { ...completePrep('Delayed snapshot'), revision: first.revision },
+        now,
+      ),
+    /Preparation changed/,
+  );
+  const view = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(view.fields[0].value, 'Human answer');
+  db.sqlite.close();
+});
+
+void test('arm attachment refuses when preparation fields changed under it', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await prep(db, 'alice', completePrep('Payload A'), now);
+  await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'op-stale-arm',
+      actor: 'Fictional applying agent',
+    },
+    now,
+  );
+  const snap = db.sqlite
+    .prepare(
+      'SELECT fields,files,destination FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get('alice', 'alice-0');
+  await prep(db, 'alice', completePrep('Payload B'), now);
+  const attached = db.sqlite
+    .prepare(
+      `UPDATE application_preparations SET ready=1,armed_until=?,operation_id=?,updated=?
+       WHERE owner=? AND job_id=? AND fields=? AND files=? AND destination=?
+         AND NOT EXISTS (
+           SELECT 1 FROM application_operations
+           WHERE owner=? AND job_id=? AND state='executing'
+         )`,
+    )
+    .run(
+      '2026-09-07T12:00:20.000Z',
+      'op-stale-arm',
+      now,
+      'alice',
+      'alice-0',
+      snap.fields,
+      snap.files,
+      snap.destination,
+      'alice',
+      'alice-0',
+    );
+  assert.equal(attached.changes, 0);
+  const view = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(view.accept_enabled, false);
+  assert.equal(view.fields[0].value, 'Payload B');
+  db.sqlite.close();
+});
+
+void test('approve refuses when preparation no longer matches the freeze', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await prep(db, 'alice', completePrep('Payload A'), now);
+  await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'op-approve-cas',
+      actor: 'Fictional applying agent',
+    },
+    now,
+  );
+  db.sqlite
+    .prepare(
+      'UPDATE application_preparations SET fields=? WHERE owner=? AND job_id=?',
+    )
+    .run(
+      JSON.stringify([
+        { label: 'Full name', value: 'Payload B', unknown: false },
+      ]),
+      'alice',
+      'alice-0',
+    );
+  const op = await loadOperation(db, 'alice', 'op-approve-cas');
+  await assert.rejects(
+    () => actOnApplication(db, 'alice', action(op, 'approve'), now),
+    /checksum|Preparation changed|page/i,
+  );
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-approve-cas')).state,
+    'proposed',
+  );
+  db.sqlite.close();
+});
+
+void test('0011 adds a preparation revision column', () => {
+  const files = readdirSync('drizzle').filter(
+    (f) => f.startsWith('0011_') && f.endsWith('.sql'),
+  );
+  assert.equal(files.length, 1);
+  assert.match(
+    readFileSync(`drizzle/${files[0]}`, 'utf8'),
+    /ADD `revision` integer DEFAULT 1 NOT NULL/,
+  );
 });

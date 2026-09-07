@@ -77,7 +77,8 @@ async function applicationsArm(request, path) {
   const length = Number(request.headers.get('content-length'));
   if (!Number.isFinite(length) || length <= 0 || length > 4096) return false;
   try {
-    return JSON.parse(await request.clone().text())?.action === 'arm';
+    const body = await boundedBody(request.clone(), 4096, 500);
+    return JSON.parse(new TextDecoder().decode(body))?.action === 'arm';
   } catch {
     return false;
   }
@@ -168,7 +169,7 @@ export async function usageGuard(request, env, now = Date.now()) {
 }
 
 // Read the actual byte stream before parsing; Content-Length alone is not a limit.
-export async function boundedBody(request, limit) {
+export async function boundedBody(request, limit, timeoutMs = 10_000) {
   // Consume up to the actual byte boundary even when Content-Length already
   // proves excess: leaving the upload unread can stall a subsequent request
   // through Wrangler's local proxy. Never trust the declared length alone.
@@ -176,7 +177,7 @@ export async function boundedBody(request, limit) {
   const reader = request.body.getReader();
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Body timeout')), 10_000);
+    timer = setTimeout(() => reject(new Error('Body timeout')), timeoutMs);
   });
   const chunks = [];
   let size = 0;

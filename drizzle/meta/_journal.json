@@ -78,6 +78,13 @@
       "when": 1788784000000,
       "tag": "0010_application_preparations_capacity",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1788785000000,
+      "tag": "0011_application_preparations_revision",
+      "breakpoints": true
     }
   ]
 }

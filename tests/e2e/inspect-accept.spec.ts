@@ -76,6 +76,17 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   });
   expect(begun.ok()).toBe(true);
   expect((await begun.json()).execute).toBe(true);
+  const cleared = await page.request.post('/api/applications', {
+    data: {
+      action: 'not-submitted',
+      viewer: ws.viewer,
+      id: op.id,
+      digest: op.digest,
+      receipt:
+        'Fictional e2e isolation: this fixture did not submit at the employer.',
+    },
+  });
+  expect(cleared.ok()).toBe(true);
 });
 
 test('set aside cancels a pre-begin freeze so send cannot begin', async ({
@@ -293,23 +304,8 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   await expect(
     page.getByText(/waiting for the operative to send/i),
   ).toBeVisible();
-  const ledger = await (await page.request.get('/api/applications')).json();
-  for (const leftover of ledger.operations.filter(
-    (o: { state: string }) => o.state === 'executing',
-  )) {
-    const cleared = await page.request.post('/api/applications', {
-      data: {
-        action: 'not-submitted',
-        viewer: ws.viewer,
-        id: leftover.id,
-        digest: leftover.digest,
-        receipt:
-          'Fictional e2e isolation: prior fixture did not submit at the employer.',
-      },
-    });
-    expect(cleared.ok()).toBe(true);
-  }
   const armedView = await armed.json();
+  expect(armedView.operation_id).toBe('op-inspect-handshake');
   const begun = await page.request.post('/api/applications', {
     data: {
       action: 'begin',

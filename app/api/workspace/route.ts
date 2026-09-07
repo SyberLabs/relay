@@ -32,7 +32,6 @@ import {
   completeOwnerImportWrite,
   ownerImportWritePending,
 } from '../../../lib/tracker-submit';
-import { cancelPreBeginForJob } from '../../../lib/application-automation';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -198,21 +197,41 @@ export async function POST(request: Request) {
           409,
         );
       validateEdit(job, b);
-      const result = await db.batch([
+      const skipExecuting =
+        b.status === 'Skip'
+          ? ' AND NOT EXISTS (SELECT 1 FROM application_operations WHERE owner=? AND job_id=? AND state=\'executing\')'
+          : '';
+      const statements = [
         db
           .prepare(
-            "UPDATE jobs SET drafting_direction=CASE WHEN blocker=? THEN drafting_direction ELSE '' END,draft=?,blocker=?,status=?,accepted_draft=?,version=version+1,updated=? WHERE id=? AND owner=? AND version=?",
+            `UPDATE jobs SET drafting_direction=CASE WHEN blocker=? THEN drafting_direction ELSE '' END,draft=?,blocker=?,status=?,accepted_draft=?,version=version+1,updated=? WHERE id=? AND owner=? AND version=?${skipExecuting}`,
           )
           .bind(
-            b.blocker,
-            b.draft,
-            b.blocker,
-            b.status,
-            b.status === 'Ready' ? b.draft : null,
-            now,
-            b.id,
-            user,
-            b.version,
+            ...(b.status === 'Skip'
+              ? [
+                  b.blocker,
+                  b.draft,
+                  b.blocker,
+                  b.status,
+                  null,
+                  now,
+                  b.id,
+                  user,
+                  b.version,
+                  user,
+                  b.id,
+                ]
+              : [
+                  b.blocker,
+                  b.draft,
+                  b.blocker,
+                  b.status,
+                  b.status === 'Ready' ? b.draft : null,
+                  now,
+                  b.id,
+                  user,
+                  b.version,
+                ]),
           ),
         db
           .prepare(
@@ -234,10 +253,18 @@ export async function POST(request: Request) {
             b.version + 1,
             now,
           ),
-      ]);
+      ];
+      if (b.status === 'Skip')
+        statements.push(
+          db
+            .prepare(
+              "UPDATE application_operations SET state='cancelled',finished=? WHERE owner=? AND job_id=? AND state IN ('proposed','authorized')",
+            )
+            .bind(now, user, b.id),
+        );
+      const result = await db.batch(statements);
       if (!result[0].meta.changes)
         return reply({ error: 'Record changed. Reload before saving.' }, 409);
-      if (b.status === 'Skip') await cancelPreBeginForJob(db, user, b.id, now);
       return reply({ ok: true });
     }
     if (b.action === 'history') {

@@ -207,7 +207,7 @@ export function useRelayTools(
       {
         name: 'relay_prepare_application',
         description:
-          'Replace the Inspect snapshot for one job with exact employer-form fields, files and destination. Unknown answers use unknown: true and never invent. Does not freeze, arm, Accept, or submit. Batch the snapshot; do not send one request per keystroke.',
+          'Replace the Inspect snapshot for one job with exact employer-form fields, files and destination. Pass revision from the last inspect or prepare when overwriting. Unknown answers use unknown: true and never invent. Does not freeze, arm, Accept, or submit. Batch the snapshot; do not send one request per keystroke.',
         readOnly: false,
         schema: object(
           {
@@ -236,6 +236,7 @@ export function useRelayTools(
                 ['name', 'base64', 'sha256'],
               ),
             },
+            revision: { type: 'integer', minimum: 1 },
           },
           ['job', 'actor', 'destination', 'fields', 'files'],
         ),
@@ -247,6 +248,7 @@ export function useRelayTools(
             destination: input.destination,
             fields: input.fields,
             files: input.files,
+            revision: input.revision,
           });
           await refresh();
           return result;

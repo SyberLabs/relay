@@ -533,6 +533,81 @@ void test('application arm is presence weight 1 and six per minute, not a mutati
   db.sqlite.close();
 });
 
+void test('arm classification fails closed on a stalled declared-small body without waiting the body deadline', async () => {
+  const db = database();
+  const env = { DB: db };
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('{'));
+    },
+  });
+  const stalled = new Request('https://relay.example/api/applications', {
+    method: 'POST',
+    headers: {
+      'oai-authenticated-user-id': 'cloudflare:alice',
+      'content-length': '16',
+    },
+    duplex: 'half',
+    body: stream,
+  });
+  const started = Date.now();
+  const refused = await usageGuard(stalled, env, now);
+  assert.ok(Date.now() - started < 2000);
+  assert.equal(refused, null);
+  const user = await principalKey(request());
+  const writes = await db
+    .prepare('SELECT used FROM security_counters WHERE scope=?')
+    .bind(`${user}:write-minute`)
+    .first();
+  assert.equal(writes?.used, 1);
+  const stalledArms = await db
+    .prepare('SELECT used FROM security_counters WHERE scope=?')
+    .bind(`${user}:arm-minute`)
+    .first();
+  assert.equal(stalledArms, null);
+  db.sqlite.close();
+});
+
+void test('arm classification fails closed on an oversized declared-small body', async () => {
+  const db = database();
+  const env = { DB: db };
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(
+        new TextEncoder().encode(
+          `{"action":"arm","pad":"${'a'.repeat(5000)}"}`,
+        ),
+      );
+      controller.close();
+    },
+  });
+  const oversized = new Request('https://relay.example/api/applications', {
+    method: 'POST',
+    headers: {
+      'oai-authenticated-user-id': 'cloudflare:alice',
+      'content-length': '16',
+    },
+    duplex: 'half',
+    body: stream,
+  });
+  const started = Date.now();
+  const refused = await usageGuard(oversized, env, now);
+  assert.ok(Date.now() - started < 2000);
+  assert.equal(refused, null);
+  const user = await principalKey(request());
+  const writes = await db
+    .prepare('SELECT used FROM security_counters WHERE scope=?')
+    .bind(`${user}:write-minute`)
+    .first();
+  assert.equal(writes?.used, 1);
+  const arms = await db
+    .prepare('SELECT used FROM security_counters WHERE scope=?')
+    .bind(`${user}:arm-minute`)
+    .first();
+  assert.equal(arms, null);
+  db.sqlite.close();
+});
+
 void test('encoded and trailing-slash planner routes share the same expensive throttle', async () => {
   const db = database();
   for (let i = 0; i < 6; i++)

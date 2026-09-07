@@ -14,6 +14,7 @@ export type InspectSnapshot = {
   digest: string | null;
   state: string | null;
   accept_enabled: boolean;
+  revision?: number;
   viewer?: string;
 };
 

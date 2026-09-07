@@ -175,7 +175,7 @@ export default function Workspace() {
           new Date().toISOString(),
         )
       : null;
-  const inspect = useInspect(current?.id);
+  const inspect = useInspect(current?.id, applyExpired);
   const counts = useMemo(() => {
     const byStatus: Record<string, number> = {};
     for (const job of jobs)

@@ -54,6 +54,7 @@ export const applicationPreparations = sqliteTable(
     ready: integer('ready').notNull(),
     armed_until: text('armed_until').notNull(),
     updated: text('updated').notNull(),
+    revision: integer('revision').notNull().default(1),
   },
   (t) => [primaryKey({ columns: [t.owner, t.job_id] })],
 );

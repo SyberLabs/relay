@@ -50,6 +50,38 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   expect(imported.ok()).toBe(true);
   await page.reload();
 
+  const saved = await (await page.request.get('/api/workspace')).json();
+  const reviewJobs = saved.jobs.filter(
+    (job: { status: string; blocker: string }) =>
+      job.status === 'Held' && !job.blocker.trim(),
+  );
+  await expect(page.locator('#workspace-queue .tally')).toHaveText(
+    String(reviewJobs.length),
+  );
+  await expect(page.locator('#workspace-queue button.job')).toHaveCount(
+    reviewJobs.length,
+  );
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  const allOpportunities = page.getByRole('button', {
+    name: `All opportunities ${saved.jobs.length}`,
+    exact: true,
+  });
+  await expect(allOpportunities.locator('span')).toBeVisible();
+  await expect(allOpportunities).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.job-sheet tbody tr')).toHaveCount(
+    saved.jobs.length,
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Jobs', exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole('link', { name: 'Workspace', exact: true })
+    .last()
+    .click();
+  await expect(
+    page.getByRole('heading', { name: 'Review queue', exact: true }),
+  ).toBeVisible();
+
   await expect(
     page.getByRole('button', { name: /Runtime Plant — Held Engineer/ }),
   ).toBeVisible();

@@ -155,7 +155,7 @@ for (const width of [1280, 390]) {
       const next = await resumed.newPage();
       await next.goto('/');
       await expect(
-        next.locator('section.queue .joblist button').first(),
+        next.getByRole('heading', { name: 'Review queue', exact: true }),
       ).toBeVisible();
       for (const original of jobs) {
         const persisted = saved.jobs.find((job) => job.id === original.id)!;

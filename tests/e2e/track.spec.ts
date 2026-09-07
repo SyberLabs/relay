@@ -125,6 +125,7 @@ test('track sheet filters jobs and a row opens the plant', async ({ page }) => {
     },
   });
   expect(accepted.ok()).toBe(true);
+  const saved = await (await page.request.get('/api/workspace')).json();
 
   await page.goto('/?queue=All');
   await expect(page).toHaveURL(/\/track$/);
@@ -161,4 +162,27 @@ test('track sheet filters jobs and a row opens the plant', async ({ page }) => {
   await expect(
     page.getByRole('heading', { name: 'Track Sheet Beta — Unique Ready Role' }),
   ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Track Sheet Beta — Unique Ready Role' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Prepared application' }),
+  ).toBeVisible();
+  await expect(
+    page.locator('#workspace-queue').getByRole('button', {
+      name: 'Track Sheet Beta — Unique Ready Role',
+    }),
+  ).toHaveCount(0);
+  const notes = page.locator('details.review-notes');
+  if ((await notes.getAttribute('open')) === null)
+    await notes.locator('summary').click();
+  await expect(
+    page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
+  ).toHaveValue('Exact reviewed track-sheet draft.');
+  const afterNavigation = await (
+    await page.request.get('/api/workspace')
+  ).json();
+  expect(afterNavigation.jobs).toEqual(saved.jobs);
+  expect(afterNavigation.events).toEqual(saved.events);
 });

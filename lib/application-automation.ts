@@ -15,6 +15,24 @@ export type ApplicationPolicy = {
   maximum: number;
   updated: string;
 };
+export type InspectView = {
+  job_id: string;
+  destination: string | null;
+  fields: {
+    label: string;
+    filled: boolean;
+    unknown: boolean;
+    value: string;
+  }[];
+  files: { name: string; sha256: string }[];
+  missing: string[];
+  ready: boolean;
+  armed: boolean;
+  operation_id: string | null;
+  digest: string | null;
+  state: string | null;
+  accept_enabled: boolean;
+};
 export type ApplicationOperation = {
   id: string;
   owner: string;
@@ -166,6 +184,148 @@ export async function loadOperation(db: D1Database, owner: string, id: string) {
     .first<ApplicationOperation>();
   requireThat(op, 'Application operation not found.', 404);
   return op;
+}
+export function emptyInspect(jobId: string): InspectView {
+  return {
+    job_id: jobId,
+    destination: null,
+    fields: [],
+    files: [],
+    missing: [],
+    ready: false,
+    armed: false,
+    operation_id: null,
+    digest: null,
+    state: null,
+    accept_enabled: false,
+  };
+}
+export async function inspectApplication(
+  db: D1Database,
+  owner: string,
+  jobId: string,
+  now: string,
+): Promise<InspectView> {
+  requireThat(shortText(jobId, 100), 'A selected job is unavailable.', 404);
+  requireThat(
+    await db
+      .prepare('SELECT 1 FROM jobs WHERE owner=? AND id=?')
+      .bind(owner, jobId)
+      .first(),
+    'A selected job is unavailable.',
+    404,
+  );
+  const row = await db
+    .prepare(
+      `SELECT p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state
+       FROM application_preparations p
+       LEFT JOIN application_operations o ON o.owner=p.owner AND o.id=p.operation_id
+       WHERE p.owner=? AND p.job_id=?`,
+    )
+    .bind(owner, jobId)
+    .first<{
+      destination: string;
+      fields: string;
+      files: string;
+      ready: number;
+      armed_until: string;
+      operation_id: string | null;
+      digest: string | null;
+      state: string | null;
+    }>();
+  if (!row) return emptyInspect(jobId);
+  const fields = JSON.parse(row.fields) as {
+    label: string;
+    value: string;
+    unknown: boolean;
+  }[];
+  const files = JSON.parse(row.files) as { name: string; sha256: string }[];
+  const ready = row.ready === 1;
+  const armed = Date.parse(row.armed_until) > Date.parse(now);
+  const state = row.state ?? null;
+  return {
+    job_id: jobId,
+    destination: row.destination,
+    fields: fields.map((f) => ({
+      label: f.label,
+      filled: f.value.length > 0,
+      unknown: Boolean(f.unknown),
+      value: f.value,
+    })),
+    files: files.map(({ name, sha256 }) => ({ name, sha256 })),
+    missing: fields.filter((f) => f.unknown || !f.value).map((f) => f.label),
+    ready,
+    armed,
+    operation_id: row.operation_id,
+    digest: row.digest ?? null,
+    state,
+    accept_enabled: ready && armed && state === 'proposed',
+  };
+}
+export async function upsertPreparation(
+  db: D1Database,
+  owner: string,
+  input: Record<string, unknown>,
+  now: string,
+): Promise<InspectView> {
+  requireThat(
+    shortText(input.job, 100) && shortText(input.actor, 100),
+    'Supply job and agent name.',
+  );
+  const job = await db
+    .prepare('SELECT version FROM jobs WHERE owner=? AND id=?')
+    .bind(owner, input.job)
+    .first<{ version: number }>();
+  requireThat(job, 'A selected job is unavailable.', 404);
+  requireThat(
+    Array.isArray(input.fields) &&
+      input.fields.every(
+        (f) => f && typeof f === 'object' && typeof f.unknown === 'boolean',
+      ),
+    'Invalid field label or value.',
+  );
+  const manifest = await validateManifest({
+    destination: input.destination,
+    fields: input.fields.map(({ label, value }) => ({ label, value })),
+    files: input.files,
+  });
+  const fields = input.fields.map(({ label, value, unknown }) => ({
+    label,
+    value,
+    unknown,
+  }));
+  const fieldsJson = JSON.stringify(fields);
+  const filesJson = JSON.stringify(manifest.files);
+  requireThat(
+    new TextEncoder().encode(fieldsJson).length +
+      new TextEncoder().encode(filesJson).length <=
+      240000,
+    'Submission exceeds 240,000 bytes.',
+  );
+  await statement(
+    db,
+    `INSERT INTO application_preparations (owner,job_id,actor,job_version,destination,fields,files,operation_id,ready,armed_until,updated)
+     VALUES (?,?,?,?,?,?,?,NULL,0,'',?)
+     ON CONFLICT(owner,job_id) DO UPDATE SET
+       actor=excluded.actor,
+       job_version=excluded.job_version,
+       destination=excluded.destination,
+       fields=excluded.fields,
+       files=excluded.files,
+       operation_id=NULL,
+       ready=0,
+       armed_until='',
+       updated=excluded.updated`,
+    owner,
+    input.job,
+    input.actor,
+    job.version,
+    manifest.destination,
+    fieldsJson,
+    filesJson,
+    now,
+  ).run();
+  return inspectApplication(db, owner, input.job, now);
 }
 function statement(
   db: D1Database,

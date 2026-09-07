@@ -9,6 +9,8 @@ import {
   loadOperation,
   validateManifest,
   digest,
+  inspectApplication,
+  upsertPreparation,
 } from '../lib/application-automation.ts';
 
 const now = '2026-09-07T12:00:00.000Z';
@@ -102,6 +104,146 @@ const counts = (db) =>
       'SELECT (SELECT COUNT(*) FROM application_operations) AS operations,(SELECT COUNT(*) FROM events) AS events,(SELECT SUM(version) FROM jobs) AS versions',
     )
     .get();
+
+void test('prepare streams field fill into inspect without creating an operation', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  const view = await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [
+        { label: 'Full name', value: 'Avery Example', unknown: false },
+        { label: 'Work authorization', value: '', unknown: true },
+      ],
+      files: [],
+    },
+    now,
+  );
+  assert.equal(view.job_id, 'alice-0');
+  assert.equal(view.ready, false);
+  assert.equal(view.armed, false);
+  assert.equal(view.accept_enabled, false);
+  assert.deepEqual(view.missing, ['Work authorization']);
+  assert.equal(view.fields[1].unknown, true);
+  assert.equal(view.fields[0].filled, true);
+  assert.equal(view.fields[0].value, 'Avery Example');
+  assert.equal(view.fields[1].filled, false);
+  assert.equal(view.fields[1].value, '');
+  assert.equal(
+    db.sqlite.prepare('SELECT COUNT(*) c FROM application_operations').get().c,
+    0,
+  );
+  const stored = db.sqlite
+    .prepare(
+      'SELECT armed_until, ready, operation_id FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get('alice', 'alice-0');
+  assert.equal(stored.armed_until, '');
+  assert.equal(stored.ready, 0);
+  assert.equal(stored.operation_id, null);
+  db.sqlite.close();
+});
+
+void test('prepare refuses another owner job and oversized snapshots', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  await assert.rejects(
+    () =>
+      upsertPreparation(
+        db,
+        'alice',
+        {
+          job: 'bob-0',
+          actor: 'Fictional applying agent',
+          destination: 'https://employer.example/jobs/0',
+          fields: [{ label: 'Full name', value: 'Avery', unknown: false }],
+          files: [],
+        },
+        now,
+      ),
+    /unavailable/i,
+  );
+  await assert.rejects(
+    () =>
+      upsertPreparation(
+        db,
+        'alice',
+        {
+          job: 'alice-0',
+          actor: 'Fictional applying agent',
+          destination: 'https://employer.example/jobs/0',
+          fields: Array.from({ length: 20 }, (_, i) => ({
+            label: `Question ${i}`,
+            value: 'é'.repeat(10000),
+            unknown: false,
+          })),
+          files: [],
+        },
+        now,
+      ),
+    /240,000/,
+  );
+  assert.throws(
+    () =>
+      db.sqlite
+        .prepare(
+          `INSERT INTO application_preparations (owner,job_id,actor,job_version,destination,fields,files,ready,armed_until,updated)
+           VALUES (?,?,?,?,?,?,?,0,'',?)`,
+        )
+        .run(
+          'alice',
+          'alice-0',
+          'agent',
+          1,
+          'https://employer.example/jobs/0',
+          'x'.repeat(240001),
+          '[]',
+          now,
+        ),
+    /too large/,
+  );
+  assert.equal(
+    db.sqlite.prepare('SELECT COUNT(*) c FROM application_preparations').get()
+      .c,
+    0,
+  );
+  db.sqlite.close();
+});
+
+void test('inspect of another owner job is unavailable', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Full name', value: 'Avery', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  await assert.rejects(
+    () => inspectApplication(db, 'bob', 'alice-0', now),
+    /unavailable/i,
+  );
+  await assert.rejects(
+    () => inspectApplication(db, 'alice', 'bob-0', now),
+    /unavailable/i,
+  );
+  const empty = await inspectApplication(db, 'alice', 'alice-1', now);
+  assert.equal(empty.job_id, 'alice-1');
+  assert.equal(empty.destination, null);
+  assert.deepEqual(empty.fields, []);
+  assert.equal(empty.accept_enabled, false);
+  db.sqlite.close();
+});
 
 void test('exact fields/files survive proposal, restart, execution and confirmation without draft acceptance', async () => {
   const db = database();

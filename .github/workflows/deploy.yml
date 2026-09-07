@@ -11,10 +11,6 @@ permissions:
   actions: read
   deployments: write
 
-concurrency:
-  group: relay-delivery
-  cancel-in-progress: false
-
 jobs:
   staging:
     if: >-
@@ -25,15 +21,6 @@ jobs:
     uses: ./.github/workflows/release-environment.yml
     with:
       environment: staging
-      release_sha: ${{ github.event.workflow_run.head_sha }}
-      run_id: ${{ github.event.workflow_run.id }}
-    secrets: inherit
-
-  production:
-    needs: staging
-    uses: ./.github/workflows/release-environment.yml
-    with:
-      environment: production
       release_sha: ${{ github.event.workflow_run.head_sha }}
       run_id: ${{ github.event.workflow_run.id }}
     secrets: inherit

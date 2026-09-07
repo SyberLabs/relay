@@ -8,7 +8,7 @@ Seth (`sdcarlson`) owns delivery and product decisions; Mateo (`sykosyber`) is t
 2. Branch from current `main`. Keep private records and credentials out of source, tests, prompts, screenshots, and logs. Use fictional fixtures.
 3. Open a pull request linked to the ticket. Explain the resulting behavior and the checks actually run. Move the ticket to In review. Cursor reviews new pull requests and subsequent pushes.
 4. Resolve actionable findings and run the required checks. One other owner must approve the latest changes; neither an agent comment nor a green build supplies human approval. Squash merge only when GitHub permits it.
-5. Main CI creates the immutable release. Staging deploys automatically; production waits for a peer environment approval. Verify the deployed behavior before marking a release ticket complete.
+5. Main CI creates the immutable release. Staging deploys automatically and finishes without a production approval wait. After staging acceptance, dispatch **Promote production** from `main` with the tested commit and its source CI run; a peer must still approve the production environment. Verify the deployed behavior before marking a release ticket complete.
 
 Use Backlog for unselected work, Ready for a fully specified next task, and Blocked only with a named dependency and next action. Closed issues move to Done. New open issues in RELAY join the board automatically. Avoid parallel status labels that disagree with the board.
 

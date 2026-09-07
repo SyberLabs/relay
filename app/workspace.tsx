@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { jobKey, validateRows, type SourceRow } from '../lib/domain';
+import { firstJobShouldSelectSaved } from '../lib/first-job';
 import { isTerminal } from '../lib/outcomes';
 import { type Fact } from '../lib/profile';
 import { assessJob } from '../lib/fit';
@@ -147,6 +148,11 @@ export default function Workspace() {
         )
       : null;
   const selectedRef = useRef('');
+  const editorRef = useRef<Editor | null>(null);
+  const addJobViewerRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
   const loadJobHistory = useCallback(
     async (jobId: string, before?: string | null) => {
       const started = { epoch: sessionRef.current.gate.epoch };
@@ -188,14 +194,29 @@ export default function Workspace() {
         return;
       }
       if (outcome.type === 'ignore') return;
-      if (!refreshIsLive(sessionRef.current.gate, started)) return;
       if (outcome.type === 'error') throw Error(outcome.error);
+      if (!outcome.switched && !refreshIsLive(sessionRef.current.gate, started))
+        return;
       const nextJobs = outcome.jobs as Job[];
       setJobs(nextJobs);
       setSources(outcome.sources as Source[]);
       setEvents(outcome.events as ReviewEvent[]);
       setFacts(outcome.facts as Fact[]);
-      setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      if (outcome.switched) {
+        setShowAddJob(false);
+        setShowImport(false);
+        setImportText('');
+        setPreviewedImport('');
+        setReport(null);
+        if (!nextJobs.some((job) => job.id === selectedRef.current)) {
+          selectedRef.current = '';
+          setEditor(null);
+        } else {
+          setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+        }
+      } else {
+        setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      }
       setSignedOut(false);
       setLoaded(true);
       if (selectedRef.current) void loadJobHistory(selectedRef.current);
@@ -309,27 +330,56 @@ export default function Workspace() {
     );
   }
   function openAddJob() {
+    addJobViewerRef.current = sessionRef.current.viewer;
     setShowAddJob(true);
   }
   async function saveFirstJob(row: SourceRow) {
     if (editorIsDirty(editor) && !discardUnsaved()) return;
+    const originViewer = addJobViewerRef.current;
     const started = beginMutation(sessionRef.current.gate);
+    const startedEditor = {
+      selectedId: selectedRef.current,
+      jobId: editor?.jobId ?? '',
+      session: editor?.session ?? '',
+      draft: editor?.draft ?? '',
+      blocker: editor?.blocker ?? '',
+    };
     setBusy(true);
     setMessage('');
     try {
+      await refresh();
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      if (
+        originViewer &&
+        sessionRef.current.viewer &&
+        originViewer !== sessionRef.current.viewer
+      ) {
+        setShowAddJob(false);
+        return;
+      }
       const r = await fetch('/api/workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'import', rows: [row] }),
+        body: JSON.stringify({
+          action: 'import',
+          rows: [row],
+          ...(originViewer ? { viewer: originViewer } : {}),
+        }),
       });
       const outcome = await processMutation(sessionRef.current, started, r);
       if (outcome.type === 'expire') {
         applyExpired();
         return;
       }
-      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'ignore') {
+        setShowAddJob(false);
+        return;
+      }
       if (!mutationIsLive(sessionRef.current.gate, started)) return;
-      if (outcome.type === 'error') throw Error(outcome.error);
+      if (outcome.type === 'error') {
+        if (outcome.status === 409) setShowAddJob(false);
+        throw Error(outcome.error);
+      }
       const key = jobKey(row.Job, row.url);
       let nextJobs: Job[] | undefined;
       try {
@@ -344,7 +394,13 @@ export default function Workspace() {
       }
       if (!mutationIsLive(sessionRef.current.gate, started)) return;
       const savedJob = nextJobs?.find((job) => job.job_key === key);
-      if (savedJob) {
+      const selectSaved = firstJobShouldSelectSaved(
+        startedEditor,
+        editorRef.current,
+        selectedRef.current,
+        savedJob?.id,
+      );
+      if (savedJob && selectSaved) {
         selectedRef.current = savedJob.id;
         setFilter((currentFilter) =>
           currentFilter === 'All' || currentFilter === savedJob.status
@@ -359,7 +415,9 @@ export default function Workspace() {
       setMessage(
         kind && kind !== 'new'
           ? 'Research added to the existing job.'
-          : 'Job saved. Continue from the selected record.',
+          : selectSaved
+            ? 'Job saved. Continue from the selected record.'
+            : 'Job saved.',
       );
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Unable to save.');

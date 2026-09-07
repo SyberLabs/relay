@@ -22,6 +22,14 @@ export type FirstJobRecord = {
   status: string;
 };
 
+export type FirstJobEditorStart = {
+  selectedId: string;
+  jobId: string;
+  session: string;
+  draft: string;
+  blocker: string;
+};
+
 function postingUrl(url: string) {
   return jobKey(url.trim(), '');
 }
@@ -75,4 +83,26 @@ export function existingJobForUrl<T extends { job_key: string }>(
 
 export function joinExistingJobNotice(job: FirstJobRecord): string {
   return `This posting URL matches ${job.name}. Saving adds research to that job and keeps its ${job.status} status, draft, accepted wording, and history.`;
+}
+
+export function firstJobShouldSelectSaved(
+  started: FirstJobEditorStart,
+  editor: {
+    jobId: string;
+    session: string;
+    draft: string;
+    blocker: string;
+  } | null,
+  selectedId: string,
+  savedJobId: string | undefined,
+) {
+  if (!savedJobId) return false;
+  if (selectedId !== started.selectedId) return false;
+  if (!editor) return true;
+  return (
+    editor.jobId === started.jobId &&
+    editor.session === started.session &&
+    editor.draft === started.draft &&
+    editor.blocker === started.blocker
+  );
 }

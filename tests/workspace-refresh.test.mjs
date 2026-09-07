@@ -593,3 +593,64 @@ void test('refresh helpers do not wrap acknowledgeSave behind extra names', asyn
   assert.equal(editor.baseDraft, 'saved text');
   assert.equal(editor.conflict, false);
 });
+
+void test('a later GET from a different viewer bumps epoch and keeps those records', async () => {
+  const session = createWorkspaceSession();
+  const first = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(200, records({ viewer: 'owner-a' })),
+  );
+  assert.equal(first.type, 'records');
+  assert.equal(first.switched, false);
+  assert.equal(session.viewer, 'owner-a');
+  const mutation = beginMutation(session.gate);
+  const second = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(
+      200,
+      records({
+        viewer: 'owner-b',
+        jobs: [job('B', { draft: 'owner-b draft' })],
+      }),
+    ),
+  );
+  assert.equal(second.type, 'records');
+  assert.equal(second.switched, true);
+  assert.equal(second.jobs[0].id, 'B');
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(mutationIsLive(session.gate, mutation), false);
+  const late = await processMutation(
+    session,
+    mutation,
+    http(200, {
+      items: [{ name: 'Owner A private title', kind: 'new', key: 'leaked' }],
+    }),
+  );
+  assert.equal(late.type, 'ignore');
+});
+
+void test('expiry forgets the bound viewer so the next account can load', async () => {
+  const session = createWorkspaceSession();
+  await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(200, records({ viewer: 'owner-a' })),
+  );
+  const expired = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(401, 'Unauthorized'),
+  );
+  assert.equal(expired.type, 'expire');
+  assert.equal(session.viewer, undefined);
+  const next = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(200, records({ viewer: 'owner-b', jobs: [job('B')] })),
+  );
+  assert.equal(next.type, 'records');
+  assert.equal(next.switched, false);
+  assert.equal(session.viewer, 'owner-b');
+});

@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { classify, jobKey, validateRows } from '../lib/domain.ts';
+import { loadEditor } from '../lib/editor.ts';
 import {
   existingJobForUrl,
   firstJobErrors,
   firstJobRow,
+  firstJobShouldSelectSaved,
   joinExistingJobNotice,
 } from '../lib/first-job.ts';
 
@@ -107,4 +109,43 @@ void test('company compensation and fit are omitted from the import row', () => 
   assert.equal('company' in row, false);
   assert.equal('comp_min' in row, false);
   assert.equal('comp_max' in row, false);
+});
+
+void test('delayed add-job completion keeps in-flight editor work instead of selecting', () => {
+  const existing = {
+    id: 'existing',
+    version: 1,
+    draft: '',
+    blocker: '',
+  };
+  const editor = loadEditor(existing);
+  const started = {
+    selectedId: existing.id,
+    jobId: editor.jobId,
+    session: editor.session,
+    draft: editor.draft,
+    blocker: editor.blocker,
+  };
+  assert.equal(
+    firstJobShouldSelectSaved(started, editor, existing.id, 'added'),
+    true,
+  );
+  const typed = { ...editor, draft: 'Typed while add-job was in flight.' };
+  assert.equal(
+    firstJobShouldSelectSaved(started, typed, existing.id, 'added'),
+    false,
+  );
+  assert.equal(
+    firstJobShouldSelectSaved(started, editor, 'other', 'added'),
+    false,
+  );
+  assert.equal(
+    firstJobShouldSelectSaved(
+      { selectedId: '', jobId: '', session: '', draft: '', blocker: '' },
+      null,
+      '',
+      'added',
+    ),
+    true,
+  );
 });

@@ -12,7 +12,22 @@ import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
 import { BlockerReview } from './blocker-review';
 import { defaultDraftingPreference } from '../lib/drafting-decision';
-import { AppShell } from './shell';
+import { RuntimeShell } from './runtime-shell';
+import { RuntimeModals, type RuntimeModal } from './runtime-modals';
+import type { ApplicationPolicy } from '../lib/application-automation';
+import {
+  boundedPolicyMaximum,
+  ctxTally,
+  draftProgress,
+  evidenceFitPercent,
+  formatLocation,
+  formatPay,
+  policyExpiryIso,
+  runtimeLanes,
+  sentPip,
+  sourceLabel,
+  splitJobName,
+} from '../lib/runtime';
 import {
   isQueueFilter,
   queueFromSearch,
@@ -56,16 +71,7 @@ import {
   primaryAction,
   stageLead,
 } from '../lib/workspace-stage';
-import {
-  ArrowUpRight,
-  Search,
-  Check,
-  GitMerge,
-  ArrowRight,
-  BriefcaseBusiness,
-  Upload,
-  ChevronRight,
-} from 'lucide-react';
+import { ArrowUpRight, Search, Check, ArrowRight } from 'lucide-react';
 type Job = {
   id: string;
   job_key: string;
@@ -77,6 +83,12 @@ type Job = {
   draft: string;
   accepted_draft: string | null;
   version: number;
+  company?: string;
+  location?: string;
+  remote?: string;
+  source?: string;
+  comp_min?: number | null;
+  comp_max?: number | null;
 };
 type Source = {
   id: string;
@@ -126,10 +138,15 @@ export default function Workspace() {
     [showAddJob, setShowAddJob] = useState(false),
     [handoffOpen, setHandoffOpen] = useState(false),
     [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
+  const [modal, setModal] = useState<RuntimeModal>(null);
+  const [autopilot, setAutopilot] = useState(false);
+  const [policy, setPolicy] = useState<ApplicationPolicy | null>(null);
+  const [rememberAnswer, setRememberAnswer] = useState(true);
+  const [styleCount, setStyleCount] = useState(0);
   const sessionRef = useRef(createWorkspaceSession());
   const importRef = useRef<HTMLElement>(null);
   const queueRef = useRef<HTMLElement>(null);
-  const detailRef = useRef<HTMLElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
   const workspaceEpoch = sessionRef.current.gate.epoch;
   const applyExpired = useCallback(() => {
     const next = expiredPrivateWorkspace();
@@ -161,11 +178,6 @@ export default function Workspace() {
     draft = editor?.draft ?? '',
     blocker = editor?.blocker ?? '',
     current = jobs.find((j) => j.id === selected),
-    visible = jobs.filter(
-      (j) =>
-        (filter === 'All' || j.status === filter) &&
-        j.name.toLowerCase().includes(search.toLowerCase()),
-    ),
     fit = current
       ? assessJob(
           current,
@@ -180,6 +192,13 @@ export default function Workspace() {
       byStatus[job.status] = (byStatus[job.status] || 0) + 1;
     return { total: jobs.length, byStatus };
   }, [jobs]);
+  const lanes = runtimeLanes(jobs, selected, filter);
+  const queued = lanes.queue.filter((job) =>
+    job.name.toLowerCase().includes(search.toLowerCase()),
+  );
+  const named = current ? splitJobName(current.name) : null;
+  const progress = current ? draftProgress(current) : null;
+  const fitPct = fit ? evidenceFitPercent(fit.gates) : null;
   const stageView = {
     page: 'workspace' as const,
     signedOut,
@@ -283,6 +302,22 @@ export default function Workspace() {
         setLoaded(true);
       });
   }, [refresh]);
+  useEffect(() => {
+    if (signedOut || !loaded) return;
+    void Promise.all([
+      fetch('/api/applications').then(async (r) => {
+        if (!r.ok) return;
+        const body = (await r.json()) as { policy?: ApplicationPolicy | null };
+        setPolicy(body.policy || null);
+        setAutopilot(Boolean(body.policy?.enabled));
+      }),
+      fetch('/api/profile').then(async (r) => {
+        if (!r.ok) return;
+        const body = (await r.json()) as { rules?: { id: string }[] };
+        setStyleCount(Array.isArray(body.rules) ? body.rules.length : 0);
+      }),
+    ]).catch(() => undefined);
+  }, [signedOut, loaded]);
   useEffect(() => {
     if (!showImport) return;
     function onKey(event: KeyboardEvent) {
@@ -402,6 +437,14 @@ export default function Workspace() {
     if (!loaded || signedOut) return;
     setImportTab(tab);
     setShowImport(true);
+  }
+  function findMoreJobs() {
+    if (!loaded || signedOut) return;
+    if (showImport) {
+      document.getElementById('import-dock-title')?.focus();
+      return;
+    }
+    openImport(importTab);
   }
   function chooseImportTab(next: ImportTab) {
     setImportTab(next);
@@ -640,51 +683,127 @@ export default function Workspace() {
       openImport={() => openImport('json')}
     />
   ) : null;
+  function holdJob() {
+    if (!current) return;
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    selectedRef.current = '';
+    setEditor(null);
+    setMessage('Held. Moved back to the queue.');
+  }
+  function loadNext() {
+    const next = queued[0] ?? lanes.queue[0];
+    if (!next) return;
+    chooseJob(next);
+  }
+  async function saveLimits(input: {
+    maximum: number;
+    review: string;
+    enabled: boolean;
+  }) {
+    const viewer = sessionRef.current.viewer;
+    if (!viewer) {
+      setMessage('Sign in to save application limits.');
+      return false;
+    }
+    const allowed = jobs
+      .filter((job) => job.status !== 'Skip' && !isTerminal(job.status))
+      .map((job) => job.id);
+    if (input.enabled && !allowed.length) {
+      setMessage('Add a job before enabling autopilot.');
+      return false;
+    }
+    const maximum = boundedPolicyMaximum(input.maximum);
+    const review = input.review === 'sensitive' ? 'sensitive' : 'all';
+    const r = await fetch('/api/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'policy',
+        viewer,
+        version: policy?.version || 0,
+        enabled: input.enabled,
+        review,
+        jobs: allowed,
+        maximum,
+        expires: policyExpiryIso(policy?.expires, input.enabled),
+      }),
+    });
+    const body = (await r.json()) as {
+      policy?: ApplicationPolicy;
+      error?: string;
+    };
+    if (!r.ok) {
+      setMessage(body.error || 'Unable to save limits.');
+      return false;
+    }
+    setPolicy(body.policy || null);
+    setAutopilot(Boolean(body.policy?.enabled));
+    return true;
+  }
+  async function toggleAutopilot() {
+    if (busy || signedOut) return;
+    if (autopilot) {
+      const ok = await saveLimits({
+        maximum: policy?.maximum || 8,
+        review: policy?.review || 'all',
+        enabled: false,
+      });
+      if (ok)
+        setMessage(
+          'Autopilot off. Nothing is sent without your approval and a permit.',
+        );
+      return;
+    }
+    const allowed = jobs.filter(
+      (job) => job.status !== 'Skip' && !isTerminal(job.status),
+    );
+    if (!allowed.length) {
+      setModal('tools');
+      setMessage('Choose jobs in Tools before enabling autopilot.');
+      return;
+    }
+    const ok = await saveLimits({
+      maximum: policy?.maximum || 8,
+      review: 'all',
+      enabled: true,
+    });
+    if (!ok) {
+      setModal('tools');
+      return;
+    }
+    setMessage(
+      'Autopilot on. Agents may prepare applications under your saved permissions. Exact drafts still need your acceptance. Nothing is sent without a permit.',
+    );
+    if (!current) loadNext();
+  }
   return (
-    <AppShell
+    <RuntimeShell
+      addJobPrimary={addJobPrimary}
+      autopilot={autopilot}
       counts={counts}
-      current="workspace"
       filter={filter}
+      importOpen={showImport}
+      importDisabled={signedOut || !loaded}
+      lead={stageLead(stageView)}
+      live={busy}
+      logLine={
+        message ||
+        (signedOut
+          ? 'Sign in to load your runtime.'
+          : 'Runtime ready. Load an application to begin.')
+      }
+      logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
+      onAddJob={openAddJob}
+      onAutopilot={() => void toggleAutopilot()}
       onFilter={chooseFilter}
+      onImport={findMoreJobs}
       onNavigate={confirmLeave}
+      showAddJob={loaded && !signedOut && jobs.length > 0}
+      stateText={
+        busy ? 'Working' : signedOut ? 'Signed out' : 'Waiting for you'
+      }
     >
       <main id="workspace-main">
-        <header>
-          <div>
-            <h1>Workspace</h1>
-            <p>{stageLead(stageView)}</p>
-          </div>
-          <div className="actions">
-            {loaded && !signedOut && jobs.length > 0 && (
-              <button
-                className={addJobPrimary ? 'primary' : 'secondary'}
-                onClick={openAddJob}
-                type="button"
-              >
-                Add job
-              </button>
-            )}
-            {!signedOut && (
-              <button
-                aria-controls="import-dock"
-                aria-expanded={showImport}
-                disabled={!loaded}
-                className="secondary"
-                onClick={() => {
-                  if (showImport) {
-                    document.getElementById('import-dock-title')?.focus();
-                    return;
-                  }
-                  openImport(importTab);
-                }}
-                type="button"
-              >
-                <Upload size={16} />
-                Import research
-              </button>
-            )}
-          </div>
-        </header>
         {message && (
           <div className="notice" aria-live="polite">
             {message}
@@ -858,32 +977,6 @@ export default function Workspace() {
             </details>
           </section>
         )}
-        {jobs.length > 0 && (
-          <section className="stats">
-            <div>
-              <span>Opportunities</span>
-              <strong>{jobs.length.toString().padStart(2, '0')}</strong>
-              <small>Unique job records</small>
-            </div>
-            <div>
-              <span>Ready for your review</span>
-              <strong>
-                {jobs
-                  .filter((j) => j.status === 'Held')
-                  .length.toString()
-                  .padStart(2, '0')}
-              </strong>
-              <small>Held drafts</small>
-            </div>
-            <div>
-              <span>Repeat sources</span>
-              <strong>
-                {(sources.length - jobs.length).toString().padStart(2, '0')}
-              </strong>
-              <small>Joined to an existing job</small>
-            </div>
-          </section>
-        )}
         {signedOut ? (
           <section className="welcome" id="workspace-signin">
             <h2>Your private workspace</h2>
@@ -897,396 +990,684 @@ export default function Workspace() {
               Sign in with ChatGPT <ArrowRight size={16} />
             </a>
           </section>
-        ) : loaded && jobs.length === 0 && !showAddJob ? (
-          <section className="welcome">
-            <h2>No jobs yet</h2>
-            <p>
-              Add a posting with its role title and URL. Optional notes are
-              saved as research.
-            </p>
-            <div className="actions">
-              <button
-                className={action === 'add_job' ? 'primary' : 'secondary'}
-                onClick={openAddJob}
-                type="button"
-              >
-                Add job <ArrowRight size={16} />
-              </button>
-              <button
-                className="secondary"
-                disabled={busy}
-                onClick={() => run({ action: 'bootstrap' })}
-                type="button"
-              >
-                Explore example jobs
-              </button>
-            </div>
-            <small>Example companies and records are fictional.</small>
-          </section>
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
-        ) : null}
-        {!signedOut && loaded && jobs.length === 0 && connections}
-        {!signedOut && loaded && jobs.length > 0 && (
-          <>
-            {jobs.length > 0 && !current && (
-              <section className="replay">
-                <GitMerge size={20} />
-                <div>
-                  <b>Check example research</b>
-                  <p>
-                    Compare the example records with this workspace to see which
-                    jobs are already here.
-                  </p>
-                </div>
-                <button
-                  disabled={busy}
-                  className="secondary"
-                  onClick={() => run({ action: 'replay' })}
-                  type="button"
-                >
-                  Check examples <ArrowRight size={16} />
-                </button>
-              </section>
-            )}
-            <div className="workgrid">
-              <section className="queue" id="workspace-queue" ref={queueRef}>
-                <div className="queuehead">
-                  <h2 tabIndex={-1}>{queueTitle(filter)}</h2>
-                  <span>{visible.length} roles</span>
-                </div>
-                <label className="search">
-                  <Search size={17} />
-                  <input
-                    aria-label="Find a company or role"
-                    placeholder="Find a company or role"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
-                <div className="joblist">
-                  {visible.map((j) => (
+        ) : (
+          <div className="stage">
+            <div className="cross">
+              <div className="arm n">
+                <div className="plate">
+                  <div className="plate-head">
+                    <h2>What the agent knows about you</h2>
+                    <span className="tally">
+                      {ctxTally(facts.length, styleCount)}
+                    </span>
+                  </div>
+                  <div className="context">
                     <button
-                      key={j.id}
-                      className={'job ' + (selected === j.id ? 'selected' : '')}
-                      onClick={() => chooseJob(j)}
+                      className="ctx"
+                      onClick={() => setModal('profile')}
+                      type="button"
                     >
-                      <span className="companyicon">{j.name[0]}</span>
-                      <span className="jobtext">
-                        <b>{j.name}</b>
-                        <small>{jobQueueHint(j, editor)}</small>
-                      </span>
-                      <ChevronRight size={16} />
+                      <b>Profile</b>
+                      <span>identity, work history, answers</span>
                     </button>
-                  ))}
-                  {!visible.length && (
-                    <p className="empty">No roles in this view.</p>
-                  )}
+                    <button
+                      className="ctx"
+                      onClick={() => setModal('resume')}
+                      type="button"
+                    >
+                      <b>Resume</b>
+                      <span>extract facts from a base</span>
+                    </button>
+                    <button
+                      className="ctx"
+                      onClick={() => setModal('style')}
+                      type="button"
+                    >
+                      <b>Style kit</b>
+                      <span>voice, phrasing, limits</span>
+                    </button>
+                    <button
+                      className="ctx"
+                      onClick={() => setModal('tools')}
+                      type="button"
+                    >
+                      <b>Tools</b>
+                      <span>Simplify, Notion, Obsidian</span>
+                    </button>
+                  </div>
+                  <div className="rail" />
                 </div>
-              </section>
-              <section className="detail" ref={detailRef}>
-                {current ? (
-                  <>
-                    <div className="detailhead">
-                      <button
-                        className="textbutton back-to-jobs"
-                        onClick={() => chooseFilter(filter)}
-                      >
-                        Back to jobs
-                      </button>
-                      <span className="badge">
-                        Relay status: {current.status}
-                      </span>
-                      <h2 tabIndex={-1}>{current.name}</h2>
-                      <p className="muted">{loopStepLead(current.status)}</p>
-                      {current.url && (
-                        <a href={current.url} target="_blank" rel="noreferrer">
-                          Open employer posting <ArrowUpRight size={15} />
-                        </a>
-                      )}
-                    </div>
-                    <BlockerReview
-                      key={current.id}
-                      blocker={current.blocker}
-                      direction={current.drafting_direction}
-                      preference={draftingPreference}
-                      disabled={blocked}
-                      dirty={
-                        !!editor &&
-                        (editor.draft !== editor.baseDraft ||
-                          editor.blocker !== editor.baseBlocker)
-                      }
-                      answer={editor?.progressNote ?? ''}
-                      onAnswer={(value) =>
-                        setEditor((ed) =>
-                          ed ? { ...ed, progressNote: value } : ed,
-                        )
-                      }
-                      onDecision={saveDecision}
-                    />
-                    {showsExactAcceptance(current, editor) && (
-                      <div className="notice">
-                        This exact draft is accepted.
-                      </div>
-                    )}
-                    {protectedState && (
-                      <div className="notice">
-                        You can edit notes and follow-up drafts. Saving keeps
-                        this job’s {current.status} status.
-                      </div>
-                    )}
-                    {editor?.conflict && (
-                      <div className="notice">
-                        This record changed. Reload before saving.
+              </div>
+              <div className="arm w">
+                <div className="plate">
+                  <div className="plate-head">
+                    <h2>Sent</h2>
+                    <span className="tally">{lanes.sent.length}</span>
+                  </div>
+                  <div className="plate-body">
+                    {lanes.sent.length ? (
+                      lanes.sent.map((job) => (
                         <button
-                          className="textbutton"
-                          onClick={() => setEditor(loadEditor(current))}
+                          aria-label={job.name}
+                          className="card job"
+                          key={job.id}
+                          onClick={() => chooseJob(job)}
+                          type="button"
                         >
-                          Reload this record
+                          <span className={'pip ' + sentPip(job.status)} />
+                          <span className="txt">
+                            <b>{job.name}</b>
+                            <small>
+                              {job.status} / {jobQueueHint(job, editor)}
+                            </small>
+                          </span>
                         </button>
-                      </div>
-                    )}
-                    <details className="review-notes">
-                      <summary>Edit blocker or save a progress note</summary>
-                      <label className="field">
-                        Blocker or missing fact
-                        <textarea
-                          value={blocker}
-                          onChange={(e) =>
-                            setEditor((ed) =>
-                              ed ? { ...ed, blocker: e.target.value } : ed,
-                            )
-                          }
-                          placeholder="What needs to be resolved before accepting this draft?"
-                          maxLength={4000}
-                        />
-                      </label>
-                      <label className="field">
-                        Progress note
-                        <textarea
-                          value={editor?.progressNote ?? ''}
-                          onChange={(e) =>
-                            setEditor((ed) =>
-                              ed ? { ...ed, progressNote: e.target.value } : ed,
-                            )
-                          }
-                          maxLength={4000}
-                          placeholder="Completed work or a next action that does not prevent accepting the draft."
-                        />
-                      </label>
-                      <div className="actions">
-                        <button
-                          className="secondary"
-                          disabled={
-                            blocked ||
-                            (!editor?.progressNote.trim() &&
-                              blocker === editor?.baseBlocker)
-                          }
-                          onClick={() => void saveProgress()}
-                        >
-                          Save progress only
-                        </button>
-                      </div>
-                      <p className="muted">
-                        Progress notes stay in history. They do not block draft
-                        acceptance.
+                      ))
+                    ) : (
+                      <p className="hint">
+                        Applications you approve land here with a confirmation
+                        receipt.
                       </p>
-                    </details>
-                    <label className="field">
-                      Application answer or outreach draft
-                      <textarea
-                        className="draft"
-                        value={draft}
-                        onChange={(e) =>
-                          setEditor((ed) =>
-                            ed ? { ...ed, draft: e.target.value } : ed,
-                          )
-                        }
-                        placeholder={
-                          protectedState
-                            ? 'Prepare a follow-up draft. Saving preserves your application status.'
-                            : 'Write the exact text you want to review. Saving changes returns a draft to review.'
-                        }
-                      />
-                    </label>
-                    <p className="muted">
-                      Check each claim against your evidence. Saving here does
-                      not run the agent citation check.
-                    </p>
-                    {protectedState && (
-                      <div className="actions sticky-actions">
-                        <button
-                          className="primary"
-                          disabled={blocked}
-                          onClick={() => save(current.status)}
-                        >
-                          Save notes and draft
-                        </button>
-                      </div>
                     )}
-                    {!protectedState && (
-                      <div className="actions sticky-actions">
+                  </div>
+                  <div className="rail" />
+                  <div className="pulse" />
+                </div>
+              </div>
+              <div className="arm core-cell">
+                <div className="core" ref={detailRef}>
+                  <div className="core-head">
+                    <span>core</span>
+                    <span>
+                      {current
+                        ? `application ${current.id.slice(0, 8)}`
+                        : 'no application loaded'}
+                    </span>
+                  </div>
+                  {current && named && progress ? (
+                    <div className="core-body">
+                      <div>
+                        <h2 className="role" tabIndex={-1}>
+                          {current.name}
+                        </h2>
+                        <div className="org">
+                          {current.company ||
+                            named.org ||
+                            sourceLabel(current.source, current.url)}{' '}
+                          / found on {sourceLabel(current.source, current.url)}
+                        </div>
+                      </div>
+                      <dl className="facts">
+                        <div className="fact">
+                          <dt>fit</dt>
+                          <dd>{fitPct == null ? 'n/a' : `${fitPct}%`}</dd>
+                        </div>
+                        <div className="fact">
+                          <dt>location</dt>
+                          <dd>
+                            {formatLocation(current.location, current.remote)}
+                          </dd>
+                        </div>
+                        <div className="fact">
+                          <dt>listed pay</dt>
+                          <dd>
+                            {formatPay(current.comp_min, current.comp_max)}
+                          </dd>
+                        </div>
+                      </dl>
+                      <div className="progress">
+                        <div className="prow">
+                          <span>{progress.label}</span>
+                          <span>{progress.pct}%</span>
+                        </div>
+                        <div className="track2">
+                          <div
+                            className="fill"
+                            style={{ width: `${progress.pct}%` }}
+                          />
+                        </div>
+                        <div className="stepline">{progress.step}</div>
+                      </div>
+                    </div>
+                  ) : null}
+                  {current ? (
+                    <div className="core-actions">
+                      <button
+                        className="btn btn-wide"
+                        onClick={() => setModal('inspect')}
+                        type="button"
+                      >
+                        Inspect what the agent wrote
+                      </button>
+                      {current.status === 'Ready' ? (
+                        <Link className="btn btn-clear" href="/applications">
+                          Approve and send
+                        </Link>
+                      ) : null}
+                      <button className="btn" onClick={holdJob} type="button">
+                        Hold
+                      </button>
+                      {!protectedState ? (
                         <button
-                          className="secondary"
-                          disabled={blocked || acceptedExact}
-                          onClick={() => save('Held')}
-                        >
-                          Save draft
-                        </button>
-                        <button
-                          className="primary"
-                          disabled={
-                            blocked ||
-                            acceptedExact ||
-                            !draft.trim() ||
-                            !!blocker.trim()
-                          }
-                          onClick={() => save('Ready')}
-                        >
-                          <Check size={16} />
-                          Accept exact draft
-                        </button>
-                        <button
-                          className="textbutton"
+                          className="btn btn-stop"
                           disabled={blocked}
                           onClick={() => save('Skip')}
+                          type="button"
                         >
-                          Set aside
+                          Skip
                         </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {current ? (
+                    <section className="detail core-review">
+                      <div className="detailhead">
+                        <button
+                          className="textbutton back-to-jobs"
+                          onClick={() => chooseFilter(filter)}
+                        >
+                          Back to jobs
+                        </button>
+                        <span className="badge">
+                          Relay status: {current.status}
+                        </span>
+                        <p className="muted">{loopStepLead(current.status)}</p>
+                        {current.url && (
+                          <a
+                            href={current.url}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open employer posting <ArrowUpRight size={15} />
+                          </a>
+                        )}
                       </div>
-                    )}
-                    <small className="muted">
-                      Acceptance records your approval of these exact words.
-                      Changed wording needs fresh acceptance. Nothing is sent.
-                    </small>
-                    {connections}
-                    <h3>Evidence matches</h3>
-                    <small className="muted">
-                      Heuristic word and number matches against your confirmed,
-                      unexpired facts. These do not assess your qualifications
-                      or change this job’s status.
-                    </small>
-                    {fit?.reason === 'notes' && (
-                      <p className="muted">
-                        No required lines found in source notes. Import the
-                        posting text as research before comparing.
-                      </p>
-                    )}
-                    {fit?.reason === 'facts' && (
-                      <p className="muted">
-                        Confirm facts on{' '}
-                        <Link href="/profile" onClick={confirmLeave}>
-                          Your facts
-                        </Link>{' '}
-                        to compare them with this posting. Proposed facts are
-                        not used. You can still draft and accept this job.
-                      </p>
-                    )}
-                    {fit && fit.gates.length > 0 && (
-                      <ul className="gates">
-                        {fit.gates.map((gate) => (
-                          <li key={gate.text}>
-                            <span className="badge">
-                              {gate.status === 'hit'
-                                ? 'Possible evidence'
-                                : gate.status === 'miss'
-                                  ? 'No matching evidence found'
-                                  : 'Not compared'}
-                            </span>
-                            {gate.text}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {fit?.gates.some((gate) => gate.status === 'miss') && (
-                      <small className="muted">
-                        No match can mean missing evidence or different wording.
-                        Review the requirement and your experience before
-                        deciding.
-                      </small>
-                    )}
-                    <h3>Source history</h3>
-                    <small className="muted">
-                      Imported source status is research evidence. Exact draft
-                      acceptance is a local Relay decision.
-                    </small>
-                    {sources
-                      .filter((s) => s.job_key === current.job_key)
-                      .map((s) => (
-                        <article className="source" key={s.id}>
-                          <b>{s.name}</b>
-                          <span className="badge">
-                            Source reported: {s.status}
-                          </span>
-                          <p>{s.notes || 'No source notes recorded.'}</p>
-                          {s.source_url.startsWith('obsidian:') && (
-                            <small className="muted">
-                              Obsidian note ·{' '}
-                              {s.source_url.slice('obsidian:'.length)}
-                            </small>
-                          )}
-                          {s.source_url.startsWith('https://') && (
-                            <a
-                              href={s.source_url}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Source record <ArrowUpRight size={13} />
-                            </a>
-                          )}
-                        </article>
-                      ))}
-                    {events.filter((e) => e.job_id === current.id).length >
-                      0 && (
-                      <>
-                        <h3>Your review history</h3>
-                        {events
-                          .filter((e) => e.job_id === current.id)
-                          .map((e) => (
-                            <details className="source" key={e.id}>
-                              <summary>
-                                {e.kind} ·{' '}
-                                {new Date(e.created).toLocaleString()}
-                              </summary>
-                              <pre>
-                                {JSON.stringify(JSON.parse(e.detail), null, 2)}
-                              </pre>
-                            </details>
-                          ))}
-                        {historyNext[current.id] && (
+                      <BlockerReview
+                        key={current.id}
+                        blocker={current.blocker}
+                        direction={current.drafting_direction}
+                        preference={draftingPreference}
+                        disabled={blocked}
+                        dirty={
+                          !!editor &&
+                          (editor.draft !== editor.baseDraft ||
+                            editor.blocker !== editor.baseBlocker)
+                        }
+                        answer={editor?.progressNote ?? ''}
+                        onAnswer={(value) =>
+                          setEditor((ed) =>
+                            ed ? { ...ed, progressNote: value } : ed,
+                          )
+                        }
+                        onDecision={saveDecision}
+                      />
+                      {showsExactAcceptance(current, editor) && (
+                        <div className="notice">
+                          This exact draft is accepted.
+                        </div>
+                      )}
+                      {protectedState && (
+                        <div className="notice">
+                          You can edit notes and follow-up drafts. Saving keeps
+                          this job’s {current.status} status.
+                        </div>
+                      )}
+                      {editor?.conflict && (
+                        <div className="notice">
+                          This record changed. Reload before saving.
                           <button
                             className="textbutton"
-                            onClick={() =>
-                              void loadJobHistory(
-                                current.id,
-                                historyNext[current.id],
+                            onClick={() => setEditor(loadEditor(current))}
+                          >
+                            Reload this record
+                          </button>
+                        </div>
+                      )}
+                      <details className="review-notes">
+                        <summary>Edit blocker or save a progress note</summary>
+                        <label className="field">
+                          Blocker or missing fact
+                          <textarea
+                            value={blocker}
+                            onChange={(e) =>
+                              setEditor((ed) =>
+                                ed ? { ...ed, blocker: e.target.value } : ed,
                               )
                             }
+                            placeholder="What needs to be resolved before accepting this draft?"
+                            maxLength={4000}
+                          />
+                        </label>
+                        <label className="field">
+                          Progress note
+                          <textarea
+                            value={editor?.progressNote ?? ''}
+                            onChange={(e) =>
+                              setEditor((ed) =>
+                                ed
+                                  ? { ...ed, progressNote: e.target.value }
+                                  : ed,
+                              )
+                            }
+                            maxLength={4000}
+                            placeholder="Completed work or a next action that does not prevent accepting the draft."
+                          />
+                        </label>
+                        <div className="actions">
+                          <button
+                            className="secondary"
+                            disabled={
+                              blocked ||
+                              (!editor?.progressNote.trim() &&
+                                blocker === editor?.baseBlocker)
+                            }
+                            onClick={() => void saveProgress()}
                           >
-                            Load earlier review history
+                            Save progress only
                           </button>
-                        )}
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <div className="detailintro">
-                    <div className="bigmark">
-                      <BriefcaseBusiness size={32} />
+                        </div>
+                        <p className="muted">
+                          Progress notes stay in history. They do not block
+                          draft acceptance.
+                        </p>
+                      </details>
+                      <label className="field">
+                        Application answer or outreach draft
+                        <textarea
+                          className="draft"
+                          value={draft}
+                          onChange={(e) =>
+                            setEditor((ed) =>
+                              ed ? { ...ed, draft: e.target.value } : ed,
+                            )
+                          }
+                          placeholder={
+                            protectedState
+                              ? 'Prepare a follow-up draft. Saving preserves your application status.'
+                              : 'Write the exact text you want to review. Saving changes returns a draft to review.'
+                          }
+                        />
+                      </label>
+                      <p className="muted">
+                        Check each claim against your evidence. Saving here does
+                        not run the agent citation check.
+                      </p>
+                      {protectedState && (
+                        <div className="actions sticky-actions">
+                          <button
+                            className="primary"
+                            disabled={blocked}
+                            onClick={() => save(current.status)}
+                          >
+                            Save notes and draft
+                          </button>
+                        </div>
+                      )}
+                      {!protectedState && (
+                        <div className="actions sticky-actions">
+                          <button
+                            className="secondary"
+                            disabled={blocked || acceptedExact}
+                            onClick={() => save('Held')}
+                          >
+                            Save draft
+                          </button>
+                          <button
+                            className="primary"
+                            disabled={
+                              blocked ||
+                              acceptedExact ||
+                              !draft.trim() ||
+                              !!blocker.trim()
+                            }
+                            onClick={() => save('Ready')}
+                          >
+                            <Check size={16} />
+                            Accept exact draft
+                          </button>
+                          <button
+                            className="textbutton"
+                            disabled={blocked}
+                            onClick={() => save('Skip')}
+                          >
+                            Set aside
+                          </button>
+                        </div>
+                      )}
+                      <small className="muted">
+                        Acceptance records your approval of these exact words.
+                        Changed wording needs fresh acceptance. Nothing is sent.
+                      </small>
+                      {connections}
+                      <h3>Evidence matches</h3>
+                      <small className="muted">
+                        Heuristic word and number matches against your
+                        confirmed, unexpired facts. These do not assess your
+                        qualifications or change this job’s status.
+                      </small>
+                      {fit?.reason === 'notes' && (
+                        <p className="muted">
+                          No required lines found in source notes. Import the
+                          posting text as research before comparing.
+                        </p>
+                      )}
+                      {fit?.reason === 'facts' && (
+                        <p className="muted">
+                          Confirm facts on{' '}
+                          <Link href="/profile" onClick={confirmLeave}>
+                            Your facts
+                          </Link>{' '}
+                          to compare them with this posting. Proposed facts are
+                          not used. You can still draft and accept this job.
+                        </p>
+                      )}
+                      {fit && fit.gates.length > 0 && (
+                        <ul className="gates">
+                          {fit.gates.map((gate) => (
+                            <li key={gate.text}>
+                              <span className="badge">
+                                {gate.status === 'hit'
+                                  ? 'Possible evidence'
+                                  : gate.status === 'miss'
+                                    ? 'No matching evidence found'
+                                    : 'Not compared'}
+                              </span>
+                              {gate.text}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {fit?.gates.some((gate) => gate.status === 'miss') && (
+                        <small className="muted">
+                          No match can mean missing evidence or different
+                          wording. Review the requirement and your experience
+                          before deciding.
+                        </small>
+                      )}
+                      <h3>Source history</h3>
+                      <small className="muted">
+                        Imported source status is research evidence. Exact draft
+                        acceptance is a local Relay decision.
+                      </small>
+                      {sources
+                        .filter((s) => s.job_key === current.job_key)
+                        .map((s) => (
+                          <article className="source" key={s.id}>
+                            <b>{s.name}</b>
+                            <span className="badge">
+                              Source reported: {s.status}
+                            </span>
+                            <p>{s.notes || 'No source notes recorded.'}</p>
+                            {s.source_url.startsWith('obsidian:') && (
+                              <small className="muted">
+                                Obsidian note ·{' '}
+                                {s.source_url.slice('obsidian:'.length)}
+                              </small>
+                            )}
+                            {s.source_url.startsWith('https://') && (
+                              <a
+                                href={s.source_url}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Source record <ArrowUpRight size={13} />
+                              </a>
+                            )}
+                          </article>
+                        ))}
+                      {events.filter((e) => e.job_id === current.id).length >
+                        0 && (
+                        <>
+                          <h3>Your review history</h3>
+                          {events
+                            .filter((e) => e.job_id === current.id)
+                            .map((e) => (
+                              <details className="source" key={e.id}>
+                                <summary>
+                                  {e.kind} ·{' '}
+                                  {new Date(e.created).toLocaleString()}
+                                </summary>
+                                <pre>
+                                  {JSON.stringify(
+                                    JSON.parse(e.detail),
+                                    null,
+                                    2,
+                                  )}
+                                </pre>
+                              </details>
+                            ))}
+                          {historyNext[current.id] && (
+                            <button
+                              className="textbutton"
+                              onClick={() =>
+                                void loadJobHistory(
+                                  current.id,
+                                  historyNext[current.id],
+                                )
+                              }
+                            >
+                              Load earlier review history
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </section>
+                  ) : (
+                    <div className="empty">
+                      {jobs.length === 0 ? (
+                        <>
+                          <h2>No jobs yet</h2>
+                          <p>
+                            Add a posting with its role title and URL. Optional
+                            notes are saved as research.
+                          </p>
+                          <div className="actions">
+                            <button
+                              className={
+                                action === 'add_job' ? 'primary' : 'secondary'
+                              }
+                              onClick={openAddJob}
+                              type="button"
+                            >
+                              Add job <ArrowRight size={16} />
+                            </button>
+                            <button
+                              className="secondary"
+                              disabled={busy}
+                              onClick={() => run({ action: 'bootstrap' })}
+                              type="button"
+                            >
+                              Explore example jobs
+                            </button>
+                          </div>
+                          <small>
+                            Example companies and records are fictional.
+                          </small>
+                        </>
+                      ) : (
+                        <>
+                          <h2>Select a role</h2>
+                          <p>
+                            The core handles one application at a time. Load the
+                            next one from the queue, or unblock something below.
+                          </p>
+                          <button
+                            className="btn btn-signal btn-sm"
+                            disabled={!queued.length && !lanes.queue.length}
+                            onClick={loadNext}
+                            type="button"
+                          >
+                            Load next application
+                          </button>
+                          <button
+                            className="secondary"
+                            disabled={busy}
+                            onClick={() => run({ action: 'replay' })}
+                            type="button"
+                          >
+                            Check examples
+                          </button>
+                        </>
+                      )}
+                      {connections}
                     </div>
-                    <h2>Select a role</h2>
-                    <p>
-                      Open a job to continue its review, or add another posting.
-                    </p>
-                    {connections}
+                  )}
+                </div>
+              </div>
+              <div className="arm e">
+                <div className="plate">
+                  <section
+                    className="queue"
+                    id="workspace-queue"
+                    ref={queueRef}
+                  >
+                    <div className="plate-head queuehead">
+                      <h2 tabIndex={-1}>{queueTitle(filter)}</h2>
+                      <span className="tally">{queued.length}</span>
+                    </div>
+                    <label className="search">
+                      <Search size={17} />
+                      <input
+                        aria-label="Find a company or role"
+                        placeholder="Find a company or role"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
+                    </label>
+                    <div className="joblist plate-body">
+                      {queued.map((j) => (
+                        <button
+                          aria-label={j.name}
+                          key={j.id}
+                          className={
+                            'card job ' + (selected === j.id ? 'selected' : '')
+                          }
+                          onClick={() => chooseJob(j)}
+                          type="button"
+                        >
+                          <span className="pip q" />
+                          <span className="txt">
+                            <b>{j.name}</b>
+                            <small>{jobQueueHint(j, editor)}</small>
+                          </span>
+                        </button>
+                      ))}
+                      {!queued.length && (
+                        <p className="hint">
+                          Nothing waiting. Send the agent out for more.
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                  <div className="plate-foot">
+                    <button
+                      className="btn btn-signal"
+                      disabled={signedOut || !loaded}
+                      onClick={findMoreJobs}
+                      type="button"
+                    >
+                      Find more jobs
+                    </button>
                   </div>
-                )}
-              </section>
+                  <div className="rail" />
+                  <div className="pulse" />
+                </div>
+              </div>
+              <div className="arm s">
+                <div className="plate">
+                  <div className="plate-head">
+                    <h2>Stuck, needs your answer</h2>
+                    <span className="tally">{lanes.blocked.length}</span>
+                  </div>
+                  <div className="plate-body">
+                    {lanes.blocked.length ? (
+                      lanes.blocked.map((job) => (
+                        <button
+                          aria-label={job.name}
+                          className="card blocked job"
+                          key={job.id}
+                          onClick={() => {
+                            chooseJob(job);
+                            setModal('blocked');
+                          }}
+                          type="button"
+                        >
+                          <span className="pip hold" />
+                          <span className="txt">
+                            <b>{job.name}</b>
+                            <span className="ask">
+                              {job.blocker.split(/(?<=[.!?])\s+|\n/)[0]}
+                            </span>
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="hint">
+                        When a form asks something the agent cannot answer, it
+                        parks the application here instead of guessing.
+                      </p>
+                    )}
+                  </div>
+                  <div className="rail" />
+                  <div className="pulse" />
+                </div>
+              </div>
             </div>
-          </>
+          </div>
         )}
-        <footer>Relay / SyberLabs</footer>
+        <RuntimeModals
+          acceptDisabled={
+            blocked || acceptedExact || !draft.trim() || !!blocker.trim()
+          }
+          blockedAnswer={editor?.progressNote ?? ''}
+          blockedNote=""
+          blockedQuestion={current?.blocker || ''}
+          busy={busy}
+          draft={draft}
+          fit={fit}
+          job={current}
+          jobs={jobs}
+          onAccept={() => {
+            setModal(null);
+            save('Ready');
+          }}
+          onBlockedAnswer={(value) =>
+            setEditor((ed) => (ed ? { ...ed, progressNote: value } : ed))
+          }
+          onBlockedDrop={() => {
+            setModal(null);
+            save('Skip');
+          }}
+          onBlockedSubmit={() => {
+            void saveDecision(
+              'answer',
+              rememberAnswer,
+              editor?.progressNote ?? '',
+            ).then((ok) => {
+              if (ok) setModal(null);
+            });
+          }}
+          onClose={() => setModal(null)}
+          onEdit={() => setModal(null)}
+          onRemember={setRememberAnswer}
+          onSaveLimits={async (input) => {
+            const ok = await saveLimits(input);
+            if (ok) setMessage('Limits saved.');
+            return ok;
+          }}
+          onSkip={() => {
+            setModal(null);
+            save('Skip');
+          }}
+          policy={policy}
+          remember={rememberAnswer}
+          sources={sources.filter((s) => s.job_key === current?.job_key)}
+          toolStatus={toolStatus}
+          which={signedOut ? null : modal}
+        />
       </main>
-    </AppShell>
+    </RuntimeShell>
   );
 }

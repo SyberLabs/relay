@@ -5,7 +5,7 @@
 
 Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.
 
-**Lead engineer: [Seth Carlson](https://github.com/sdcarlson).** Application development: [Mateo](https://github.com/sykosyber).
+**Relay lead engineer: [Seth Carlson](https://github.com/sdcarlson).** **Product: [Mateo Robles](https://github.com/sykosyber).**
 
 ## Available in this early release
 
@@ -58,8 +58,8 @@ Relay records acceptance inside its workspace. It does not send applications, ve
 
 Relay is built at [SyberLabs](https://github.com/SyberLabs) by a two-person team:
 
-- **[Seth Carlson](https://github.com/sdcarlson)** - lead engineer and product
-- **[Mateo](https://github.com/sykosyber)** - application development and review
+- **[Seth Carlson](https://github.com/sdcarlson)** - Relay lead engineer
+- **[Mateo Robles](https://github.com/sykosyber)** - product
 
 Every database read and write belongs to the authenticated user. Exact accepted text is versioned. Imports add evidence; they cannot grant approval. A stale editor or assistant packet cannot overwrite newer work.
 

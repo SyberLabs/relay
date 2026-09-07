@@ -1,6 +1,8 @@
 import { pullBoard } from '../../../integrations/connectors.mjs';
 import { validateRows } from '../../../lib/domain.ts';
 import { selectBoards } from './catalog.mjs';
+import { compactPosting } from './instruments.mjs';
+import { boardKey } from './load.mjs';
 import { ashbyBoardUrl, usableAshby } from './sources.mjs';
 import { isKnownPosting } from './filter.mjs';
 
@@ -75,48 +77,56 @@ export async function fetchDirectory({
   now = Date.now(),
   clock = realClock(),
   reserveStart,
+  skip = new Set(),
+  onBoard,
+  compact = true,
 }) {
   const caps = spec.caps;
   const selected = boardsForArm(directory, known, arm);
   const picked = selectBoards(selected, spec);
-  const capped = picked.boards;
+  const pending = picked.boards.filter((entry) => !skip.has(boardKey(entry)));
+  const skipped = picked.boards.length - pending.length;
   const boards_capped = picked.sampled;
   const stats = [];
   const postings = [];
   let cursor = 0;
   const admit = reserveStart || startGate(resolveClock(clock), caps.min_interval_ms);
   const worker = async () => {
-    while (cursor < capped.length) {
+    while (cursor < pending.length) {
       const index = cursor++;
       await admit();
-      stats[index] = await fetchBoard(capped[index], {
+      const result = await fetchBoard(pending[index], {
         fetchImpl,
         timeout: caps.request_timeout_ms,
       });
+      stats[index] = result;
+      if (onBoard) await onBoard(result, pending[index]);
     }
   };
-  const workers = Math.min(caps.concurrency, capped.length || 1);
-  if (capped.length)
+  const workers = Math.min(caps.concurrency, pending.length || 1);
+  if (pending.length)
     await Promise.all(Array.from({ length: workers }, worker));
   for (const result of stats) {
     if (!result?.ok) continue;
     for (const row of result.rows) {
-      postings.push({
+      const posting = {
         row,
         board: result.board,
         provider: result.provider,
         company: result.company,
-      });
+      };
+      postings.push(compact ? compactPosting(posting) : posting);
     }
   }
   return {
     arm,
     fetched_at: new Date(now).toISOString(),
     boards_selected: selected.length,
-    boards_fetched: capped.length,
+    boards_fetched: pending.length,
     boards_capped,
     boards: stats,
     postings,
+    skipped,
     failures: stats.filter((item) => item && !item.ok).length,
     sample_seed: picked.sampled ? picked.seed : undefined,
   };

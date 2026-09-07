@@ -50,7 +50,7 @@ export function loadCaps(raw = {}) {
     if (source[key] != null) caps[key] = source[key];
   }
   for (const [key, max] of [
-    ['max_boards', 80],
+    ['max_boards', MAX_SNAPSHOT_BOARDS],
     ['max_admitted', 200],
     ['concurrency', 8],
     ['request_timeout_ms', 30_000],

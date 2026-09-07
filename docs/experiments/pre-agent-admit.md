@@ -81,7 +81,9 @@ pnpm experiment:pre-agent-admit -- --live \
   --out private-data/experiments/pre-agent-admit/runs/current
 ```
 
-`--catalog` unions local slug snapshots (LastRound CSV, ats-jobs-mcp, intern-engine GH/Lever/Ashby, africa-ats-directory, Common Crawl CDX files), optionally probes HN Algolia / frozen YC-hiring / startups / Speedrun name lists with public board GETs, then **stratifies by provider** down to `max_boards`. Do not pass `--catalog` and `--directory` together. A pre-built `{ "boards": [...] }` file still works as `--directory`.
+`--catalog` unions local slug snapshots (LastRound CSV, ats-jobs-mcp, intern-engine GH/Lever/Ashby, africa-ats-directory, Common Crawl CDX files), optionally probes HN Algolia / frozen YC-hiring / startups / Speedrun name lists with public board GETs, then **stratifies by provider** down to `max_boards`. `--full-directory` raises that cap to 20,000 so a LastRound snapshot is fetched rather than sampled. `--save-corpus` writes compact `postings.ndjson` under `--out` and resumes from `boards.progress.json`. `--instruments` then counts intern-shaped titles with word-boundary regex and a local vocabulary cosine against a frozen hunt packet. That cosine is the same overlap family as `lib/profile.ts`; it is **not** an embedding model and does not call an LLM. Do not pass `--catalog` and `--directory` together. A pre-built `{ "boards": [...] }` file still works as `--directory`.
+
+A full-directory live run is a **new freeze**, not a relabel of the 40-board Stop. Keep tokens and the corpus in ignored `private-data/`. Do not import the unfiltered corpus into D1 (owner job cap is 500). Do not add a Worker crawl, embedder, or queue.
 
 Keep the real LastRound CSV and any other slug dumps in ignored `private-data/`. A catalog file next to that CSV looks like:
 

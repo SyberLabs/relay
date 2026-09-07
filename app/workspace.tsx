@@ -478,7 +478,7 @@ export default function Workspace() {
         <header>
           <div>
             <h1>Workspace</h1>
-            <p>Choose a job, prepare a draft, and review the exact words.</p>
+            <p>Manage applications, review drafts, and keep your work for reuse.</p>
           </div>
           <div className="actions">
             {loaded && !signedOut && jobs.length > 0 && (

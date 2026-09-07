@@ -2,7 +2,7 @@
 
 Owner: Seth Carlson. Implementation: #78. Baseline inspected: `bae278130f2031aab1249aa88f7bf54b46741460`, September 6, 2026. This work changes navigation and presentation, not claim algorithms, handoff contracts, status transitions or storage.
 
-The pilot supports one job, reusable candidate facts, an external assistant handoff, human review and exact-text acceptance, then later reuse. `/profile` stores facts confirmed by the user; the browser handoff still uses a separate unsaved text box. `/advanced` preserves access to `/review`, `/preferences` and `/plan`. Job filters, outcomes, source history and review history remain visible in the workspace.
+The product goal is efficient application throughput through reusable context and preserved review history. Job-specific handoffs, human review and exact-text acceptance protect each application; they do not limit the workspace to one job. A first-job walkthrough checks usability, while the [pilot reuse comparison](pilot-throughput.md) examines repeated work across different jobs without claiming measured savings. `/profile` stores facts confirmed by the user; the browser handoff still uses a separate unsaved text box. `/advanced` preserves access to `/review`, `/preferences` and `/plan`. Job filters, outcomes, source history and review history remain visible in the workspace.
 
 ## What each check establishes
 

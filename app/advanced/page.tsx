@@ -8,8 +8,8 @@ export default function Advanced() {
       </Link>
       <h1>Advanced</h1>
       <p className="lead">
-        Experimental tools for planning and agent batches. Start with one job in
-        the workspace; return here when you need these tools.
+        Experimental tools for planning and agent batches across your job search.
+        Review and accept each job’s exact wording in the workspace.
       </p>
       <section className="import">
         <h2>

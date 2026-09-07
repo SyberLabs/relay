@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Upload } from 'lucide-react';
 import { ShellNav } from './shell';
 import type { QueueFilter } from '../lib/nav';
+import './runtime.css';
 
 export function RuntimeShell({
   children,

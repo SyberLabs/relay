@@ -213,6 +213,7 @@ export function RuntimeModals({
   if (!which) return null;
   return (
     <RuntimeModalDialog
+      key={which}
       {...{
         which,
         onClose,

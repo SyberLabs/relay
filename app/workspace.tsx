@@ -20,7 +20,6 @@ import {
   boundedPolicyMaximum,
   ctxTally,
   draftProgress,
-  evidenceFitPercent,
   formatLocation,
   formatPay,
   policyExpiryIso,
@@ -148,6 +147,7 @@ export default function Workspace() {
   const [styleCount, setStyleCount] = useState(0);
   const sessionRef = useRef(createWorkspaceSession());
   const policyRef = useRef<ApplicationPolicy | null>(null);
+  const selectedRef = useRef('');
   const busyRef = useRef<false | number>(false);
   const refreshRef = useRef<
     (saved?: SaveSnapshot) => Promise<Job[] | undefined>
@@ -177,6 +177,7 @@ export default function Workspace() {
     setAutopilot(false);
     setStyleCount(0);
     setModal(null);
+    selectedRef.current = '';
   }, []);
   const researchRows = useMemo(() => {
     try {
@@ -216,7 +217,6 @@ export default function Workspace() {
   );
   const named = current ? splitJobName(current.name) : null;
   const progress = current ? draftProgress(current) : null;
-  const fitPct = fit ? evidenceFitPercent(fit.gates) : null;
   const stageView = {
     page: 'workspace' as const,
     signedOut,
@@ -226,7 +226,6 @@ export default function Workspace() {
   };
   const action = primaryAction(stageView);
   const addJobPrimary = headerAddJobIsPrimary(stageView);
-  const selectedRef = useRef('');
   const editorRef = useRef<Editor | null>(null);
   const addJobViewerRef = useRef<string | undefined>(undefined);
   const progressAttempt = useRef<{ key: string; operationId: string } | null>(
@@ -347,6 +346,10 @@ export default function Workspace() {
       );
       if (outcome.switched) {
         setModal(null);
+        setPolicy(null);
+        setAutopilot(false);
+        setStyleCount(0);
+        policyRef.current = null;
         setShowAddJob(false);
         setShowImport(false);
         setImportText('');
@@ -771,11 +774,13 @@ export default function Workspace() {
       return false;
     }
     if (busyRef.current !== false) return 'busy';
-    const allowed = input.enabled
-      ? jobs
-          .filter((job) => job.status !== 'Skip' && !isTerminal(job.status))
-          .map((job) => job.id)
-      : policyJobIds(policyRef.current);
+    const saved = policyJobIds(policyRef.current).filter((id) =>
+      jobs.some((job) => job.id === id),
+    );
+    const eligible = jobs
+      .filter((job) => job.status !== 'Skip' && !isTerminal(job.status))
+      .map((job) => job.id);
+    const allowed = input.enabled ? (saved.length ? saved : eligible) : saved;
     if (input.enabled && !allowed.length) {
       setMessage('Add a job before enabling autopilot.');
       return false;
@@ -1217,8 +1222,12 @@ export default function Workspace() {
                       </div>
                       <dl className="facts">
                         <div className="fact">
-                          <dt>fit</dt>
-                          <dd>{fitPct == null ? 'n/a' : `${fitPct}%`}</dd>
+                          <dt>evidence</dt>
+                          <dd>
+                            {fit
+                              ? `${fit.gates.filter((gate) => gate.status === 'hit').length} hit · ${fit.gates.filter((gate) => gate.status === 'miss').length} miss`
+                              : 'not compared'}
+                          </dd>
                         </div>
                         <div className="fact">
                           <dt>location</dt>

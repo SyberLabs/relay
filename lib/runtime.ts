@@ -62,16 +62,6 @@ export function sourceLabel(
   }
 }
 
-export function evidenceFitPercent(gates: Gate[]): number | null {
-  const compared = gates.filter((gate) => gate.status !== 'unknown');
-  if (!compared.length) return null;
-  return Math.round(
-    (compared.filter((gate) => gate.status === 'hit').length /
-      compared.length) *
-      100,
-  );
-}
-
 export function draftProgress(job: {
   status: string;
   draft: string;

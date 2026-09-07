@@ -246,6 +246,7 @@ void test('cancelled modal profile GET 401 still expires the visible workspace',
     defaultDraftingPreference,
     settleRuntimeModalProfileRead,
     cancelled: true,
+    selectedRef: { current: 'job-a' },
   };
   expireKeys(state, deps);
   deps.applyExpired = workspaceExpiry(deps);
@@ -300,6 +301,7 @@ void test('cancelled modal profile GET 200 does not restore facts or expire', as
     defaultDraftingPreference,
     settleRuntimeModalProfileRead,
     cancelled: true,
+    selectedRef: { current: 'job-a' },
   };
   expireKeys(state, deps);
   deps.applyExpired = workspaceExpiry(deps);
@@ -351,6 +353,7 @@ void test('superseded modal GET 401 still clears when the newer read is ignored'
     ...helper,
     defaultDraftingPreference,
     settleRuntimeModalProfileRead,
+    selectedRef: { current: 'job-a' },
   };
   expireKeys(state, deps);
   deps.applyExpired = workspaceExpiry(deps);

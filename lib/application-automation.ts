@@ -515,34 +515,6 @@ export async function answerPreparation(
     now,
   );
 }
-export async function cancelPreBeginForJob(
-  db: D1Database,
-  owner: string,
-  jobId: string,
-  now: string,
-  keepDigest?: string,
-) {
-  const leftovers = keepDigest
-    ? await db
-        .prepare(
-          "SELECT id,digest FROM application_operations WHERE owner=? AND job_id=? AND state IN ('proposed','authorized') AND digest!=?",
-        )
-        .bind(owner, jobId, keepDigest)
-        .all<{ id: string; digest: string }>()
-    : await db
-        .prepare(
-          "SELECT id,digest FROM application_operations WHERE owner=? AND job_id=? AND state IN ('proposed','authorized')",
-        )
-        .bind(owner, jobId)
-        .all<{ id: string; digest: string }>();
-  for (const old of leftovers.results)
-    await actOnApplication(
-      db,
-      owner,
-      { id: old.id, digest: old.digest, action: 'cancel' },
-      now,
-    );
-}
 export async function armPreparation(
   db: D1Database,
   owner: string,
@@ -885,9 +857,51 @@ export async function actOnApplication(
     AND j.version=application_operations.job_version AND j.status IN ('Held','Ready') AND j.blocker=''
     AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id))`;
   if (input.action === 'approve') {
+    const prep = await db
+      .prepare(
+        'SELECT destination,fields,files,revision FROM application_preparations WHERE owner=? AND job_id=? AND operation_id=?',
+      )
+      .bind(owner, op.job_id, op.id)
+      .first<{
+        destination: string;
+        fields: string;
+        files: string;
+        revision: string;
+      }>();
+    requireThat(prep, 'Operative is not on the page.', 409);
+    const fields = JSON.parse(prep.fields) as {
+      label: string;
+      value: string;
+      unknown: boolean;
+    }[];
+    requireThat(
+      fields.every((f) => f.value.length > 0 && f.unknown === false),
+      'Provide the complete submission.',
+      409,
+    );
+    const manifest = await validateManifest({
+      destination: prep.destination,
+      fields: fields.map(({ label, value }) => ({ label, value })),
+      files: JSON.parse(prep.files),
+    });
+    requireThat(
+      (await digest(JSON.stringify(manifest))) === op.digest,
+      'Content checksum differs from the saved proposal.',
+      409,
+    );
     sql = `UPDATE application_operations SET state='authorized',authority='explicit-review' WHERE owner=? AND id=? AND state='proposed' AND ${authorized}
-      AND EXISTS (SELECT 1 FROM application_preparations pr WHERE pr.owner=application_operations.owner AND pr.job_id=application_operations.job_id AND pr.operation_id=application_operations.id AND pr.armed_until>?)`;
-    args = [owner, op.id, now, now];
+      AND EXISTS (SELECT 1 FROM application_preparations pr WHERE pr.owner=application_operations.owner AND pr.job_id=application_operations.job_id AND pr.operation_id=application_operations.id AND pr.armed_until>?
+      AND pr.revision=? AND pr.destination=? AND pr.fields=? AND pr.files=?)`;
+    args = [
+      owner,
+      op.id,
+      now,
+      now,
+      prep.revision,
+      prep.destination,
+      prep.fields,
+      prep.files,
+    ];
     kind = 'Application explicitly reviewed';
   } else if (input.action === 'begin') {
     sql = `UPDATE application_operations SET state='executing',started=? WHERE owner=? AND id=? AND state='authorized' AND authority='explicit-review' AND ${authorized}

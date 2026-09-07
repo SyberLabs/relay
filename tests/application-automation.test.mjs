@@ -14,8 +14,9 @@ import {
   inspectApplication,
   upsertPreparation as replaceCurrentPreparation,
   answerPreparation as answerCurrentPreparation,
-  cancelPreBeginForJob,
 } from '../lib/application-automation.ts';
+
+import { saveJobReview } from '../lib/job-review.ts';
 
 const now = '2026-09-07T12:00:00.000Z';
 function database() {
@@ -772,7 +773,15 @@ void test('skip cancels pre-begin operations for that job', async () => {
     action(await loadOperation(db, 'alice', 'op-skip'), 'approve'),
     now,
   );
-  await cancelPreBeginForJob(db, 'alice', 'alice-0', now);
+  assert.equal(
+    await saveJobReview(
+      db,
+      'alice',
+      { id: 'alice-0', version: 1, draft: '', blocker: '', status: 'Skip' },
+      now,
+    ),
+    true,
+  );
   assert.equal(
     (await loadOperation(db, 'alice', 'op-skip')).state,
     'cancelled',
@@ -1500,12 +1509,6 @@ void test('preparations cap allows overwrite of an existing job at 500 and abort
   db.sqlite.close();
 });
 
-void test('workspace Skip save cancels pre-begin operations', async () => {
-  const src = readFileSync('app/api/workspace/route.ts', 'utf8');
-  assert.match(src, /cancelPreBeginForJob/);
-  assert.match(src, /b\.status === ['"]Skip['"]/);
-});
-
 void test('overlapping uncertainty reports persist only the first report', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
@@ -2205,5 +2208,224 @@ void test('marking an accepted answer unknown revokes its permit even with ident
     /No permission/,
   );
   assert.deepEqual(counts(db), before);
+  db.sqlite.close();
+});
+
+for (const changed of ['fields', 'destination', 'files', 'unknown']) {
+  void test(`approval refuses a displayed ${changed} mismatch without changing authorization`, async () => {
+    const db = database();
+    await changeApplicationPolicy(db, 'alice', config({ review: 'all' }), now);
+    await upsertPreparation(db, 'alice', completePrep(), now);
+    await armPreparation(
+      db,
+      'alice',
+      { job: 'alice-0', id: 'approve-guard', actor: 'Fixture agent' },
+      now,
+    );
+    const op = await loadOperation(db, 'alice', 'approve-guard');
+    const prep = db.sqlite
+      .prepare('SELECT * FROM application_preparations')
+      .get();
+    let column = changed,
+      value;
+    if (changed === 'destination') value = 'https://other.example/apply';
+    else if (changed === 'files') {
+      const bytes = new TextEncoder().encode('Fictional different attachment');
+      value = JSON.stringify([
+        {
+          name: 'fixture.txt',
+          base64: btoa(new TextDecoder().decode(bytes)),
+          sha256: await digest(bytes),
+        },
+      ]);
+    } else {
+      column = 'fields';
+      const fields = JSON.parse(prep.fields);
+      if (changed === 'unknown') fields[0].unknown = true;
+      else fields[0].value = 'Changed displayed answer';
+      value = JSON.stringify(fields);
+    }
+    // Model an inconsistent legacy snapshot; approval must verify current content.
+    db.sqlite
+      .prepare(
+        `UPDATE application_preparations SET ${column}=? WHERE owner='alice' AND job_id='alice-0'`,
+      )
+      .run(value);
+    const before = counts(db);
+    await assert.rejects(
+      actOnApplication(db, 'alice', action(op, 'approve'), now),
+      (e) => e.status === 409,
+    );
+    assert.deepEqual(counts(db), before);
+    assert.equal((await loadOperation(db, 'alice', op.id)).state, 'proposed');
+    db.sqlite.close();
+  });
+}
+
+for (const changed of ['fields', 'revision']) {
+  void test(`approval CAS refuses ${changed} changes after its checksum read`, async () => {
+    const db = database();
+    await changeApplicationPolicy(db, 'alice', config({ review: 'all' }), now);
+    await upsertPreparation(db, 'alice', completePrep(), now);
+    await armPreparation(
+      db,
+      'alice',
+      { job: 'alice-0', id: 'approve-race', actor: 'Fixture agent' },
+      now,
+    );
+    const op = await loadOperation(db, 'alice', 'approve-race');
+    const pause = pauseNextBatch(db);
+    const attempt = actOnApplication(
+      db,
+      'alice',
+      action(op, 'approve'),
+      now,
+    ).then(
+      (value) => ({ value }),
+      (error) => ({ error }),
+    );
+    await pause.paused;
+    const value =
+      changed === 'revision'
+        ? crypto.randomUUID()
+        : JSON.stringify([
+            {
+              label: 'Full name',
+              value: 'Changed while hashing',
+              unknown: false,
+            },
+          ]);
+    db.sqlite
+      .prepare(
+        `UPDATE application_preparations SET ${changed}=? WHERE owner='alice' AND job_id='alice-0'`,
+      )
+      .run(value);
+    const before = counts(db);
+    pause.release();
+    assert.equal((await attempt).error.status, 409);
+    assert.deepEqual(counts(db), before);
+    assert.equal((await loadOperation(db, 'alice', op.id)).state, 'proposed');
+    db.sqlite.close();
+  });
+}
+
+const skipInput = (extra = {}) => ({
+  id: 'alice-0',
+  version: 1,
+  draft: '',
+  blocker: '',
+  status: 'Skip',
+  ...extra,
+});
+
+for (const winner of ['begin', 'skip']) {
+  void test(`Skip and begin are atomic when ${winner} wins`, async () => {
+    const db = database();
+    const { op } = await authorizedPreparation(db);
+    const pause = pauseNextBatch(db);
+    const skipped = winner === 'begin';
+    const pending = (
+      skipped
+        ? saveJobReview(db, 'alice', skipInput(), now)
+        : actOnApplication(db, 'alice', action(op, 'begin'), now)
+    ).then(
+      (value) => ({ value }),
+      (error) => ({ error }),
+    );
+    await pause.paused;
+    if (winner === 'begin')
+      await actOnApplication(db, 'alice', action(op, 'begin'), now);
+    else assert.equal(await saveJobReview(db, 'alice', skipInput(), now), true);
+    const job = db.sqlite
+      .prepare("SELECT * FROM jobs WHERE id='alice-0'")
+      .get();
+    const before = counts(db);
+    pause.release();
+    const result = await pending;
+    if (winner === 'begin') assert.equal(result.value, false);
+    else assert.equal(result.error.status, 409);
+    assert.deepEqual(counts(db), before);
+    assert.deepEqual(
+      db.sqlite.prepare("SELECT * FROM jobs WHERE id='alice-0'").get(),
+      job,
+    );
+    assert.equal(job.status, winner === 'begin' ? 'Held' : 'Skip');
+    assert.equal(
+      (await loadOperation(db, 'alice', op.id)).state,
+      winner === 'begin' ? 'executing' : 'cancelled',
+    );
+    const history = db.sqlite
+      .prepare("SELECT detail FROM events WHERE kind='Application cancelled'")
+      .all();
+    assert.equal(history.length, winner === 'begin' ? 0 : 1);
+    if (history.length)
+      assert.equal(JSON.parse(history[0].detail).operation, op.id);
+    db.sqlite.close();
+  });
+}
+
+void test('stale or other-owner Skip cannot cancel current application work', async () => {
+  const db = database();
+  const { op } = await authorizedPreparation(db);
+  const pause = pauseNextBatch(db);
+  const pending = saveJobReview(db, 'alice', skipInput(), now);
+  await pause.paused;
+  db.sqlite
+    .prepare(
+      "UPDATE jobs SET version=version+1,draft='New reviewed wording' WHERE id='alice-0'",
+    )
+    .run();
+  const before = counts(db);
+  pause.release();
+  assert.equal(await pending, false);
+  assert.equal(
+    await saveJobReview(db, 'bob', skipInput({ version: 2 }), now),
+    false,
+  );
+  assert.deepEqual(counts(db), before);
+  assert.equal((await loadOperation(db, 'alice', op.id)).state, 'authorized');
+  assert.equal(
+    db.sqlite.prepare("SELECT draft FROM jobs WHERE id='alice-0'").get().draft,
+    'New reviewed wording',
+  );
+  db.sqlite.close();
+});
+
+void test('Skip preserves uncertain work and rolls back if cancellation history cannot be recorded', async () => {
+  const db = database();
+  const { op } = await authorizedPreparation(db);
+  const original = db.sqlite
+    .prepare("SELECT * FROM jobs WHERE id='alice-0'")
+    .get();
+  const before = counts(db);
+  db.sqlite.exec(
+    "CREATE TRIGGER refuse_cancellation BEFORE INSERT ON events WHEN NEW.kind='Application cancelled' BEGIN SELECT RAISE(ABORT,'Fictional history refusal'); END",
+  );
+  await assert.rejects(
+    saveJobReview(db, 'alice', skipInput(), now),
+    /Fictional history refusal/,
+  );
+  assert.deepEqual(counts(db), before);
+  assert.deepEqual(
+    db.sqlite.prepare("SELECT * FROM jobs WHERE id='alice-0'").get(),
+    original,
+  );
+  assert.equal((await loadOperation(db, 'alice', op.id)).state, 'authorized');
+  db.sqlite.exec('DROP TRIGGER refuse_cancellation');
+  await actOnApplication(db, 'alice', action(op, 'begin'), now);
+  await actOnApplication(
+    db,
+    'alice',
+    action(op, 'uncertain', { receipt: 'Fictional interrupted execution.' }),
+    now,
+  );
+  const uncertain = counts(db);
+  assert.equal(await saveJobReview(db, 'alice', skipInput(), now), false);
+  assert.deepEqual(counts(db), uncertain);
+  assert.deepEqual(
+    db.sqlite.prepare("SELECT * FROM jobs WHERE id='alice-0'").get(),
+    original,
+  );
+  assert.equal((await loadOperation(db, 'alice', op.id)).state, 'uncertain');
   db.sqlite.close();
 });

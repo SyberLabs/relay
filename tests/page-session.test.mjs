@@ -6,13 +6,13 @@ import * as helper from '../lib/page-session.ts';
 import { asSheetJobs } from '../lib/runtime.ts';
 
 // Coverage: helper 401-before-parse; each page refresh/mutation/extract via
-// compiled source callbacks; review sibling GET held after the other 401s;
+// compiled source callbacks; review/Track sibling GET held after the other 401s;
 // delayed GET/POST/json cannot restore or start a follow-up refresh;
 // helper kind=ok then a later-turn 401 cannot restore refresh/extract state
 // (microtask offset sweep plus a forced helper-to-caller gap).
-// Gaps: browser tests cover same-mount POST 401 and profile extract 401 only
-// (no user-triggered GET refresh). Overlapping successful GETs without 401
-// are not generation-gated. Same-mount reauthentication is not offered.
+// Browser tests cover same-mount POST 401, profile extract 401, and Track's
+// post-save refresh with a sibling fetch/JSON held. Overlapping successful GETs
+// without 401 are not generation-gated. Same-mount reauthentication is not offered.
 // Delayed restoration was not observed in prior QA; these cases are
 // regressions, not a claim that it was seen.
 
@@ -793,6 +793,49 @@ void test('review drafts sibling 401 expires while profile GET is held', async (
   assert.deepEqual(state.facts, []);
   assert.deepEqual(state.drafts, []);
 });
+
+for (const unauthorized of ['outcomes', 'workspace']) {
+  for (const heldAt of ['fetch', 'json']) {
+    void test(`track ${unauthorized} 401 clears private state while sibling ${heldAt} is held`, async () => {
+      const source = readFileSync('app/track/page.tsx', 'utf8');
+      const state = loadedTrack();
+      const denied = deferred();
+      const sibling = deferred();
+      const refusal = http(401, 'Unauthorized');
+      const success = http(
+        200,
+        unauthorized === 'workspace' ? trackOk : { jobs: state.jobs },
+        heldAt === 'json' ? () => sibling.promise : undefined,
+      );
+      const { session, deps } = pageDeps(state, trackKeys, async (url) => {
+        if (url === `/api/${unauthorized}`) return denied.promise;
+        return heldAt === 'fetch' ? sibling.promise : success;
+      });
+      bindExpired(source, deps);
+      const pending = bind(callbackBody(source, 'refresh'), deps)();
+      await flush();
+      denied.resolve(refusal);
+      try {
+        await flush(24);
+        assertCleared('track', state, 'must clear before sibling completes');
+        assert.deepEqual(state.receipts, {});
+        assert.equal(state.message, '');
+        assert.equal(state.busy, false);
+        assert.equal(refusal.jsonCalls, 0);
+      } finally {
+        sibling.resolve(success);
+        await pending;
+      }
+      assert.equal(session.expired, true);
+      assertCleared(
+        'track',
+        state,
+        'late success must not restore private state',
+      );
+      assert.deepEqual(state.receipts, {});
+    });
+  }
+}
 
 void test('review Save correction does not stage proposals after expiry', async () => {
   const source = readFileSync('app/review/page.tsx', 'utf8');

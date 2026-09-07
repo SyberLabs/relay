@@ -80,30 +80,35 @@ export default function Track() {
   const refresh = useCallback(async () => {
     if (sessionRef.current.expired) return;
     const started = beginPageWork(sessionRef.current);
-    const [outcomesResponse, workspaceResponse] = await Promise.all([
-      fetch('/api/outcomes'),
-      fetch('/api/workspace'),
+    // A sibling fetch or JSON body must never delay clearing an expired session.
+    const read = async <T extends { error?: string }>(
+      url: string,
+      fallback: string,
+    ) => {
+      const response = await fetch(url);
+      const reply = await readAuthorizedJson<T>(
+        sessionRef.current,
+        started,
+        response,
+        fallback,
+      );
+      if (reply.kind === 'expired') applyExpired();
+      return reply;
+    };
+    const [outcomesReply, workspaceReply] = await Promise.all([
+      read<Data>('/api/outcomes', 'Unable to load outcomes.'),
+      read<{ jobs?: unknown; error?: string }>(
+        '/api/workspace',
+        'Unable to load jobs.',
+      ),
     ]);
-    const outcomesReply = await readAuthorizedJson<Data>(
-      sessionRef.current,
-      started,
-      outcomesResponse,
-      'Unable to load outcomes.',
-    );
-    if (outcomesReply.kind === 'expired') {
-      applyExpired();
+    if (
+      outcomesReply.kind === 'expired' ||
+      outcomesReply.kind === 'ignore' ||
+      workspaceReply.kind === 'expired' ||
+      workspaceReply.kind === 'ignore'
+    )
       return;
-    }
-    if (outcomesReply.kind === 'ignore') return;
-    const workspaceReply = await readAuthorizedJson<{
-      jobs?: unknown;
-      error?: string;
-    }>(sessionRef.current, started, workspaceResponse, 'Unable to load jobs.');
-    if (workspaceReply.kind === 'expired') {
-      applyExpired();
-      return;
-    }
-    if (workspaceReply.kind === 'ignore') return;
     if (outcomesReply.kind === 'error') throw Error(outcomesReply.error);
     if (workspaceReply.kind === 'error') throw Error(workspaceReply.error);
     if (!pageWorkIsLive(sessionRef.current, started)) return;

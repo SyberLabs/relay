@@ -370,6 +370,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     sessionRef: { current: session },
     selectedRef: { current: '' },
     loadJobHistory: async () => {},
+    loadRuntimeContext: async () => {},
   };
   for (const key of [
     'jobs',
@@ -772,6 +773,7 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
     sessionRef: { current: session },
     selectedRef: { current: ownerA.id },
     loadJobHistory: async () => {},
+    loadRuntimeContext: async () => {},
     fetch: async () => {
       gets += 1;
       if (gets === 1) {

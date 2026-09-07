@@ -233,3 +233,100 @@ void test('policy GET 401 expires without parsing JSON', async () => {
   assert.equal(state.autopilot, false);
   assert.equal(state.styleCount, 0);
 });
+
+void test('successful workspace refresh loads plant context after records bind', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(
+    src.split('const loadRuntimeContext = useCallback(').length - 1,
+    1,
+  );
+  assert.match(
+    src,
+    /if \(selectedRef\.current\) void loadJobHistory\(selectedRef\.current\);\n      void loadRuntimeContext\(\);/,
+  );
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const refreshSrc = src.match(
+    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,
+  )[1];
+  const session = helper.createWorkspaceSession();
+  let contextLoads = 0;
+  const state = { jobs: [], signedOut: false, loaded: false };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    fetch: async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        viewer: 'owner-a',
+        jobs: [],
+        sources: [],
+        events: [],
+        facts: [],
+      }),
+    }),
+    sessionRef: { current: session },
+    selectedRef: { current: '' },
+    loadJobHistory: async () => {
+      throw Error('must not load history without a selection');
+    },
+    loadRuntimeContext: async () => {
+      contextLoads += 1;
+    },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const refresh = bind(refreshSrc, deps);
+  await refresh();
+  assert.equal(contextLoads, 1);
+  assert.equal(state.loaded, true);
+  assert.equal(session.viewer, 'owner-a');
+});
+
+void test('expired workspace refresh does not load plant context', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const refreshSrc = src.match(
+    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,
+  )[1];
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  let contextLoads = 0;
+  const state = {
+    jobs: [{ id: 'job-1' }],
+    policy: { version: 1, enabled: 1 },
+    autopilot: true,
+    styleCount: 2,
+    signedOut: false,
+    loaded: false,
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    fetch: async () => ({
+      status: 401,
+      ok: false,
+      json: async () => {
+        throw Error('must not parse 401 JSON');
+      },
+    }),
+    sessionRef: { current: session },
+    selectedRef: { current: 'job-1' },
+    loadJobHistory: async () => {
+      throw Error('must not load history after expiry');
+    },
+    loadRuntimeContext: async () => {
+      contextLoads += 1;
+    },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const refresh = bind(refreshSrc, deps);
+  await refresh();
+  assert.equal(contextLoads, 0);
+  assert.equal(state.signedOut, true);
+  assert.equal(state.policy, null);
+  assert.equal(state.autopilot, false);
+  assert.equal(state.styleCount, 0);
+  assert.equal(session.viewer, undefined);
+});

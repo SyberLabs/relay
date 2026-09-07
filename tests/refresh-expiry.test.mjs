@@ -31,6 +31,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       sessionRef: { current: session },
       selectedRef: { current: '' },
       loadJobHistory: async () => {},
+      loadRuntimeContext: async () => {},
       fetch: async (_url, init) =>
         init?.method === 'POST' ? post.promise : get.promise,
     };

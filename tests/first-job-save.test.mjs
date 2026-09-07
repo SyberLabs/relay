@@ -61,6 +61,7 @@ function baseDeps(state, session, fetcher) {
     loadJobHistory: async (id) => {
       state.historyId = id;
     },
+    loadRuntimeContext: async () => {},
   };
   for (const key of [
     'jobs',

@@ -28,6 +28,7 @@ export type FirstJobEditorStart = {
   session: string;
   draft: string;
   blocker: string;
+  progressNote: string;
 };
 
 function postingUrl(url: string) {
@@ -92,6 +93,7 @@ export function firstJobShouldSelectSaved(
     session: string;
     draft: string;
     blocker: string;
+    progressNote: string;
   } | null,
   selectedId: string,
   savedJobId: string | undefined,
@@ -103,6 +105,7 @@ export function firstJobShouldSelectSaved(
     editor.jobId === started.jobId &&
     editor.session === started.session &&
     editor.draft === started.draft &&
-    editor.blocker === started.blocker
+    editor.blocker === started.blocker &&
+    editor.progressNote === started.progressNote
   );
 }

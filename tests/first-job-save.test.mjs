@@ -122,79 +122,81 @@ const added = {
   version: 1,
 };
 
-void test('delayed add-job response keeps in-flight edits and still adds the job', async () => {
-  const session = helper.createWorkspaceSession();
-  session.viewer = 'owner-a';
-  const editor = loadEditor(existing);
-  const state = {
-    jobs: [existing],
-    sources: [],
-    events: [],
-    facts: [],
-    editor,
-    selected: existing.id,
-    showAddJob: true,
-    filter: 'Held',
-    signedOut: false,
-    loaded: true,
-    busy: false,
-    message: '',
-  };
-  const post = deferred();
-  let gets = 0;
-  let imported = false;
-  const deps = baseDeps(state, session, async (_url, init) => {
-    if (init?.method === 'POST') {
-      const response = await post.promise;
-      imported = true;
-      return response;
-    }
-    gets += 1;
-    return new Response(
-      JSON.stringify({
-        viewer: 'owner-a',
-        jobs: imported ? [existing, added] : [existing],
-        sources: [],
-        events: [],
-        facts: [],
-      }),
-      { status: 200 },
+for (const field of ['draft', 'progressNote']) {
+  void test(`delayed add-job response keeps in-flight ${field} edits and still adds the job`, async () => {
+    const session = helper.createWorkspaceSession();
+    session.viewer = 'owner-a';
+    const editor = loadEditor(existing);
+    const state = {
+      jobs: [existing],
+      sources: [],
+      events: [],
+      facts: [],
+      editor,
+      selected: existing.id,
+      showAddJob: true,
+      filter: 'Held',
+      signedOut: false,
+      loaded: true,
+      busy: false,
+      message: '',
+    };
+    const post = deferred();
+    let gets = 0;
+    let imported = false;
+    const deps = baseDeps(state, session, async (_url, init) => {
+      if (init?.method === 'POST') {
+        const response = await post.promise;
+        imported = true;
+        return response;
+      }
+      gets += 1;
+      return new Response(
+        JSON.stringify({
+          viewer: 'owner-a',
+          jobs: imported ? [existing, added] : [existing],
+          sources: [],
+          events: [],
+          facts: [],
+        }),
+        { status: 200 },
+      );
+    });
+    deps.selectedRef.current = existing.id;
+    const saveFirstJob = compileSaveFirstJob(deps);
+    const pending = saveFirstJob({
+      url: 'first-job:https://example.com/jobs/added',
+      Name: added.name,
+      Job: added.url,
+      Status: 'Held',
+      Notes: 'Fictional added notes.',
+    });
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    state.editor = {
+      ...state.editor,
+      [field]: 'Typed while add-job was in flight.',
+    };
+    deps.editorRef.current = state.editor;
+    post.resolve(
+      new Response(
+        JSON.stringify({
+          items: [{ name: added.name, kind: 'new', key: added.job_key }],
+        }),
+        { status: 200 },
+      ),
     );
+    await pending;
+    assert.equal(state.editor[field], 'Typed while add-job was in flight.');
+    assert.equal(state.editor.jobId, existing.id);
+    assert.equal(deps.selectedRef.current, existing.id);
+    assert.equal(
+      state.jobs.some((job) => job.id === added.id),
+      true,
+    );
+    assert.equal(state.showAddJob, false);
+    assert.equal(gets > 0, true);
   });
-  deps.selectedRef.current = existing.id;
-  const saveFirstJob = compileSaveFirstJob(deps);
-  const pending = saveFirstJob({
-    url: 'first-job:https://example.com/jobs/added',
-    Name: added.name,
-    Job: added.url,
-    Status: 'Held',
-    Notes: 'Fictional added notes.',
-  });
-  for (let i = 0; i < 8; i++) await Promise.resolve();
-  state.editor = {
-    ...state.editor,
-    draft: 'Typed while add-job was in flight.',
-  };
-  deps.editorRef.current = state.editor;
-  post.resolve(
-    new Response(
-      JSON.stringify({
-        items: [{ name: added.name, kind: 'new', key: added.job_key }],
-      }),
-      { status: 200 },
-    ),
-  );
-  await pending;
-  assert.equal(state.editor.draft, 'Typed while add-job was in flight.');
-  assert.equal(state.editor.jobId, existing.id);
-  assert.equal(deps.selectedRef.current, existing.id);
-  assert.equal(
-    state.jobs.some((job) => job.id === added.id),
-    true,
-  );
-  assert.equal(state.showAddJob, false);
-  assert.equal(gets > 0, true);
-});
+}
 
 void test('same-account add-job still selects the saved record when the editor is unchanged', async () => {
   const session = helper.createWorkspaceSession();

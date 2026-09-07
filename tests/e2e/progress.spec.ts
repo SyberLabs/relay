@@ -46,6 +46,8 @@ const draftField = (page: Page) =>
   page.getByRole('textbox', { name: 'Application answer or outreach draft' });
 const blockerField = (page: Page) =>
   page.getByRole('textbox', { name: 'Blocker or missing fact' });
+const noteField = (page: Page) =>
+  page.getByRole('textbox', { name: 'Progress note', exact: true });
 async function select(page: Page, job: Job) {
   await page.getByRole('button', { name: new RegExp(job.name) }).click();
 }
@@ -111,7 +113,7 @@ for (const width of [1280, 390]) {
       .filter({ hasText: /^Progress saved ·/ })
       .click();
     await expect(
-      page.locator('pre').filter({ hasText: 'Next action updated' }),
+      page.locator('pre').filter({ hasText: 'Blocker updated' }),
     ).toBeVisible();
     await draftField(page).fill(accepted);
 
@@ -168,6 +170,102 @@ for (const width of [1280, 390]) {
   });
 }
 
+test('nonblocking notes survive history and reload without preventing exact acceptance', async ({
+  page,
+}) => {
+  const [job] = await prepare(page, 'notes');
+  await select(page, job);
+  const exact = 'A complete fictional draft, ready for human review.';
+  const note = 'Draft complete. Next action: review the exact wording.';
+  await draftField(page).fill(exact);
+  await noteField(page).fill(note);
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(
+    page.getByText('Saved. Your review is preserved.'),
+  ).toBeVisible();
+  await expect(noteField(page)).toHaveValue(note);
+  expect(JSON.stringify((await workspace(page)).events)).not.toContain(note);
+  await saveProgress(page);
+  await expect(noteField(page)).toHaveValue('');
+  const saved = (await workspace(page)).jobs.find((row) => row.id === job.id)!;
+  expect(saved).toMatchObject({
+    draft: exact,
+    blocker: '',
+    accepted_draft: null,
+    status: 'Held',
+  });
+  await page.reload();
+  await page.getByRole('button', { name: /All opportunities/ }).click();
+  await select(page, job);
+  await page
+    .locator('summary')
+    .filter({ hasText: /^Progress saved ·/ })
+    .click();
+  await expect(page.locator('pre').filter({ hasText: note })).toBeVisible();
+  const accept = page.getByRole('button', { name: 'Accept exact draft' });
+  await expect(accept).toBeEnabled();
+  // Synthetic regression only; this does not establish personal approval.
+  await accept.click();
+  await expect(page.getByText('This exact draft is accepted.')).toBeVisible();
+  await noteField(page).fill('Review recorded; prepare the next application.');
+  await expect(page.getByText('This exact draft is accepted.')).toBeVisible();
+  await saveProgress(page);
+  await expect(page.getByText('This exact draft is accepted.')).toBeVisible();
+  expect(
+    (await workspace(page)).jobs.find((row) => row.id === job.id),
+  ).toMatchObject({
+    draft: exact,
+    accepted_draft: exact,
+    status: 'Ready',
+    blocker: '',
+  });
+});
+
+test('nonblocking progress cannot clear a genuine hold or create acceptance', async ({
+  page,
+}) => {
+  const [job] = await prepare(page, 'hold');
+  await select(page, job);
+  const hold =
+    'Do not submit until the candidate confirms the required work location.';
+  await blockerField(page).fill(hold);
+  await saveProgress(page);
+  await draftField(page).fill(
+    'Fictional draft awaiting location confirmation.',
+  );
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(
+    page.getByText('Saved. Your review is preserved.'),
+  ).toBeVisible();
+  await noteField(page).fill(
+    'Research is complete; wording is ready to review.',
+  );
+  await saveProgress(page);
+  await expect(blockerField(page)).toHaveValue(hold);
+  await expect(
+    page.getByRole('button', { name: 'Accept exact draft' }),
+  ).toBeDisabled();
+  const before = await workspace(page);
+  const current = before.jobs.find((row) => row.id === job.id)!;
+  const refusal = await page.request.post('/api/workspace', {
+    data: {
+      action: 'save',
+      id: job.id,
+      version: current.version,
+      draft: current.draft,
+      blocker: current.blocker,
+      status: 'Ready',
+    },
+  });
+  expect(refusal.status()).toBe(400);
+  expect(await workspace(page)).toEqual(before);
+  expect(
+    before.events.filter(
+      (event) => event.job_id === job.id && event.kind === 'Draft accepted',
+    ),
+  ).toHaveLength(0);
+});
+
 test('stale progress and gateway refusals preserve unsaved inputs and newer saved work', async ({
   page,
 }) => {
@@ -175,6 +273,7 @@ test('stale progress and gateway refusals preserve unsaved inputs and newer save
   await select(page, job);
   await draftField(page).fill('Local unsaved draft stays visible.');
   await blockerField(page).fill('Local next action stays visible.');
+  await noteField(page).fill('Nonblocking local progress stays visible.');
   const newer = await page.request.post('/api/workspace', {
     data: {
       action: 'save',
@@ -208,11 +307,15 @@ test('stale progress and gateway refusals preserve unsaved inputs and newer save
     'Local next action stays visible.',
   );
   expect(await workspace(page)).toEqual(before);
+  await expect(noteField(page)).toHaveValue(
+    'Nonblocking local progress stays visible.',
+  );
 
   await page.getByRole('button', { name: 'Reload this record' }).click();
   for (const status of [403, 429, 503]) {
     await draftField(page).fill(`Unsaved draft after ${status}.`);
     await blockerField(page).fill(`Next action after ${status}.`);
+    await noteField(page).fill(`Nonblocking note after ${status}.`);
     let attempts = 0;
     await page.route('**/api/workspace', async (route) => {
       if (
@@ -238,6 +341,9 @@ test('stale progress and gateway refusals preserve unsaved inputs and newer save
     );
     expect(await workspace(page)).toEqual(before);
     expect(attempts).toBe(1);
+    await expect(noteField(page)).toHaveValue(
+      `Nonblocking note after ${status}.`,
+    );
     await page.unroute('**/api/workspace');
   }
 });

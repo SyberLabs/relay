@@ -10,6 +10,7 @@ export type Editor = {
   version: number;
   draft: string;
   blocker: string;
+  progressNote: string;
   baseDraft: string;
   baseBlocker: string;
   conflict: boolean;
@@ -26,6 +27,7 @@ export type SaveSnapshot = {
   version: number;
   draft: string;
   blocker: string;
+  progressNote?: string;
 };
 export function loadEditor(job: JobFields): Editor {
   return {
@@ -34,6 +36,7 @@ export function loadEditor(job: JobFields): Editor {
     version: job.version,
     draft: job.draft,
     blocker: job.blocker,
+    progressNote: '',
     baseDraft: job.draft,
     baseBlocker: job.blocker,
     conflict: false,
@@ -45,7 +48,9 @@ export function canSave(editor: Editor) {
 export function editorIsDirty(editor: Editor | null) {
   return (
     !!editor &&
-    (editor.draft !== editor.baseDraft || editor.blocker !== editor.baseBlocker)
+    (editor.draft !== editor.baseDraft ||
+      editor.blocker !== editor.baseBlocker ||
+      !!editor.progressNote)
   );
 }
 export function keepEditorOnReselect(editor: Editor | null, jobId: string) {
@@ -71,7 +76,8 @@ export function showsExactAcceptance(
     job.id === editor.jobId &&
     job.version === editor.version &&
     editor.draft === job.accepted_draft &&
-    !editorIsDirty(editor)
+    editor.draft === editor.baseDraft &&
+    editor.blocker === editor.baseBlocker
   );
 }
 export function jobQueueHint(
@@ -130,6 +136,11 @@ export function acknowledgeSave(
     version: submitted.version + 1,
     baseDraft: submitted.draft,
     baseBlocker: submitted.blocker,
+    progressNote:
+      submitted.progressNote !== undefined &&
+      editor.progressNote === submitted.progressNote
+        ? ''
+        : editor.progressNote,
     conflict: false,
   };
 }

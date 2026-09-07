@@ -250,68 +250,77 @@ test('double-submit does not duplicate the job or identical notes', async ({
   expect(after.jobs.length).toBe(before.jobs.length + 1);
 });
 
-test('delayed add-job save keeps in-flight draft edits and still adds the job', async ({
-  page,
-}) => {
-  await signIn(page);
-  await page.getByRole('button', { name: 'Add job', exact: true }).click();
-  await page
-    .getByRole('textbox', { name: 'Role title' })
-    .fill('Cedar Example — Existing Role');
-  await page
-    .getByRole('textbox', { name: 'Posting URL' })
-    .fill('https://example.com/jobs/first-job-existing');
-  await page.getByRole('button', { name: 'Save job' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Cedar Example — Existing Role' }),
-  ).toBeVisible();
-  let releaseImport = () => {};
-  const heldImport = new Promise<void>((resolve) => {
-    releaseImport = resolve;
-  });
-  await page.route('**/api/workspace', async (route) => {
-    const request = route.request();
-    if (request.method() === 'POST') {
-      const body = request.postDataJSON() as { action?: string };
-      if (body.action === 'import') {
-        await heldImport;
+for (const field of ['draft', 'progressNote'] as const) {
+  test(`delayed add-job save keeps in-flight ${field} edits and still adds the job`, async ({
+    page,
+  }) => {
+    await signIn(page);
+    await page.getByRole('button', { name: 'Add job', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Role title' })
+      .fill(`Cedar Example — Existing ${field}`);
+    await page
+      .getByRole('textbox', { name: 'Posting URL' })
+      .fill(`https://example.com/jobs/first-job-existing-${field}`);
+    await page.getByRole('button', { name: 'Save job' }).click();
+    await expect(
+      page.getByRole('heading', { name: `Cedar Example — Existing ${field}` }),
+    ).toBeVisible();
+    let releaseImport = () => {};
+    const heldImport = new Promise<void>((resolve) => {
+      releaseImport = resolve;
+    });
+    await page.route('**/api/workspace', async (route) => {
+      const request = route.request();
+      if (request.method() === 'POST') {
+        const body = request.postDataJSON() as { action?: string };
+        if (body.action === 'import') {
+          await heldImport;
+        }
       }
-    }
-    await route.continue();
+      await route.continue();
+    });
+    await page.getByRole('button', { name: 'Add job', exact: true }).click();
+    await page
+      .getByRole('textbox', { name: 'Role title' })
+      .fill(`Willow Example — Added ${field}`);
+    await page
+      .getByRole('textbox', { name: 'Posting URL' })
+      .fill(`https://example.com/jobs/first-job-added-${field}`);
+    await page.getByRole('button', { name: 'Save job' }).click();
+    const draft = page.getByRole('textbox', {
+      name:
+        field === 'draft'
+          ? 'Application answer or outreach draft'
+          : 'Progress note',
+    });
+    await draft.fill('Typed while add-job was in flight.');
+    releaseImport();
+    await expect(page.getByText(/Job saved/)).toBeVisible();
+    await expect(draft).toHaveValue('Typed while add-job was in flight.');
+    await expect(
+      page.getByRole('heading', { name: `Cedar Example — Existing ${field}` }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', {
+        name: new RegExp(`Willow Example — Added ${field}`),
+      }),
+    ).toBeVisible();
+    const workspace = await (await page.request.get('/api/workspace')).json();
+    expect(
+      workspace.jobs.some(
+        (row: { name: string }) =>
+          row.name === `Willow Example — Added ${field}`,
+      ),
+    ).toBe(true);
+    expect(
+      workspace.jobs.some(
+        (row: { name: string }) =>
+          row.name === `Cedar Example — Existing ${field}`,
+      ),
+    ).toBe(true);
   });
-  await page.getByRole('button', { name: 'Add job', exact: true }).click();
-  await page
-    .getByRole('textbox', { name: 'Role title' })
-    .fill('Willow Example — Added Role');
-  await page
-    .getByRole('textbox', { name: 'Posting URL' })
-    .fill('https://example.com/jobs/first-job-added');
-  await page.getByRole('button', { name: 'Save job' }).click();
-  const draft = page.getByRole('textbox', {
-    name: 'Application answer or outreach draft',
-  });
-  await draft.fill('Typed while add-job was in flight.');
-  releaseImport();
-  await expect(page.getByText(/Job saved/)).toBeVisible();
-  await expect(draft).toHaveValue('Typed while add-job was in flight.');
-  await expect(
-    page.getByRole('heading', { name: 'Cedar Example — Existing Role' }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /Willow Example — Added Role/ }),
-  ).toBeVisible();
-  const workspace = await (await page.request.get('/api/workspace')).json();
-  expect(
-    workspace.jobs.some(
-      (row: { name: string }) => row.name === 'Willow Example — Added Role',
-    ),
-  ).toBe(true);
-  expect(
-    workspace.jobs.some(
-      (row: { name: string }) => row.name === 'Cedar Example — Existing Role',
-    ),
-  ).toBe(true);
-});
+}
 
 test('add-job form from another account is not written after the viewer changes', async ({
   page,

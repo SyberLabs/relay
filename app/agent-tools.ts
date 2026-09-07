@@ -140,7 +140,7 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
       {
         name: 'relay_save_progress',
         description:
-          'Save a completed step and actionable blocker for one application. Preserves saved draft, exact acceptance and application status. Requires the current version and a unique operation_id; reuse the same id and exact input only to reconcile an uncertain result. Never retry a refusal automatically. Empty blocker clears the previous blocker. Read workspace/history again to resume; this does not send or approve anything.',
+          'Save completed work or a nonblocking next action in note; it appears in history and does not block acceptance. blocker is only an actual unresolved condition that prevents acceptance, never a review reminder or completion summary. Preserve the existing blocker unless explicitly updating or resolving it; empty blocker clears it. Preserves saved draft, exact acceptance and application status. Requires the current version and a unique operation_id; reuse the same id and exact input only to reconcile an uncertain result. Never retry a refusal automatically. Read workspace/history again to resume; this does not send or approve anything.',
         readOnly: false,
         schema: object(
           {

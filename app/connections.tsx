@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
+import { browserAgentToolsCopy, webMcpCapability } from '../lib/webmcp';
 import { assistantPrompt, type Assistant } from '../lib/assistant-handoff';
 import { type EditorTarget } from '../lib/editor';
 import {
@@ -24,6 +25,29 @@ function downloadFile(content: string, filename: string, type: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function subscribeBrowserAgentTools() {
+  return () => {};
+}
+
+function missingBrowserAgentToolsCopy() {
+  return browserAgentToolsCopy(false);
+}
+
+function browserAgentToolsSnapshot() {
+  return browserAgentToolsCopy(
+    webMcpCapability({ document, navigator }).available,
+  );
+}
+
+function BrowserAgentToolsStatus() {
+  const copy = useSyncExternalStore(
+    subscribeBrowserAgentTools,
+    browserAgentToolsSnapshot,
+    missingBrowserAgentToolsCopy,
+  );
+  return <p>{copy}</p>;
 }
 
 export function Connections({
@@ -139,6 +163,7 @@ export function Connections({
         prepared with ChatGPT, Codex or Claude. Choose which files to share.
         Accounts are not connected automatically.
       </p>
+      <BrowserAgentToolsStatus />
       <p>
         <Link href="/about">About Relay and integration setup ↗</Link>
       </p>

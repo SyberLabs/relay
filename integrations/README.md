@@ -55,13 +55,15 @@ This sends the selected job, supplied facts and visible draft to Anthropic and i
 
 Install this repository in the Bot's VM and give it [GROK_BOT.md](GROK_BOT.md). No proprietary Grok Bot API is assumed. This is a command/file adapter, not automatic remote control of an installed Bot.
 
+`relay_*` browser tools appear only when that browser exposes WebMCP (`document.modelContext.registerTool`). Signed-in staging UI does not imply tools. The workspace list tool is `relay_read_workspace`; `relay_read_application` reads one job by id when WebMCP is present. Grok Bot Chromium has not exposed WebMCP on staging, so use file handoff. The user's local Vinext CLI (`127.0.0.1`, including port 3197) is unreachable from the Bot VM.
+
 For research, ask the Bot to write records in the schema in `lib/seed.json`, then run:
 
 ```sh
 node integrations/relay.mjs grok-research research.json private-data/research-checked.json
 ```
 
-For a private local session, the Bot can run `login`, retrieve `context`, write its own draft file and run `stage` to save directly for human review. See [the assistant workflow](ASSISTANT-WORKFLOW.md) for exact versions, explicit blockers, recovery and acceptance. This local path needs no user copying or file transfer.
+For a private local session **on the same machine as Relay**, the Bot can run `login`, retrieve `context`, write its own draft file and run `stage` to save directly for human review. See [the assistant workflow](ASSISTANT-WORKFLOW.md) for exact versions, explicit blockers, recovery and acceptance. That path is not deployed evidence and does not work against a user's localhost from Grok Bot.
 
 For the packet fallback, give the Bot a downloaded job packet, have it write plain text, then run:
 
@@ -69,7 +71,7 @@ For the packet fallback, give the Bot a downloaded job packet, have it write pla
 node integrations/relay.mjs grok-draft relay-packet.json draft.txt private-data/grok-draft.json
 ```
 
-Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text. A supported browser may also expose Relay's optional WebMCP read/preview/stage tools; the tested installed Grok Bot session did not expose those tools.
+Load the output file in Relay. The packet's job identity and version must still match; otherwise download a fresh packet. This prevents loading an old draft into a different job. The adapter validates structure, not the truth of research or generated text.
 
 ## Public boards → Relay
 
@@ -159,7 +161,7 @@ It can do anything except exercise taste or authorise an irreversible act. It ca
 
 The fact ledger and style card live at `/profile`; experimental batch review is at `/review`, linked from `/advanced` alongside preferences and planning. Relay processes pasted resume text into proposed lines without calling an external assistant. You confirm facts yourself; the stored `Verified` status records that confirmation, not independent verification.
 
-A browser exposing WebMCP gives an assistant `relay_read_profile`, `relay_log_draft` and `relay_review_status` alongside the existing workspace tools. Logging requires cited facts to be user-confirmed and unexpired, then checks selected claim patterns using word overlap and numbers pooled across citations. This can miss unsupported claims; passing is not factual verification. Browser draft loading checks format, job identity and version, and workspace saves do not run this citation check. Exact-text acceptance still requires human review. This WebMCP path has not been tested in a Grok Bot session.
+A browser exposing WebMCP gives an assistant `relay_read_workspace`, `relay_preview_import` and `relay_stage_draft`, plus `relay_read_application` (one job by id), `relay_read_profile`, `relay_log_draft`, `relay_review_status` and `relay_save_progress`. Logging requires cited facts to be user-confirmed and unexpired, then checks selected claim patterns using word overlap and numbers pooled across citations. This can miss unsupported claims; passing is not factual verification. Browser draft loading checks format, job identity and version, and workspace saves do not run this citation check. Exact-text acceptance still requires human review. Grok Bot on signed-in staging has not exposed WebMCP; file handoff remains the Grok write path until the host does.
 
 The `claude-draft` command remains a file handoff and does not use the fact ledger. Facts you type into a packet are still ephemeral and unsaved.
 

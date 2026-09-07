@@ -2,6 +2,7 @@
 import { useEffect } from 'react';
 import { stageDraft } from '../lib/draft-stage';
 import { readApplicationContext } from '../lib/application-context';
+import { webMcpCapability } from '../lib/webmcp';
 type Json = Record<string, unknown>;
 type Tool = {
   name: string;
@@ -46,17 +47,8 @@ async function call(url: string, body?: Json) {
 }
 export function useRelayTools(refresh: () => Promise<unknown>) {
   useEffect(() => {
-    const context = (
-      document as Document & {
-        modelContext?: {
-          registerTool: (
-            tool: unknown,
-            options: { signal: AbortSignal },
-          ) => void | Promise<void>;
-        };
-      }
-    ).modelContext;
-    if (!context?.registerTool) return;
+    const { context } = webMcpCapability({ document, navigator });
+    if (!context) return;
     const lifecycle = new AbortController();
     const tools: Tool[] = [
       {

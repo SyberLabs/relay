@@ -32,6 +32,7 @@ import {
   completeOwnerImportWrite,
   ownerImportWritePending,
 } from '../../../lib/tracker-submit';
+import { cancelPreBeginForJob } from '../../../lib/application-automation';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -236,6 +237,7 @@ export async function POST(request: Request) {
       ]);
       if (!result[0].meta.changes)
         return reply({ error: 'Record changed. Reload before saving.' }, 409);
+      if (b.status === 'Skip') await cancelPreBeginForJob(db, user, b.id, now);
       return reply({ ok: true });
     }
     if (b.action === 'history') {

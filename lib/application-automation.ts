@@ -207,14 +207,11 @@ export async function inspectApplication(
   now: string,
 ): Promise<InspectView> {
   requireThat(shortText(jobId, 100), 'A selected job is unavailable.', 404);
-  requireThat(
-    await db
-      .prepare('SELECT 1 FROM jobs WHERE owner=? AND id=?')
-      .bind(owner, jobId)
-      .first(),
-    'A selected job is unavailable.',
-    404,
-  );
+  const job = await db
+    .prepare('SELECT status FROM jobs WHERE owner=? AND id=?')
+    .bind(owner, jobId)
+    .first<{ status: string }>();
+  requireThat(job, 'A selected job is unavailable.', 404);
   const row = await db
     .prepare(
       `SELECT p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state
@@ -259,7 +256,11 @@ export async function inspectApplication(
     operation_id: row.operation_id,
     digest: row.digest ?? null,
     state,
-    accept_enabled: ready && armed && state === 'proposed',
+    accept_enabled:
+      ready &&
+      armed &&
+      state === 'proposed' &&
+      (job.status === 'Held' || job.status === 'Ready'),
   };
 }
 export async function upsertPreparation(
@@ -312,6 +313,13 @@ export async function upsertPreparation(
       240000,
     'Submission exceeds 240,000 bytes.',
   );
+  await cancelPreBeginForJob(
+    db,
+    owner,
+    input.job,
+    now,
+    await digest(JSON.stringify(manifest)),
+  );
   await statement(
     db,
     `INSERT INTO application_preparations (owner,job_id,actor,job_version,destination,fields,files,operation_id,ready,armed_until,updated)
@@ -336,6 +344,34 @@ export async function upsertPreparation(
     now,
   ).run();
   return inspectApplication(db, owner, input.job, now);
+}
+export async function cancelPreBeginForJob(
+  db: D1Database,
+  owner: string,
+  jobId: string,
+  now: string,
+  keepDigest?: string,
+) {
+  const leftovers = keepDigest
+    ? await db
+        .prepare(
+          "SELECT id,digest FROM application_operations WHERE owner=? AND job_id=? AND state IN ('proposed','authorized') AND digest!=?",
+        )
+        .bind(owner, jobId, keepDigest)
+        .all<{ id: string; digest: string }>()
+    : await db
+        .prepare(
+          "SELECT id,digest FROM application_operations WHERE owner=? AND job_id=? AND state IN ('proposed','authorized')",
+        )
+        .bind(owner, jobId)
+        .all<{ id: string; digest: string }>();
+  for (const old of leftovers.results)
+    await actOnApplication(
+      db,
+      owner,
+      { id: old.id, digest: old.digest, action: 'cancel' },
+      now,
+    );
 }
 export async function armPreparation(
   db: D1Database,

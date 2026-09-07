@@ -76,3 +76,68 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   expect(begun.ok()).toBe(true);
   expect((await begun.json()).execute).toBe(true);
 });
+
+test('set aside cancels a pre-begin freeze so send cannot begin', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          Name: 'Cedar Example — Inspect Skip Engineer',
+          Job: 'https://employer.example/jobs/inspect-skip',
+          url: 'https://scout.example/observations/inspect-skip',
+          Status: 'Held',
+          Notes: 'Fictional inspect-skip fixture.',
+        },
+      ],
+    },
+  });
+  const ws = await (await page.request.get('/api/workspace')).json();
+  const job = ws.jobs.find((j: { name: string }) =>
+    j.name.includes('Inspect Skip'),
+  );
+  await enableInspectJob(page, ws.viewer, job.id);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Inspect Skip/ }).click();
+  const prepared = await page.request.post('/api/applications', {
+    data: {
+      action: 'prepare',
+      viewer: ws.viewer,
+      job: job.id,
+      actor: 'Fictional applying agent',
+      destination: job.url,
+      fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+      files: [],
+    },
+  });
+  expect(prepared.ok()).toBe(true);
+  const armed = await page.request.post('/api/applications', {
+    data: {
+      action: 'arm',
+      viewer: ws.viewer,
+      job: job.id,
+      id: 'op-inspect-skip',
+      actor: 'Fictional applying agent',
+    },
+  });
+  expect(armed.ok()).toBe(true);
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Set aside' }).click();
+  await expect
+    .poll(async () => {
+      const data = await (await page.request.get('/api/applications')).json();
+      return data.operations.find(
+        (o: { id: string }) => o.id === 'op-inspect-skip',
+      )?.state;
+    })
+    .toBe('cancelled');
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeDisabled();
+});

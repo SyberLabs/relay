@@ -1127,40 +1127,43 @@ export default function Workspace() {
                       </div>
                     )}
                     {!protectedState && (
-                      <div className="actions sticky-actions">
-                        <button
-                          className="secondary"
-                          disabled={blocked || acceptedExact}
-                          onClick={() => save('Held')}
-                        >
-                          Save draft
-                        </button>
-                        <button
-                          className="primary"
-                          disabled={
-                            blocked ||
-                            acceptedExact ||
-                            !draft.trim() ||
-                            !!blocker.trim()
-                          }
-                          onClick={() => save('Ready')}
-                        >
-                          <Check size={16} />
-                          Accept exact draft
-                        </button>
-                        <button
-                          className="textbutton"
-                          disabled={blocked}
-                          onClick={() => save('Skip')}
-                        >
-                          Set aside
-                        </button>
-                      </div>
+                      <>
+                        <div className="actions sticky-actions">
+                          <button
+                            className="secondary"
+                            disabled={blocked || acceptedExact}
+                            onClick={() => save('Held')}
+                          >
+                            Save draft
+                          </button>
+                          <button
+                            className="primary"
+                            disabled={
+                              blocked ||
+                              acceptedExact ||
+                              !draft.trim() ||
+                              !!blocker.trim()
+                            }
+                            onClick={() => save('Ready')}
+                          >
+                            <Check size={16} />
+                            Accept exact draft
+                          </button>
+                          <button
+                            className="textbutton"
+                            disabled={blocked}
+                            onClick={() => save('Skip')}
+                          >
+                            Set aside
+                          </button>
+                        </div>
+                        <small className="muted">
+                          Acceptance records your approval of these exact words.
+                          Changed wording needs fresh acceptance. Nothing is
+                          sent.
+                        </small>
+                      </>
                     )}
-                    <small className="muted">
-                      Acceptance records your approval of these exact words.
-                      Changed wording needs fresh acceptance. Nothing is sent.
-                    </small>
                     {inspect}
                     {connections}
                     <h3>Evidence matches</h3>

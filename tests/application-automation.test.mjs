@@ -12,6 +12,7 @@ import {
   digest,
   inspectApplication,
   upsertPreparation,
+  cancelPreBeginForJob,
 } from '../lib/application-automation.ts';
 
 const now = '2026-09-07T12:00:00.000Z';
@@ -385,6 +386,162 @@ void test('approve without a live arm refuses; approve with arm authorizes and d
   db.sqlite.close();
 });
 
+const completePrep = (value = 'Avery Example') => ({
+  job: 'alice-0',
+  actor: 'Fictional applying agent',
+  destination: 'https://employer.example/jobs/0',
+  fields: [{ label: 'Full name', value, unknown: false }],
+  files: [],
+});
+
+void test('prepare of a different digest cancels a frozen op so begin cannot execute', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep('Digest A'), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-prep-a', actor: 'Fictional applying agent' },
+    now,
+  );
+  const frozen = await loadOperation(db, 'alice', 'op-prep-a');
+  await actOnApplication(db, 'alice', action(frozen, 'approve'), now);
+  await upsertPreparation(db, 'alice', completePrep('Digest B'), now);
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-prep-a')).state,
+    'cancelled',
+  );
+  await assert.rejects(
+    actOnApplication(
+      db,
+      'alice',
+      action(await loadOperation(db, 'alice', 'op-prep-a'), 'begin'),
+      now,
+    ),
+  );
+  db.sqlite.close();
+});
+
+void test('same-digest prepare clears arm without cancel so re-arm then begin still works', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-prep-same', actor: 'Fictional applying agent' },
+    now,
+  );
+  const expired = '2026-09-07T12:00:21.000Z';
+  await upsertPreparation(db, 'alice', completePrep(), expired);
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-prep-same')).state,
+    'proposed',
+  );
+  const stored = db.sqlite
+    .prepare(
+      'SELECT ready, armed_until, operation_id FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get('alice', 'alice-0');
+  assert.equal(stored.ready, 0);
+  assert.equal(stored.armed_until, '');
+  assert.equal(stored.operation_id, null);
+  const rearmed = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-prep-same', actor: 'Fictional applying agent' },
+    expired,
+  );
+  assert.equal(rearmed.state, 'proposed');
+  assert.equal(rearmed.accept_enabled, true);
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-prep-same'), 'approve'),
+    expired,
+  );
+  const begun = await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-prep-same'), 'begin'),
+    expired,
+  );
+  assert.equal(begun.execute, true);
+  db.sqlite.close();
+});
+
+void test('skip cancels pre-begin operations for that job', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-skip', actor: 'Fictional applying agent' },
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-skip'), 'approve'),
+    now,
+  );
+  await cancelPreBeginForJob(db, 'alice', 'alice-0', now);
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-skip')).state,
+    'cancelled',
+  );
+  const view = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(view.accept_enabled, false);
+  await assert.rejects(
+    actOnApplication(
+      db,
+      'alice',
+      action(await loadOperation(db, 'alice', 'op-skip'), 'begin'),
+      now,
+    ),
+  );
+  db.sqlite.close();
+});
+
+void test('inspect accept_enabled requires a sendable Held or Ready job', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  const armed = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-status', actor: 'Fictional applying agent' },
+    now,
+  );
+  assert.equal(armed.accept_enabled, true);
+  db.sqlite.prepare("UPDATE jobs SET status='Skip' WHERE id='alice-0'").run();
+  const skipped = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(skipped.state, 'proposed');
+  assert.equal(skipped.accept_enabled, false);
+  db.sqlite.close();
+});
+
 void test('arm of a different digest cancels a pre-begin freeze', async () => {
   const db = database();
   await changeApplicationPolicy(
@@ -464,7 +621,11 @@ void test('arm after cancel proposes a new freeze; cancelled is not a live arm',
   const first = await armPreparation(
     db,
     'alice',
-    { job: 'alice-0', id: 'op-arm-cancelled', actor: 'Fictional applying agent' },
+    {
+      job: 'alice-0',
+      id: 'op-arm-cancelled',
+      actor: 'Fictional applying agent',
+    },
     now,
   );
   assert.equal(first.state, 'proposed');
@@ -563,7 +724,11 @@ void test('same-digest arm refuses executing and submitted operations', async ()
       armPreparation(
         db,
         'alice',
-        { job: 'alice-0', id: 'op-arm-exec', actor: 'Fictional applying agent' },
+        {
+          job: 'alice-0',
+          id: 'op-arm-exec',
+          actor: 'Fictional applying agent',
+        },
         now,
       ),
     /execut/i,
@@ -581,7 +746,11 @@ void test('same-digest arm refuses executing and submitted operations', async ()
       armPreparation(
         db,
         'alice',
-        { job: 'alice-0', id: 'op-arm-exec', actor: 'Fictional applying agent' },
+        {
+          job: 'alice-0',
+          id: 'op-arm-exec',
+          actor: 'Fictional applying agent',
+        },
         now,
       ),
     /execut|payload/i,
@@ -945,6 +1114,49 @@ void test('database protects exact evidence and caps history across insertion pa
     '2026-10-01T00:00:00.000Z',
   );
   db.sqlite.close();
+});
+
+void test('preparations cap allows overwrite of an existing job at 500 and aborts a 501st distinct job', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  await upsertPreparation(db, 'alice', completePrep(), now);
+  const template = db.sqlite
+    .prepare(
+      'SELECT * FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get('alice', 'alice-0');
+  const cols = Object.keys(template);
+  const insert = db.sqlite.prepare(
+    `INSERT INTO application_preparations (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`,
+  );
+  for (let i = 1; i < 500; i++) {
+    const row = cols.map((col) => template[col]);
+    row[cols.indexOf('job_id')] = `capacity-${i}`;
+    insert.run(...row);
+  }
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT COUNT(*) c FROM application_preparations WHERE owner=?')
+      .get('alice').c,
+    500,
+  );
+  await upsertPreparation(db, 'alice', completePrep('Updated at cap'), now);
+  const stored = db.sqlite
+    .prepare(
+      'SELECT fields FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .get('alice', 'alice-0');
+  assert.match(stored.fields, /Updated at cap/);
+  const extra = cols.map((col) => template[col]);
+  extra[cols.indexOf('job_id')] = 'over-cap';
+  assert.throws(() => insert.run(...extra), /storage limit/);
+  db.sqlite.close();
+});
+
+void test('workspace Skip save cancels pre-begin operations', async () => {
+  const src = readFileSync('app/api/workspace/route.ts', 'utf8');
+  assert.match(src, /cancelPreBeginForJob/);
+  assert.match(src, /b\.status === ['"]Skip['"]/);
 });
 
 void test('overlapping uncertainty reports persist only the first report', async () => {

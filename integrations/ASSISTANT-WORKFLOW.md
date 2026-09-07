@@ -19,7 +19,7 @@ If browser tools are unavailable, the existing packet download/assistant respons
 
 1. `relay_prepare_application` streams the exact field/file snapshot for the job. Unknown answers use `unknown: true` and must never be invented. Batch the snapshot.
 2. `relay_arm_application` freezes a complete snapshot and keeps presence live. Incomplete or unknown fields are refused. Do not submit.
-3. Wait for the human to click **Accept and send** on the signed-in workspace. Poll `relay_inspect_application` until `state` is `authorized`, or cancelled/timeout. Chat “yes” and draft Ready are not send permission.
+3. Wait for the human to click **Accept and send** on the signed-in workspace. Poll `relay_inspect_application` at least every 2 seconds (prefer 3) until `state` is `authorized`, or cancelled/timeout. Chat “yes” and draft Ready are not send permission.
 4. `relay_begin_application` consumes the one permit. If `execute` is not true, do not click the employer submit control.
 5. Click the employer Submit **once**. Do not retry: a lost `begin` response is inspected on GET; `executing` is not permission to submit again.
 6. `relay_finish_application` records `complete`, `uncertain`, or `not-submitted` with a receipt. Only `complete` may set the job to Submitted. Never invent a receipt.

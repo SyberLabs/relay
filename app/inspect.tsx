@@ -201,7 +201,7 @@ export function useInspectSnapshot(jobId: string | undefined) {
     void load();
     const timer = window.setInterval(() => {
       void load();
-    }, 1000);
+    }, 3000);
     function onVisibility() {
       if (document.visibilityState === 'visible') void load();
     }

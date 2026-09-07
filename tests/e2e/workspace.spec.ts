@@ -383,12 +383,13 @@ test('tracker import actions stay inside the window after a long preview', async
 
 async function openImportDock(page: import('@playwright/test').Page) {
   await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  await expect(page.locator('#workspace-queue')).toBeVisible();
   const importBtn = page.getByRole('button', {
     name: 'Import research',
     exact: true,
   });
   await expect(importBtn).toHaveAttribute('aria-expanded', 'false');
-  await importBtn.click();
+  await importBtn.evaluate((button) => (button as HTMLButtonElement).click());
   await expect(importBtn).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#import-dock')).toBeVisible();
 }

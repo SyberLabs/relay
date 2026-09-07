@@ -255,6 +255,8 @@ void test('explicit submission holds become blockers without overwriting reviewe
     for (const note of [
       'Do not submit until the compensation question is resolved.',
       'Do not apply before checking the location requirement.',
+      'Do not submit.',
+      'Source checked. Do not apply until the location is confirmed.',
     ]) {
       const owner = 'hold-' + note;
       const job = 'https://example.com/jobs/source-hold';
@@ -277,10 +279,12 @@ void test('explicit submission holds become blockers without overwriting reviewe
         assert.deepEqual(jobOf(db, owner, job), before);
       }
     }
-    assert.equal(
-      importedBlocker('You do not need to submit a cover letter.'),
-      '',
-    );
+    for (const note of [
+      'You do not need to submit a cover letter.',
+      'These location restrictions do not apply to remote applicants.',
+      'Do not submit a cover letter; it is optional.',
+      'These restrictions do not apply until October.',
+    ]) assert.equal(importedBlocker(note), '');
   } finally {
     db.close();
   }

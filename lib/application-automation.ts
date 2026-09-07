@@ -278,6 +278,16 @@ export async function upsertPreparation(
     .first<{ version: number }>();
   requireThat(job, 'A selected job is unavailable.', 404);
   requireThat(
+    !(await db
+      .prepare(
+        "SELECT 1 FROM application_operations WHERE owner=? AND job_id=? AND state='executing'",
+      )
+      .bind(owner, input.job)
+      .first()),
+    'An application is already executing. Do not change the payload.',
+    409,
+  );
+  requireThat(
     Array.isArray(input.fields) &&
       input.fields.every(
         (f) => f && typeof f === 'object' && typeof f.unknown === 'boolean',
@@ -324,6 +334,125 @@ export async function upsertPreparation(
     fieldsJson,
     filesJson,
     now,
+  ).run();
+  return inspectApplication(db, owner, input.job, now);
+}
+export async function armPreparation(
+  db: D1Database,
+  owner: string,
+  input: Record<string, unknown>,
+  now: string,
+): Promise<InspectView> {
+  requireThat(
+    shortText(input.job, 100) &&
+      shortText(input.id, 100) &&
+      shortText(input.actor, 100),
+    'Supply job, operation ID and agent name.',
+  );
+  const prep = await db
+    .prepare(
+      'SELECT * FROM application_preparations WHERE owner=? AND job_id=?',
+    )
+    .bind(owner, input.job)
+    .first<{
+      actor: string;
+      job_version: number;
+      destination: string;
+      fields: string;
+      files: string;
+      operation_id: string | null;
+    }>();
+  requireThat(prep, 'Prepare a complete application first.', 409);
+  const fields = JSON.parse(prep.fields) as {
+    label: string;
+    value: string;
+    unknown: boolean;
+  }[];
+  requireThat(
+    fields.every((f) => f.value.length > 0 && f.unknown === false),
+    'Provide the complete submission.',
+  );
+  const manifest = await validateManifest({
+    destination: prep.destination,
+    fields: fields.map(({ label, value }) => ({ label, value })),
+    files: JSON.parse(prep.files),
+  });
+  const hash = await digest(JSON.stringify(manifest));
+  const linked = prep.operation_id
+    ? await db
+        .prepare('SELECT * FROM application_operations WHERE owner=? AND id=?')
+        .bind(owner, prep.operation_id)
+        .first<ApplicationOperation>()
+    : null;
+  let operationId = linked?.digest === hash ? linked.id : null;
+  if (!operationId) {
+    const policy = await loadApplicationPolicy(db, owner);
+    const jobRow = await db
+      .prepare('SELECT url FROM jobs WHERE owner=? AND id=? AND version=?')
+      .bind(owner, input.job, prep.job_version)
+      .first<{ url: string }>();
+    requireThat(
+      !(
+        policy?.review === 'sensitive' &&
+        jobRow?.url === manifest.destination &&
+        !requiresReview(manifest)
+      ),
+      'Inspect freeze requires review of every application.',
+      409,
+    );
+    if (linked) {
+      requireThat(
+        ['proposed', 'authorized'].includes(linked.state),
+        'An application is already executing. Do not change the payload.',
+        409,
+      );
+      await actOnApplication(
+        db,
+        owner,
+        { id: linked.id, digest: linked.digest, action: 'cancel' },
+        now,
+      );
+    }
+    const leftovers = await db
+      .prepare(
+        "SELECT id,digest FROM application_operations WHERE owner=? AND job_id=? AND state IN ('proposed','authorized') AND id!=?",
+      )
+      .bind(owner, input.job, input.id)
+      .all<{ id: string; digest: string }>();
+    for (const old of leftovers.results)
+      await actOnApplication(
+        db,
+        owner,
+        { id: old.id, digest: old.digest, action: 'cancel' },
+        now,
+      );
+    const op = await proposeApplication(
+      db,
+      owner,
+      {
+        id: input.id,
+        job: input.job,
+        version: prep.job_version,
+        actor: input.actor,
+        manifest,
+      },
+      now,
+    );
+    requireThat(
+      op.state === 'proposed',
+      'Inspect freeze requires review of every application.',
+      409,
+    );
+    operationId = op.id;
+  }
+  await statement(
+    db,
+    `UPDATE application_preparations SET ready=1,armed_until=?,operation_id=?,updated=? WHERE owner=? AND job_id=?`,
+    new Date(Date.parse(now) + 20_000).toISOString(),
+    operationId,
+    now,
+    owner,
+    input.job,
   ).run();
   return inspectApplication(db, owner, input.job, now);
 }
@@ -534,8 +663,9 @@ export async function actOnApplication(
     AND j.version=application_operations.job_version AND j.status IN ('Held','Ready') AND j.blocker=''
     AND EXISTS (SELECT 1 FROM json_each(p.jobs) WHERE value=j.id))`;
   if (input.action === 'approve') {
-    sql = `UPDATE application_operations SET state='authorized',authority='explicit-review' WHERE owner=? AND id=? AND state='proposed' AND ${authorized}`;
-    args = [owner, op.id, now];
+    sql = `UPDATE application_operations SET state='authorized',authority='explicit-review' WHERE owner=? AND id=? AND state='proposed' AND ${authorized}
+      AND EXISTS (SELECT 1 FROM application_preparations pr WHERE pr.owner=application_operations.owner AND pr.job_id=application_operations.job_id AND pr.operation_id=application_operations.id AND pr.armed_until>?)`;
+    args = [owner, op.id, now, now];
     kind = 'Application explicitly reviewed';
   } else if (input.action === 'begin') {
     sql = `UPDATE application_operations SET state='executing',started=? WHERE owner=? AND id=? AND state='authorized' AND ${authorized}
@@ -631,11 +761,13 @@ export async function actOnApplication(
   const result = await db.batch(statements);
   requireThat(
     result[0].meta.changes === 1,
-    'No permission issued. State, policy, job version or capacity changed. Inspect the saved operation; never repeat an employer submission.',
+    input.action === 'approve'
+      ? 'Operative is not on the page.'
+      : 'No permission issued. State, policy, job version or capacity changed. Inspect the saved operation; never repeat an employer submission.',
     409,
   );
   return {
     operation: await loadOperation(db, owner, op.id),
-    execute: input.action === 'begin',
+    execute: input.action === 'begin' || undefined,
   };
 }

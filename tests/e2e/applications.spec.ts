@@ -47,6 +47,51 @@ test('scout research becomes an exact reviewed application with one execution an
   await page.getByRole('button', { name: 'Save exact proposal' }).click();
   await expect(page.getByRole('status')).toContainText('Exact proposal saved');
   await expect(page.getByRole('article')).toContainText('Review required');
+  const ledger = await (await page.request.get('/api/applications')).json();
+  const proposed = ledger.operations.find(
+    (o: { state: string }) => o.state === 'proposed',
+  );
+  const detail = await (
+    await page.request.get(
+      `/api/applications?id=${encodeURIComponent(proposed.id)}`,
+    )
+  ).json();
+  const manifest = JSON.parse(detail.operation.manifest) as {
+    destination: string;
+    fields: { label: string; value: string }[];
+    files: { name: string; base64: string; sha256: string }[];
+  };
+  expect(
+    (
+      await page.request.post('/api/applications', {
+        data: {
+          action: 'prepare',
+          viewer: ledger.viewer,
+          job: detail.operation.job_id,
+          actor: detail.operation.actor,
+          destination: manifest.destination,
+          fields: manifest.fields.map((field) => ({
+            ...field,
+            unknown: false,
+          })),
+          files: manifest.files,
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  expect(
+    (
+      await page.request.post('/api/applications', {
+        data: {
+          action: 'arm',
+          viewer: ledger.viewer,
+          job: detail.operation.job_id,
+          id: detail.operation.id,
+          actor: detail.operation.actor,
+        },
+      })
+    ).ok(),
+  ).toBe(true);
   await page
     .getByRole('button', { name: 'Approve this exact application' })
     .click();
@@ -172,20 +217,16 @@ for (const first of ['older', 'newer']) {
     await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
     await page.goto('/applications');
     await page.getByText('Prepare an application', { exact: true }).click();
-    await page
-      .getByLabel('Exact files')
-      .setInputFiles({
-        name: 'older.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('AAAA'),
-      });
-    await page
-      .getByLabel('Exact files')
-      .setInputFiles({
-        name: 'newer.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('BBBB'),
-      });
+    await page.getByLabel('Exact files').setInputFiles({
+      name: 'older.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('AAAA'),
+    });
+    await page.getByLabel('Exact files').setInputFiles({
+      name: 'newer.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('BBBB'),
+    });
     const finish = async (name: string) =>
       page.evaluate(async (name) => {
         const control = window as unknown as {

@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
   actOnApplication,
+  armPreparation,
   changeApplicationPolicy,
   proposeApplication,
   loadOperation,
@@ -245,6 +246,201 @@ void test('inspect of another owner job is unavailable', async () => {
   db.sqlite.close();
 });
 
+void test('arm refuses incomplete or unknown fields and freezes a complete snapshot', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Full name', value: '', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  await assert.rejects(
+    () =>
+      armPreparation(
+        db,
+        'alice',
+        { job: 'alice-0', id: 'op-arm-0', actor: 'Fictional applying agent' },
+        now,
+      ),
+    /complete/i,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Work authorization', value: 'Yes', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  const armed = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-arm-0', actor: 'Fictional applying agent' },
+    now,
+  );
+  assert.equal(armed.ready, true);
+  assert.equal(armed.armed, true);
+  assert.equal(armed.accept_enabled, true);
+  assert.equal(armed.state, 'proposed');
+  const op = await loadOperation(db, 'alice', 'op-arm-0');
+  assert.equal(op.state, 'proposed');
+  db.sqlite.close();
+});
+
+void test('approve without a live arm refuses; approve with arm authorizes and does not begin', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  const armed = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-arm-1', actor: 'Fictional applying agent' },
+    now,
+  );
+  const expired = '2026-09-07T12:00:21.000Z';
+  await assert.rejects(
+    async () =>
+      actOnApplication(
+        db,
+        'alice',
+        action(await loadOperation(db, 'alice', 'op-arm-1'), 'approve'),
+        expired,
+      ),
+    /arm|presence|page/i,
+  );
+  const approved = await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-arm-1'), 'approve'),
+    now,
+  );
+  assert.equal(approved.operation.state, 'authorized');
+  assert.equal(approved.execute, undefined);
+  assert.equal(armed.ready, true);
+  const begun = await actOnApplication(
+    db,
+    'alice',
+    action(await loadOperation(db, 'alice', 'op-arm-1'), 'begin'),
+    now,
+  );
+  assert.equal(begun.execute, true);
+  await assert.rejects(
+    actOnApplication(
+      db,
+      'alice',
+      action(await loadOperation(db, 'alice', 'op-arm-1'), 'begin'),
+      now,
+    ),
+  );
+  await assert.rejects(
+    () =>
+      upsertPreparation(
+        db,
+        'alice',
+        {
+          job: 'alice-0',
+          actor: 'Fictional applying agent',
+          destination: 'https://employer.example/jobs/0',
+          fields: [
+            { label: 'Full name', value: 'Changed after send', unknown: false },
+          ],
+          files: [],
+        },
+        now,
+      ),
+    /execut/i,
+  );
+  db.sqlite.close();
+});
+
+void test('arm of a different digest cancels a pre-begin freeze', async () => {
+  const db = database();
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    { ...config(), review: 'all' },
+    now,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Work authorization', value: 'Yes', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-arm-old', actor: 'Fictional applying agent' },
+    now,
+  );
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [{ label: 'Work authorization', value: 'No', unknown: false }],
+      files: [],
+    },
+    now,
+  );
+  const armed = await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'op-arm-new', actor: 'Fictional applying agent' },
+    now,
+  );
+  assert.equal(armed.operation_id, 'op-arm-new');
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-arm-old')).state,
+    'cancelled',
+  );
+  assert.equal(
+    (await loadOperation(db, 'alice', 'op-arm-new')).state,
+    'proposed',
+  );
+  db.sqlite.close();
+});
+
 void test('exact fields/files survive proposal, restart, execution and confirmation without draft acceptance', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);
@@ -354,6 +550,31 @@ void test('sensitive questions and changed destinations require exact review; wr
     ),
   );
   assert.deepEqual(counts(db), before);
+  await upsertPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      actor: 'Fictional applying agent',
+      destination: 'https://employer.example/jobs/0',
+      fields: [
+        { label: 'Full name', value: 'Avery Example', unknown: false },
+        {
+          label: 'Work authorization',
+          value: 'Needs user input',
+          unknown: false,
+        },
+      ],
+      files: [],
+    },
+    now,
+  );
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: op.id, actor: 'Fictional applying agent' },
+    now,
+  );
   await actOnApplication(db, 'alice', action(op, 'approve'), now);
   assert.equal(
     (await loadOperation(db, 'alice', op.id)).authority,

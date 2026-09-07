@@ -93,14 +93,14 @@ test('track sheet filters jobs and a row opens the plant', async ({ page }) => {
       rows: [
         {
           url: 'https://example.com/research/track-sheet-held',
-          Name: 'Track Sheet — Held Engineer',
+          Name: 'Track Sheet Alpha — Unique Held Role',
           Job: 'https://example.com/jobs/track-sheet-held',
           Status: 'Held',
           Notes: 'Fictional held track-sheet role.',
         },
         {
           url: 'https://example.com/research/track-sheet-ready',
-          Name: 'Track Sheet — Ready Engineer',
+          Name: 'Track Sheet Beta — Unique Ready Role',
           Job: 'https://example.com/jobs/track-sheet-ready',
           Status: 'Held',
           Notes: 'Fictional ready track-sheet role.',
@@ -111,7 +111,8 @@ test('track sheet filters jobs and a row opens the plant', async ({ page }) => {
   expect(imported.ok()).toBe(true);
   const workspace = await (await page.request.get('/api/workspace')).json();
   const ready = workspace.jobs.find(
-    (job: { name: string }) => job.name === 'Track Sheet — Ready Engineer',
+    (job: { name: string }) =>
+      job.name === 'Track Sheet Beta — Unique Ready Role',
   );
   const accepted = await page.request.post('/api/workspace', {
     data: {
@@ -131,26 +132,28 @@ test('track sheet filters jobs and a row opens the plant', async ({ page }) => {
   await expect(
     page.getByRole('button', { name: /All opportunities/ }),
   ).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('link', { name: 'Held Engineer' })).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'Ready Engineer' }),
+    page.getByRole('link', { name: 'Unique Held Role' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Unique Ready Role' }),
   ).toBeVisible();
   await page.getByRole('button', { name: /Accepted drafts/ }).click();
   await expect(page).toHaveURL(/queue=Ready/);
   await expect(
-    page.getByRole('link', { name: 'Ready Engineer' }),
+    page.getByRole('link', { name: 'Unique Ready Role' }),
   ).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Held Engineer' })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByRole('link', { name: 'Unique Held Role' }),
+  ).toHaveCount(0);
   await page.getByRole('button', { name: /Accepted drafts/ }).click();
   await expect(page).toHaveURL(/\/track$/);
   await page.getByRole('button', { name: /^Submitted/ }).click();
   await expect(page.getByText('No jobs match this filter.')).toBeVisible();
   await page.getByRole('button', { name: /All opportunities/ }).click();
-  await page.getByRole('link', { name: 'Ready Engineer' }).click();
+  await page.getByRole('link', { name: 'Unique Ready Role' }).click();
   await expect(page).toHaveURL(new RegExp(`job=${ready.id}`));
   await expect(
-    page.getByRole('heading', { name: 'Track Sheet — Ready Engineer' }),
+    page.getByRole('heading', { name: 'Track Sheet Beta — Unique Ready Role' }),
   ).toBeVisible();
 });

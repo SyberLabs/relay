@@ -353,7 +353,9 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
   await expect(
     page.getByRole('button', { name: /Review queue/ }),
   ).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('link', { name: /Engineer/ })).toBeVisible();
+  await expect(
+    page.locator('.job-sheet').getByText('Mapping Example'),
+  ).toBeVisible();
 
   await sidebar.getByRole('link', { name: 'Your facts' }).click();
   await expect(

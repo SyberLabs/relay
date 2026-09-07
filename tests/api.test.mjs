@@ -345,3 +345,127 @@ if (usedSitesCookie) {
 console.log(
   'PASS: imports, Obsidian preview and repeated import, duplicate history, exact acceptance, stale edits, editable interview drafts, preserved status and authentication.',
 );
+
+// An assistant can save durable progress without changing accepted wording or
+// the application's stage, including after its original browser session ended.
+const progressJob = (await call()).data.jobs.find(
+  (j) => j.id === historyTarget.id,
+);
+const progressBody = {
+  action: 'progress',
+  id: progressJob.id,
+  version: progressJob.version,
+  operation_id: crypto.randomUUID(),
+  note: 'Essay prepared. Resume at the teamwork question.',
+  blocker: 'Review the teamwork essay.',
+  viewer: a.viewer,
+};
+const progressReplies = await Promise.all([
+  call(progressBody),
+  call(progressBody),
+]);
+assert.deepEqual(
+  progressReplies.map((r) => r.status),
+  [200, 200],
+);
+assert.deepEqual(
+  progressReplies
+    .map((r) => r.data.replayed)
+    .sort((a, b) => Number(a) - Number(b)),
+  [false, true],
+);
+const progressed = (await call()).data.jobs.find(
+  (j) => j.id === progressJob.id,
+);
+assert.deepEqual(progressed, {
+  ...progressJob,
+  blocker: progressBody.blocker,
+  version: progressJob.version + 1,
+  updated: progressed.updated,
+});
+let progressHistory = (await call({ action: 'history', id: progressJob.id }))
+  .data.events;
+const receipt = progressHistory.filter((e) => e.kind === 'Progress saved');
+assert.equal(receipt.length, 1);
+assert.deepEqual(JSON.parse(receipt[0].detail), {
+  version: progressBody.version,
+  operation_id: progressBody.operation_id,
+  note: progressBody.note,
+  blocker: progressBody.blocker,
+});
+assert.equal(acceptedDraftFromEvents(progressHistory), olderDraft);
+result = await call({
+  ...progressBody,
+  version: progressed.version,
+  operation_id: crypto.randomUUID(),
+  note: 'The human completed the pending question.',
+  blocker: '',
+});
+assert.equal(result.status, 200);
+const afterProgress = (await call()).data;
+for (const [body, expected] of [
+  [progressBody, 200],
+  [{ ...progressBody, note: 'Changed operation content' }, 409],
+  [{ ...progressBody, operation_id: crypto.randomUUID() }, 409],
+  [{ ...progressBody, viewer: 'different-account' }, 409],
+  [{ ...progressBody, draft: 'Must never be saved' }, 400],
+  [{ ...progressBody, status: 'Submitted' }, 400],
+  [{ ...progressBody, accepted_draft: 'Must never be accepted' }, 400],
+  [{ ...progressBody, note: 'x'.repeat(4001) }, 400],
+  [{ ...progressBody, blocker: 'x'.repeat(4001) }, 400],
+  [{ ...progressBody, version: 1.5 }, 400],
+]) {
+  result = await call(body);
+  assert.equal(result.status, expected, JSON.stringify(result.data));
+  assert.deepEqual(
+    (await call()).data,
+    afterProgress,
+    'Replay or refusal must not change saved work',
+  );
+}
+assert.equal((await call(progressBody, {})).status, 401);
+if (!usedSitesCookie) {
+  assert.equal(
+    (
+      await call(progressBody, {
+        'oai-authenticated-user-id': 'other-progress-user',
+        'oai-authenticated-user-email': 'other@example.com',
+      })
+    ).status,
+    409,
+    'Stale viewer must refuse before accessing the other account',
+  );
+  const { viewer: _viewer, ...withoutViewer } = progressBody;
+  assert.equal(
+    (
+      await call(withoutViewer, {
+        'oai-authenticated-user-id': 'other-progress-user',
+        'oai-authenticated-user-email': 'other@example.com',
+      })
+    ).status,
+    404,
+  );
+}
+const currentProgress = afterProgress.jobs.find((j) => j.id === progressJob.id);
+const collisionBody = {
+  ...progressBody,
+  version: currentProgress.version,
+  operation_id: crypto.randomUUID(),
+};
+const collisionReplies = await Promise.all([
+  call(collisionBody),
+  call({ ...collisionBody, note: 'Different simultaneous note.' }),
+]);
+assert.deepEqual(
+  collisionReplies.map((r) => r.status).sort((a, b) => a - b),
+  [200, 409],
+);
+progressHistory = (await call({ action: 'history', id: progressJob.id })).data
+  .events;
+assert.equal(
+  progressHistory.filter((e) => e.kind === 'Progress saved').length,
+  3,
+);
+console.log(
+  'PASS: progress preserves acceptance and stage, survives reload, replays without writes, and refuses stale, conflicting, oversized, or cross-account updates.',
+);

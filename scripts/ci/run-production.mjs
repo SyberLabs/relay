@@ -8,6 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { releaseConfig } from '../release/config.mjs';
 import { stageDraft } from '../../lib/draft-stage.ts';
+import { verifyApplicationGateway } from './application-fixture.mjs';
 import {
   describeUnexpectedResponse,
   finishProductionServer,
@@ -618,6 +619,7 @@ try {
     afterProgress,
     'Gateway-refused progress and successful replays must not write new history or drafts',
   );
+  await verifyApplicationGateway({ base, token, workspace: call, expectStatus });
   console.log(
     'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation, concurrent D1 throttling and oversized request refusal.',
   );

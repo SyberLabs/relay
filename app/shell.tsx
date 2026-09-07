@@ -39,6 +39,7 @@ const queueIcons = {
 } as const;
 
 const pageIcons = {
+  '/applications': BriefcaseBusiness,
   '/profile': FileText,
   '/track': Activity,
   '/advanced': Settings2,
@@ -158,7 +159,7 @@ export function AppShell({
           {CONTEXT_PAGE_LINKS.map(pageLink)}
         </fieldset>
         <div className="sidebottom">
-          <p>Does not send applications.</p>
+          <p>External agents apply under your permissions.</p>
         </div>
       </aside>
       {children}

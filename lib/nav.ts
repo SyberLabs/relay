@@ -13,19 +13,21 @@ export const QUEUE_FILTERS = [
 export type QueueFilter = (typeof QUEUE_FILTERS)[number]['value'];
 
 export const PAGE_LINKS = [
+  { href: '/applications', label: 'Applications', page: 'applications' },
   { href: '/profile', label: 'Your facts', page: 'profile' },
   { href: '/track', label: 'Track outcomes', page: 'track' },
   { href: '/advanced', label: 'Advanced', page: 'advanced' },
 ] as const;
 
 export const PORTFOLIO_PAGE_LINKS = PAGE_LINKS.filter(
-  (item) => item.page === 'track',
+  (item) => item.page === 'track' || item.page === 'applications',
 );
 export const CONTEXT_PAGE_LINKS = PAGE_LINKS.filter(
-  (item) => item.page !== 'track',
+  (item) => item.page === 'profile' || item.page === 'advanced',
 );
 
 export type ShellPage =
+  | 'applications'
   | 'workspace'
   | 'profile'
   | 'track'

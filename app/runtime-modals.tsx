@@ -43,7 +43,6 @@ function ToolsPanel({
   onClose: () => void;
 }) {
   const [maximum, setMaximum] = useState(policy?.maximum || 8);
-  const [review, setReview] = useState(policy?.review || 'all');
   const [enabled, setEnabled] = useState(Boolean(policy?.enabled));
   return (
     <>
@@ -91,9 +90,8 @@ function ToolsPanel({
         <h4>Application limits</h4>
         <p className="hint">
           Autopilot uses this policy. It never sends an employer form from
-          Relay. Agents still need a one-time permit. Review every application
-          requires a human approval before begin. Automatic standard-field
-          permission can authorize ordinary contact fields without that review.
+          Relay. Review every application in Inspect before the agent obtains
+          its one-time permit.
         </p>
         <label className="field">
           Applications per policy
@@ -106,19 +104,13 @@ function ToolsPanel({
             onChange={(e) => setMaximum(Number(e.target.value))}
           />
         </label>
-        <label className="field">
-          Approval setting
-          <select
-            aria-label="Approval setting"
-            value={review}
-            onChange={(e) => setReview(e.target.value)}
-          >
-            <option value="all">Review every application</option>
-            <option value="sensitive">
-              Automatic for standard contact fields; review other questions
-            </option>
-          </select>
-        </label>
+        <p>Approval setting: Review every application.</p>
+        {policy?.review === 'sensitive' && (
+          <p className="hint">
+            Your saved policy uses the earlier automatic setting. Save limits to
+            require Inspect approval for every application.
+          </p>
+        )}
         <label className="check">
           <input
             checked={enabled}
@@ -133,7 +125,7 @@ function ToolsPanel({
           disabled={busy}
           onClick={() => {
             void Promise.resolve(
-              onSaveLimits({ maximum, review, enabled }),
+              onSaveLimits({ maximum, review: 'all', enabled }),
             ).then((ok) => {
               if (ok) onClose();
             });

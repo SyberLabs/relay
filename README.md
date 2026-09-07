@@ -22,6 +22,7 @@ Relay helps job seekers manage applications across their preferred AI tools. Kee
 - Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.
 - An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.
 - Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. Exact acceptance remains in the signed-in workspace.
+- A human Inspect Accept on a complete armed payload authorizes the waiting operative to send once. Relay does not POST the employer form.
 - Explore fictional example records; no real applicant data is included.
 
 ## Integrations
@@ -36,7 +37,7 @@ Relay helps job seekers manage applications across their preferred AI tools. Kee
 - **[Greenhouse](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
 - **[Lever](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
 
-Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs or browser tools where WebMCP is supported; Relay does not send applications or sync accounts in the background.
+Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs or browser tools where WebMCP is supported; Relay does not POST the employer form or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.
 
 ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection.
 
@@ -54,7 +55,7 @@ Relay is the workspace that remembers. Import research as evidence. Review the a
 - **Handoffs belong to a job and version.** Draft packets and editor checks reject stale work instead of silently replacing a newer review.
 - **Bring the tools you already use.** ChatGPT, Codex, Claude, Grok Bot, Notion, Obsidian, a tracker CSV, and public Greenhouse or Lever boards can supply research and drafts. Relay keeps the review record across those handoffs.
 
-Relay records acceptance inside its workspace. It does not send applications, verify every claim, or prove which words were submitted to an employer. URL matching cannot identify every repost across different job boards.
+Relay records acceptance inside its workspace. It does not POST the employer form, verify every claim, or prove which words were submitted to an employer. URL matching cannot identify every repost across different job boards.
 
 ## Team
 
@@ -111,7 +112,7 @@ Logged drafts accumulate for batch review (`/review`). A session opens on the fi
 
 Automatic staging is enabled per role cluster from recent edit sizes. After enough reviewed drafts come back close to unchanged, later drafts can be placed into the matching job record. This measures editing history, not factual accuracy. Staging leaves status untouched and does not set `accepted_draft`; accepting exact text remains a human action. Changed review history or expired facts can return a cluster to batch review.
 
-Relay still does not send applications. Nothing here submits, emails or messages anyone.
+Relay does not POST the employer form. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.
 
 ## Run locally
 

@@ -21,7 +21,8 @@
     "Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.",
     "Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.",
     "An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.",
-    "Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. Exact acceptance remains in the signed-in workspace."
+    "Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. Exact acceptance remains in the signed-in workspace.",
+    "A human Inspect Accept on a complete armed payload authorizes the waiting operative to send once. Relay does not POST the employer form."
   ],
   "integrations": [
     {
@@ -70,6 +71,6 @@
       "guide": "integrations/README.md"
     }
   ],
-  "boundary": "Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs or browser tools where WebMCP is supported; Relay does not send applications or sync accounts in the background.",
+  "boundary": "Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs or browser tools where WebMCP is supported; Relay does not POST the employer form or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.",
   "openaiBoundary": "ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection."
 }

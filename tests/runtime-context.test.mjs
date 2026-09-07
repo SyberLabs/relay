@@ -282,6 +282,7 @@ void test('successful workspace refresh loads plant context after records bind',
     }),
     sessionRef: { current: session },
     selectedRef: { current: '' },
+    policyRef: { current: null },
     loadJobHistory: async () => {
       throw Error('must not load history without a selection');
     },
@@ -327,6 +328,7 @@ void test('expired workspace refresh does not load plant context', async () => {
     }),
     sessionRef: { current: session },
     selectedRef: { current: 'job-1' },
+    policyRef: { current: state.policy },
     loadJobHistory: async () => {
       throw Error('must not load history after expiry');
     },
@@ -344,6 +346,7 @@ void test('expired workspace refresh does not load plant context', async () => {
   assert.equal(state.autopilot, false);
   assert.equal(state.styleCount, 0);
   assert.equal(session.viewer, undefined);
+  assert.equal(deps.selectedRef.current, '');
 });
 
 void test('applications 401 expires before a hanging profile fetch settles', async () => {
@@ -798,6 +801,81 @@ void test('enabling autopilot with 101 held jobs fails closed without a policy P
   assert.match(state.message, /at most 100 jobs/);
 });
 
+void test('enabling autopilot with a saved two-job list does not expand to 101 held jobs', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const saveSrc = src.slice(
+    src.indexOf('async function saveLimits'),
+    src.indexOf('\n  async function toggleAutopilot'),
+  );
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  let posted;
+  const savedJobs = ['job-a', 'job-b'];
+  const state = {
+    policy: {
+      version: 2,
+      enabled: 0,
+      jobs: JSON.stringify(savedJobs),
+      expires: '2026-09-14T00:00:00.000Z',
+      maximum: 8,
+      review: 'all',
+    },
+    autopilot: false,
+    signedOut: false,
+    message: '',
+    busy: false,
+    modal: null,
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    isTerminal,
+    boundedPolicyMaximum,
+    policyExpiryIso,
+    policyJobIds,
+    jobs: [
+      { id: 'job-a', status: 'Held' },
+      { id: 'job-b', status: 'Held' },
+      ...Array.from({ length: 99 }, (_, i) => ({
+        id: 'job-' + i,
+        status: 'Held',
+      })),
+    ],
+    busyRef: { current: false },
+    policyRef: { current: state.policy },
+    selectedRef: { current: '' },
+    refresh: async () => {},
+    fetch: async (_url, init) => {
+      posted = JSON.parse(init.body);
+      return {
+        status: 200,
+        ok: true,
+        json: async () => ({
+          viewer: 'owner-a',
+          policy: { version: 3, enabled: 1, jobs: JSON.stringify(savedJobs) },
+        }),
+      };
+    },
+    sessionRef: { current: session },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const ok = await bind(
+    saveSrc,
+    deps,
+  )({
+    maximum: 8,
+    review: 'all',
+    enabled: true,
+  });
+  assert.equal(ok, true);
+  assert.equal(posted.enabled, true);
+  assert.deepEqual(posted.jobs, savedJobs);
+  assert.equal(posted.jobs.length, 2);
+  assert.equal(state.autopilot, true);
+});
+
 void test('workspace viewer switch unmounts an open resume modal', async () => {
   const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
   const expiry = useCallbackBody(src, 'applyExpired');
@@ -806,6 +884,10 @@ void test('workspace viewer switch unmounts an open resume modal', async () => {
   )[1];
   const session = helper.createWorkspaceSession();
   helper.bindViewer(session, 'owner-a');
+  const context = deferred();
+  const policyRef = {
+    current: { version: 1, enabled: 1, owner: 'owner-a', jobs: '["job-a"]' },
+  };
   const state = {
     jobs: [{ id: 'job-a', name: 'Owner A private role' }],
     modal: 'resume',
@@ -813,6 +895,9 @@ void test('workspace viewer switch unmounts an open resume modal', async () => {
     loaded: true,
     showAddJob: true,
     importText: 'Owner A research paste.',
+    policy: policyRef.current,
+    autopilot: true,
+    styleCount: 4,
   };
   const deps = {
     ...helper,
@@ -830,15 +915,22 @@ void test('workspace viewer switch unmounts an open resume modal', async () => {
     }),
     sessionRef: { current: session },
     selectedRef: { current: 'job-a' },
+    policyRef,
     loadJobHistory: async () => {},
-    loadRuntimeContext: async () => {},
+    loadRuntimeContext: async () => context.promise,
   };
   expireKeys(state, deps);
   deps.applyExpired = bind(expiry, deps);
-  await bind(refreshSrc, deps)();
+  const pending = bind(refreshSrc, deps)();
+  await pending;
   assert.equal(session.viewer, 'owner-b');
   assert.equal(state.modal, null);
+  assert.equal(state.policy, null);
+  assert.equal(state.autopilot, false);
+  assert.equal(state.styleCount, 0);
+  assert.equal(policyRef.current, null);
   assert.equal(state.signedOut, false);
   assert.equal(state.jobs[0].id, 'job-b');
   assert.equal(state.showAddJob, false);
+  context.resolve();
 });

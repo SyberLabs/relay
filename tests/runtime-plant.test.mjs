@@ -26,6 +26,7 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.match(workspace, /onUnauthorized=\{applyExpired\}/);
   assert.match(modals, /if \(!which\) return null/);
   assert.match(modals, /function RuntimeModalDialog/);
+  assert.match(modals, /<RuntimeModalDialog\s+key=\{which\}/);
   assert.doesNotMatch(modals, /Stop and ask instead of guessing/);
   assert.match(workspace, /No jobs yet/);
   assert.match(workspace, /id="workspace-queue"/);
@@ -55,8 +56,12 @@ void test('expiry clears runtime policy and context tiles', () => {
   assert.match(body, /setPolicy\(null\)/);
   assert.match(body, /setAutopilot\(false\)/);
   assert.match(body, /setStyleCount\(0\)/);
+  assert.match(body, /selectedRef\.current = ''/);
   assert.match(workspace, /processAuthorizedGet/);
-  assert.match(workspace, /if \(outcome\.switched\) \{\s*setModal\(null\)/);
+  assert.match(
+    workspace,
+    /if \(outcome\.switched\) \{\s*setModal\(null\);\s*setPolicy\(null\);\s*setAutopilot\(false\);\s*setStyleCount\(0\);\s*policyRef\.current = null/,
+  );
 });
 
 void test('stuck cards select the job without opening a dialog', () => {
@@ -87,6 +92,7 @@ void test('autopilot writes policy and never begins or accepts a draft', () => {
   const body = workspace.slice(start, end);
   assert.match(body, /action: 'policy'/);
   assert.match(body, /review: 'all'/);
+  assert.match(body, /saved\.length\s*\?\s*saved\s*:\s*eligible/);
   assert.match(body, /processAuthorizedGet/);
   assert.doesNotMatch(body, /['"]begin['"]/);
   assert.doesNotMatch(body, /save\('Ready'\)/);

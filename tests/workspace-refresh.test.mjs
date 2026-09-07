@@ -369,6 +369,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     fetch: fetcher,
     sessionRef: { current: session },
     selectedRef: { current: '' },
+    policyRef: { current: null },
     loadJobHistory: async () => {},
     loadRuntimeContext: async () => {},
   };
@@ -454,6 +455,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
     defaultDraftingPreference,
     fetch: async () => pending.promise,
     sessionRef: { current: session },
+    selectedRef: { current: 'job-1' },
     mergeReviewEvents: (prev, extra) => [...prev, ...extra],
   };
   for (const key of [
@@ -554,6 +556,7 @@ void test('history JSON that expires during parse cannot restore events', async 
       },
     }),
     sessionRef: { current: session },
+    selectedRef: { current: 'job-1' },
     mergeReviewEvents: (prev, extra) => [...prev, ...extra],
   };
   for (const key of [
@@ -773,6 +776,7 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
     defaultDraftingPreference,
     sessionRef: { current: session },
     selectedRef: { current: ownerA.id },
+    policyRef: { current: null },
     loadJobHistory: async () => {},
     loadRuntimeContext: async () => {},
     fetch: async () => {

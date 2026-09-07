@@ -122,12 +122,11 @@ export function useInspectSnapshot(jobId: string | undefined) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [signedOut, setSignedOut] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState(jobId);
   const gateRef = useRef(createInspectPollGate());
   const inflightRef = useRef<AbortController | null>(null);
-  const selectedRef = useRef(jobId);
-  if (selectedRef.current !== jobId) {
-    selectedRef.current = jobId;
-    selectInspectJob(gateRef.current, jobId);
+  if (jobId !== selectedJobId) {
+    setSelectedJobId(jobId);
     setView(null);
     setBusy(false);
     setError('');
@@ -135,7 +134,7 @@ export function useInspectSnapshot(jobId: string | undefined) {
   }
 
   const load = useCallback(async () => {
-    const job = gateRef.current.jobId;
+    const job = jobId;
     if (!job) return;
     inflightRef.current?.abort();
     const controller = new AbortController();
@@ -186,13 +185,13 @@ export function useInspectSnapshot(jobId: string | undefined) {
       const outcome = applyInspectPoll(gateRef.current, started, { ok: false });
       if (outcome.type === 'clear') setView(null);
     }
-  }, []);
+  }, [jobId]);
 
   useEffect(() => {
     if (gateRef.current.jobId !== jobId)
       selectInspectJob(gateRef.current, jobId);
     if (!jobId) return;
-    void load();
+    void Promise.resolve().then(() => load());
     const timer = window.setInterval(() => {
       void load();
     }, 1000);

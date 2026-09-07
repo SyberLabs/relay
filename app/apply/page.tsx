@@ -31,7 +31,7 @@ export default function ApplyOverlay() {
   const [jobId, setJobId] = useState<string | undefined>();
   const [lastVerb, setLastVerb] = useState('');
   useEffect(() => {
-    setJobId(jobFromSearch());
+    void Promise.resolve().then(() => setJobId(jobFromSearch()));
   }, []);
   const inspect = useInspectSnapshot(jobId);
   const onVerb = useCallback((name: string, result: unknown) => {

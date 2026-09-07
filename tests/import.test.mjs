@@ -17,6 +17,8 @@ import {
   importedJobStatus,
   jobKey,
   mergeJobStatus,
+  sourceJobKey,
+  sourcePostingUrl,
   validateEdit,
 } from '../lib/domain.ts';
 import {
@@ -96,13 +98,13 @@ function source(
   };
 }
 function importRow(db, owner, r, now = '2026-01-01T00:00:00.000Z') {
-  const key = jobKey(r.Job, r.url);
+  const key = sourceJobKey(r);
   db.prepare(jobImportSql).run(
     crypto.randomUUID(),
     owner,
     key,
     displayName(r.Name),
-    r.Job,
+    sourcePostingUrl(r),
     importedJobStatus(r.Status),
     importedBlocker(r.Notes) || '',
     '',
@@ -192,6 +194,29 @@ void test('import upsert SQL and observation insert are the workspace statements
     observationImportSql.startsWith('INSERT OR IGNORE INTO observations'),
     true,
   );
+});
+void test('colon-title grok row stores the Greenhouse posting identity', () => {
+  const db = open();
+  try {
+    const posting = 'https://boards.greenhouse.io/acme/jobs/1';
+    for (const title of ['Engineer: Backend', 'SRE: Platform']) {
+      const owner = 'colon-' + title;
+      const r = {
+        url: posting,
+        Name: 'Acme',
+        Job: title,
+        Status: 'Held',
+        Notes: '',
+      };
+      importRow(db, owner, r);
+      const stored = jobOf(db, owner, posting);
+      assert.equal(stored.job_key, jobKey(posting, ''));
+      assert.equal(stored.url, posting);
+      assert.equal(stored.name, 'Acme');
+    }
+  } finally {
+    db.close();
+  }
 });
 void test('exact-repeat import keeps version, updated, and effort', () => {
   const db = open();

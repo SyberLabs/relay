@@ -28,7 +28,12 @@ export const states = [
 ] as const;
 export function jobKey(url: string | null, fallback: string): string {
   if (!url) return `source:${fallback}`;
-  const u = new URL(url);
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    throw Error('Use an HTTP or HTTPS job URL.');
+  }
   if (!['https:', 'http:'].includes(u.protocol))
     throw Error('Use an HTTP or HTTPS job URL.');
   const gh = u.pathname.match(/^\/([^/]+)\/jobs\/(\d+)(?:\/|$)/);
@@ -42,6 +47,35 @@ export function jobKey(url: string | null, fallback: string): string {
   u.searchParams.sort();
   u.pathname = u.pathname.replace(/\/$/, '') || '/';
   return u.toString();
+}
+// Seed, Notion, first-job, and tracker put the posting URL in Job. Grok research
+// rows often put the posting in url and a role title in Job.
+export function sourcePostingUrl(
+  r: Pick<SourceRow, 'url' | 'Job'>,
+): string | null {
+  if (!r.Job) return null;
+  try {
+    const parsed = new URL(r.Job);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      return r.Job;
+    if (
+      r.Job.includes('://') ||
+      parsed.protocol === 'javascript:' ||
+      parsed.protocol === 'data:' ||
+      parsed.protocol === 'vbscript:'
+    )
+      return r.Job;
+  } catch {
+    /* Role titles, including "Engineer: Backend", are not posting URLs. */
+  }
+  return r.url;
+}
+export function sourceJobKey(
+  r: Pick<SourceRow, 'url' | 'Name' | 'Job'>,
+): string {
+  const posting = sourcePostingUrl(r);
+  if (posting !== r.Job) return jobKey(r.url, r.Job ?? r.Name);
+  return jobKey(r.Job, r.url);
 }
 export function packetKeyMatches(
   url: string | null | undefined,
@@ -94,7 +128,7 @@ export function classify(
     items: [] as { name: string; kind: string; key: string }[],
   };
   for (const r of rows) {
-    const key = jobKey(r.Job, r.url),
+    const key = sourceJobKey(r),
       s = known.get(key),
       kind = s === 'Submitted' ? 'submitted' : s ? 'known' : 'new';
     out[kind]++;
@@ -121,7 +155,7 @@ export function validateRows(v: unknown): SourceRow[] {
       !(r.createdTime == null || typeof r.createdTime === 'string')
     )
       throw Error('Each record needs url, Name, Job, Status and Notes.');
-    jobKey(r.Job, r.url);
+    sourceJobKey(r);
     return r;
   });
 }

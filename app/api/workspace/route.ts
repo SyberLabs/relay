@@ -5,7 +5,8 @@ import {
   displayName,
   importedBlocker,
   importedJobStatus,
-  jobKey,
+  sourceJobKey,
+  sourcePostingUrl,
   validateRows,
   validateEdit,
 } from '../../../lib/domain';
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
           return reply(report);
         const statements = [];
         for (const r of rows) {
-          const key = jobKey(r.Job, r.url);
+          const key = sourceJobKey(r);
           statements.push(
             db
               .prepare(jobImportSql)
@@ -129,7 +130,7 @@ export async function POST(request: Request) {
                 user,
                 key,
                 displayName(r.Name),
-                r.Job,
+                sourcePostingUrl(r),
                 importedJobStatus(r.Status),
                 importedBlocker(r.Notes),
                 '',

@@ -55,12 +55,14 @@ void test('missing or ambiguous markers fail instead of overwriting a page', () 
 });
 
 void test('website product data is escaped before rendering', () => {
-  const content = render(
-    { ...copy, stage: '<script>alert(1)</script>' },
-    'website',
-  );
-  assert.doesNotMatch(content, /<script\b/i);
-  assert.match(content, /&lt;script&gt;/);
+  for (const field of ['stage', 'summary']) {
+    const content = render(
+      { ...copy, [field]: '<script>alert(1)</script>' },
+      'website',
+    );
+    assert.doesNotMatch(content, /<script\b/i);
+    assert.match(content, /&lt;script&gt;/);
+  }
 });
 
 void test('public links reject executable schemes, other hosts and embedded credentials', () => {

@@ -18,6 +18,11 @@ import {
 import { refuseUntrustedOrigin } from '../../../lib/request-origin';
 import { usableFact } from '../../../lib/profile';
 import { loadFacts } from '../../../lib/store';
+import {
+  beginOwnerImportWrite,
+  completeOwnerImportWrite,
+  ownerImportWritePending,
+} from '../../../lib/tracker-submit';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -46,13 +51,12 @@ export async function GET() {
     .bind(user)
     .all();
   const events = await db
-    .prepare(
-      'SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT ?',
-    )
+    .prepare('SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT ?')
     .bind(user, INITIAL_EVENT_LIMIT)
     .all();
   const facts = (await loadFacts(db, user)).filter((f) => usableFact(f, now));
   return reply({
+    viewer: user,
     jobs: jobs.results,
     sources: sources.results,
     events: events.results,
@@ -72,60 +76,85 @@ export async function POST(request: Request) {
     const b = JSON.parse(raw),
       db = database(),
       now = new Date().toISOString();
-    if (['bootstrap', 'import', 'preview', 'replay'].includes(b.action)) {
-      const rows = validateRows(
-        b.action === 'bootstrap' || b.action === 'replay' ? seed : b.rows,
+    if (
+      b.action === 'import' &&
+      typeof b.viewer === 'string' &&
+      b.viewer !== user
+    )
+      return reply(
+        { error: 'This add-job form belongs to a different account.' },
+        409,
       );
-      const existing = await db
-        .prepare('SELECT job_key,status FROM jobs WHERE owner=?')
-        .bind(user)
-        .all<{ job_key: string; status: string }>();
-      const report = classify(rows, existing.results);
-      if (b.action === 'preview' || b.action === 'replay') return reply(report);
-      const statements = [];
-      for (const r of rows) {
-        const key = jobKey(r.Job, r.url);
-        statements.push(
-          db
-            .prepare(jobImportSql)
-            .bind(
-              crypto.randomUUID(),
-              user,
-              key,
-              displayName(r.Name),
-              r.Job,
-              importedJobStatus(r.Status),
-              importedBlocker(r.Notes),
-              '',
-              now,
-              text(r.company),
-              text(r.level),
-              text(r.remote),
-              money(r.comp_min),
-              money(r.comp_max),
-              text(r.location),
-              text(r.posted) || null,
-              text(r.source),
-              minutes(r.effort),
-            ),
+    if (['bootstrap', 'import', 'preview', 'replay'].includes(b.action)) {
+      if (b.action === 'preview' && ownerImportWritePending(user))
+        return reply(
+          {
+            error: 'An import is already saving. Wait for it to finish.',
+          },
+          409,
         );
-        statements.push(
-          db
-            .prepare(observationImportSql)
-            .bind(
-              crypto.randomUUID(),
-              user,
-              key,
-              r.url,
-              r.Name,
-              r.Status,
-              r.Notes || '',
-              r.createdTime || now,
-            ),
+      const write =
+        b.action === 'import' || b.action === 'bootstrap'
+          ? beginOwnerImportWrite(user)
+          : 0;
+      try {
+        const rows = validateRows(
+          b.action === 'bootstrap' || b.action === 'replay' ? seed : b.rows,
         );
+        const existing = await db
+          .prepare('SELECT job_key,status FROM jobs WHERE owner=?')
+          .bind(user)
+          .all<{ job_key: string; status: string }>();
+        const report = classify(rows, existing.results);
+        if (b.action === 'preview' || b.action === 'replay')
+          return reply(report);
+        const statements = [];
+        for (const r of rows) {
+          const key = jobKey(r.Job, r.url);
+          statements.push(
+            db
+              .prepare(jobImportSql)
+              .bind(
+                crypto.randomUUID(),
+                user,
+                key,
+                displayName(r.Name),
+                r.Job,
+                importedJobStatus(r.Status),
+                importedBlocker(r.Notes),
+                '',
+                now,
+                text(r.company),
+                text(r.level),
+                text(r.remote),
+                money(r.comp_min),
+                money(r.comp_max),
+                text(r.location),
+                text(r.posted) || null,
+                text(r.source),
+                minutes(r.effort),
+              ),
+          );
+          statements.push(
+            db
+              .prepare(observationImportSql)
+              .bind(
+                crypto.randomUUID(),
+                user,
+                key,
+                r.url,
+                r.Name,
+                r.Status,
+                r.Notes || '',
+                r.createdTime || now,
+              ),
+          );
+        }
+        await db.batch(statements);
+        return reply(report);
+      } finally {
+        if (write) completeOwnerImportWrite(user, write);
       }
-      await db.batch(statements);
-      return reply(report);
     }
     if (b.action === 'save') {
       const job = await db

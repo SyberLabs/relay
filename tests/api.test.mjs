@@ -50,6 +50,8 @@ async function call(body, h = headers) {
 const boot = await call({ action: 'bootstrap' });
 assert.equal(boot.status, 200, JSON.stringify(boot.data));
 const a = (await call()).data;
+assert.equal(typeof a.viewer, 'string');
+assert.ok(a.viewer.length > 0);
 await call({ action: 'bootstrap' });
 const b = (await call()).data;
 assert.equal(b.jobs.length, a.jobs.length);
@@ -303,11 +305,80 @@ result = await call({
 });
 assert.equal(result.status, 200, JSON.stringify(result.data));
 const afterNull = (await call()).data;
-const nullJob = afterNull.jobs.find((j) => j.job_key === jobKey(null, sourceUrl));
+const nullJob = afterNull.jobs.find(
+  (j) => j.job_key === jobKey(null, sourceUrl),
+);
 assert.ok(nullJob);
 assert.equal(nullJob.url, null);
 console.log(
   'PASS: selected-job history remains retrievable after 200 later events; null-URL jobs import.',
+);
+const mismatchUrl = 'https://example.com/jobs/viewer-mismatch';
+result = await call({
+  action: 'import',
+  viewer: 'different-account',
+  rows: [
+    {
+      url: 'first-job:' + jobKey(mismatchUrl, ''),
+      Name: 'Must Not Persist',
+      Job: mismatchUrl,
+      Status: 'Held',
+      Notes: 'Owner A private notes.',
+    },
+  ],
+});
+assert.equal(result.status, 409, JSON.stringify(result.data));
+const afterMismatch = (await call()).data;
+assert.equal(
+  afterMismatch.jobs.some((j) => j.job_key === jobKey(mismatchUrl, '')),
+  false,
+);
+const delayedJob = 'https://example.com/jobs/tracker-delayed-preview';
+const delayedRows = [
+  {
+    url: 'https://example.com/research/tracker-delayed-preview',
+    Name: 'Delayed Preview Example — Engineer',
+    Job: delayedJob,
+    Status: 'Held',
+    Notes: 'Fictional delayed preview research.',
+  },
+];
+const beforeDelayed = (await call()).data;
+const importStarted = call({ action: 'import', rows: delayedRows });
+const latePreview = new Promise((resolve) => setTimeout(resolve, 40)).then(() =>
+  call({ action: 'preview', rows: delayedRows }),
+);
+const [importedDelayed, previewedDelayed] = await Promise.all([
+  importStarted,
+  latePreview,
+]);
+assert.equal(importedDelayed.status, 200, JSON.stringify(importedDelayed.data));
+assert.ok(
+  previewedDelayed.status === 200 || previewedDelayed.status === 409,
+  JSON.stringify(previewedDelayed.data),
+);
+const afterDelayed = (await call()).data;
+assert.equal(
+  afterDelayed.jobs.filter((j) => j.job_key === delayedJob).length,
+  1,
+);
+assert.equal(
+  afterDelayed.sources.filter((s) => s.source_url === delayedRows[0].url)
+    .length,
+  1,
+);
+assert.equal(afterDelayed.jobs.length, beforeDelayed.jobs.length + 1);
+const [firstDup, secondDup] = await Promise.all([
+  call({ action: 'import', rows: delayedRows }),
+  call({ action: 'import', rows: delayedRows }),
+]);
+assert.equal(firstDup.status, 200, JSON.stringify(firstDup.data));
+assert.equal(secondDup.status, 200, JSON.stringify(secondDup.data));
+const afterDup = (await call()).data;
+assert.equal(afterDup.jobs.filter((j) => j.job_key === delayedJob).length, 1);
+assert.equal(
+  afterDup.sources.filter((s) => s.source_url === delayedRows[0].url).length,
+  1,
 );
 result = await call(undefined, {});
 assert.equal(result.status, 401);

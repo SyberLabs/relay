@@ -7,13 +7,14 @@ export default function About() {
       </Link>
       <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
       <h1>
-        Your job search should
+        Keep your application
         <br />
-        remember what you’ve done.
+        work moving.
       </h1>
       <p className="lead">
-        Keep job research, candidate facts and reviewed wording together. Bring
-        a draft back from your assistant, check it, and accept the exact text.
+        Manage applications across your preferred AI tools. Keep candidate facts
+        available for reuse and preserve job research, reviewed drafts and
+        application history as you move between opportunities.
       </p>
       <div className="actions">
         <Link href="/" className="primary">
@@ -45,11 +46,13 @@ export default function About() {
           </p>
         </div>
       </section>
-      <h2>Start with one job.</h2>
+      <h2>Bring your applications together.</h2>
       <p>
-        Import your research, select an opportunity, then prepare a draft.
-        Already interviewing? Keep notes and follow-ups without resetting your
-        application status.
+        Add a posting with its title, URL and notes, or import multiple jobs from
+        a tracker CSV. Select a job to prepare, review and accept its wording.
+        Keep each application’s research and decisions available as you move
+        to the next. Already interviewing? Save notes and follow-ups without
+        resetting your application status.
       </p>
       <h2>What’s available today</h2>
       <p>

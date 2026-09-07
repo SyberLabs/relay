@@ -371,4 +371,138 @@ test('tracker import actions stay inside the window after a long preview', async
   expect(box).toBeTruthy();
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.y + box!.height).toBeLessThanOrEqual(640);
+
+  await page.setViewportSize({ width: 390, height: 720 });
+  await expect(importAction).toBeVisible();
+  const narrow = await importAction.boundingBox();
+  expect(narrow).toBeTruthy();
+  expect(narrow!.y).toBeGreaterThanOrEqual(0);
+  expect(narrow!.y + narrow!.height).toBeLessThanOrEqual(720);
+});
+
+test('keyboard users can reach and use both import modes', async ({ page }) => {
+  await page.goto('/signin-with-chatgpt?return_to=/');
+  await page
+    .getByRole('button', { name: 'Import research', exact: true })
+    .click();
+  const jsonTab = page.getByRole('tab', { name: 'Research JSON' });
+  const csvTab = page.getByRole('tab', { name: 'Tracker CSV' });
+  await jsonTab.focus();
+  await expect(jsonTab).toHaveAttribute('aria-selected', 'true');
+  await expect(jsonTab).toHaveAttribute('tabindex', '0');
+  await expect(csvTab).toHaveAttribute('tabindex', '-1');
+  await page.keyboard.press('ArrowRight');
+  await expect(csvTab).toHaveAttribute('aria-selected', 'true');
+  await expect(csvTab).toBeFocused();
+  await expect(
+    page.getByRole('heading', { name: 'Import a tracker CSV' }),
+  ).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Source tracker')).toBeFocused();
+  await csvTab.focus();
+  await page.keyboard.press('Home');
+  await expect(jsonTab).toHaveAttribute('aria-selected', 'true');
+  await expect(jsonTab).toBeFocused();
+  await expect(
+    page.getByRole('textbox', { name: 'Research JSON' }),
+  ).toBeVisible();
+  await page.keyboard.press('End');
+  await expect(csvTab).toBeFocused();
+  await page.getByLabel('Choose tracker CSV').setInputFiles({
+    name: 'fictional-keyboard-tracker.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      'Company,Role,URL,Notes\nKeyboard Co,Engineer,https://example.com/jobs/csv-keyboard,Keyboard research\n',
+    ),
+  });
+  await expect(page.getByText(/Read 1 rows locally/)).toBeVisible();
+  await page.getByRole('button', { name: 'Preview tracker records' }).click();
+  await expect(
+    page.getByText('Check every record below. Nothing has been saved.'),
+  ).toBeVisible();
+  await csvTab.focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect(jsonTab).toBeFocused();
+  await page.getByRole('textbox', { name: 'Research JSON' }).fill(
+    JSON.stringify([
+      {
+        url: 'https://example.com/research/keyboard-json',
+        Name: 'Keyboard JSON — Engineer',
+        Job: 'https://example.com/jobs/keyboard-json',
+        Status: 'Held',
+        Notes: 'Fictional keyboard JSON research.',
+      },
+    ]),
+  );
+  await page.getByRole('button', { name: 'Preview matches' }).click();
+  await expect(
+    page.getByText('Preview complete. No records were imported.'),
+  ).toBeVisible();
+});
+
+test('delayed tracker preview cannot replace a saved import', async ({
+  page,
+}) => {
+  await page.goto('/signin-with-chatgpt?return_to=/');
+  await page
+    .getByRole('button', { name: 'Import research', exact: true })
+    .click();
+  await page.getByRole('tab', { name: 'Tracker CSV' }).click();
+  const panel = page.locator('#import-panel-csv');
+  await panel.getByLabel('Choose tracker CSV').setInputFiles({
+    name: 'fictional-delayed-tracker.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      'Company,Role,URL,Notes\nDelay Co,Engineer,https://example.com/jobs/csv-delayed,Delayed research\n',
+    ),
+  });
+  await expect(panel.getByText(/Read 1 rows locally/)).toBeVisible();
+  await panel.getByRole('button', { name: 'Preview tracker records' }).click();
+  await expect(
+    panel.getByText('Check every record below. Nothing has been saved.'),
+  ).toBeVisible();
+  await page.route('**/api/workspace', async (route) => {
+    const request = route.request();
+    if (request.method() === 'POST') {
+      const body = request.postDataJSON() as { action?: string };
+      if (body.action === 'preview')
+        await new Promise((resolve) => setTimeout(resolve, 800));
+    }
+    await route.continue();
+  });
+  const latePreview = page.waitForResponse((response) => {
+    if (!response.url().includes('/api/workspace')) return false;
+    if (response.request().method() !== 'POST') return false;
+    const body = response.request().postDataJSON() as { action?: string };
+    return body.action === 'preview';
+  });
+  await panel.evaluate(() => {
+    const buttons = [...document.querySelectorAll('button')];
+    buttons
+      .find((button) =>
+        /Preview tracker records/.test(button.textContent || ''),
+      )
+      ?.click();
+    buttons
+      .find((button) =>
+        /Import 1 research records/.test(button.textContent || ''),
+      )
+      ?.click();
+  });
+  await expect(panel.getByText(/Imported 1 research records/)).toBeVisible();
+  await latePreview;
+  await expect(
+    panel.getByText('Check every record below. Nothing has been saved.'),
+  ).toHaveCount(0);
+  await expect(panel.getByText(/Imported 1 research records/)).toBeVisible();
+  const workspace = await (await page.request.get('/api/workspace')).json();
+  const job = workspace.jobs.find((item: { job_key: string }) =>
+    item.job_key.endsWith('/csv-delayed'),
+  );
+  expect(job).toBeTruthy();
+  expect(
+    workspace.sources.filter(
+      (item: { job_key: string }) => item.job_key === job.job_key,
+    ),
+  ).toHaveLength(1);
 });

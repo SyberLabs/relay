@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { validateRows } from '../lib/domain';
+import { jobKey, validateRows, type SourceRow } from '../lib/domain';
+import { firstJobShouldSelectSaved } from '../lib/first-job';
 import { isTerminal } from '../lib/outcomes';
 import { type Fact } from '../lib/profile';
 import { assessJob } from '../lib/fit';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
+import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
 import { AppShell } from './shell';
 import {
@@ -14,6 +16,11 @@ import {
   queueTitle,
   type QueueFilter,
 } from '../lib/nav';
+import {
+  importTabButtonId,
+  importTabFromKey,
+  type ImportTab,
+} from '../lib/import-tabs';
 import {
   acknowledgeSave,
   applyLoadedDraft,
@@ -98,10 +105,11 @@ export default function Workspace() {
     [signedOut, setSignedOut] = useState(false),
     [loaded, setLoaded] = useState(false),
     [report, setReport] = useState<Report | null>(null),
-    [importTab, setImportTab] = useState<'json' | 'csv'>('json'),
+    [importTab, setImportTab] = useState<ImportTab>('json'),
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false),
+    [showAddJob, setShowAddJob] = useState(false),
     [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
   const sessionRef = useRef(createWorkspaceSession());
   const importRef = useRef<HTMLElement>(null);
@@ -118,6 +126,7 @@ export default function Workspace() {
     setPreviewedImport(next.previewedImport);
     setReport(next.report);
     setShowImport(next.showImport);
+    setShowAddJob(next.showAddJob);
     setSignedOut(next.signedOut);
     setLoaded(next.loaded);
     setHistoryNext({});
@@ -154,6 +163,11 @@ export default function Workspace() {
     return { total: jobs.length, byStatus };
   }, [jobs]);
   const selectedRef = useRef('');
+  const editorRef = useRef<Editor | null>(null);
+  const addJobViewerRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
   const loadJobHistory = useCallback(
     async (jobId: string, before?: string | null) => {
       const started = { epoch: sessionRef.current.gate.epoch };
@@ -195,16 +209,33 @@ export default function Workspace() {
         return;
       }
       if (outcome.type === 'ignore') return;
-      if (!refreshIsLive(sessionRef.current.gate, started)) return;
       if (outcome.type === 'error') throw Error(outcome.error);
-      setJobs(outcome.jobs as Job[]);
+      if (!outcome.switched && !refreshIsLive(sessionRef.current.gate, started))
+        return;
+      const nextJobs = outcome.jobs as Job[];
+      setJobs(nextJobs);
       setSources(outcome.sources as Source[]);
       setEvents(outcome.events as ReviewEvent[]);
       setFacts(outcome.facts as Fact[]);
-      setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      if (outcome.switched) {
+        setShowAddJob(false);
+        setShowImport(false);
+        setImportText('');
+        setPreviewedImport('');
+        setReport(null);
+        if (!nextJobs.some((job) => job.id === selectedRef.current)) {
+          selectedRef.current = '';
+          setEditor(null);
+        } else {
+          setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+        }
+      } else {
+        setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      }
       setSignedOut(false);
       setLoaded(true);
       if (selectedRef.current) void loadJobHistory(selectedRef.current);
+      return nextJobs;
     },
     [applyExpired, loadJobHistory],
   );
@@ -318,9 +349,21 @@ export default function Workspace() {
       queueRef.current?.querySelector('h2')?.focus();
     });
   }
-  function openImport(tab: 'json' | 'csv' = 'json') {
+  function openImport(tab: ImportTab = 'json') {
     setImportTab(tab);
     setShowImport(true);
+  }
+  function chooseImportTab(next: ImportTab) {
+    setImportTab(next);
+    requestAnimationFrame(() => {
+      document.getElementById(importTabButtonId(next))?.focus();
+    });
+  }
+  function onImportTabKey(event: { key: string; preventDefault: () => void }) {
+    const next = importTabFromKey(importTab, event.key);
+    if (!next) return;
+    event.preventDefault();
+    chooseImportTab(next);
   }
   function save(status: string) {
     if (!editor || !canSave(editor)) return;
@@ -342,6 +385,102 @@ export default function Workspace() {
       },
       saved,
     );
+  }
+  function openAddJob() {
+    addJobViewerRef.current = sessionRef.current.viewer;
+    setShowAddJob(true);
+  }
+  async function saveFirstJob(row: SourceRow) {
+    if (editorIsDirty(editor) && !discardUnsaved()) return;
+    const originViewer = addJobViewerRef.current;
+    const started = beginMutation(sessionRef.current.gate);
+    const startedEditor = {
+      selectedId: selectedRef.current,
+      jobId: editor?.jobId ?? '',
+      session: editor?.session ?? '',
+      draft: editor?.draft ?? '',
+      blocker: editor?.blocker ?? '',
+    };
+    setBusy(true);
+    setMessage('');
+    try {
+      await refresh();
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      if (
+        originViewer &&
+        sessionRef.current.viewer &&
+        originViewer !== sessionRef.current.viewer
+      ) {
+        setShowAddJob(false);
+        return;
+      }
+      const r = await fetch('/api/workspace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'import',
+          rows: [row],
+          ...(originViewer ? { viewer: originViewer } : {}),
+        }),
+      });
+      const outcome = await processMutation(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
+      }
+      if (outcome.type === 'ignore') {
+        setShowAddJob(false);
+        return;
+      }
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      if (outcome.type === 'error') {
+        if (outcome.status === 409) setShowAddJob(false);
+        throw Error(outcome.error);
+      }
+      const key = jobKey(row.Job, row.url);
+      let nextJobs: Job[] | undefined;
+      try {
+        nextJobs = await refresh();
+      } catch {
+        if (!mutationIsLive(sessionRef.current.gate, started)) return;
+        setShowAddJob(false);
+        setMessage(
+          'Job was saved, but the workspace could not refresh. Reload the page to see it.',
+        );
+        return;
+      }
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      const savedJob = nextJobs?.find((job) => job.job_key === key);
+      const selectSaved = firstJobShouldSelectSaved(
+        startedEditor,
+        editorRef.current,
+        selectedRef.current,
+        savedJob?.id,
+      );
+      if (savedJob && selectSaved) {
+        selectedRef.current = savedJob.id;
+        setFilter((currentFilter) =>
+          currentFilter === 'All' || currentFilter === savedJob.status
+            ? currentFilter
+            : savedJob.status,
+        );
+        setEditor(loadEditor(savedJob));
+        void loadJobHistory(savedJob.id);
+      }
+      const kind = (outcome.body as Report).items?.[0]?.kind;
+      setShowAddJob(false);
+      setMessage(
+        kind && kind !== 'new'
+          ? 'Research added to the existing job.'
+          : selectSaved
+            ? 'Job saved. Continue from the selected record.'
+            : 'Job saved.',
+      );
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Unable to save.');
+    } finally {
+      setBusy(false);
+    }
   }
   const connections = !signedOut ? (
     <Connections
@@ -381,27 +520,44 @@ export default function Workspace() {
         <header>
           <div>
             <h1>Workspace</h1>
-            <p>Choose a job, prepare a draft, and review the exact words.</p>
+            <p>
+              Manage applications, review drafts, and keep your work for reuse.
+            </p>
           </div>
-          {!signedOut && (
-            <button
-              aria-controls="import-dock"
-              aria-expanded={showImport}
-              className="secondary"
-              onClick={() =>
-                showImport ? setShowImport(false) : openImport(importTab)
-              }
-              type="button"
-            >
-              <Upload size={16} />
-              Import research
-            </button>
-          )}
+          <div className="actions">
+            {loaded && !signedOut && jobs.length > 0 && (
+              <button className="primary" onClick={openAddJob} type="button">
+                Add job
+              </button>
+            )}
+            {!signedOut && (
+              <button
+                aria-controls="import-dock"
+                aria-expanded={showImport}
+                className="secondary"
+                onClick={() =>
+                  showImport ? setShowImport(false) : openImport(importTab)
+                }
+                type="button"
+              >
+                <Upload size={16} />
+                Import research
+              </button>
+            )}
+          </div>
         </header>
         {message && (
           <div className="notice" aria-live="polite">
             {message}
           </div>
+        )}
+        {showAddJob && !signedOut && (
+          <FirstJob
+            busy={busy}
+            jobs={jobs}
+            onCancel={() => setShowAddJob(false)}
+            onSave={saveFirstJob}
+          />
         )}
         {!signedOut && (
           <section
@@ -429,6 +585,7 @@ export default function Workspace() {
             </p>
             <div
               aria-label="How to import"
+              aria-orientation="horizontal"
               className="import-tabs"
               role="tablist"
             >
@@ -438,6 +595,7 @@ export default function Workspace() {
                 className="secondary"
                 id="import-tab-json"
                 onClick={() => setImportTab('json')}
+                onKeyDown={onImportTabKey}
                 role="tab"
                 tabIndex={importTab === 'json' ? 0 : -1}
                 type="button"
@@ -450,6 +608,7 @@ export default function Workspace() {
                 className="secondary"
                 id="import-tab-csv"
                 onClick={() => setImportTab('csv')}
+                onKeyDown={onImportTabKey}
                 role="tab"
                 tabIndex={importTab === 'csv' ? 0 : -1}
                 type="button"
@@ -597,21 +756,26 @@ export default function Workspace() {
               Sign in with ChatGPT <ArrowRight size={16} />
             </a>
           </section>
-        ) : loaded && jobs.length === 0 ? (
+        ) : loaded && jobs.length === 0 && !showAddJob ? (
           <section className="welcome">
             <h2>No jobs yet</h2>
             <p>
-              Import your research or explore fictional examples. Earlier
-              submissions, notes and blockers stay attached to each job.
+              Add a posting with its role title and URL. Optional notes are
+              saved as research.
             </p>
-            <button
-              className="primary"
-              disabled={busy}
-              onClick={() => run({ action: 'bootstrap' })}
-              type="button"
-            >
-              Explore example jobs <ArrowRight size={16} />
-            </button>
+            <div className="actions">
+              <button className="primary" onClick={openAddJob} type="button">
+                Add job <ArrowRight size={16} />
+              </button>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={() => run({ action: 'bootstrap' })}
+                type="button"
+              >
+                Explore example jobs
+              </button>
+            </div>
             <small>Example companies and records are fictional.</small>
           </section>
         ) : !loaded ? (

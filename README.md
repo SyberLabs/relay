@@ -1,15 +1,16 @@
 # Relay by SyberLabs
 
 <!-- relay:public:start -->
-**Your job search should remember what you've done.**
+**Keep your application work moving.**
 
-SyberLabs' invited-pilot workspace for one job at a time: keep candidate facts for reuse, hand context to your assistant, review returned wording, and accept exact text. Relay preserves research and review history for later use.
+Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.
 
 **Lead engineer: [Seth Carlson](https://github.com/sdcarlson).** Application development: [Mateo](https://github.com/sykosyber).
 
 ## Available in this early release
 
 - One history per job: matching posting URLs join the same record, and earlier research stays visible.
+- Add a job from a role title, HTTP(S) posting URL, and optional notes. Matching URLs join that existing record without resetting status or accepted drafts.
 - Exact draft acceptance: you approve specific wording; changing it requires review again.
 - Interview notes and follow-ups that do not reset a submitted or live-loop application.
 - Import a tracker CSV through column mapping and a record preview. Imported statuses stay research; existing Relay status and accepted drafts are preserved.
@@ -94,7 +95,7 @@ The [GrokCell project](https://github.com/sdcarlson/grokcell) publishes the Firs
 
 ## Candidate facts and advanced batch review
 
-Start with one job in the workspace, prepare a handoff, review the returned wording and accept exact text. Facts, source history and review history remain available for later reuse. Experimental batch tools are under **Advanced** (`/advanced`).
+Add a posting through ordinary fields or import multiple jobs from a tracker CSV. Select a job to prepare a handoff, review the returned wording and accept exact text. Facts, source history and review history remain available as you move between applications. Experimental batch tools are under **Advanced** (`/advanced`). The [pilot reuse comparison](docs/pilot-throughput.md) tests whether that reuse reduces effort; a single-job walkthrough is a usability check, not a product limit.
 
 The **fact ledger** (`/profile`, **Your facts**) holds claims you confirm yourself. Stored `Verified` means user-confirmed, not independently verified by Relay. Paste resume text to propose candidates; extraction does not save or confirm them. A fact can carry an expiry for information that goes stale. The browser handoff currently uses a separate unsaved facts box; it does not select saved ledger entries.
 

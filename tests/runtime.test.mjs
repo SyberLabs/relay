@@ -133,7 +133,17 @@ void test('lanes put blockers south, outcomes west, and Held east', () => {
   assert.equal(loaded.core?.id, 'a');
   assert.deepEqual(
     loaded.queue.map((j) => j.id),
-    [],
+    ['a'],
+  );
+  const loadedBlocked = runtimeLanes(jobs, 'b', 'Held');
+  assert.equal(loadedBlocked.core?.id, 'b');
+  assert.deepEqual(
+    loadedBlocked.blocked.map((j) => j.id),
+    ['b'],
+  );
+  assert.deepEqual(
+    loadedBlocked.queue.map((j) => j.id),
+    ['a'],
   );
   const all = runtimeLanes(jobs, '', 'All');
   assert.deepEqual(

@@ -1054,7 +1054,10 @@ export default function Workspace() {
                       lanes.sent.map((job) => (
                         <button
                           aria-label={job.name}
-                          className="card job"
+                          className={
+                            'card job' +
+                            (selected === job.id ? ' selected' : '')
+                          }
                           key={job.id}
                           onClick={() => chooseJob(job)}
                           type="button"
@@ -1598,7 +1601,10 @@ export default function Workspace() {
                       lanes.blocked.map((job) => (
                         <button
                           aria-label={job.name}
-                          className="card blocked job"
+                          className={
+                            'card blocked job' +
+                            (selected === job.id ? ' selected' : '')
+                          }
                           key={job.id}
                           onClick={() => chooseJob(job)}
                           type="button"

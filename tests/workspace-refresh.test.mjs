@@ -93,7 +93,9 @@ void test('refresh records include usable facts and default them to empty', asyn
     http(
       200,
       records({
-        facts: [{ id: 'f1', claim: 'Built a Kubernetes platform at Northstar' }],
+        facts: [
+          { id: 'f1', claim: 'Built a Kubernetes platform at Northstar' },
+        ],
       }),
     ),
   );
@@ -377,6 +379,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     'previewedImport',
     'report',
     'showImport',
+    'showAddJob',
     'signedOut',
     'loaded',
     'busy',
@@ -453,6 +456,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
     'previewedImport',
     'report',
     'showImport',
+    'showAddJob',
     'signedOut',
     'loaded',
     'message',
@@ -545,6 +549,7 @@ void test('history JSON that expires during parse cannot restore events', async 
     'previewedImport',
     'report',
     'showImport',
+    'showAddJob',
     'signedOut',
     'loaded',
     'message',
@@ -587,4 +592,252 @@ void test('refresh helpers do not wrap acknowledgeSave behind extra names', asyn
   assert.equal(editor.draft, 'typed after save');
   assert.equal(editor.baseDraft, 'saved text');
   assert.equal(editor.conflict, false);
+});
+
+void test('older A GET after newer B does not rebind A or apply A records', async () => {
+  const session = createWorkspaceSession();
+  const first = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(200, records({ viewer: 'owner-a', jobs: [job('A')] })),
+  );
+  assert.equal(first.type, 'records');
+  assert.equal(session.viewer, 'owner-a');
+  const older = deferred();
+  const newer = deferred();
+  const olderStart = beginRefresh(session.gate);
+  const olderDone = older.promise.then((r) =>
+    processRefresh(session, olderStart, r),
+  );
+  const newerStart = beginRefresh(session.gate);
+  const newerDone = newer.promise.then((r) =>
+    processRefresh(session, newerStart, r),
+  );
+  newer.resolve(
+    http(
+      200,
+      records({
+        viewer: 'owner-b',
+        jobs: [job('B', { draft: 'Owner B selected draft.' })],
+      }),
+    ),
+  );
+  const newerOutcome = await newerDone;
+  assert.equal(newerOutcome.type, 'records');
+  assert.equal(newerOutcome.switched, true);
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(newerOutcome.jobs[0].id, 'B');
+  older.resolve(
+    http(
+      200,
+      records({
+        viewer: 'owner-a',
+        jobs: [
+          job('A', {
+            name: 'Owner A private title',
+            draft: 'Owner A private notes.',
+          }),
+        ],
+      }),
+    ),
+  );
+  const olderOutcome = await olderDone;
+  assert.equal(olderOutcome.type, 'ignore');
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(session.gate.epoch, newerStart.epoch + 1);
+});
+
+void test('a later GET from a different viewer bumps epoch and keeps those records', async () => {
+  const session = createWorkspaceSession();
+  const first = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(200, records({ viewer: 'owner-a' })),
+  );
+  assert.equal(first.type, 'records');
+  assert.equal(first.switched, false);
+  assert.equal(session.viewer, 'owner-a');
+  const mutation = beginMutation(session.gate);
+  const second = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(
+      200,
+      records({
+        viewer: 'owner-b',
+        jobs: [job('B', { draft: 'owner-b draft' })],
+      }),
+    ),
+  );
+  assert.equal(second.type, 'records');
+  assert.equal(second.switched, true);
+  assert.equal(second.jobs[0].id, 'B');
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(mutationIsLive(session.gate, mutation), false);
+  const late = await processMutation(
+    session,
+    mutation,
+    http(200, {
+      items: [{ name: 'Owner A private title', kind: 'new', key: 'leaked' }],
+    }),
+  );
+  assert.equal(late.type, 'ignore');
+});
+
+void test('expiry forgets the bound viewer so the next account can load', async () => {
+  const session = createWorkspaceSession();
+  await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(200, records({ viewer: 'owner-a' })),
+  );
+  const expired = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(401, 'Unauthorized'),
+  );
+  assert.equal(expired.type, 'expire');
+  assert.equal(session.viewer, undefined);
+  const next = await processRefresh(
+    session,
+    beginRefresh(session.gate),
+    http(200, records({ viewer: 'owner-b', jobs: [job('B')] })),
+  );
+  assert.equal(next.type, 'records');
+  assert.equal(next.switched, false);
+  assert.equal(session.viewer, 'owner-b');
+});
+
+void test('compiled refresh keeps B selection after a stale older A GET', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const compile = (s) =>
+    stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
+  const expiry = src.match(
+    /const applyExpired = useCallback\(([\s\S]*?), \[\]\);/,
+  )[1];
+  const refreshSrc = src.match(
+    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,
+  )[1];
+  const ownerA = job('A', {
+    name: 'Owner A private title',
+    draft: 'Owner A private notes.',
+  });
+  const ownerB = job('B', {
+    name: 'Maple Example — Owner B',
+    draft: 'Owner B selected draft.',
+  });
+  const older = deferred();
+  const newer = deferred();
+  const session = createWorkspaceSession();
+  const state = {
+    jobs: [ownerA],
+    sources: [],
+    events: [],
+    facts: [],
+    editor: loadEditor(ownerA),
+    importText: 'Owner A private import text.',
+    previewedImport: '',
+    report: null,
+    showImport: false,
+    showAddJob: true,
+    signedOut: false,
+    loaded: true,
+  };
+  let gets = 0;
+  const deps = {
+    ...helper,
+    sessionRef: { current: session },
+    selectedRef: { current: ownerA.id },
+    loadJobHistory: async () => {},
+    fetch: async () => {
+      gets += 1;
+      if (gets === 1) {
+        return new Response(
+          JSON.stringify(records({ viewer: 'owner-a', jobs: [ownerA] })),
+          { status: 200 },
+        );
+      }
+      if (gets === 2) return older.promise;
+      return newer.promise;
+    },
+  };
+  for (const key of [
+    'jobs',
+    'sources',
+    'events',
+    'facts',
+    'editor',
+    'importText',
+    'previewedImport',
+    'report',
+    'showImport',
+    'showAddJob',
+    'signedOut',
+    'loaded',
+    'busy',
+    'message',
+    'historyNext',
+  ]) {
+    deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
+      (state[key] = typeof value === 'function' ? value(state[key]) : value);
+  }
+  const bind = (source) =>
+    // oxlint-disable-next-line typescript/no-implied-eval -- compile actual Workspace callbacks
+    new Function(...Object.keys(deps), 'return (' + compile(source) + ');')(
+      ...Object.values(deps),
+    );
+  deps.applyExpired = bind(expiry);
+  const refresh = bind(refreshSrc);
+  await refresh();
+  assert.equal(session.viewer, 'owner-a');
+  const pendingOlder = refresh();
+  const pendingNewer = refresh();
+  newer.resolve(
+    new Response(
+      JSON.stringify(
+        records({
+          viewer: 'owner-b',
+          jobs: [ownerB],
+        }),
+      ),
+      { status: 200 },
+    ),
+  );
+  await pendingNewer;
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(state.jobs[0].id, ownerB.id);
+  assert.equal(state.showAddJob, false);
+  const typed = {
+    ...loadEditor(ownerB),
+    draft: 'Unsaved owner-B draft.',
+  };
+  state.editor = typed;
+  deps.selectedRef.current = ownerB.id;
+  state.importText = 'B research paste that must remain.';
+  older.resolve(
+    new Response(
+      JSON.stringify(
+        records({
+          viewer: 'owner-a',
+          jobs: [ownerA],
+        }),
+      ),
+      { status: 200 },
+    ),
+  );
+  await pendingOlder;
+  assert.equal(session.viewer, 'owner-b');
+  assert.deepEqual(
+    state.jobs.map((row) => row.id),
+    [ownerB.id],
+  );
+  assert.equal(deps.selectedRef.current, ownerB.id);
+  assert.equal(state.editor?.jobId, ownerB.id);
+  assert.equal(state.editor?.draft, 'Unsaved owner-B draft.');
+  assert.equal(state.showAddJob, false);
+  assert.equal(state.importText, 'B research paste that must remain.');
+  assert.equal(
+    state.jobs.some((row) => row.name === 'Owner A private title'),
+    false,
+  );
 });

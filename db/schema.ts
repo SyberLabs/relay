@@ -5,6 +5,16 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/sqlite-core';
+// Fixed rows per authenticated owner/scope; windows overwrite rather than grow.
+export const securityCounters = sqliteTable('security_counters', {
+  scope: text('scope').primaryKey(),
+  period: text('period').notNull(),
+  used: integer('used').notNull(),
+});
+export const securityClearances = sqliteTable('security_clearances', {
+  owner: text('owner').primaryKey(),
+  expires: integer('expires').notNull(),
+});
 export const jobs = sqliteTable(
   'jobs',
   {
@@ -56,14 +66,18 @@ export const observations = sqliteTable(
     ),
   ],
 );
-export const events = sqliteTable('events', {
-  id: text('id').primaryKey(),
-  owner: text('owner').notNull(),
-  job_id: text('job_id').notNull(),
-  kind: text('kind').notNull(),
-  detail: text('detail').notNull(),
-  created: text('created').notNull(),
-});
+export const events = sqliteTable(
+  'events',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    job_id: text('job_id').notNull(),
+    kind: text('kind').notNull(),
+    detail: text('detail').notNull(),
+    created: text('created').notNull(),
+  },
+  (t) => [index('security_events_owner').on(t.owner)],
+);
 export const profileFacts = sqliteTable(
   'profile_facts',
   {
@@ -114,15 +128,19 @@ export const drafts = sqliteTable(
   },
   (t) => [index('drafts_owner_verdict').on(t.owner, t.verdict)],
 );
-export const reviewBatches = sqliteTable('review_batches', {
-  id: text('id').primaryKey(),
-  owner: text('owner').notNull(),
-  reason: text('reason').notNull(),
-  opened: text('opened').notNull(),
-  closed: text('closed'),
-  size: integer('size').notNull().default(0),
-  rules_added: integer('rules_added').notNull().default(0),
-});
+export const reviewBatches = sqliteTable(
+  'review_batches',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    reason: text('reason').notNull(),
+    opened: text('opened').notNull(),
+    closed: text('closed'),
+    size: integer('size').notNull().default(0),
+    rules_added: integer('rules_added').notNull().default(0),
+  },
+  (t) => [index('security_batches_owner').on(t.owner)],
+);
 export const preferences = sqliteTable('preferences', {
   owner: text('owner').primaryKey(),
   weights: text('weights').notNull().default(''),

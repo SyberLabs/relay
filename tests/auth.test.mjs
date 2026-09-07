@@ -5,7 +5,8 @@ import { authenticatedRequest, authenticatedReadiness } from '../deploy/access.m
 import { handleRequest } from '../deploy/handler.mjs';
 
 const { publicKey, privateKey } = await generateKeyPair('RS256');
-const env = { ACCESS_ISSUER: 'https://relay.cloudflareaccess.com', ACCESS_AUD: 'a'.repeat(64) };
+const env = { ACCESS_ISSUER: 'https://relay.cloudflareaccess.com', ACCESS_AUD: 'a'.repeat(64),
+  EDGE_RATE_LIMITER: { async limit() { return { success: true }; } } };
 async function token(overrides = {}, key = privateKey) {
   return new SignJWT({ sub: 'alice', email: 'alice@example.com', ...overrides })
     .setProtectedHeader({ alg: 'RS256' }).setIssuedAt(overrides.iat)
@@ -50,7 +51,8 @@ void test('gateway rejects anonymous asset access before invoking assets or appl
   assert.equal(response.status, 401);
 });
 void test('readiness reports unavailable database without leaking its error', async () => {
-  const bindings = { ...env, DB: { prepare() { throw new Error('private database detail'); } } };
+  const bindings = { ...env, TURNSTILE_SITE_KEY: 'fictional', TURNSTILE_SECRET_KEY: 'fictional',
+    DB: { prepare() { throw new Error('private database detail'); } } };
   const req = new Request('https://relay.example.com/readyz', { headers: { 'Cf-Access-Jwt-Assertion': await token() } });
   const response = await handleRequest(req, bindings, {}, {}, publicKey);
   assert.equal(response.status, 503);

@@ -24,7 +24,7 @@ const ownerBRow = {
 
 async function importResearch(page: Page, row: typeof ownerARow) {
   // After a successful import the panel stays open and the JSON editor
-  // collapses. Clicking Import research would toggle it closed.
+  // collapses. Import research focuses an already-open dock instead of closing it.
   const panel = page.getByRole('heading', { name: 'Import research' });
   if (!(await panel.isVisible())) {
     await page
@@ -157,6 +157,9 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
     expect(bGet.status()).toBe(200);
     const ownerA = await aGet.json();
     const ownerB = await bGet.json();
+    expect(typeof ownerA.viewer).toBe('string');
+    expect(typeof ownerB.viewer).toBe('string');
+    expect(ownerA.viewer).not.toBe(ownerB.viewer);
     const jobA = ownerA.jobs.find(
       (job: {
         id: string;

@@ -5,15 +5,16 @@ export default function About() {
       <Link className="brand" href="/">
         <span className="mark">r</span>relay
       </Link>
-      <p className="eyebrow">A SYBERLABS PRODUCT · EARLY RELEASE</p>
+      <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
       <h1>
-        Your job search should
+        Keep your application
         <br />
-        remember what you’ve done.
+        work moving.
       </h1>
       <p className="lead">
-        Relay brings research, application history and exact drafts into one
-        workspace—so you can spend less time checking your assistant’s work.
+        Manage applications across your preferred AI tools. Keep candidate facts
+        available for reuse and preserve job research, reviewed drafts and
+        application history as you move between opportunities.
       </p>
       <div className="actions">
         <Link href="/" className="primary">
@@ -45,11 +46,13 @@ export default function About() {
           </p>
         </div>
       </section>
-      <h2>Start with one job.</h2>
+      <h2>Bring your applications together.</h2>
       <p>
-        Import your research, select an opportunity, then prepare a draft.
-        Already interviewing? Keep notes and follow-ups without resetting your
-        application status.
+        Add a posting with its title, URL and notes, or import multiple jobs from
+        a tracker CSV. Select a job to prepare, review and accept its wording.
+        Keep each application’s research and decisions available as you move
+        to the next. Already interviewing? Save notes and follow-ups without
+        resetting your application status.
       </p>
       <h2>What’s available today</h2>
       <p>
@@ -68,9 +71,21 @@ export default function About() {
         signed-in Codex CLI. Every returned draft requires review.
       </p>
       <p>
-        Relay does not yet run an autonomous job hunt or send applications. Live
-        provider connections require setup. This early release has no claimed
-        hiring outcomes or proven throughput gains.
+        Relay does not send applications. Live provider connections require
+        setup. This early release has no claimed hiring outcomes or proven
+        throughput gains.
+      </p>
+      <h2>What the checks mean</h2>
+      <p>
+        Facts are confirmed by you. Agent draft logs use heuristic word and
+        number checks that can miss unsupported claims. Browser draft loading
+        checks format, job identity and version, not citations or factual
+        accuracy. Acceptance records your approval of exact wording.
+      </p>
+      <p>
+        <Link href="/advanced">Advanced tools</Link> include experimental
+        preference fitting, planning and agent batch review. They do not predict
+        offers or assess qualifications.
       </p>
       <div className="actions">
         <a href="https://github.com/SyberLabs/relay/blob/main/integrations/README.md">

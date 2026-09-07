@@ -42,6 +42,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       'previewedImport',
       'report',
       'showImport',
+      'showAddJob',
       'signedOut',
       'loaded',
       'message',

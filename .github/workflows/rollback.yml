@@ -17,10 +17,6 @@ permissions:
   actions: read
   deployments: write
 
-concurrency:
-  group: relay-delivery
-  cancel-in-progress: false
-
 jobs:
   rollback:
     if: github.ref == 'refs/heads/main'

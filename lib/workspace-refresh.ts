@@ -14,6 +14,7 @@ export type SessionGate = {
 export type WorkspaceSession = {
   gate: SessionGate;
   lastAck?: SaveSnapshot;
+  viewer?: string;
 };
 
 export type WorkspaceReply = {
@@ -23,6 +24,7 @@ export type WorkspaceReply = {
   facts?: unknown[];
   error?: string;
   items?: unknown;
+  viewer?: string;
 };
 
 export type ResponseLike = {
@@ -40,6 +42,7 @@ export type RefreshOutcome =
   | { type: 'error'; error: string }
   | {
       type: 'records';
+      switched: boolean;
       jobs: JobFields[];
       sources: unknown[];
       events: unknown[];
@@ -62,6 +65,7 @@ export type ExpiredPrivateWorkspace = {
   previewedImport: '';
   report: null;
   showImport: false;
+  showAddJob: false;
   signedOut: true;
   loaded: true;
 };
@@ -98,6 +102,7 @@ export function expiredPrivateWorkspace(): ExpiredPrivateWorkspace {
     previewedImport: '',
     report: null,
     showImport: false,
+    showAddJob: false,
     signedOut: true,
     loaded: true,
   };
@@ -109,7 +114,25 @@ export function expireSession(
   session.gate.epoch += 1;
   session.gate.refresh = 0;
   session.lastAck = undefined;
+  session.viewer = undefined;
   return expiredPrivateWorkspace();
+}
+
+export function bindViewer(
+  session: WorkspaceSession,
+  viewer: string | undefined,
+) {
+  if (!viewer) return false;
+  if (session.viewer == null) {
+    session.viewer = viewer;
+    return false;
+  }
+  if (session.viewer === viewer) return false;
+  session.viewer = viewer;
+  session.gate.epoch += 1;
+  session.gate.refresh = 0;
+  session.lastAck = undefined;
+  return true;
 }
 
 export async function readWorkspaceResponse(
@@ -155,10 +178,15 @@ export async function processRefresh(
     expireSession(session);
     return { type: 'expire' };
   }
+  if (reply.kind === 'error') {
+    if (!refreshIsLive(session.gate, started)) return { type: 'ignore' };
+    return { type: 'error', error: reply.error };
+  }
   if (!refreshIsLive(session.gate, started)) return { type: 'ignore' };
-  if (reply.kind === 'error') return { type: 'error', error: reply.error };
+  const switched = bindViewer(session, reply.body.viewer);
   return {
     type: 'records',
+    switched,
     jobs: reply.body.jobs ?? [],
     sources: reply.body.sources ?? [],
     events: reply.body.events ?? [],

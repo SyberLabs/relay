@@ -29,6 +29,7 @@ const config = releaseConfig(
   {
     ACCESS_ISSUER: issuer,
     ACCESS_AUD: audience,
+    TURNSTILE_SITE_KEY: 'fictional-site-key',
     RELEASE_SHA: release,
     CLOUDFLARE_ACCOUNT_ID: 'a'.repeat(32),
     D1_DATABASE_ID: '11111111-1111-4111-8111-111111111111',
@@ -53,6 +54,7 @@ config.build = {
 config.assets.directory = resolve('dist/client');
 config.d1_databases[0].migrations_dir = resolve('drizzle');
 config.vars.RELAY_TEST_JWK = JSON.stringify(await exportJWK(publicKey));
+config.vars.TURNSTILE_SECRET_KEY = 'fictional-secret';
 const configPath = resolve(state, 'wrangler.json');
 await writeFile(configPath, JSON.stringify(config, null, 2));
 const wrangler = resolve('node_modules/wrangler/bin/wrangler.js');
@@ -390,8 +392,182 @@ try {
           ),
     );
   });
+  const limitedUser = await token('quota-fixture');
+  console.log('Checking concurrent planner throttling.');
+  const planReplies = await Promise.all(Array.from({ length: 15 }, () => fetch(`${base}/api/plan`, {
+    headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+    signal: AbortSignal.timeout(20_000),
+  })));
+  assert.ok(planReplies.every(response => [200, 429].includes(response.status)));
+  assert.ok(planReplies.some(response => response.status === 429), 'Concurrent planner calls must exhaust the D1 throttle');
+  for (const response of planReplies) {
+    if (response.status === 429) assert.ok(Number(response.headers.get('retry-after')) > 0);
+    await response.text();
+  }
+  console.log('Checking oversized mutation refusal.');
+  const oversized = await fetch(`${base}/api/workspace`, {
+    method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+    body: 'x'.repeat(2_000_001),
+    signal: AbortSignal.timeout(20_000),
+  });
+  await expectStatus(oversized, 413, 'Oversized mutation refused before the application');
+  await oversized.text();
+  console.log('Checking persistence after oversized mutation refusal.');
+  const afterRefusal = await fetch(`${base}/api/workspace`, {
+    headers: { 'Cf-Access-Jwt-Assertion': limitedUser }, signal: AbortSignal.timeout(20_000),
+  });
+  await expectStatus(afterRefusal, 200, 'Read after oversized mutation refusal');
+  assert.deepEqual((await afterRefusal.json()).jobs, []);
+  for (const { label, path, headers, status } of [
+    { label: 'missing CAPTCHA origin', path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': limitedUser }, status: 403 },
+    { label: 'mismatched CAPTCHA origin', path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': limitedUser, Origin: 'https://untrusted.example' }, status: 403 },
+    { label: 'unauthenticated upload', path: '/api/workspace', headers: {}, status: 401 },
+  ]) {
+    console.log(`Checking request after ${label} refusal.`);
+    const refused = await fetch(`${base}${path}`, {
+      method: 'POST', headers, body: 'x'.repeat(2_000_001),
+      signal: AbortSignal.timeout(20_000),
+    });
+    await expectStatus(refused, status, label);
+    await refused.text();
+    const next = await fetch(`${base}/api/workspace`, {
+      headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+      signal: AbortSignal.timeout(20_000),
+    });
+    await expectStatus(next, 200, `Read after ${label} refusal`);
+    assert.deepEqual((await next.json()).jobs, []);
+  }
   console.log(
-    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation.',
+    'Checking progress preservation, replay and production gateway refusals.',
+  );
+  const progressUser = await token('progress-fixture');
+  await expectStatus(
+    await call(progressUser, { action: 'bootstrap' }),
+    200,
+    'progress fixture bootstrap',
+  );
+  const progressInitial = await (await call(progressUser)).json();
+  const progressJob = progressInitial.jobs.find((item) =>
+    item.job_key.endsWith('/backend'),
+  );
+  await expectStatus(
+    await call(progressUser, {
+      action: 'save',
+      id: progressJob.id,
+      version: progressJob.version,
+      status: 'Ready',
+      draft: 'Exact fictional accepted progress fixture.',
+      blocker: '',
+    }),
+    200,
+    'progress fixture exact acceptance',
+  );
+  const beforeProgress = await (await call(progressUser)).json();
+  const reviewedJob = beforeProgress.jobs.find(
+    (item) => item.id === progressJob.id,
+  );
+  const progress = {
+    action: 'progress',
+    id: reviewedJob.id,
+    version: reviewedJob.version,
+    operation_id: 'production-progress-recovery-1',
+    note: 'Saved application work before a fictional browser interruption.',
+    blocker: 'Complete the employer CAPTCHA, then resume.',
+  };
+  for (const [response, status, label] of [
+    [await call(null, progress), 401, 'anonymous progress'],
+    [await call(second, progress), 404, 'cross-owner progress'],
+    [
+      await call(progressUser, progress, {
+        origin: 'https://untrusted.example.com',
+      }),
+      403,
+      'untrusted-origin progress',
+    ],
+    [
+      await call(progressUser, { ...progress, version: progressJob.version }),
+      409,
+      'stale progress',
+    ],
+  ])
+    await expectStatus(response, status, label);
+  assert.deepEqual(
+    await (await call(progressUser)).json(),
+    beforeProgress,
+    'Refused progress must not change jobs or history',
+  );
+  const progressSaved = await expectStatus(
+    await call(progressUser, progress),
+    200,
+    'valid progress',
+  );
+  assert.equal((await progressSaved.json()).replayed, false);
+  const afterProgress = await (await call(progressUser)).json();
+  const progressedJob = afterProgress.jobs.find(
+    (item) => item.id === reviewedJob.id,
+  );
+  assert.equal(progressedJob.draft, reviewedJob.draft);
+  assert.equal(progressedJob.accepted_draft, reviewedJob.accepted_draft);
+  assert.equal(progressedJob.status, reviewedJob.status);
+  assert.equal(progressedJob.blocker, progress.blocker);
+  assert.deepEqual(
+    afterProgress.jobs.filter((item) => item.id !== reviewedJob.id),
+    beforeProgress.jobs.filter((item) => item.id !== reviewedJob.id),
+  );
+  assert.equal(
+    afterProgress.events.filter(
+      (event) =>
+        event.job_id === reviewedJob.id && event.kind === 'Progress saved',
+    ).length,
+    1,
+  );
+  const replayed = await expectStatus(
+    await call(progressUser, progress),
+    200,
+    'identical progress replay',
+  );
+  assert.equal((await replayed.json()).replayed, true);
+  assert.deepEqual(
+    await (await call(progressUser)).json(),
+    afterProgress,
+    'An ambiguous response may replay without adding another event',
+  );
+
+  // Same-operation retries are only a fictional load fixture. The product must
+  // never retry refused mutations automatically. Real gateway counters remain intact.
+  let progressRefusals = 0;
+  for (let batch = 0; batch < 4; batch++) {
+    const replies = await Promise.all(
+      Array.from({ length: 8 }, () => call(progressUser, progress)),
+    );
+    for (const response of replies) {
+      assert.ok(
+        [200, 403, 429].includes(response.status),
+        `Unexpected progress admission status ${response.status}`,
+      );
+      if (response.status === 200)
+        assert.equal((await response.json()).replayed, true);
+      else {
+        progressRefusals++;
+        const refused = await response.json();
+        if (response.status === 403)
+          assert.equal(refused.verification_url, '/security/check');
+        if (response.status === 429)
+          assert.ok(Number(response.headers.get('retry-after')) > 0);
+      }
+    }
+  }
+  assert.ok(
+    progressRefusals > 0,
+    'Production gateway must refuse excess progress attempts',
+  );
+  assert.deepEqual(
+    await (await call(progressUser)).json(),
+    afterProgress,
+    'Gateway-refused progress and successful replays must not write new history or drafts',
+  );
+  console.log(
+    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation, concurrent D1 throttling and oversized request refusal.',
   );
 } finally {
   await finishProductionServer(server, log);

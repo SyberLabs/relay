@@ -43,7 +43,7 @@ See [Obsidian workflows](OBSIDIAN.md) for the complete setup, formats, review st
 
 ## Claude → a reviewable draft
 
-Select a job, enter verified facts in the connection panel, and download the packet. Set `ANTHROPIC_API_KEY` and `RELAY_CLAUDE_MODEL` to a model available to your API account. Run:
+Select a job, enter facts you have confirmed in the connection panel, and download the packet. This separate text box is unsaved and does not select your profile ledger. Set `ANTHROPIC_API_KEY` and `RELAY_CLAUDE_MODEL` to a model available to your API account. Run:
 
 ```sh
 node integrations/relay.mjs claude-draft relay-packet.json private-data/claude-draft.json
@@ -147,13 +147,13 @@ Refusal records are not drafts: they never enter the review queue, are never cit
 
 It can do anything except exercise taste or authorise an irreversible act. It cannot accept a draft, verify a fact, close a review with rules, or answer a preference pair — those stay in the browser, where a person is looking. It cannot submit an application, because no write plane exists. Terminal outcomes need `--yes`, since they close a job permanently.
 
-`relay draft` writes against the verified fact ledger and logs through the citation gate. The older `claude-draft` packet flow still takes facts you typed by hand and bypasses both.
+`relay draft` uses the user-confirmed fact ledger and logs through heuristic citation checks. The older `claude-draft` packet flow takes facts you typed by hand and uses neither the saved ledger nor that check.
 
 ## Profile, drafts and review
 
-The fact ledger and style card live in the app at `/profile`, and review sessions at `/review`. Neither needs a connector or credentials: extraction runs locally on text you paste, and no resume file leaves your machine.
+The fact ledger and style card live at `/profile`; experimental batch review is at `/review`, linked from `/advanced` alongside preferences and planning. Relay processes pasted resume text into proposed lines without calling an external assistant. You confirm facts yourself; the stored `Verified` status records that confirmation, not independent verification.
 
-A browser exposing WebMCP gives an assistant `relay_read_profile`, `relay_log_draft` and `relay_review_status` alongside the existing workspace tools. Logging enforces that claims trace to verified facts; it does not accept drafts or change application status. This path has not been tested in a Grok Bot session.
+A browser exposing WebMCP gives an assistant `relay_read_profile`, `relay_log_draft` and `relay_review_status` alongside the existing workspace tools. Logging requires cited facts to be user-confirmed and unexpired, then checks selected claim patterns using word overlap and numbers pooled across citations. This can miss unsupported claims; passing is not factual verification. Browser draft loading checks format, job identity and version, and workspace saves do not run this citation check. Exact-text acceptance still requires human review. This WebMCP path has not been tested in a Grok Bot session.
 
 The `claude-draft` command remains a file handoff and does not use the fact ledger. Facts you type into a packet are still ephemeral and unsaved.
 

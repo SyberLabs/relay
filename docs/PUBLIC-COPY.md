@@ -1,13 +1,13 @@
 # Keeping Relay's public pages current
 
-**Owner: Seth Carlson, lead engineer.** Application development credit: Mateo. Update [`public-copy.json`](public-copy.json) when shipped behavior, integration setup, ownership or release status changes. It is the single source for the managed RELAY sections in:
+**Relay lead engineer: Seth Carlson. Product: Mateo Robles.** Update [`public-copy.json`](public-copy.json) when shipped behavior, integration setup, ownership or release status changes. It is the single source for the managed RELAY sections in:
 
 - `SyberLabs/relay` - project `README.md`
 - `SyberLabs/.github` - organization `profile/README.md`
 - `sdcarlson/sdcarlson` - personal `README.md`
 - `SyberLabs/SyberLabs.github.io` - the RELAY integration paragraph on `syberlabs.space`
 
-Other projects, biography text and website design remain independently maintained. The generator changes only text between `relay:public:start` and `relay:public:end`. Missing or duplicate markers stop the update.
+Other projects, biography text and website design remain independently maintained. The organization target also prepends the two-person lab line before the RELAY heading. The generator changes only text between `relay:public:start` and `relay:public:end`. Missing or duplicate markers stop the update.
 
 ## At every product change
 
@@ -24,6 +24,8 @@ The three downstream workflows check every 15 minutes and on edits to their mana
 This is eventual synchronization, not an instantaneous guarantee. GitHub schedules can be delayed, and scheduled workflows in public repositories can be disabled after prolonged inactivity. Follow GitHub's workflow failure notifications and check the Actions page if copy does not refresh. The manual workflow button is the recovery path. Organization policy or branch protection may require adapting the write step to your review process.
 
 Automation distributes reviewed facts; it cannot prove that prose still matches new product behavior. The product-change checklist remains the owner's responsibility. Do not edit a generated section by hand; the next refresh will restore it from the canonical source.
+
+For pilot trust copy, distinguish user-confirmed candidate facts, heuristic agent citation checks, browser draft identity/version checks, and human acceptance of exact wording. Do not describe any of these as independent factual verification, qualification assessment, or evidence of improved hiring outcomes. Keep experimental planning and batch capabilities secondary. See [product trust boundaries](product-trust.md) for verified limitations and follow-up scope. Draft PR work regenerates only this repository; downstream publication follows a separately approved merge/release.
 
 For a local preview of another target:
 

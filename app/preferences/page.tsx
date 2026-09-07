@@ -9,6 +9,7 @@ import {
   pageWorkIsLive,
   readAuthorizedJson,
 } from '../../lib/page-session';
+import { ProductShell } from '../shell';
 type Pair = { a: Posting; b: Posting };
 type State = {
   weights: Weights;
@@ -131,7 +132,7 @@ export default function Preferences() {
   }
   if (signedOut)
     return (
-      <main className="productpage">
+      <ProductShell current="preferences">
         <h1>Preferences</h1>
         <p className="lead">Sign in to set what a job is worth to you.</p>
         {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
@@ -142,20 +143,24 @@ export default function Preferences() {
         >
           Sign in with ChatGPT
         </a>
-      </main>
+      </ProductShell>
     );
   const answered = state?.answered ?? 0,
     target = state?.target ?? 12,
     ready = answered >= target;
   return (
-    <main className="productpage">
+    <ProductShell current="preferences">
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
+      <Link className="backlink" href="/advanced">
+        Advanced
+      </Link>
       <h1>Preferences</h1>
       <p className="lead">
-        Pick the job you would rather have. Those choices set the weights used
-        to rank roles on This week.
+        Pick the job you would rather have. These choices fit experimental
+        preference weights for This week; they do not assess your
+        qualifications.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -170,7 +175,9 @@ export default function Preferences() {
             <small className="of">/{target}</small>
           </strong>
           <small>
-            {ready ? 'Enough to rank your pool' : 'A few more sharpens it'}
+            {ready
+              ? 'Comparison target reached'
+              : 'Toward the comparison target'}
           </small>
         </div>
         <div>
@@ -309,6 +316,6 @@ export default function Preferences() {
         </div>
       </section>
       <footer>Relay / SyberLabs</footer>
-    </main>
+    </ProductShell>
   );
 }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { enableInspectJob } from './enable-inspect-job';
 
 test('inspect accept stays off until armed then authorizes send without beginning', async ({
   page,
@@ -23,24 +24,13 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   const job = ws.jobs.find((j: { name: string }) =>
     j.name.includes('Inspect Send'),
   );
-  await page.request.post('/api/applications', {
-    data: {
-      action: 'policy',
-      viewer: ws.viewer,
-      version: 0,
-      enabled: true,
-      review: 'all',
-      jobs: [job.id],
-      maximum: 10,
-      expires: new Date(Date.now() + 86400000).toISOString(),
-    },
-  });
+  await enableInspectJob(page, ws.viewer, job.id);
   await page.goto('/');
   await page.getByRole('button', { name: /Inspect Send/ }).click();
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toBeDisabled();
-  await page.request.post('/api/applications', {
+  const prepared = await page.request.post('/api/applications', {
     data: {
       action: 'prepare',
       viewer: ws.viewer,
@@ -51,7 +41,8 @@ test('inspect accept stays off until armed then authorizes send without beginnin
       files: [],
     },
   });
-  await page.request.post('/api/applications', {
+  expect(prepared.ok()).toBe(true);
+  const armed = await page.request.post('/api/applications', {
     data: {
       action: 'arm',
       viewer: ws.viewer,
@@ -60,6 +51,7 @@ test('inspect accept stays off until armed then authorizes send without beginnin
       actor: 'Fictional applying agent',
     },
   });
+  expect(armed.ok()).toBe(true);
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toBeEnabled();

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { enableInspectJob } from './enable-inspect-job';
 
 test('apply overlay shows inspect summary without Accept and send', async ({
   page,
@@ -24,18 +25,7 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   const job = ws.jobs.find((j: { name: string }) =>
     j.name.includes('Apply Overlay'),
   );
-  await page.request.post('/api/applications', {
-    data: {
-      action: 'policy',
-      viewer: ws.viewer,
-      version: 0,
-      enabled: true,
-      review: 'all',
-      jobs: [job.id],
-      maximum: 10,
-      expires: new Date(Date.now() + 86400000).toISOString(),
-    },
-  });
+  await enableInspectJob(page, ws.viewer, job.id);
   await page.request.post('/api/applications', {
     data: {
       action: 'prepare',

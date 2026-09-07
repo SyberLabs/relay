@@ -5,7 +5,11 @@ import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/workspace-refresh.ts';
 import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
 import { isTerminal } from '../lib/outcomes.ts';
-import { boundedPolicyMaximum, policyExpiryIso } from '../lib/runtime.ts';
+import {
+  boundedPolicyMaximum,
+  policyExpiryIso,
+  policyJobIds,
+} from '../lib/runtime.ts';
 
 function compile(text) {
   return stripTypeScriptTypes(text, { mode: 'transform' })
@@ -147,6 +151,7 @@ void test('policy POST 401 expires without parsing and a delayed 200 cannot rest
     isTerminal,
     boundedPolicyMaximum,
     policyExpiryIso,
+    policyJobIds,
     jobs: [{ id: 'job-1', status: 'Held' }],
     busyRef: { current: false },
     policyRef: { current: state.policy },
@@ -507,6 +512,7 @@ void test('saveLimits catch after expiry does not write a message', async () => 
     isTerminal,
     boundedPolicyMaximum,
     policyExpiryIso,
+    policyJobIds,
     jobs: [{ id: 'job-1', status: 'Held' }],
     busyRef: { current: false },
     policyRef: { current: state.policy },
@@ -559,6 +565,7 @@ void test('saveLimits finally after a viewer switch keeps a newer busy lock', as
     isTerminal,
     boundedPolicyMaximum,
     policyExpiryIso,
+    policyJobIds,
     jobs: state.jobs,
     busyRef,
     policyRef: { current: state.policy },
@@ -626,6 +633,7 @@ void test('toggleAutopilot does not open Tools after a viewer switch', async () 
     isTerminal,
     boundedPolicyMaximum,
     policyExpiryIso,
+    policyJobIds,
     jobs: state.jobs,
     current: null,
     signedOut: false,
@@ -663,4 +671,129 @@ void test('toggleAutopilot does not open Tools after a viewer switch', async () 
   assert.notEqual(session.gate.epoch, startedEpoch);
   assert.equal(state.modal, null);
   assert.doesNotMatch(state.message, /Autopilot on/);
+});
+
+void test('disabling autopilot with 101 held jobs posts the saved bounded job list', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const saveSrc = src.slice(
+    src.indexOf('async function saveLimits'),
+    src.indexOf('\n  async function toggleAutopilot'),
+  );
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  let posted;
+  const savedJobs = ['job-0', 'job-1'];
+  const state = {
+    policy: {
+      version: 2,
+      enabled: 1,
+      jobs: JSON.stringify(savedJobs),
+      expires: '2026-09-14T00:00:00.000Z',
+      maximum: 8,
+      review: 'all',
+    },
+    autopilot: true,
+    signedOut: false,
+    message: '',
+    busy: false,
+    modal: null,
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    isTerminal,
+    boundedPolicyMaximum,
+    policyExpiryIso,
+    policyJobIds,
+    jobs: Array.from({ length: 101 }, (_, i) => ({
+      id: 'job-' + i,
+      status: 'Held',
+    })),
+    busyRef: { current: false },
+    policyRef: { current: state.policy },
+    selectedRef: { current: '' },
+    refresh: async () => {},
+    fetch: async (_url, init) => {
+      posted = JSON.parse(init.body);
+      return {
+        status: 200,
+        ok: true,
+        json: async () => ({
+          viewer: 'owner-a',
+          policy: { version: 3, enabled: 0, jobs: JSON.stringify(savedJobs) },
+        }),
+      };
+    },
+    sessionRef: { current: session },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const ok = await bind(
+    saveSrc,
+    deps,
+  )({
+    maximum: 8,
+    review: 'all',
+    enabled: false,
+  });
+  assert.equal(ok, true);
+  assert.equal(posted.enabled, false);
+  assert.deepEqual(posted.jobs, savedJobs);
+  assert.ok(posted.jobs.length <= 100);
+  assert.equal(state.autopilot, false);
+});
+
+void test('enabling autopilot with 101 held jobs fails closed without a policy POST', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const saveSrc = src.slice(
+    src.indexOf('async function saveLimits'),
+    src.indexOf('\n  async function toggleAutopilot'),
+  );
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  let fetches = 0;
+  const state = {
+    policy: { version: 2, enabled: 0, jobs: '[]' },
+    signedOut: false,
+    message: '',
+    busy: false,
+    modal: null,
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    isTerminal,
+    boundedPolicyMaximum,
+    policyExpiryIso,
+    policyJobIds,
+    jobs: Array.from({ length: 101 }, (_, i) => ({
+      id: 'job-' + i,
+      status: 'Held',
+    })),
+    busyRef: { current: false },
+    policyRef: { current: state.policy },
+    selectedRef: { current: '' },
+    refresh: async () => {},
+    fetch: async () => {
+      fetches += 1;
+      throw Error('must not POST');
+    },
+    sessionRef: { current: session },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const ok = await bind(
+    saveSrc,
+    deps,
+  )({
+    maximum: 8,
+    review: 'all',
+    enabled: true,
+  });
+  assert.equal(ok, false);
+  assert.equal(fetches, 0);
+  assert.equal(state.modal, 'tools');
+  assert.match(state.message, /at most 100 jobs/);
 });

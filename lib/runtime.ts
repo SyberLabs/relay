@@ -199,3 +199,16 @@ export function boundedPolicyMaximum(value: number) {
   if (!Number.isInteger(n)) return 8;
   return Math.min(100, Math.max(1, n));
 }
+
+export function policyJobIds(policy: { jobs?: string } | null | undefined) {
+  if (!policy?.jobs) return [];
+  try {
+    const parsed = JSON.parse(policy.jobs) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((id): id is string => typeof id === 'string')
+      .slice(0, 100);
+  } catch {
+    return [];
+  }
+}

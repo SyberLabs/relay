@@ -23,6 +23,7 @@ import {
   formatLocation,
   formatPay,
   policyExpiryIso,
+  policyJobIds,
   runtimeLanes,
   sentPip,
   sourceLabel,
@@ -761,11 +762,18 @@ export default function Workspace() {
       return false;
     }
     if (busyRef.current !== false) return 'busy';
-    const allowed = jobs
-      .filter((job) => job.status !== 'Skip' && !isTerminal(job.status))
-      .map((job) => job.id);
+    const allowed = input.enabled
+      ? jobs
+          .filter((job) => job.status !== 'Skip' && !isTerminal(job.status))
+          .map((job) => job.id)
+      : policyJobIds(policyRef.current);
     if (input.enabled && !allowed.length) {
       setMessage('Add a job before enabling autopilot.');
+      return false;
+    }
+    if (input.enabled && allowed.length > 100) {
+      setMessage('Choose at most 100 jobs in Tools before enabling autopilot.');
+      setModal('tools');
       return false;
     }
     const maximum = boundedPolicyMaximum(input.maximum);
@@ -1241,7 +1249,11 @@ export default function Workspace() {
                         Inspect what the agent wrote
                       </button>
                       {current.status === 'Ready' ? (
-                        <Link className="btn btn-clear" href="/applications">
+                        <Link
+                          className="btn btn-clear"
+                          href="/applications"
+                          onClick={confirmLeave}
+                        >
                           Approve and send
                         </Link>
                       ) : null}
@@ -1760,6 +1772,7 @@ export default function Workspace() {
           onClose={() => setModal(null)}
           onEdit={() => setModal(null)}
           onRemember={setRememberAnswer}
+          onNavigate={confirmLeave}
           onSaveLimits={async (input) => {
             const started = { epoch: sessionRef.current.gate.epoch };
             const ok = await saveLimits(input);
@@ -1771,8 +1784,12 @@ export default function Workspace() {
             setModal(null);
             save('Skip');
           }}
+          onUnauthorized={() => {
+            applyExpired();
+          }}
           policy={policy}
           remember={rememberAnswer}
+          sessionRef={sessionRef}
           sources={sources.filter((s) => s.job_key === current?.job_key)}
           toolStatus={toolStatus}
           which={signedOut ? null : modal}

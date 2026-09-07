@@ -9,7 +9,10 @@ import {
   loadJobs,
   loadOutcomes,
 } from '../../../lib/store';
-import { refuseUntrustedOrigin } from '../../../lib/request-origin';
+import {
+  refuseUntrustedOrigin,
+  jsonCharsTooLarge,
+} from '../../../lib/request-origin';
 export const dynamic = 'force-dynamic';
 const reply = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -70,7 +73,12 @@ export async function POST(request: Request) {
   const denied = await refuseUntrustedOrigin(request);
   if (denied) return denied;
   try {
-    const b = JSON.parse(await request.text()),
+    if (jsonCharsTooLarge(request.headers.get('content-length'), 0))
+      return reply({ error: 'Request too large.' }, 413);
+    const raw = await request.text();
+    if (jsonCharsTooLarge(request.headers.get('content-length'), raw.length))
+      return reply({ error: 'Request too large.' }, 413);
+    const b = JSON.parse(raw),
       db = database(),
       now = new Date().toISOString();
     if (b.action !== 'record') return reply({ error: 'Unknown action.' }, 400);

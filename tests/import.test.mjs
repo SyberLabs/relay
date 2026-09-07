@@ -806,3 +806,66 @@ void test('Relay does not vendor GrokCell templates', () => {
     'templates that do not connect to Relay live in sdcarlson/grokcell',
   );
 });
+
+function queryPlan(db, sql) {
+  return db
+    .prepare(`EXPLAIN QUERY PLAN ${sql}`)
+    .all()
+    .map((row) => row.detail)
+    .join('\n');
+}
+
+void test('owner list queries use dedicated non-unique indexes', () => {
+  const db = open();
+  const expected = {
+    events_owner_created:
+      'CREATE INDEX `events_owner_created` ON `events` (`owner`,`created`)',
+    events_owner_job_created:
+      'CREATE INDEX `events_owner_job_created` ON `events` (`owner`,`job_id`,`created`)',
+    observations_owner_created:
+      'CREATE INDEX `observations_owner_created` ON `observations` (`owner`,`created`)',
+    jobs_owner_updated:
+      'CREATE INDEX `jobs_owner_updated` ON `jobs` (`owner`,`updated`)',
+  };
+  for (const [name, sql] of Object.entries(expected)) {
+    const row = db
+      .prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name=?")
+      .get(name);
+    assert.equal(row?.sql, sql, name);
+  }
+  const eventsFeed = queryPlan(
+    db,
+    'SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT ?',
+  );
+  assert.match(eventsFeed, /USING INDEX events_owner_created/);
+  assert.doesNotMatch(eventsFeed, /SCAN events/);
+  assert.doesNotMatch(eventsFeed, /USE TEMP B-TREE/);
+  assert.doesNotMatch(eventsFeed, /events_owner_job_created/);
+  assert.doesNotMatch(eventsFeed, /security_events_owner/);
+  const eventsJob = queryPlan(
+    db,
+    'SELECT * FROM events WHERE owner=? AND job_id=? ORDER BY created DESC LIMIT ?',
+  );
+  assert.match(eventsJob, /USING INDEX events_owner_job_created/);
+  assert.doesNotMatch(eventsJob, /USE TEMP B-TREE/);
+  const eventsBefore = queryPlan(
+    db,
+    'SELECT * FROM events WHERE owner=? AND job_id=? AND created < ? ORDER BY created DESC LIMIT ?',
+  );
+  assert.match(eventsBefore, /USING INDEX events_owner_job_created/);
+  assert.match(eventsBefore, /created<\?/);
+  assert.doesNotMatch(eventsBefore, /USE TEMP B-TREE/);
+  assert.doesNotMatch(eventsBefore, /events_owner_created/);
+  const observations = queryPlan(
+    db,
+    'SELECT * FROM observations WHERE owner=? ORDER BY created',
+  );
+  assert.match(observations, /USING INDEX observations_owner_created/);
+  assert.doesNotMatch(observations, /USE TEMP B-TREE/);
+  const jobs = queryPlan(
+    db,
+    'SELECT * FROM jobs WHERE owner=? ORDER BY updated DESC,name',
+  );
+  assert.match(jobs, /USING INDEX jobs_owner_updated/);
+  db.close();
+});

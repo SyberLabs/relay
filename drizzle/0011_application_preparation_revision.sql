@@ -1,0 +1,1 @@
+ALTER TABLE `application_preparations` ADD `revision` text DEFAULT '' NOT NULL;

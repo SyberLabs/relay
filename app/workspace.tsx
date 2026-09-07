@@ -8,6 +8,7 @@ import { type Fact } from '../lib/profile';
 import { assessJob } from '../lib/fit';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
+import { useInspect } from './inspect';
 import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
 import { BlockerReview } from './blocker-review';
@@ -191,6 +192,13 @@ export default function Workspace() {
           new Date().toISOString(),
         )
       : null;
+  const inspect = useInspect(current?.id, {
+    sessionRef,
+    onUnauthorized: () => {
+      expireSession(sessionRef.current);
+      applyExpired();
+    },
+  });
   const lanes = runtimeLanes(jobs, selected, 'Held');
   const queued = lanes.queue.filter((job) =>
     job.name.toLowerCase().includes(search.toLowerCase()),
@@ -1246,10 +1254,10 @@ export default function Workspace() {
                       {current.status === 'Ready' ? (
                         <Link
                           className="btn btn-clear"
-                          href="/applications"
+                          href="#application-inspect"
                           onClick={confirmLeave}
                         >
-                          Approve and send
+                          Review prepared application
                         </Link>
                       ) : null}
                       <button className="btn" onClick={holdJob} type="button">
@@ -1460,6 +1468,12 @@ export default function Workspace() {
                         Acceptance records your approval of these exact words.
                         Changed wording needs fresh acceptance. Nothing is sent.
                       </small>
+                      <section
+                        id="application-inspect"
+                        aria-label="Prepared application"
+                      >
+                        {inspect}
+                      </section>
                       {connections}
                       <h3>Evidence matches</h3>
                       <small className="muted">

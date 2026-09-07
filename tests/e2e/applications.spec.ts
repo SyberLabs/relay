@@ -47,23 +47,104 @@ test('scout research becomes an exact reviewed application with one execution an
   await page.getByRole('button', { name: 'Save exact proposal' }).click();
   await expect(page.getByRole('status')).toContainText('Exact proposal saved');
   await expect(page.getByRole('article')).toContainText('Review required');
-  await page
-    .getByRole('button', { name: 'Approve this exact application' })
-    .click();
-  await expect(page.getByRole('article')).toContainText(
-    'Explicit approval recorded',
+  const approveName = 'Approve this exact application';
+  const beginName = 'Begin this application once';
+  await expect(page.getByRole('button', { name: approveName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: beginName })).toHaveCount(0);
+  const ledger = await (await page.request.get('/api/applications')).json();
+  const proposed = ledger.operations.find(
+    (o: { state: string }) => o.state === 'proposed',
   );
-  await page
-    .getByRole('button', { name: 'Begin this application once' })
-    .click();
-  await expect(page.getByRole('status')).toContainText(
-    'Execution permitted once',
-  );
+  const detail = await (
+    await page.request.get(
+      `/api/applications?id=${encodeURIComponent(proposed.id)}`,
+    )
+  ).json();
+  const manifest = JSON.parse(detail.operation.manifest) as {
+    destination: string;
+    fields: { label: string; value: string }[];
+    files: { name: string; base64: string; sha256: string }[];
+  };
+  expect(
+    (
+      await page.request.post('/api/applications', {
+        data: {
+          action: 'prepare',
+          preparation_revision: (
+            await (
+              await page.request.get(
+                `/api/applications?job=${detail.operation.job_id}`,
+              )
+            ).json()
+          ).preparation_revision,
+          viewer: ledger.viewer,
+          job: detail.operation.job_id,
+          actor: detail.operation.actor,
+          destination: manifest.destination,
+          fields: manifest.fields.map((field) => ({
+            ...field,
+            unknown: false,
+          })),
+          files: manifest.files,
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  expect(
+    (
+      await page.request.post('/api/applications', {
+        data: {
+          action: 'arm',
+          preparation_revision: (
+            await (
+              await page.request.get(
+                `/api/applications?job=${detail.operation.job_id}`,
+              )
+            ).json()
+          ).preparation_revision,
+          viewer: ledger.viewer,
+          job: detail.operation.job_id,
+          id: detail.operation.id,
+          actor: detail.operation.actor,
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  await expect(page.getByRole('button', { name: approveName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: beginName })).toHaveCount(0);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Pilot Engineer/ }).click();
   await expect(
-    page.getByRole('button', { name: 'Begin this application once' }),
-  ).toHaveCount(0);
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Accept and send' }).click();
+  await expect(
+    page.getByText('Accepted — waiting for the operative to send.'),
+  ).toBeVisible();
+  await page.goto('/applications');
+  await page
+    .getByRole('button', {
+      name: 'Cedar Example — Application Pilot Engineer · authorized · ChatGPT',
+    })
+    .click();
+  await expect(page.getByRole('article')).toContainText('authorized');
+  await expect(page.getByRole('button', { name: approveName })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: beginName })).toHaveCount(0);
+  const begun = await page.request.post('/api/applications', {
+    data: {
+      action: 'begin',
+      viewer: ledger.viewer,
+      id: proposed.id,
+      digest: proposed.digest,
+    },
+  });
+  expect(begun.ok()).toBe(true);
+  expect((await begun.json()).execute).toBe(true);
+  await page.goto('/applications');
+  await expect(page.getByRole('button', { name: beginName })).toHaveCount(0);
   // Interruption recovery reopens persisted evidence without issuing a permit.
   await page.reload();
+  await expect(page.getByRole('button', { name: beginName })).toHaveCount(0);
   await page
     .getByRole('button', {
       name: 'Cedar Example — Application Pilot Engineer · executing · ChatGPT',
@@ -172,20 +253,16 @@ for (const first of ['older', 'newer']) {
     await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
     await page.goto('/applications');
     await page.getByText('Prepare an application', { exact: true }).click();
-    await page
-      .getByLabel('Exact files')
-      .setInputFiles({
-        name: 'older.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('AAAA'),
-      });
-    await page
-      .getByLabel('Exact files')
-      .setInputFiles({
-        name: 'newer.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('BBBB'),
-      });
+    await page.getByLabel('Exact files').setInputFiles({
+      name: 'older.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('AAAA'),
+    });
+    await page.getByLabel('Exact files').setInputFiles({
+      name: 'newer.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('BBBB'),
+    });
     const finish = async (name: string) =>
       page.evaluate(async (name) => {
         const control = window as unknown as {

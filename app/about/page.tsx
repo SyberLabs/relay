@@ -71,7 +71,9 @@ export default function About() {
         signed-in Codex CLI. Every returned draft requires review.
       </p>
       <p>
-        Relay does not send applications. Live provider connections require
+        Relay does not POST the employer form. A human Inspect Accept on a
+        complete armed payload authorizes the waiting operative to send once.
+        Live provider connections require
         setup. This early release has no claimed hiring outcomes or proven
         throughput gains.
       </p>

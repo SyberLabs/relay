@@ -70,7 +70,7 @@ ${copy.summary}
 
 ${credit}
 
-${copy.stage}. Review and approve wording for each job; Relay does not send applications.
+${copy.stage}. Review and approve wording for each job; Relay does not POST the employer form.
 
 <details>
 <summary>Integrations and review boundaries</summary>
@@ -83,7 +83,7 @@ ${copy.boundary}
 
 **[Explore RELAY](${copy.repository})** | [ChatGPT and Codex setup](${guide})`;
   if (target === 'profile')
-    return `- **[${copy.name}](${copy.repository}) - Lead engineer.** ${copy.summary} ${copy.stage}; drafts require human review and Relay does not send applications. [Integration guides, including ChatGPT and Codex](${guide}).`;
+    return `- **[${copy.name}](${copy.repository}) - Lead engineer.** ${copy.summary} ${copy.stage}; drafts require human review and Relay does not POST the employer form. [Integration guides, including ChatGPT and Codex](${guide}).`;
   return `<p class="relay-release">${escapeHtml(copy.summary)} ${escapeHtml(copy.stage)}. ${escapeHtml(copy.boundary)} <a href="${escapeHtml(guide)}" target="_blank" rel="noopener">ChatGPT and Codex setup &#8599;</a></p>`;
 }
 

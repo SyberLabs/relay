@@ -4,7 +4,6 @@ import { enableInspectJob } from './enable-inspect-job';
 test('apply overlay shows inspect summary without Accept and send', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 320, height: 240 });
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
   await page.request.post('/api/workspace', {
@@ -46,6 +45,7 @@ test('apply overlay shows inspect summary without Accept and send', async ({
       actor: 'Fictional applying agent',
     },
   });
+  await page.setViewportSize({ width: 320, height: 240 });
   await page.goto(`/apply?job=${encodeURIComponent(job.id)}`);
   await expect(page.getByRole('heading', { name: 'Inspect' })).toBeVisible();
   await expect(page.getByText(/Destination host/)).toBeVisible();

@@ -85,6 +85,13 @@
       "when": 1788810191490,
       "tag": "0011_application_preparation_revision",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1788816067920,
+      "tag": "0012_owner_read_indexes",
+      "breakpoints": true
     }
   ]
 }

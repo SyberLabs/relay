@@ -111,7 +111,6 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
       pageA.getByRole('heading', { name: 'Workspace' }),
     ).toBeVisible();
     await expect(pageA.getByText('Opening your workspace…')).toHaveCount(0);
-    await pageA.getByRole('button', { name: /All opportunities/ }).click();
     await expect(
       pageA.getByRole('button', { name: /Willow Example — Isolation Owner A/ }),
     ).toBeVisible();
@@ -130,7 +129,6 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
       ),
     ).toHaveCount(0);
 
-    await pageB.getByRole('button', { name: /All opportunities/ }).click();
     await expect(
       pageB.getByRole('button', { name: /Maple Example — Isolation Owner B/ }),
     ).toBeVisible();

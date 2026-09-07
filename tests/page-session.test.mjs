@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/page-session.ts';
+import { asSheetJobs } from '../lib/runtime.ts';
 
 // Coverage: helper 401-before-parse; each page refresh/mutation/extract via
 // compiled source callbacks; review sibling GET held after the other 401s;
@@ -99,6 +100,7 @@ function pageDeps(state, keys, fetchImpl) {
   const session = helper.createPageSession();
   const deps = {
     ...helper,
+    asSheetJobs,
     ...setters(state, keys),
     ...state,
     sessionRef: { current: session },
@@ -173,7 +175,7 @@ const reviewKeys = [
   'message',
   'signedOut',
 ];
-const trackKeys = ['data', 'busy', 'message', 'receipts', 'signedOut'];
+const trackKeys = ['data', 'jobs', 'busy', 'message', 'receipts', 'signedOut'];
 
 function loadedProfile() {
   return {
@@ -267,6 +269,7 @@ function loadedTrack() {
     busy: false,
     message: 'old',
     receipts: { 'job-1': 'PRIVATE_TYPED_RECEIPT' },
+    jobs: [{ id: 'job-1', name: 'PRIVATE_TRACK_JOB', status: 'Ready' }],
     signedOut: false,
   };
 }
@@ -303,7 +306,10 @@ function assertCleared(label, state, detail) {
     assert.deepEqual(state.drafts, [], detail);
     assert.deepEqual(state.facts, [], detail);
   }
-  if (label === 'track') assert.equal(state.data, null, detail);
+  if (label === 'track') {
+    assert.equal(state.data, null, detail);
+    assert.deepEqual(state.jobs, [], detail);
+  }
 }
 
 void test('plain Unauthorized 401 expires without parsing JSON', async () => {
@@ -470,6 +476,7 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
       }
       if (label === 'track') {
         assert.equal(state.data, null);
+        assert.deepEqual(state.jobs, []);
         assert.deepEqual(state.receipts, {});
       }
     });
@@ -531,7 +538,10 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
     if (label === 'profile') assert.deepEqual(state.facts, []);
     if (label === 'preferences') assert.equal(state.state, null);
     if (label === 'review') assert.deepEqual(state.drafts, []);
-    if (label === 'track') assert.equal(state.data, null);
+    if (label === 'track') {
+      assert.equal(state.data, null);
+      assert.deepEqual(state.jobs, []);
+    }
   });
 
   void test(`${label} expired session refuses a new mutation before fetch`, async () => {

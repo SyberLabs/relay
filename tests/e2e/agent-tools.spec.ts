@@ -78,6 +78,8 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
         'relay_stage_draft',
       ]);
       // Client navigation unmounts the workspace and removes its tools.
+      await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+      await expect(page).toHaveURL(/\/track/);
       await page.getByRole('link', { name: 'Your facts', exact: true }).click();
       await expect(page).toHaveURL(/\/profile$/);
     }

@@ -1013,6 +1013,70 @@ footer {
   margin-top: 0;
   font-size: 20px;
 }
+.sheet-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  margin: 16px 0 20px;
+  padding: 0;
+  min-width: 0;
+}
+.sheet-filters legend,
+.sheet-filter-label {
+  display: block;
+  width: 100%;
+  float: none;
+  padding: 0;
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.sheet-filters button {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 100px;
+}
+.sheet-filters button[aria-pressed='true'] {
+  color: var(--signal);
+  border-color: rgba(240, 166, 60, 0.45);
+  background: rgba(240, 166, 60, 0.1);
+}
+.job-sheet-wrap {
+  overflow-x: auto;
+}
+.job-sheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.job-sheet th,
+.job-sheet td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.job-sheet thead th {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+}
+.job-sheet tbody th {
+  font-weight: 600;
+}
+.job-sheet tbody th a {
+  color: inherit;
+}
+.job-sheet tbody tr:hover td,
+.job-sheet tbody tr:hover th {
+  background: var(--decision-tint);
+}
 .checkrow {
   display: flex;
   gap: 10px;

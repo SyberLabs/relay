@@ -30,10 +30,9 @@ import {
 } from '../lib/runtime';
 import {
   isQueueFilter,
-  queueFromSearch,
+  plantSearchAction,
   queueHref,
-  queueTitle,
-  type QueueFilter,
+  workspaceHref,
 } from '../lib/nav';
 import {
   importTabButtonId,
@@ -121,11 +120,6 @@ export default function Workspace() {
     [events, setEvents] = useState<ReviewEvent[]>([]),
     [facts, setFacts] = useState<Fact[]>([]),
     [editor, setEditor] = useState<Editor | null>(null),
-    [filter, setFilter] = useState<QueueFilter>(() =>
-      typeof window === 'undefined'
-        ? 'Held'
-        : queueFromSearch(window.location.search),
-    ),
     [search, setSearch] = useState(''),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
@@ -197,13 +191,7 @@ export default function Workspace() {
           new Date().toISOString(),
         )
       : null;
-  const counts = useMemo(() => {
-    const byStatus: Record<string, number> = {};
-    for (const job of jobs)
-      byStatus[job.status] = (byStatus[job.status] || 0) + 1;
-    return { total: jobs.length, byStatus };
-  }, [jobs]);
-  const lanes = runtimeLanes(jobs, selected, filter);
+  const lanes = runtimeLanes(jobs, selected, 'Held');
   const queued = lanes.queue.filter((job) =>
     job.name.toLowerCase().includes(search.toLowerCase()),
   );
@@ -329,6 +317,13 @@ export default function Workspace() {
       if (!outcome.switched && !refreshIsLive(sessionRef.current.gate, started))
         return;
       const nextJobs = outcome.jobs as Job[];
+      if (!selectedRef.current && typeof window !== 'undefined') {
+        const raw = new URLSearchParams(window.location.search).get('job');
+        const wanted =
+          raw && raw.trim() && raw.trim().length <= 200 ? raw.trim() : null;
+        if (wanted && nextJobs.some((job) => job.id === wanted))
+          selectedRef.current = wanted;
+      }
       setJobs(nextJobs);
       setSources(outcome.sources as Source[]);
       setEvents(outcome.events as ReviewEvent[]);
@@ -336,6 +331,12 @@ export default function Workspace() {
       setDraftingPreference(
         outcome.draftingPreference ?? defaultDraftingPreference,
       );
+      const editorFromSelection = (e: Editor | null) => {
+        const match = nextJobs.find((job) => job.id === selectedRef.current);
+        const current =
+          e?.jobId === selectedRef.current ? e : match ? loadEditor(match) : e;
+        return editorForJobs(sessionRef.current, current, outcome.jobs);
+      };
       if (outcome.switched) {
         setModal(null);
         setPolicy(null);
@@ -351,10 +352,10 @@ export default function Workspace() {
           selectedRef.current = '';
           setEditor(null);
         } else {
-          setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+          setEditor(editorFromSelection);
         }
       } else {
-        setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+        setEditor(editorFromSelection);
       }
       setSignedOut(false);
       setLoaded(true);
@@ -378,6 +379,14 @@ export default function Workspace() {
         setLoaded(true);
       });
   }, [refresh]);
+  useEffect(() => {
+    const action = plantSearchAction(window.location.search);
+    if (action.redirectTo) {
+      window.location.replace(action.redirectTo);
+      return;
+    }
+    if (action.stripTo) window.history.replaceState(null, '', action.stripTo);
+  }, []);
   useEffect(() => {
     if (!showImport) return;
     function onKey(event: KeyboardEvent) {
@@ -465,32 +474,11 @@ export default function Workspace() {
     if (editorIsDirty(editor) && !discardUnsaved()) return;
     selectedRef.current = job.id;
     setEditor(loadEditor(job));
+    window.history.replaceState(null, '', workspaceHref(job.id));
     void loadJobHistory(job.id);
     requestAnimationFrame(() => {
       detailRef.current?.scrollIntoView({ block: 'start' });
       detailRef.current?.querySelector('h2')?.focus({ preventScroll: true });
-    });
-  }
-  function chooseFilter(value: QueueFilter) {
-    if (signedOut) {
-      document
-        .getElementById('workspace-signin')
-        ?.scrollIntoView({ block: 'nearest' });
-      return;
-    }
-    if (value === filter) {
-      queueRef.current?.scrollIntoView({ block: 'nearest' });
-      queueRef.current?.querySelector('h2')?.focus();
-      return;
-    }
-    if (editorIsDirty(editor) && !discardUnsaved()) return;
-    selectedRef.current = '';
-    setFilter(value);
-    setEditor(null);
-    window.history.replaceState(null, '', queueHref(value));
-    requestAnimationFrame(() => {
-      queueRef.current?.scrollIntoView({ block: 'nearest' });
-      queueRef.current?.querySelector('h2')?.focus();
     });
   }
   function openImport(tab: ImportTab = 'json') {
@@ -685,14 +673,13 @@ export default function Workspace() {
       );
       if (savedJob && selectSaved) {
         selectedRef.current = savedJob.id;
-        setFilter((currentFilter) =>
-          currentFilter === 'All' || currentFilter === savedJob.status
-            ? currentFilter
-            : isQueueFilter(savedJob.status)
-              ? savedJob.status
-              : currentFilter,
-        );
         setEditor(loadEditor(savedJob));
+        if (typeof window !== 'undefined')
+          window.history.replaceState(
+            null,
+            '',
+            '/?job=' + encodeURIComponent(savedJob.id),
+          );
         void loadJobHistory(savedJob.id);
       }
       const kind = (outcome.body as Report).items?.[0]?.kind;
@@ -748,6 +735,7 @@ export default function Workspace() {
     if (editorIsDirty(editor) && !discardUnsaved()) return;
     selectedRef.current = '';
     setEditor(null);
+    window.history.replaceState(null, '', '/');
     setMessage('Held. Moved back to the queue.');
   }
   function loadNext() {
@@ -890,8 +878,6 @@ export default function Workspace() {
     <RuntimeShell
       addJobPrimary={addJobPrimary}
       autopilot={autopilot}
-      counts={counts}
-      filter={filter}
       importOpen={showImport}
       importDisabled={signedOut || !loaded}
       lead={stageLead(stageView)}
@@ -908,7 +894,6 @@ export default function Workspace() {
       logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
       onAddJob={openAddJob}
       onAutopilot={() => void toggleAutopilot()}
-      onFilter={chooseFilter}
       onImport={findMoreJobs}
       onNavigate={confirmLeave}
       showAddJob={loaded && !signedOut && jobs.length > 0}
@@ -1294,12 +1279,17 @@ export default function Workspace() {
                   {current ? (
                     <section className="detail core-review">
                       <div className="detailhead">
-                        <button
+                        <Link
                           className="textbutton back-to-jobs"
-                          onClick={() => chooseFilter(filter)}
+                          href={
+                            isQueueFilter(current.status)
+                              ? queueHref(current.status)
+                              : '/track'
+                          }
+                          onClick={confirmLeave}
                         >
                           Back to jobs
-                        </button>
+                        </Link>
                         <span className="badge">
                           Relay status: {current.status}
                         </span>
@@ -1654,7 +1644,7 @@ export default function Workspace() {
                     ref={queueRef}
                   >
                     <div className="plate-head queuehead">
-                      <h2 tabIndex={-1}>{queueTitle(filter)}</h2>
+                      <h2 tabIndex={-1}>Review queue</h2>
                       <span className="tally">{queued.length}</span>
                     </div>
                     <label className="search">

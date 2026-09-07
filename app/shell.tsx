@@ -22,7 +22,6 @@ import {
   QUEUE_FILTERS,
   pageIsCurrent,
   queueHref,
-  type QueueFilter,
   type ShellPage,
 } from '../lib/nav';
 
@@ -47,19 +46,11 @@ const pageIcons = {
 
 export function ShellNav({
   current,
-  filter,
-  counts,
-  onFilter,
   onNavigate,
 }: {
   current: ShellPage;
-  filter?: string;
-  counts?: { total: number; byStatus: Record<string, number> };
-  onFilter?: (value: QueueFilter) => void;
   onNavigate?: (event: { preventDefault: () => void }) => void;
 }) {
-  const onWorkspace = current === 'workspace';
-  const showJobList = !onWorkspace || (counts?.total ?? 0) > 0;
   const pageLink = (
     item:
       | (typeof PORTFOLIO_PAGE_LINKS)[number]
@@ -83,43 +74,19 @@ export function ShellNav({
   };
   return (
     <>
-      {showJobList ? (
+      {current !== 'track' ? (
         <fieldset aria-describedby="nav-queue-hint" className="navset">
           <legend className="navlabel" id="nav-queue-label">
             Job list
           </legend>
           <p className="navhint" id="nav-queue-hint">
-            {onWorkspace
-              ? 'Choose which job to continue. Review and accept happen on the selected job.'
-              : 'Opens the workspace and shows that job list.'}
+            Opens Track and shows that job list.
           </p>
           {QUEUE_FILTERS.map((item) => {
             const Icon = queueIcons[item.value];
-            const count =
-              item.value === 'All'
-                ? (counts?.total ?? 0)
-                : (counts?.byStatus[item.value] ?? 0);
-            const className =
-              'nav nav-filter' +
-              (onWorkspace && filter === item.value ? ' active' : '');
-            if (onWorkspace && onFilter)
-              return (
-                <button
-                  aria-controls="workspace-queue"
-                  aria-pressed={filter === item.value}
-                  className={className}
-                  key={item.value}
-                  onClick={() => onFilter(item.value)}
-                  type="button"
-                >
-                  <Icon size={18} />
-                  {item.label}
-                  <span className="nav-end">{count}</span>
-                </button>
-              );
             return (
               <Link
-                className={className}
+                className="nav nav-filter"
                 href={queueHref(item.value)}
                 key={item.value}
                 onClick={onNavigate}
@@ -137,8 +104,8 @@ export function ShellNav({
           Outcomes
         </legend>
         <p className="navhint" id="nav-outcomes-hint">
-          Record what happened after you submitted. This is not the draft review
-          step.
+          Track every job and record what happened after you submitted. This is
+          not the draft review step.
         </p>
         {PORTFOLIO_PAGE_LINKS.map(pageLink)}
       </fieldset>
@@ -158,16 +125,10 @@ export function ShellNav({
 export function AppShell({
   children,
   current,
-  filter,
-  counts,
-  onFilter,
   onNavigate,
 }: {
   children: ReactNode;
   current: ShellPage;
-  filter?: string;
-  counts?: { total: number; byStatus: Record<string, number> };
-  onFilter?: (value: QueueFilter) => void;
   onNavigate?: (event: { preventDefault: () => void }) => void;
 }) {
   return (
@@ -179,13 +140,7 @@ export function AppShell({
         <Link className="brand" href="/" onClick={onNavigate}>
           Relay <span>workspace</span>
         </Link>
-        <ShellNav
-          counts={counts}
-          current={current}
-          filter={filter}
-          onFilter={onFilter}
-          onNavigate={onNavigate}
-        />
+        <ShellNav current={current} onNavigate={onNavigate} />
         <div className="sidebottom">
           <p>External agents apply under your permissions.</p>
         </div>

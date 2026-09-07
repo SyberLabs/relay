@@ -5,15 +5,18 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
 }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
-  const sidebar = page.locator('aside');
+  await expect(
+    page.getByRole('link', { name: 'Track jobs', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  const sidebar = page.locator('aside.sidebar');
   await expect(sidebar.getByRole('group', { name: 'Outcomes' })).toBeVisible();
   await expect(
     sidebar.getByRole('group', { name: 'Reusable context' }),
   ).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
-  await expect(
-    sidebar.getByRole('link', { name: 'Track outcomes' }),
-  ).toBeVisible();
+  await expect(sidebar.getByRole('link', { name: 'Track jobs' })).toBeVisible();
+  await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   for (const href of ['/review', '/preferences', '/plan'])
     await expect(sidebar.locator(`a[href="${href}"]`)).toHaveCount(0);
 
@@ -80,16 +83,12 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
     page.getByText(/Saving here does not run the agent citation check/),
   ).toBeVisible();
   page.once('dialog', (dialog) => dialog.dismiss());
-  await sidebar.getByRole('link', { name: 'Advanced', exact: true }).click();
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
   await expect(editor).toHaveValue(draft);
   await page.getByRole('button', { name: 'Accept exact draft' }).click();
   await expect(
     page.getByText('Saved. Your review is preserved.'),
   ).toBeVisible();
-  await sidebar.getByRole('button', { name: /Accepted drafts/ }).click();
-  await page
-    .getByRole('button', { name: /Larch Example — Pilot Engineer/ })
-    .click();
   await expect(editor).toHaveValue(draft);
   await expect(
     page.getByRole('button', { name: 'Accept exact draft' }),
@@ -109,19 +108,17 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
     page.getByRole('button', { name: 'Accept exact draft' }),
   ).toBeDisabled();
   await page.reload();
-  await sidebar.getByRole('button', { name: /Accepted drafts/ }).click();
-  await page
-    .getByRole('button', { name: /Larch Example — Pilot Engineer/ })
-    .click();
   await expect(editor).toHaveValue(
     draft + ' Thank you for considering my application.',
   );
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
   await sidebar.getByRole('link', { name: 'Your facts' }).click();
   await expect(
     page.locator('article.factrow').filter({ hasText: claim }),
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('link', { name: 'Workspace', exact: true }).click();
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
   await sidebar.getByRole('link', { name: 'Advanced', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Advanced', exact: true }),
@@ -171,8 +168,9 @@ test('advanced navigation preserves planning, preferences and logged batch revie
     },
   });
   expect(logged.ok()).toBe(true);
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
   await page
-    .locator('aside')
+    .locator('aside.sidebar')
     .getByRole('link', { name: 'Advanced', exact: true })
     .click();
   await expect(

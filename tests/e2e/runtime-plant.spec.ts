@@ -16,7 +16,19 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   await expect(
     page.getByRole('heading', { name: 'Stuck, needs your answer' }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Review queue' }),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Autopilot' })).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Track jobs', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /All opportunities/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('link', { name: 'Advanced', exact: true }),
+  ).toHaveCount(0);
 
   const held = {
     url: 'https://example.com/research/runtime-plant-held',
@@ -48,6 +60,7 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   await page
     .getByRole('button', { name: /Runtime Plant — Held Engineer/ })
     .click();
+  await expect(page).toHaveURL(/[?&]job=/);
   await expect(
     page.getByRole('heading', { name: 'Runtime Plant — Held Engineer' }),
   ).toBeVisible();

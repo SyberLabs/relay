@@ -1,15 +1,11 @@
 'use client';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { Upload } from 'lucide-react';
-import { ShellNav } from './shell';
-import type { QueueFilter } from '../lib/nav';
 import './runtime.css';
 
 export function RuntimeShell({
   children,
-  filter,
-  counts,
-  onFilter,
   onNavigate,
   lead,
   live,
@@ -26,9 +22,6 @@ export function RuntimeShell({
   logLine,
 }: {
   children: ReactNode;
-  filter?: string;
-  counts?: { total: number; byStatus: Record<string, number> };
-  onFilter?: (value: QueueFilter) => void;
   onNavigate?: (event: { preventDefault: () => void }) => void;
   lead: string;
   live: boolean;
@@ -62,13 +55,9 @@ export function RuntimeShell({
           <span>{stateText}</span>
         </div>
         <aside className="bar-nav">
-          <ShellNav
-            counts={counts}
-            current="workspace"
-            filter={filter}
-            onFilter={onFilter}
-            onNavigate={onNavigate}
-          />
+          <Link href="/track" onClick={onNavigate}>
+            Track jobs
+          </Link>
         </aside>
         <div className="bar-right">
           {showAddJob ? (

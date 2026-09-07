@@ -74,10 +74,11 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
     page.getByText('Saved. Your review is preserved.'),
   ).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: /Accepted drafts/ }).click();
-  await page
-    .getByRole('button', { name: /Browser Example — Reliability Engineer/ })
-    .click();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Browser Example — Reliability Engineer',
+    }),
+  ).toBeVisible();
   await expect(
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
@@ -241,10 +242,9 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
     ).notes,
   ).not.toContain('OMITTED_MARKER');
   await page.reload();
-  await page.getByRole('button', { name: /Accepted drafts/ }).click();
-  await page
-    .getByRole('button', { name: /CSV Browser Example — Engineer/ })
-    .click();
+  await expect(
+    page.getByRole('heading', { name: 'CSV Browser Example — Engineer' }),
+  ).toBeVisible();
   await expect(
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
@@ -261,19 +261,20 @@ test('a dirty editor asks before opening the saved facts screen', async ({
     await explore.click();
     await expect(page.getByText('Workspace updated.')).toBeVisible();
   }
-  await page.getByRole('button', { name: /All opportunities/ }).click();
   await page.locator('section.queue .joblist button').first().click();
   const draft = 'Unsaved dirty-navigation draft.';
   await page
     .getByRole('textbox', { name: 'Application answer or outreach draft' })
     .fill(draft);
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('link', { name: 'Your facts' }).click();
-  await expect(page).not.toHaveURL(/\/profile/);
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await expect(page).not.toHaveURL(/\/track/);
   await expect(
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
   page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await expect(page).toHaveURL(/\/track/);
   await page.getByRole('link', { name: 'Your facts' }).click();
   await expect(
     page.getByRole('heading', { name: 'Your profile' }),
@@ -283,15 +284,13 @@ test('a dirty editor asks before opening the saved facts screen', async ({
 test('controls act on the adjacent panel they name', async ({ page }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
   await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
-  const sidebar = page.locator('aside');
-  await expect(sidebar.getByRole('group', { name: 'Outcomes' })).toBeVisible();
   await expect(
-    sidebar.getByRole('group', { name: 'Reusable context' }),
+    page.getByRole('link', { name: 'Track jobs', exact: true }),
   ).toBeVisible();
-  await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   await expect(
-    sidebar.getByRole('link', { name: 'Your facts' }),
-  ).not.toHaveAttribute('aria-current', 'page');
+    page.getByRole('link', { name: 'Your facts', exact: true }),
+  ).toHaveCount(0);
 
   const importBtn = page.getByRole('button', {
     name: 'Import research',
@@ -325,7 +324,7 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
   await page.getByRole('button', { name: 'Preview matches' }).click();
   await page.getByRole('button', { name: 'Import into workspace' }).click();
   await expect(page.locator('#workspace-queue')).toBeVisible();
-  await expect(sidebar.getByRole('group', { name: 'Job list' })).toBeVisible();
+  await expect(page.locator('#workspace-queue h2')).toHaveText('Review queue');
   expect(
     await page.evaluate(() => {
       const panel = document.getElementById('import-dock');
@@ -337,25 +336,39 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
       );
     }),
   ).toBe(true);
-  await sidebar.getByRole('button', { name: /All opportunities/ }).click();
-  await expect(page.locator('#workspace-queue h2')).toHaveText(
-    'All opportunities',
-  );
-  await expect(page).toHaveURL(/\?queue=All/);
+
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Track' })).toBeVisible();
+  const sidebar = page.locator('aside.sidebar');
+  await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
+  await expect(sidebar.getByRole('group', { name: 'Outcomes' })).toBeVisible();
+  await expect(
+    sidebar.getByRole('group', { name: 'Reusable context' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /All opportunities/ }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: /Review queue/ }).click();
+  await expect(page).toHaveURL(/queue=Held/);
+  await expect(
+    page.getByRole('button', { name: /Review queue/ }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('link', { name: /Engineer/ })).toBeVisible();
 
   await sidebar.getByRole('link', { name: 'Your facts' }).click();
   await expect(
     page.getByRole('heading', { name: 'Your profile' }),
   ).toBeVisible();
   await expect(
-    page.locator('aside').getByRole('link', { name: 'Your facts' }),
+    page.locator('aside.sidebar').getByRole('link', { name: 'Your facts' }),
   ).toHaveAttribute('aria-current', 'page');
   await page
-    .locator('aside')
+    .locator('aside.sidebar')
     .getByRole('group', { name: 'Job list' })
     .getByRole('link', { name: /Review queue/ })
     .click();
-  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  await expect(page).toHaveURL(/\/track\?queue=Held/);
+  await expect(page.getByRole('heading', { name: 'Track' })).toBeVisible();
 });
 
 test('tracker import actions stay inside the window after a long preview', async ({

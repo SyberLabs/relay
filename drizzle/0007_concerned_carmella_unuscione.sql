@@ -34,7 +34,7 @@ WHEN (SELECT COUNT(*) FROM application_operations WHERE owner=NEW.owner)>=500
 BEGIN SELECT RAISE(ABORT,'Application history storage limit reached'); END;
 --> statement-breakpoint
 CREATE TRIGGER application_operations_payload_bound BEFORE INSERT ON application_operations
-WHEN length(CAST(NEW.manifest AS BLOB))>180000 OR length(CAST(NEW.policy_snapshot AS BLOB))>20000
+WHEN length(CAST(NEW.manifest AS BLOB))>240000 OR length(CAST(NEW.policy_snapshot AS BLOB))>20000
 BEGIN SELECT RAISE(ABORT,'Application evidence too large'); END;
 --> statement-breakpoint
 CREATE TRIGGER application_operations_immutable BEFORE UPDATE ON application_operations

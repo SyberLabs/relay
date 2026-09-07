@@ -18,6 +18,7 @@ function database() {
     .filter((f) => f.endsWith('.sql'))
     .sort())
     sqlite.exec(readFileSync(`drizzle/${f}`, 'utf8'));
+  let pending = Promise.resolve();
   const db = {
     sqlite,
     prepare(sql) {
@@ -35,17 +36,21 @@ function database() {
       });
       return { bind: (...args) => bound(args), ...bound([]) };
     },
-    async batch(statements) {
-      sqlite.exec('BEGIN');
-      try {
-        const out = [];
-        for (const s of statements) out.push(await s.run());
-        sqlite.exec('COMMIT');
-        return out;
-      } catch (e) {
-        sqlite.exec('ROLLBACK');
-        throw e;
-      }
+    batch(statements) {
+      const work = pending.then(async () => {
+        sqlite.exec('BEGIN');
+        try {
+          const out = [];
+          for (const s of statements) out.push(await s.run());
+          sqlite.exec('COMMIT');
+          return out;
+        } catch (e) {
+          sqlite.exec('ROLLBACK');
+          throw e;
+        }
+      });
+      pending = work.catch(() => {});
+      return work;
     },
   };
   for (const owner of ['alice', 'bob'])
@@ -297,7 +302,7 @@ void test('malformed files and oversized content cannot produce a saved proposal
     label: `Question ${i}`,
     value: 'é'.repeat(10000),
   }));
-  await assert.rejects(validateManifest(p.manifest), /180,000/);
+  await assert.rejects(validateManifest(p.manifest), /240,000/);
 });
 
 void test('blockers and policy capacity prevent starts; explicit no-submission evidence permits a fresh proposal', async () => {
@@ -387,6 +392,67 @@ void test('database protects exact evidence and caps history across insertion pa
     'alice',
     config({ version: 1, enabled: false }),
     '2026-10-01T00:00:00.000Z',
+  );
+  db.sqlite.close();
+});
+
+void test('overlapping uncertainty reports persist only the first report', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  const op = await proposeApplication(db, 'alice', proposal(), now);
+  await actOnApplication(db, 'alice', action(op, 'begin'), now);
+  const reports = await Promise.allSettled([
+    actOnApplication(
+      db,
+      'alice',
+      action(op, 'uncertain', { receipt: 'First observation' }),
+      now,
+    ),
+    actOnApplication(
+      db,
+      'alice',
+      action(op, 'uncertain', { receipt: 'Later conflicting observation' }),
+      now,
+    ),
+  ]);
+  assert.equal(reports.filter((r) => r.status === 'fulfilled').length, 1);
+  assert.equal(
+    (await loadOperation(db, 'alice', op.id)).receipt,
+    'First observation',
+  );
+  assert.equal(
+    db.sqlite
+      .prepare(
+        "SELECT COUNT(*) AS n FROM events WHERE kind='Application outcome uncertain'",
+      )
+      .get().n,
+    1,
+  );
+  db.sqlite.close();
+});
+
+void test('148KB fictional resume round-trips exactly within unchanged gateway limits', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  const bytes = Buffer.alloc(148000, 65),
+    input = proposal();
+  input.manifest.files = [
+    {
+      name: 'fictional-resume.txt',
+      base64: bytes.toString('base64'),
+      sha256: await digest(bytes),
+    },
+  ];
+  const serialized = JSON.stringify({
+    ...input,
+    action: 'propose',
+    viewer: 'alice',
+  });
+  assert.ok(Buffer.byteLength(serialized) < 248000);
+  const op = await proposeApplication(db, 'alice', input, now);
+  assert.deepEqual(
+    Buffer.from(JSON.parse(op.manifest).files[0].base64, 'base64'),
+    bytes,
   );
   db.sqlite.close();
 });

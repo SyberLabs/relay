@@ -65,7 +65,7 @@ export async function POST(request: Request) {
   if (denied) return denied;
   try {
     const raw = await request.text();
-    if (new TextEncoder().encode(raw).length > 200000)
+    if (new TextEncoder().encode(raw).length > 248000)
       return reply({ error: 'Request is too large.' }, 413);
     const b = JSON.parse(raw);
     if (!b || typeof b !== 'object' || b.viewer !== viewer)

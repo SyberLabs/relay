@@ -21,7 +21,7 @@ The initial transport uses the owner's authenticated browser session. Agent name
 
 No new scheduler, provider catalog, chat frontend, paid model call, or hosted crawler is needed. Recurring scouting runs on the external assistant's existing scheduling and resources, after the direct workflow passes. No Relay-funded background work is introduced.
 
-All routes inherit gateway authentication, owner/global work quotas, body bounds, CAPTCHA, and kill switch. One mutation weighs ten work units. Proposals are bounded to 100 fields, two files, and 180,000 serialized UTF-8 bytes. Up to 500 immutable proposals per owner; never prune history to admit work. Listing returns at most 20 manifests with cursor pagination. One policy per owner; at most 100 allowed jobs, expiration at most 30 days, maximum 10 submissions per UTC day and 100 per policy. Submission starts use atomic database predicates; failures and uncertainty retain consumed capacity.
+All routes inherit gateway authentication, owner/global work quotas, body bounds, CAPTCHA, and kill switch. One mutation weighs ten work units. Proposals are bounded to 100 fields, two files, and 240,000 serialized UTF-8 bytes. Up to 500 immutable proposals per owner; never prune history to admit work. Listing returns at most 20 manifests with cursor pagination. One policy per owner; at most 100 allowed jobs, expiration at most 30 days, maximum 10 submissions per UTC day and 100 per policy. Submission starts use atomic database predicates; failures and uncertainty retain consumed capacity.
 
 ## Verification and release
 

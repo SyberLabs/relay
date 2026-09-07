@@ -40,6 +40,7 @@ export default function Applications() {
   const [files, setFiles] = useState<SubmissionManifest['files']>([]);
   const [receipt, setReceipt] = useState('');
   const operationId = useRef('');
+  const fileGeneration = useRef(0);
   const request = useCallback(async (url: string, body?: unknown) => {
     if (stopped.current) throw Error('Session changed. Reload to continue.');
     const r = await fetch(
@@ -425,19 +426,20 @@ export default function Applications() {
               </button>
               <p>
                 <label>
-                  Exact files (up to two, 75 KB each){' '}
+                  Exact files (up to two, 160 KB each){' '}
                   <input
                     type="file"
                     multiple
                     onChange={(e) => {
                       const chosen = Array.from(e.target.files || []);
+                      const generation = ++fileGeneration.current;
                       setFiles([]);
                       void run(async () => {
                         if (
                           chosen.length > 2 ||
-                          chosen.some((f) => f.size > 75000)
+                          chosen.some((f) => f.size > 160000)
                         )
-                          throw Error('Choose up to two files, 75 KB each.');
+                          throw Error('Choose up to two files, 160 KB each.');
                         const prepared = await Promise.all(
                           chosen.map(async (file) => {
                             const bytes = new Uint8Array(
@@ -454,7 +456,11 @@ export default function Applications() {
                             };
                           }),
                         );
-                        if (!stopped.current) setFiles(prepared);
+                        if (
+                          !stopped.current &&
+                          generation === fileGeneration.current
+                        )
+                          setFiles(prepared);
                       });
                     }}
                   />

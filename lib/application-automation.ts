@@ -114,7 +114,7 @@ export async function validateManifest(
       'Invalid file name.',
     );
     requireThat(
-      shortText(file.base64, 100000) &&
+      shortText(file.base64, 213336) &&
         /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
           file.base64,
         ),
@@ -122,7 +122,7 @@ export async function validateManifest(
     );
     const binary = atob(file.base64);
     requireThat(
-      btoa(binary) === file.base64 && binary.length <= 75000,
+      btoa(binary) === file.base64 && binary.length <= 160000,
       'Invalid file encoding or size.',
     );
     requireThat(
@@ -141,8 +141,8 @@ export async function validateManifest(
     })),
   };
   requireThat(
-    new TextEncoder().encode(JSON.stringify(manifest)).length <= 180000,
-    'Submission exceeds 180,000 bytes.',
+    new TextEncoder().encode(JSON.stringify(manifest)).length <= 240000,
+    'Submission exceeds 240,000 bytes.',
   );
   return manifest;
 }
@@ -409,8 +409,7 @@ export async function actOnApplication(
       shortText(input.receipt, 10000),
       'Record the employer confirmation or reason for uncertainty.',
     );
-    sql =
-      "UPDATE application_operations SET state=?,receipt=?,finished=? WHERE owner=? AND id=? AND state IN ('executing','uncertain')";
+    sql = `UPDATE application_operations SET state=?,receipt=?,finished=? WHERE owner=? AND id=? AND ${input.action === 'uncertain' ? "state='executing'" : "state IN ('executing','uncertain')"}`;
     args = [
       input.action === 'complete' ? 'submitted' : String(input.action),
       input.receipt,

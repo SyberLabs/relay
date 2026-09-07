@@ -4,7 +4,7 @@ Owner: Seth (`@sdcarlson`). Decision record: [issue #5](https://github.com/Syber
 
 ## Provisional decision
 
-Test this loop: **one real job → selected candidate facts → external-assistant handoff → human review and exact acceptance → reuse for an application or follow-up.** Keep this as the provisional MVP while product work proceeds. Do not make research completion a dependency for the next two tasks or for verified-fact gating and selection/outcomes work (#47 and #48).
+Test this loop: **one real job → selected candidate facts → external-assistant handoff → human review and exact acceptance → reuse for an application or follow-up.** Keep this as the provisional MVP while product work proceeds. Do not make research completion a dependency for the remaining product work or for verified-fact gating and selection/outcomes work (#47 and #48).
 
 The participant already moves substantive job-application work between assistants and notes or a tracker. Qualify before observing Relay: they consent, are doing a real application or follow-up now, and can describe at least two recent real handoffs in the last 30 days involving an external assistant and another assistant, notes, or a tracker. Merely browsing jobs or trying chatbots does not qualify. Record the actual tools, frequency, and steps privately. Do not require dissatisfaction, praise, or a promise to return. Record expected upcoming tasks separately; lack of a later opportunity is an interpretation constraint, not a retrospective exclusion.
 
@@ -18,7 +18,7 @@ Exclude automatic sending, account synchronization, new integrations, job discov
 2. [Ravi debrief](ravi-debrief.md): reconstruct the already instructed test without changing its instructions or assuming a version.
 3. [Empty cohort CSV](cohort.csv) and [data dictionary](data-dictionary.md): one summary row per anonymous participant, filled only in a private copy.
 4. [Measurement specification](measurement.md): exact definitions, current evidence sources, gaps, and observation-window arithmetic.
-5. [Next two product tasks](next-product-tasks.md): acceptance criteria for ordinary job entry and saved-fact selection in a version-bound handoff.
+5. [Product task status](next-product-tasks.md): ordinary job entry is implemented; saved-fact selection in a version-bound handoff remains.
 
 Only empty instruments belong here. Keep consent/contact mappings, completed records, real posting URLs, candidate facts, drafts, screenshots, receipts, and raw events outside Git in participant-approved private storage. Anonymous IDs do not make detailed job histories safe to publish. Publish only a separately checked, non-identifying decision summary in #5.
 

@@ -1,30 +1,20 @@
-# Acceptance criteria: the next two product tasks
+# Product task status and remaining saved-fact handoff
 
-These criteria implement the provisional loop in [issue #5](https://github.com/SyberLabs/relay/issues/5). They are ready for the existing product owners to attach to their implementation issues. They do not create new tickets, edit application code, or require waiting for Ravi, pilot results, or telemetry. Application owners choose the smallest implementation that preserves these contracts. Use fictional fixtures for verification.
+This records progress on the provisional loop in [issue #5](https://github.com/SyberLabs/relay/issues/5). Ordinary job entry is done; the remaining saved-fact handoff criteria are for the existing product owners to attach to an implementation issue. They do not create new tickets, edit application code, or require waiting for Ravi, pilot results, or telemetry. Application owners choose the smallest implementation that preserves these contracts. Use fictional fixtures for verification.
 
-Baseline inspected: `bae278130f2031aab1249aa88f7bf54b46741460`. Recheck current main before implementation to avoid duplicating another owner's work. Fact gating and outcomes (#47/#48) remain independent critical product work. Existing delivery/release checks still apply.
+Source inspected: `fe91bb3bd2faa087680eacae246d31d7b7eb27d1` (2026-09-07). Recheck current main before implementation to avoid duplicating another owner's work. Fact gating and outcomes (#47/#48) remain independent critical product work. Existing delivery/release checks still apply.
 
-## Task 1: add one real job through ordinary fields
+## Task 1: add one real job through ordinary fields — done
 
-**Problem:** the workspace exposes example loading and research/CSV/file imports; someone with one posting should not need to construct an import file or understand JSON or a command line.
+Shipped in [PR #86](https://github.com/SyberLabs/relay/pull/86), closing [issue #85](https://github.com/SyberLabs/relay/issues/85). Do not create another ordinary Add job ticket from this brief. [`app/first-job.tsx`](../../app/first-job.tsx) and [`lib/first-job.ts`](../../lib/first-job.ts) provide role title, HTTP(S) posting URL, and optional notes, with the 500-character title and 20,000-character notes limits. They create a Held source row through the existing owner-scoped import path; normalized URLs join the existing job while preserving its application state and history.
 
-**Result:** from an empty or populated signed-in workspace, the person can enter a posting URL, recognizable role title, and optional research notes, save it, and immediately continue on that selected job.
+Use that existing entry path for pilot sessions. No residual Task 1 implementation gap is identified here; record any observed defect separately with a reproducible case rather than reimplementing entry.
 
-Acceptance scenarios:
-
-1. An ordinary visible “Add job” entry point works with keyboard and pointer. The form needs only role title and HTTP(S) posting URL; research notes are optional. No CSV preparation, JSON fields, CLI, credential entry for another service, example job, or external fetch is required. Treat typed/pasted notes as source evidence; preserve their text.
-2. Blank/whitespace-only title, malformed/non-HTTP(S) URL, title over the existing 500-character import limit, or notes over the existing 20,000-character import limit produces a field-specific error before persistence. Keep entered values after recoverable errors. State limits; never silently truncate useful notes. Cancel creates nothing and does not discard other unsaved job work without the existing safeguard.
-3. With a new valid posting, one user-owned job and its source observation persist using existing `jobKey`/import semantics. It starts Held with no draft acceptance, submission, or invented candidate claims. Show/select that saved job and its research after save and reload. Company/fit/compensation are not inferred requirements for entry.
-4. Adding the same normalized posting URL again shows that it joins the existing job, then preserves that job's ID, draft, accepted wording, and application status. New research becomes source evidence under existing observation identity rules; identical repeated saves do not create duplicate jobs or observations. Cover tracking-parameter URL variants and simultaneous double-submit/retry. Do not claim different URLs always identify the same posting.
-5. Adding research to Ready, Submitted, Live loop, or terminal work preserves existing acceptance/status/history according to current import contracts. A form cannot mark a draft accepted or record submission. A research save that advances a job version must continue to invalidate stale handoffs under existing rules.
-6. On authentication expiry, clear private data and follow the existing sign-in flow. A forged cross-user target cannot read or mutate another user's job. On network/server failure, explain whether save is confirmed, preserve recoverable input, and allow a retry without duplication. Disable or otherwise guard duplicate submissions while pending.
-7. Verification evidence: browser journey from empty workspace → ordinary fields → save → selected job → reload; normalized duplicate with new notes on an accepted/active job; invalid input/no write; double-submit or uncertain-response retry; two-user isolation and session expiry. Reuse existing import/domain tests where they cover unchanged behavior. No real applicant fixtures.
-
-Implementation starting points: [`app/workspace.tsx`](../../app/workspace.tsx), [`app/api/workspace/route.ts`](../../app/api/workspace/route.ts), [`lib/domain.ts`](../../lib/domain.ts), [`lib/import-upsert.ts`](../../lib/import-upsert.ts). Prefer translating the simple form into the existing user-scoped import contract. A scraper, parser service, new tracker, and database redesign are outside this task.
-
-## Task 2: select saved facts for a version-bound assistant handoff
+## Task 2: select saved facts for a version-bound assistant handoff — remaining
 
 **Problem:** Profile already persists verified facts, but Connections requires typing supplied facts into an unsaved text box each time. Its current packet binds the job/version, not a chosen subset of saved facts or their profile version.
+
+Assistant context-reading work in [PR #100](https://github.com/SyberLabs/relay/pull/100) is separate from this explicit Connections picker and its selected-fact snapshot/return validation. Do not treat context availability alone as completion of these criteria.
 
 **Result:** with one selected job, the person chooses an explicit subset of their usable saved facts, reviews the exact outgoing context, and hands it to an external assistant. A returned draft can be staged only against the job and fact context that authorized it; acceptance remains a separate human action.
 
@@ -44,4 +34,4 @@ Implementation starting points: [`app/connections.tsx`](../../app/connections.ts
 
 ## Dependencies and done evidence
 
-Task 1 needs existing job identity/import persistence. Task 2 needs the existing verified fact ledger, version checks, and exact-review contracts; it can be implemented using an existing fictional job while Task 1 proceeds. Their combined end-to-end check exercises the provisional MVP entry path. Neither waits for the five-person experiment. Independent user evidence is collected with the protocol only on the actual exposed build, with differences recorded. A green test/build establishes implementation behavior, not saved effort or voluntary demand.
+Task 1 already uses the existing job identity/import persistence. Task 2 needs the existing verified fact ledger, version checks, and exact-review contracts; use the implemented Add job path or an existing fictional job for its end-to-end check. The remaining work does not wait for the five-person experiment. Independent user evidence is collected with the protocol only on the actual exposed build, with differences recorded. A green test/build establishes implementation behavior, not saved effort or voluntary demand.

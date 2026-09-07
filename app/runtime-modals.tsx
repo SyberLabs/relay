@@ -473,6 +473,10 @@ export function RuntimeModals({
               <div className="sect">
                 <h4>Why this job is in core</h4>
                 <div className="quote">{whyPicked(sources, fit)}</div>
+                <p className="hint" style={{ paddingLeft: 0, marginTop: 8 }}>
+                  Fit is a heuristic word and number match, not a qualification
+                  score.
+                </p>
               </div>
               <div className="sect">
                 <h4>What changed in the saved draft</h4>

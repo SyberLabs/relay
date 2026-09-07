@@ -17,6 +17,13 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
   await expect(
     page.getByRole('heading', { name: 'No jobs yet' }),
   ).toBeVisible();
+  await expect(
+    page.getByText(/Your facts and Advanced tools are optional/),
+  ).toBeVisible();
+  await expect(
+    page.locator('aside').getByRole('group', { name: 'Job list' }),
+  ).toHaveCount(0);
+  await expect(page).not.toHaveURL(/\/profile/);
   await page.getByRole('button', { name: 'Add job', exact: true }).click();
   await page
     .getByRole('textbox', { name: 'Role title' })
@@ -31,6 +38,15 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
   await expect(
     page.getByText('Job saved. Continue from the selected record.'),
   ).toBeVisible();
+  await expect(
+    page.getByText(
+      'Review research and accept the exact wording for this job.',
+    ),
+  ).toBeVisible();
+  await expect(
+    page.locator('aside').getByRole('group', { name: 'Job list' }),
+  ).toBeVisible();
+  await expect(page).not.toHaveURL(/\/profile/);
   await expect(
     page.getByRole('heading', { name: 'Cedar Example — First Job Engineer' }),
   ).toBeVisible();

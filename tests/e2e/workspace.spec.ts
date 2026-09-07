@@ -282,7 +282,6 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
   await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
   const sidebar = page.locator('aside');
-  await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   await expect(sidebar.getByRole('group', { name: 'Outcomes' })).toBeVisible();
   await expect(
     sidebar.getByRole('group', { name: 'Reusable context' }),
@@ -362,9 +361,7 @@ test('tracker import actions stay inside the window after a long preview', async
 }) => {
   await page.setViewportSize({ width: 1280, height: 640 });
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await page
-    .getByRole('button', { name: 'Import research', exact: true })
-    .click();
+  await openImportDock(page);
   await page.getByRole('tab', { name: 'Tracker CSV' }).click();
   const rows = Array.from(
     { length: 24 },

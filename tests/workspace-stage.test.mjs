@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  headerAddJobIsPrimary,
   loopStepLead,
   primaryAction,
   stageLead,
@@ -104,6 +105,7 @@ void test('profile and advanced are optional context, track is portfolio', () =>
   assert.equal(workspaceStage({ ...signedIn, page: 'profile' }), 'context');
   assert.equal(workspaceStage({ ...signedIn, page: 'advanced' }), 'context');
   assert.equal(workspaceStage({ ...signedIn, page: 'review' }), 'context');
+  assert.equal(workspaceStage({ ...signedIn, page: 'preferences' }), 'context');
   assert.equal(workspaceStage({ ...signedIn, page: 'plan' }), 'context');
   assert.equal(workspaceStage({ ...signedIn, page: 'track' }), 'portfolio');
 });
@@ -135,4 +137,42 @@ void test('loop copy names the legal next work without sending applications', ()
   assert.match(loopStepLead('Submitted'), /status/i);
   assert.match(loopStepLead('Closed'), /cannot reopen/i);
   assert.doesNotMatch(loopStepLead('Held'), /send/i);
+});
+
+void test('dirty editor does not change stage or the legal primary action', () => {
+  const held = {
+    page: 'workspace',
+    signedOut: false,
+    jobCount: 1,
+    selectedStatus: 'Held',
+    editorDirty: true,
+  };
+  assert.equal(workspaceStage(held), 'job_loop');
+  assert.equal(primaryAction(held), 'review_held');
+  assert.equal(headerAddJobIsPrimary(held), false);
+});
+
+void test('header Add job is primary only between jobs', () => {
+  const workspace = {
+    page: 'workspace',
+    signedOut: false,
+    jobCount: 2,
+  };
+  assert.equal(
+    headerAddJobIsPrimary({ ...workspace, selectedStatus: null }),
+    true,
+  );
+  assert.equal(
+    headerAddJobIsPrimary({ ...workspace, selectedStatus: 'Held' }),
+    false,
+  );
+  assert.equal(
+    headerAddJobIsPrimary({
+      page: 'workspace',
+      signedOut: false,
+      jobCount: 0,
+      selectedStatus: null,
+    }),
+    false,
+  );
 });

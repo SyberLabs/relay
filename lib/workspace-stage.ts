@@ -25,6 +25,8 @@ export type StageView = {
   signedOut: boolean;
   jobCount: number;
   selectedStatus: string | null;
+  /** Dirty editors still confirm before leave; they do not change the legal action. */
+  editorDirty?: boolean;
 };
 
 export function workspaceStage(view: StageView): WorkspaceStage {
@@ -80,9 +82,5 @@ export function loopStepLead(status: string | null): string {
 }
 
 export function headerAddJobIsPrimary(view: StageView): boolean {
-  return (
-    !view.signedOut &&
-    view.jobCount > 0 &&
-    workspaceStage(view) === 'portfolio'
-  );
+  return view.page === 'workspace' && primaryAction(view) === 'select_job';
 }

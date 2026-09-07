@@ -51,6 +51,7 @@ import { mergeReviewEvents } from '../lib/workspace-events';
 import {
   headerAddJobIsPrimary,
   loopStepLead,
+  primaryAction,
   stageLead,
 } from '../lib/workspace-stage';
 import {
@@ -174,7 +175,9 @@ export default function Workspace() {
     signedOut,
     jobCount: jobs.length,
     selectedStatus: current?.status ?? null,
+    editorDirty: editorIsDirty(editor),
   };
+  const action = primaryAction(stageView);
   const addJobPrimary = headerAddJobIsPrimary(stageView);
   const selectedRef = useRef('');
   const editorRef = useRef<Editor | null>(null);
@@ -804,7 +807,7 @@ export default function Workspace() {
             <p>Sign in to load and save your application history.</p>
             {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
             <a
-              className="primary"
+              className={action === 'sign_in' ? 'primary' : 'secondary'}
               href="/signin-with-chatgpt?return_to=/"
               target="_top"
             >
@@ -819,7 +822,11 @@ export default function Workspace() {
               saved as research. Your facts and Advanced tools are optional.
             </p>
             <div className="actions">
-              <button className="primary" onClick={openAddJob} type="button">
+              <button
+                className={action === 'add_job' ? 'primary' : 'secondary'}
+                onClick={openAddJob}
+                type="button"
+              >
                 Add job <ArrowRight size={16} />
               </button>
               <button

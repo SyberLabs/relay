@@ -86,7 +86,7 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
         ? 'This browser does not provide WebMCP tools. Same-origin tools are on window.relay in this signed-in tab. File handoff remains.'
         : mode === 'registered'
           ? 'Relay tools registered in this tab.'
-          : 'Relay tools could not register in this tab.';
+          : 'WebMCP tools could not register in this tab. Same-origin tools remain on window.relay.';
     await expect(status).toContainText(expected);
     const activeNames = () =>
       page.evaluate(() => [...window.relayTestActiveTools]);
@@ -138,6 +138,10 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
       await expect
         .poll(async () => page.evaluate(() => window.relay ?? null))
         .toBeNull();
+    }
+    if (mode === 'throw' || mode === 'reject') {
+      expect(await relayNames(page)).toEqual([...TOOL_NAMES]);
+      expect(await relayNames(page)).not.toContain('relay_approve_application');
     }
     await expect.poll(activeNames).toEqual([]);
     expect(errors).toEqual([]);

@@ -398,8 +398,10 @@ export function useRelayTools(
     const relay: RelayWindowTools = Object.fromEntries(
       tools.map((tool) => [tool.name, (input: Json) => tool.run(input)]),
     );
+    const webmcp = new AbortController();
     window.relay = relay;
     lifecycle.signal.addEventListener('abort', () => {
+      webmcp.abort();
       if (window.relay === relay) delete window.relay;
     });
     if (typeof context?.registerTool !== 'function') {
@@ -425,7 +427,7 @@ export function useRelayTools(
               return result;
             },
           },
-          { signal: lifecycle.signal },
+          { signal: webmcp.signal },
         ),
       ),
     ).then(
@@ -434,7 +436,7 @@ export function useRelayTools(
       },
       () => {
         if (lifecycle.signal.aborted) return;
-        lifecycle.abort();
+        webmcp.abort();
         setStatus('failed');
       },
     );

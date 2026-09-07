@@ -161,7 +161,7 @@ export function Connections({
             registered:
               'Relay tools registered in this tab. Your assistant must also support discovering and calling them; registration alone does not confirm a connection.',
             failed:
-              'Relay tools could not register in this tab. Reload to try registration again. Keep unsaved work before reloading, or use a file handoff.',
+              'WebMCP tools could not register in this tab. Same-origin tools remain on window.relay. Reload to retry WebMCP; keep unsaved work, or use a file handoff.',
           }[toolStatus]
         }
       </output>

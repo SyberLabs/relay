@@ -65,8 +65,8 @@ browser assistant tool status. WebMCP registration requires
 establish that capability. An unavailable status means WebMCP is missing; same-origin
 tools are still on `window.relay` in this signed-in tab, and file handoff remains.
 That is not a hosted MCP connection. A registration failure removes this attempt's
-WebMCP tools and this instance's `window.relay`; preserve unsaved work before
-reloading. Registered means all Relay WebMCP registrations completed, not that
+WebMCP tools; `window.relay` remains until the tab unmounts. Preserve unsaved work
+before reloading if you retry WebMCP. Registered means all Relay WebMCP registrations completed, not that
 ChatGPT or Grok can discover or call them. The host must provide that connection
 too. See the [current browser API](https://developer.chrome.com/docs/ai/webmcp/imperative-api).
 

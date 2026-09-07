@@ -29,6 +29,7 @@ const config = releaseConfig(
   {
     ACCESS_ISSUER: issuer,
     ACCESS_AUD: audience,
+    TURNSTILE_SITE_KEY: 'fictional-site-key',
     RELEASE_SHA: release,
     CLOUDFLARE_ACCOUNT_ID: 'a'.repeat(32),
     D1_DATABASE_ID: '11111111-1111-4111-8111-111111111111',
@@ -53,6 +54,7 @@ config.build = {
 config.assets.directory = resolve('dist/client');
 config.d1_databases[0].migrations_dir = resolve('drizzle');
 config.vars.RELAY_TEST_JWK = JSON.stringify(await exportJWK(publicKey));
+config.vars.TURNSTILE_SECRET_KEY = 'fictional-secret';
 const configPath = resolve(state, 'wrangler.json');
 await writeFile(configPath, JSON.stringify(config, null, 2));
 const wrangler = resolve('node_modules/wrangler/bin/wrangler.js');
@@ -390,8 +392,53 @@ try {
           ),
     );
   });
+  const limitedUser = await token('quota-fixture');
+  console.log('Checking concurrent planner throttling.');
+  const planReplies = await Promise.all(Array.from({ length: 15 }, () => fetch(`${base}/api/plan`, {
+    headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+    signal: AbortSignal.timeout(20_000),
+  })));
+  assert.ok(planReplies.every(response => [200, 429].includes(response.status)));
+  assert.ok(planReplies.some(response => response.status === 429), 'Concurrent planner calls must exhaust the D1 throttle');
+  for (const response of planReplies) {
+    if (response.status === 429) assert.ok(Number(response.headers.get('retry-after')) > 0);
+    await response.text();
+  }
+  console.log('Checking oversized mutation refusal.');
+  const oversized = await fetch(`${base}/api/workspace`, {
+    method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+    body: 'x'.repeat(2_000_001),
+    signal: AbortSignal.timeout(20_000),
+  });
+  await expectStatus(oversized, 413, 'Oversized mutation refused before the application');
+  await oversized.text();
+  console.log('Checking persistence after oversized mutation refusal.');
+  const afterRefusal = await fetch(`${base}/api/workspace`, {
+    headers: { 'Cf-Access-Jwt-Assertion': limitedUser }, signal: AbortSignal.timeout(20_000),
+  });
+  await expectStatus(afterRefusal, 200, 'Read after oversized mutation refusal');
+  assert.deepEqual((await afterRefusal.json()).jobs, []);
+  for (const { label, path, headers, status } of [
+    { label: 'missing CAPTCHA origin', path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': limitedUser }, status: 403 },
+    { label: 'mismatched CAPTCHA origin', path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': limitedUser, Origin: 'https://untrusted.example' }, status: 403 },
+    { label: 'unauthenticated upload', path: '/api/workspace', headers: {}, status: 401 },
+  ]) {
+    console.log(`Checking request after ${label} refusal.`);
+    const refused = await fetch(`${base}${path}`, {
+      method: 'POST', headers, body: 'x'.repeat(2_000_001),
+      signal: AbortSignal.timeout(20_000),
+    });
+    await expectStatus(refused, status, label);
+    await refused.text();
+    const next = await fetch(`${base}/api/workspace`, {
+      headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+      signal: AbortSignal.timeout(20_000),
+    });
+    await expectStatus(next, 200, `Read after ${label} refusal`);
+    assert.deepEqual((await next.json()).jobs, []);
+  }
   console.log(
-    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation.',
+    'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation, concurrent D1 throttling and oversized request refusal.',
   );
 } finally {
   await finishProductionServer(server, log);

@@ -13,6 +13,8 @@ Apply first-principles reasoning: name the user problem, question each requireme
 
 ## Delivery
 
+Every Relay change must follow [abuse and cost controls](docs/abuse-controls.md). All deployed routes inherit the production gateway; never expose a bypass. New operations need bounded inputs/work/storage, authenticated user and global quotas, and refusal-path tests. Paid upstream or background work cannot ship without atomic maximum-cost reservations, bounded retries/concurrency, idempotency, and a kill switch. CAPTCHA never replaces authentication or lifts quotas. Preserve the storage caps and fail closed if security bindings are unavailable. Review actual provider costs and edge protections before expanding access.
+
 Work in an issue-linked branch. Keep one owner and a testable result per issue. Follow CONTRIBUTING.md and docs/delivery.md. Do not push directly to main, bypass required checks/reviews, approve your own work, or disable failing tests. Human approval and deployment approval are separate.
 
 ## Review guidelines

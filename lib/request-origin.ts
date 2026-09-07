@@ -30,7 +30,7 @@ async function withDeadline<T>(
   }
 }
 
-async function drainBoundedBody(request: Request) {
+export async function drainBoundedBody(request: Request) {
   if (!request.body || request.bodyUsed) return;
   const reader = request.body.getReader();
   const deadline = Date.now() + DRAIN_TIMEOUT_MS;

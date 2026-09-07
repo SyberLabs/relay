@@ -4,6 +4,10 @@ import { accessConfig } from '../../deploy/access.mjs';
 
 export function releaseConfig(env, build, { bundled = true } = {}) {
   accessConfig(env);
+  if (!/^[a-zA-Z0-9_-]{3,100}$/.test(env.TURNSTILE_SITE_KEY ?? '')) {
+    throw new Error('Invalid or missing TURNSTILE_SITE_KEY');
+  }
+  if (!['', 'writes', 'all'].includes(env.RELAY_PAUSE ?? '')) throw new Error('Invalid RELAY_PAUSE');
   for (const [name, expression] of Object.entries({
     CLOUDFLARE_ACCOUNT_ID: /^[a-f0-9]{32}$/,
     D1_DATABASE_ID: /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/,
@@ -37,13 +41,18 @@ export function releaseConfig(env, build, { bundled = true } = {}) {
     compatibility_flags: build.compatibility_flags ?? ['nodejs_compat'],
     workers_dev: workersDev,
     preview_urls: false,
+    ratelimits: [{ name: 'EDGE_RATE_LIMITER', namespace_id: env.WORKER_NAME === 'relay-production' ? '1002' : '1001',
+      simple: { limit: 300, period: 60 } }],
     ...(workersDev ? {} : { routes: [{ pattern: hostname, custom_domain: true }] }),
     assets: { directory: './dist/client', binding: 'ASSETS', run_worker_first: true },
     rules: build.rules,
     d1_databases: [{ binding: 'DB', database_name: env.WORKER_NAME,
       database_id: env.D1_DATABASE_ID, migrations_dir: './drizzle' }],
     vars: { ACCESS_ISSUER: env.ACCESS_ISSUER, ACCESS_AUD: env.ACCESS_AUD,
-      RELEASE_SHA: env.RELEASE_SHA },
+      RELEASE_SHA: env.RELEASE_SHA,
+      TURNSTILE_SITE_KEY: env.TURNSTILE_SITE_KEY ?? '',
+      TURNSTILE_HOSTNAME: hostname,
+      RELAY_PAUSE: env.RELAY_PAUSE ?? '' },
     observability: { enabled: true, head_sampling_rate: 0.1 },
   };
 }

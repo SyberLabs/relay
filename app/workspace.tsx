@@ -437,6 +437,7 @@ export default function Workspace() {
       session: editor?.session ?? '',
       draft: editor?.draft ?? '',
       blocker: editor?.blocker ?? '',
+      progressNote: editor?.progressNote ?? '',
     };
     setBusy(true);
     setMessage('');

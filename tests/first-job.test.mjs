@@ -125,6 +125,7 @@ void test('delayed add-job completion keeps in-flight editor work instead of sel
     session: editor.session,
     draft: editor.draft,
     blocker: editor.blocker,
+    progressNote: editor.progressNote,
   };
   assert.equal(
     firstJobShouldSelectSaved(started, editor, existing.id, 'added'),
@@ -136,12 +137,28 @@ void test('delayed add-job completion keeps in-flight editor work instead of sel
     false,
   );
   assert.equal(
+    firstJobShouldSelectSaved(
+      started,
+      { ...editor, progressNote: 'Nonblocking note typed during add-job.' },
+      existing.id,
+      'added',
+    ),
+    false,
+  );
+  assert.equal(
     firstJobShouldSelectSaved(started, editor, 'other', 'added'),
     false,
   );
   assert.equal(
     firstJobShouldSelectSaved(
-      { selectedId: '', jobId: '', session: '', draft: '', blocker: '' },
+      {
+        selectedId: '',
+        jobId: '',
+        session: '',
+        draft: '',
+        blocker: '',
+        progressNote: '',
+      },
       null,
       '',
       'added',

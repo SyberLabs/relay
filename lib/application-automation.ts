@@ -384,7 +384,10 @@ export async function armPreparation(
         .bind(owner, prep.operation_id)
         .first<ApplicationOperation>()
     : null;
-  let operationId = linked?.digest === hash ? linked.id : null;
+  const liveFreeze =
+    linked?.digest === hash &&
+    (linked.state === 'proposed' || linked.state === 'authorized');
+  let operationId = liveFreeze ? linked.id : null;
   if (!operationId) {
     const policy = await loadApplicationPolicy(db, owner);
     const jobRow = await db
@@ -402,16 +405,17 @@ export async function armPreparation(
     );
     if (linked) {
       requireThat(
-        ['proposed', 'authorized'].includes(linked.state),
+        linked.state !== 'executing' && linked.state !== 'submitted',
         'An application is already executing. Do not change the payload.',
         409,
       );
-      await actOnApplication(
-        db,
-        owner,
-        { id: linked.id, digest: linked.digest, action: 'cancel' },
-        now,
-      );
+      if (linked.state === 'proposed' || linked.state === 'authorized')
+        await actOnApplication(
+          db,
+          owner,
+          { id: linked.id, digest: linked.digest, action: 'cancel' },
+          now,
+        );
     }
     const leftovers = await db
       .prepare(
@@ -438,11 +442,20 @@ export async function armPreparation(
       },
       now,
     );
-    requireThat(
-      op.state === 'proposed',
-      'Inspect freeze requires review of every application.',
-      409,
-    );
+    if (op.state !== 'proposed') {
+      if (op.state === 'authorized')
+        await actOnApplication(
+          db,
+          owner,
+          { id: op.id, digest: op.digest, action: 'cancel' },
+          now,
+        );
+      requireThat(
+        false,
+        'Inspect freeze requires review of every application.',
+        409,
+      );
+    }
     operationId = op.id;
   }
   await statement(

@@ -1,7 +1,13 @@
 import { access, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
 import { dirname } from 'node:path';
 import { EXIT, RelayError, login, request } from './client.mjs';
 import { clusterOf, profileBrief } from '../lib/profile.ts';
+import { DraftStageError, stageDraft } from '../lib/draft-stage.ts';
+import {
+  ApplicationContextError,
+  readApplicationContext,
+} from '../lib/application-context.ts';
 
 let io = { fetchImpl: fetch, claudeFetch: fetch, session: undefined };
 function api(path, body) {
@@ -79,6 +85,68 @@ async function buildBrief(jobId) {
 // without the server ever seeing it, so those refusals went uncounted and the
 // refusal rate — a readiness gate — was measured from a biased sample.
 const commands = {
+  async stage(args, flags) {
+    const [id, file] = args;
+    if (
+      args.length !== 2 ||
+      !id ||
+      !file ||
+      typeof flags.version !== 'string' ||
+      !/^[1-9]\d*$/.test(flags.version) ||
+      !Number.isSafeInteger(Number(flags.version)) ||
+      typeof flags.blocker !== 'string' ||
+      (flags.json !== undefined && flags.json !== true) ||
+      Object.keys(flags).some(
+        (key) => !['version', 'blocker', 'json'].includes(key),
+      )
+    )
+      throw new RelayError(
+        'Usage: relay stage <job_id> <draft-file> --version <generation-time-version> --blocker=<text-or-empty> [--json]',
+        EXIT.usage,
+      );
+    let draft;
+    try {
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of createReadStream(file)) {
+        size += chunk.length;
+        if (size > 80_000) throw Error('Draft file exceeds 80000 bytes.');
+        chunks.push(chunk);
+      }
+      // Do not trim, normalize newlines, strip a BOM or replace invalid UTF-8.
+      draft = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+        Buffer.concat(chunks),
+      );
+    } catch {
+      throw new RelayError(
+        'Cannot read draft file: provide UTF-8 text of at most 80000 bytes. Input file preserved.',
+        EXIT.usage,
+      );
+    }
+    try {
+      const result = await stageDraft(api, {
+        id,
+        version: Number(flags.version),
+        draft,
+        blocker: flags.blocker,
+      });
+      if (flags.json) return json(result);
+      out('Saved for human review. Not accepted or sent.');
+    } catch (error) {
+      if (error instanceof DraftStageError)
+        throw new RelayError(error.message, EXIT.refused);
+      throw error;
+    }
+  },
+  async context([id], flags) {
+    try {
+      json(await readApplicationContext(api, id, flags.before));
+    } catch (error) {
+      if (error instanceof ApplicationContextError)
+        throw new RelayError(error.message, EXIT.refused);
+      throw error;
+    }
+  },
   async login() {
     await login(io.fetchImpl);
     const profile = await api('/api/profile');
@@ -402,9 +470,19 @@ async function invoke(argv) {
     await command(rest, flags);
     return EXIT.ok;
   } catch (error) {
+    if (name === 'stage')
+      note(
+        'Stage did not complete successfully. Input file preserved; no automatic retry. Retrieve the workspace before deciding what to do next.',
+      );
     if (error instanceof RelayError) {
       if (error.code === EXIT.refused) {
-        note('refused — no draft stored, no text kept');
+        note(
+          name === 'context'
+            ? 'context unavailable — no changes made'
+            : name === 'stage'
+              ? 'stage refused — input file preserved'
+              : 'refused — no draft stored, no text kept',
+        );
         note(`  ${error.message}`);
         if (error.detail?.unsupported)
           note('  Cite a verified fact, or remove the claim.');

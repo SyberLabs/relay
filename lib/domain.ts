@@ -61,8 +61,12 @@ export function sourcePostingUrl(
     return r.url;
   }
 }
-export function sourceJobKey(r: Pick<SourceRow, 'url' | 'Job'>): string {
-  return jobKey(sourcePostingUrl(r), r.url);
+export function sourceJobKey(
+  r: Pick<SourceRow, 'url' | 'Name' | 'Job'>,
+): string {
+  const posting = sourcePostingUrl(r);
+  if (posting !== r.Job) return jobKey(r.url, r.Job ?? r.Name);
+  return jobKey(r.Job, r.url);
 }
 export function packetKeyMatches(
   url: string | null | undefined,

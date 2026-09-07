@@ -141,7 +141,10 @@ test('late file reads cannot replace the most recent selection', async ({
   page,
 }) => {
   await page.addInitScript(() => {
-    const originalRead = File.prototype.arrayBuffer;
+    const originalRead = Object.getOwnPropertyDescriptor(
+      Blob.prototype,
+      'arrayBuffer',
+    )?.value as (this: File) => Promise<ArrayBuffer>;
     const originalDigest = crypto.subtle.digest.bind(crypto.subtle);
     let hashFinished: () => void;
     const oldHashDone = new Promise<void>((resolve) => {
@@ -166,20 +169,16 @@ test('late file reads cannot replace the most recent selection', async ({
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
   await page.goto('/applications');
   await page.getByText('Prepare an application', { exact: true }).click();
-  await page
-    .getByLabel('Exact files')
-    .setInputFiles({
-      name: 'older.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.from('AAAA'),
-    });
-  await page
-    .getByLabel('Exact files')
-    .setInputFiles({
-      name: 'newer.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.from('BBBB'),
-    });
+  await page.getByLabel('Exact files').setInputFiles({
+    name: 'older.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('AAAA'),
+  });
+  await page.getByLabel('Exact files').setInputFiles({
+    name: 'newer.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('BBBB'),
+  });
   await expect(page.getByText('newer.txt', { exact: true })).toBeVisible();
   await page.evaluate(async () => {
     const control = window as unknown as {

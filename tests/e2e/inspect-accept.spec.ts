@@ -501,3 +501,120 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   expect(manifest.files[0].name).toBe('resume.txt');
   expect(manifest.files[0].base64).toBe(resume.base64);
 });
+
+test('inspect shows captcha-uncertain separately from waiting to send', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          Name: 'Cedar Example — Inspect Captcha Engineer',
+          Job: 'https://employer.example/jobs/inspect-captcha',
+          url: 'https://scout.example/observations/inspect-captcha',
+          Status: 'Held',
+          Notes: 'Fictional inspect-captcha fixture.',
+        },
+      ],
+    },
+  });
+  const ws = await (await page.request.get('/api/workspace')).json();
+  const job = ws.jobs.find((j: { name: string }) =>
+    j.name.includes('Inspect Captcha'),
+  );
+  await enableInspectJob(page, ws.viewer, job.id);
+  await page.goto('/');
+  await page.getByRole('button', { name: /Inspect Captcha/ }).click();
+  const prepared = await page.request.post('/api/applications', {
+    data: {
+      action: 'prepare',
+      preparation_revision: await preparationRevision(page, job.id),
+      viewer: ws.viewer,
+      job: job.id,
+      actor: 'Fictional applying agent',
+      destination: job.url,
+      fields: [{ label: 'Full name', value: 'Avery Example', unknown: false }],
+      files: [],
+    },
+  });
+  expect(prepared.ok()).toBe(true);
+  const armed = await page.request.post('/api/applications', {
+    data: {
+      action: 'arm',
+      preparation_revision: await preparationRevision(page, job.id),
+      viewer: ws.viewer,
+      job: job.id,
+      id: 'op-inspect-captcha',
+      actor: 'Fictional applying agent',
+    },
+  });
+  expect(armed.ok()).toBe(true);
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeEnabled();
+  await page.getByRole('button', { name: 'Accept and send' }).click();
+  await expect(
+    page.getByText(/waiting for the operative to send/i),
+  ).toBeVisible();
+  const armedView = await armed.json();
+  const begun = await page.request.post('/api/applications', {
+    data: {
+      action: 'begin',
+      viewer: ws.viewer,
+      id: 'op-inspect-captcha',
+      digest: armedView.digest,
+    },
+  });
+  expect(begun.ok()).toBe(true);
+  expect((await begun.json()).execute).toBe(true);
+  await expect(
+    page.getByText(
+      /Permit consumed\. If submit no-ops or a captcha appears, record uncertain; never begin again\./,
+    ),
+  ).toBeVisible();
+  await expect(page.getByText(/waiting for the operative to send/i)).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeDisabled();
+  const marked = await page.request.post('/api/applications', {
+    data: {
+      action: 'uncertain',
+      viewer: ws.viewer,
+      id: 'op-inspect-captcha',
+      digest: armedView.digest,
+      receipt:
+        'Fictional Greenhouse invisible reCAPTCHA; employer submit no-op after a clean fill.',
+    },
+  });
+  expect(marked.ok()).toBe(true);
+  await expect(page.getByText(/Employer result uncertain/i)).toBeVisible();
+  await expect(page.getByText(/Do not submit again/i)).toBeVisible();
+  await expect(
+    page.getByText(/not a draft or stage failure/i),
+  ).toBeVisible();
+  await expect(page.getByText(/Captcha or unknown send/i)).toBeVisible();
+  await expect(page.getByText(/waiting for the operative to send/i)).toHaveCount(
+    0,
+  );
+  await expect(page.getByText('Operative is not on the page')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Accept and send' }),
+  ).toBeDisabled();
+  const workspace = await (await page.request.get('/api/workspace')).json();
+  const current = workspace.jobs.find((j: { id: string }) => j.id === job.id);
+  expect(current.status).not.toBe('Submitted');
+  const repeated = await page.request.post('/api/applications', {
+    data: {
+      action: 'begin',
+      viewer: ws.viewer,
+      id: 'op-inspect-captcha',
+      digest: armedView.digest,
+    },
+  });
+  expect(repeated.status()).toBe(409);
+});

@@ -257,6 +257,12 @@ void test('explicit submission holds become blockers without overwriting reviewe
       'Do not apply before checking the location requirement.',
       'Do not submit.',
       'Source checked. Do not apply until the location is confirmed.',
+      '- Do not submit until the location question is resolved.',
+      '   Do not apply before confirming location.',
+      'Other notes\r\n  * Do not submit until the question is resolved.',
+      '1. Do not submit until the location question is resolved.',
+      'Do not submit\nuntil location is confirmed.',
+      'Do not submit.\nLocation is still unknown.',
     ]) {
       const owner = 'hold-' + note;
       const job = 'https://example.com/jobs/source-hold';
@@ -284,6 +290,9 @@ void test('explicit submission holds become blockers without overwriting reviewe
       'These location restrictions do not apply to remote applicants.',
       'Do not submit a cover letter; it is optional.',
       'These restrictions do not apply until October.',
+      'Do not submit\na cover letter; it is optional.',
+      'Do not submit\r\na cover letter; it is optional.',
+      '- Do not submit\na cover letter; it is optional.',
     ]) assert.equal(importedBlocker(note), '');
   } finally {
     db.close();

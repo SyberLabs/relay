@@ -16,7 +16,7 @@ test('imported holds refuse acceptance and About You qualifications remain visib
           Job: 'https://example.com/jobs/boundaries',
           Status: 'Held',
           Notes:
-            'Do not submit until the location question is resolved.\nAbout You\n- Practical Node.js service development\n- SQL database experience\nBenefits\n- Lunch provided',
+            '- Do not submit until the location question is resolved.\nAbout You\n- Practical Node.js service development\n- SQL database experience\nBenefits\n- Lunch provided',
         },
       ],
     },

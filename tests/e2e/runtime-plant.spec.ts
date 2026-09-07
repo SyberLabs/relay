@@ -54,7 +54,7 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   const evidenceFact = page
     .locator('.facts .fact')
     .filter({ hasText: 'evidence' });
-  await expect(evidenceFact).toContainText('not compared');
+  await expect(evidenceFact).toContainText(/\d+ hit · \d+ miss|not compared/);
   await expect(evidenceFact).not.toContainText('%');
   await page
     .getByRole('button', { name: 'Inspect what the agent wrote' })

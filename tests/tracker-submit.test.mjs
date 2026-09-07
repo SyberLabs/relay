@@ -76,3 +76,15 @@ void test('handler refuses preview while an import write is pending', () => {
   assert.equal(ownerImportWritePending('owner-a'), false);
   resetOwnerTrackerSubmit();
 });
+
+void test('completing a later import write does not release an earlier in-flight write', () => {
+  resetOwnerTrackerSubmit();
+  const first = beginOwnerImportWrite('owner-a');
+  const second = beginOwnerImportWrite('owner-a');
+  assert.equal(ownerImportWritePending('owner-a'), true);
+  completeOwnerImportWrite('owner-a', second);
+  assert.equal(ownerImportWritePending('owner-a'), true);
+  completeOwnerImportWrite('owner-a', first);
+  assert.equal(ownerImportWritePending('owner-a'), false);
+  resetOwnerTrackerSubmit();
+});

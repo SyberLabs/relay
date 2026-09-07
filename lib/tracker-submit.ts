@@ -5,7 +5,9 @@ export type TrackerSubmitGate = {
   pending: TrackerSubmitAction | null;
 };
 
-const importWrites = new Map<string, number>();
+// Isolate-local: preview 409 while any import/bootstrap for this owner is
+// still running here. Unique indexes remain the durable duplicate protection.
+const importWrites = new Map<string, Set<number>>();
 let importWriteGeneration = 0;
 
 export function createTrackerSubmitGate(): TrackerSubmitGate {
@@ -41,16 +43,21 @@ export function trackerSubmitIsCurrent(
 
 export function beginOwnerImportWrite(owner: string): number {
   const token = ++importWriteGeneration;
-  importWrites.set(owner, token);
+  const active = importWrites.get(owner) ?? new Set<number>();
+  active.add(token);
+  importWrites.set(owner, active);
   return token;
 }
 
 export function ownerImportWritePending(owner: string) {
-  return importWrites.has(owner);
+  return (importWrites.get(owner)?.size ?? 0) > 0;
 }
 
 export function completeOwnerImportWrite(owner: string, token: number) {
-  if (importWrites.get(owner) === token) importWrites.delete(owner);
+  const active = importWrites.get(owner);
+  if (!active) return;
+  active.delete(token);
+  if (active.size === 0) importWrites.delete(owner);
 }
 
 export function resetOwnerTrackerSubmit() {

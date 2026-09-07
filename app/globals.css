@@ -5,9 +5,132 @@
   --line: #dedfd5;
   --accent: #2d6552;
   --sidebar: #18382e;
+  --decision-surface: #ffffff;
+  --decision-tint: #edf5f0;
 }
 * {
   box-sizing: border-box;
+}
+.blocker-review {
+  background: var(--decision-surface);
+  border: 1px solid #9bb5a7;
+  border-radius: 16px;
+  padding: 24px;
+  margin: 20px 0;
+  box-shadow: 0 4px 20px #18382e08;
+  overflow-wrap: anywhere;
+}
+.detail {
+  scroll-margin-top: 24px;
+}
+.back-to-jobs {
+  display: none;
+}
+.decision-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.decision-icon {
+  display: flex;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--decision-tint);
+  color: var(--accent);
+}
+.blocker-review .eyebrow {
+  font-size: 14px;
+  color: var(--muted);
+}
+.blocker-review h3 {
+  margin: 2px 0 0;
+  font-size: 22px;
+  line-height: 1.3;
+}
+.decision-summary {
+  font-size: 17px;
+  line-height: 1.6;
+  margin: 20px 0 8px;
+}
+.decision-context summary,
+.review-notes summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 14px;
+  padding: 8px 0;
+}
+.decision-context p {
+  white-space: pre-wrap;
+}
+.decision-recommendation {
+  background: var(--decision-tint);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.decision-recommendation p {
+  margin: 4px 0 0;
+}
+.decision-remember {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  margin-top: 16px;
+  cursor: pointer;
+}
+.decision-remember input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  margin-top: 2px;
+}
+.decision-answer {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 4px;
+}
+.decision-footnote {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 0;
+}
+.drafting-preference {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  padding: 4px 0 12px;
+}
+.drafting-preference span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.review-notes {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+  margin-bottom: 20px;
+}
+@media (max-width: 600px) {
+  .back-to-jobs {
+    display: block;
+    margin-bottom: 12px;
+  }
+  .blocker-review {
+    padding: 18px;
+    border-radius: 12px;
+  }
+  .blocker-review .actions {
+    align-items: stretch;
+  }
+  .blocker-review .actions button {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
 }
 body {
   margin: 0;

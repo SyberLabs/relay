@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { loadEditor } from '../lib/editor.ts';
 import * as helper from '../lib/workspace-refresh.ts';
+import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
 import {
   beginMutation,
   beginRefresh,
@@ -364,6 +365,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
           }));
   const deps = {
     ...helper,
+    defaultDraftingPreference,
     fetch: fetcher,
     sessionRef: { current: session },
     selectedRef: { current: '' },
@@ -374,6 +376,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     'sources',
     'events',
     'facts',
+    'draftingPreference',
     'editor',
     'importText',
     'previewedImport',
@@ -443,6 +446,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
   };
   const deps = {
     ...helper,
+    defaultDraftingPreference,
     fetch: async () => pending.promise,
     sessionRef: { current: session },
     mergeReviewEvents: (prev, extra) => [...prev, ...extra],
@@ -452,6 +456,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
     'sources',
     'events',
     'facts',
+    'draftingPreference',
     'editor',
     'importText',
     'previewedImport',
@@ -519,6 +524,7 @@ void test('history JSON that expires during parse cannot restore events', async 
   };
   const deps = {
     ...helper,
+    defaultDraftingPreference,
     fetch: async () => ({
       status: 200,
       ok: true,
@@ -546,6 +552,7 @@ void test('history JSON that expires during parse cannot restore events', async 
     'sources',
     'events',
     'facts',
+    'draftingPreference',
     'editor',
     'importText',
     'previewedImport',
@@ -749,6 +756,7 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
   let gets = 0;
   const deps = {
     ...helper,
+    defaultDraftingPreference,
     sessionRef: { current: session },
     selectedRef: { current: ownerA.id },
     loadJobHistory: async () => {},
@@ -769,6 +777,7 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
     'sources',
     'events',
     'facts',
+    'draftingPreference',
     'editor',
     'importText',
     'previewedImport',

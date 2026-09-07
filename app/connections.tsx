@@ -39,6 +39,7 @@ export function Connections({
   onDraft,
   onImport,
   openImport,
+  drafting,
 }: {
   toolStatus: RelayToolStatus;
   open: boolean;
@@ -63,6 +64,7 @@ export function Connections({
   onDraft: (value: string, started: EditorTarget | undefined) => void;
   onImport: (value: string) => void;
   openImport: () => void;
+  drafting?: { routine: boolean; direction: string };
 }) {
   const [facts, setFacts] = useState('');
   const [note, setNote] = useState('');
@@ -85,7 +87,11 @@ export function Connections({
   }
   function packetText() {
     return current
-      ? JSON.stringify(selectedJobPacket(current, facts, draft), null, 2)
+      ? JSON.stringify(
+          { ...selectedJobPacket(current, facts, draft), drafting },
+          null,
+          2,
+        )
       : '';
   }
   async function copy() {
@@ -114,7 +120,7 @@ export function Connections({
   }
   function download(assistant?: Assistant) {
     if (!current) return;
-    const packet = selectedJobPacket(current, facts, draft);
+    const packet = { ...selectedJobPacket(current, facts, draft), drafting };
     if (assistant) {
       try {
         downloadFile(

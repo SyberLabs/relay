@@ -86,12 +86,17 @@ export function jobQueueHint(
     version: number;
     status: string;
     blocker: string;
+    drafting_direction?: string;
     accepted_draft: string | null;
   },
   editor: Editor | null,
 ) {
   const local = editor?.jobId === job.id ? editor : null;
-  if (local ? local.blocker : job.blocker) return 'Needs attention';
+  if (local ? local.blocker : job.blocker)
+    return job.drafting_direction &&
+      (!local || local.blocker === local.baseBlocker)
+      ? 'Ready for assistant'
+      : 'Needs attention';
   if (local ? showsExactAcceptance(job, local) : job.status === 'Ready')
     return 'Exact draft accepted';
   if (job.status === 'Held' || job.status === 'Ready')

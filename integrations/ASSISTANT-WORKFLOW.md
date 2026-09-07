@@ -13,6 +13,18 @@ Ask your assistant to progress one application. Where its browser supports Relay
 
 If browser tools are unavailable, the existing packet download/assistant response/upload flow remains available. That fallback requires explicit transfer and its own supplied facts. No provider catalogue or setup wizard is needed for the browser-tool path.
 
+### Resolve a question without rewriting the agent's notes
+
+The selected application's decision card offers **Use your judgment** and **I'll add context**. The first delegates wording, structure and optional examples using confirmed facts. The second saves a short answer or direction for this job. Neither confirms a reusable candidate fact, accepts wording, clears an explicit submission hold or sends anything.
+
+**Don't ask me about routine writing choices again** remembers that preference for future applications. **Ask me again** revokes it. The preference is owner-scoped and versioned; a stale decision cannot overwrite a newer choice. `relay_read_application` and CLI `context` return `drafting` with the preference version, routine flag, current job direction and bounded guidance. Downloaded packets and ChatGPT/Codex prompts also carry the drafting preference. Refresh context before continuing; don't reuse a remembered preference from an old session after it has been revoked.
+
+The assistant should first try the saved facts, simpler wording, or omitting an optional detail. Optional anecdotes, stylistic choices and requests for more persuasive personal motivation must not interrupt a draft that can be written honestly without them. For a reason for interest, draft from documented role details and relevant confirmed experience; do not demand the user's own wording or invent a personal passion, past relationship or lived experience. When a required factual employer answer cannot be grounded, ask **one short question**, explain briefly why it is required, and put research/detail in progress notes. Do not guess personal facts or treat a permission/security refusal as a writing choice.
+
+Saving a decision retains the original question and marks the job **Ready for assistant**. It does not start a hosted agent. Continue in the existing assistant; its next context read receives the direction. After preparing the draft, the assistant stages an empty blocker if resolved, or the specific required question if not. Staging consumes the current direction; full research and decision history remain. Exact draft acceptance still requires a separate review action. This is the narrow routine-drafting slice of #112, not unattended acceptance or application sending.
+
+Each decision uses one job, the current job/preference versions and a unique operation ID. The same ID and exact input return the existing receipt after an uncertain result; there are no automatic retries. Responses are bounded by the existing gateway quotas and CAPTCHA. A failure retains the visible answer; stale versions require reload. Storage is one added bounded direction per existing job, two fields on the existing fixed owner preference row, and one existing quota-controlled history event per decision. No paid upstream or background operation is introduced.
+
 ## Local command line
 
 With a private local development server running:

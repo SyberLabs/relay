@@ -10,6 +10,8 @@ import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
 import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
+import { BlockerReview } from './blocker-review';
+import { defaultDraftingPreference } from '../lib/drafting-decision';
 import { AppShell } from './shell';
 import {
   isQueueFilter,
@@ -71,6 +73,7 @@ type Job = {
   url: string | null;
   status: string;
   blocker: string;
+  drafting_direction: string;
   draft: string;
   accepted_draft: string | null;
   version: number;
@@ -97,6 +100,9 @@ type Report = {
   items: { name: string; kind: string; key: string }[];
 };
 export default function Workspace() {
+  const [draftingPreference, setDraftingPreference] = useState(
+    defaultDraftingPreference,
+  );
   const [jobs, setJobs] = useState<Job[]>([]),
     [sources, setSources] = useState<Source[]>([]),
     [events, setEvents] = useState<ReviewEvent[]>([]),
@@ -123,6 +129,7 @@ export default function Workspace() {
   const sessionRef = useRef(createWorkspaceSession());
   const importRef = useRef<HTMLElement>(null);
   const queueRef = useRef<HTMLElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
   const workspaceEpoch = sessionRef.current.gate.epoch;
   const applyExpired = useCallback(() => {
     const next = expiredPrivateWorkspace();
@@ -130,6 +137,7 @@ export default function Workspace() {
     setSources(next.sources);
     setEvents(next.events);
     setFacts(next.facts);
+    setDraftingPreference(defaultDraftingPreference);
     setEditor(next.editor);
     setImportText(next.importText);
     setPreviewedImport(next.previewedImport);
@@ -187,6 +195,9 @@ export default function Workspace() {
   const progressAttempt = useRef<{ key: string; operationId: string } | null>(
     null,
   );
+  const decisionAttempt = useRef<{ key: string; operationId: string } | null>(
+    null,
+  );
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
@@ -239,6 +250,9 @@ export default function Workspace() {
       setSources(outcome.sources as Source[]);
       setEvents(outcome.events as ReviewEvent[]);
       setFacts(outcome.facts as Fact[]);
+      setDraftingPreference(
+        outcome.draftingPreference ?? defaultDraftingPreference,
+      );
       if (outcome.switched) {
         setShowAddJob(false);
         setShowImport(false);
@@ -315,15 +329,19 @@ export default function Workspace() {
       await refresh(saved);
       if (!mutationIsLive(sessionRef.current.gate, started)) return;
       setMessage(
-        body.action === 'save'
-          ? 'Saved. Your review is preserved.'
-          : body.action === 'progress'
-            ? 'Progress saved. Saved wording and application status are unchanged.'
-            : body.action === 'replay'
-              ? 'Replay complete. No records changed.'
-              : body.action === 'preview'
-                ? 'Preview complete. No records were imported.'
-                : 'Workspace updated.',
+        body.action === 'drafting-decision'
+          ? body.choice === 'reset'
+            ? 'Preference updated. Your assistant will ask you again.'
+            : 'Decision saved. Your assistant can continue from this job.'
+          : body.action === 'save'
+            ? 'Saved. Your review is preserved.'
+            : body.action === 'progress'
+              ? 'Progress saved. Saved wording and application status are unchanged.'
+              : body.action === 'replay'
+                ? 'Replay complete. No records changed.'
+                : body.action === 'preview'
+                  ? 'Preview complete. No records were imported.'
+                  : 'Workspace updated.',
       );
       return true;
     } catch (e) {
@@ -353,6 +371,10 @@ export default function Workspace() {
     selectedRef.current = job.id;
     setEditor(loadEditor(job));
     void loadJobHistory(job.id);
+    requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ block: 'start' });
+      detailRef.current?.querySelector('h2')?.focus({ preventScroll: true });
+    });
   }
   function chooseFilter(value: QueueFilter) {
     if (signedOut) {
@@ -441,6 +463,50 @@ export default function Workspace() {
     const ok = await run({ ...body, operation_id: attempt.operationId }, saved);
     if (ok && progressAttempt.current === attempt)
       progressAttempt.current = null;
+  }
+  async function saveDecision(
+    choice: 'delegate' | 'answer' | 'reset',
+    remember: boolean,
+    answer: string,
+  ) {
+    if (
+      busy ||
+      !editor ||
+      !current ||
+      !canSave(editor) ||
+      editor.draft !== editor.baseDraft ||
+      editor.blocker !== editor.baseBlocker ||
+      (choice !== 'answer' && !!editor.progressNote)
+    )
+      return;
+    const body = {
+      action: 'drafting-decision',
+      id: current.id,
+      version: editor.version,
+      viewer: sessionRef.current.viewer,
+      preference_version: draftingPreference.version,
+      choice,
+      remember,
+      answer,
+    };
+    const key = JSON.stringify(body);
+    if (decisionAttempt.current?.key !== key)
+      decisionAttempt.current = { key, operationId: crypto.randomUUID() };
+    const attempt = decisionAttempt.current;
+    const ok = await run(
+      { ...body, operation_id: attempt.operationId },
+      {
+        jobId: editor.jobId,
+        session: editor.session,
+        version: editor.version,
+        draft: current.draft,
+        blocker: current.blocker,
+        ...(choice === 'answer' ? { progressNote: answer } : {}),
+      },
+    );
+    if (ok && decisionAttempt.current === attempt)
+      decisionAttempt.current = null;
+    return ok;
   }
   function openAddJob() {
     addJobViewerRef.current = sessionRef.current.viewer;
@@ -558,6 +624,10 @@ export default function Workspace() {
       }
       draft={draft}
       notes={blocker}
+      drafting={{
+        routine: draftingPreference.routine,
+        direction: current?.drafting_direction ?? '',
+      }}
       sources={sources.filter((s) => s.job_key === current?.job_key)}
       onDraft={(value, started) => {
         setEditor((e) => applyLoadedDraft(e, value, started));
@@ -790,29 +860,29 @@ export default function Workspace() {
         )}
         {jobs.length > 0 && (
           <section className="stats">
-          <div>
-            <span>Opportunities</span>
-            <strong>{jobs.length.toString().padStart(2, '0')}</strong>
-            <small>Unique job records</small>
-          </div>
-          <div>
-            <span>Ready for your review</span>
-            <strong>
-              {jobs
-                .filter((j) => j.status === 'Held')
-                .length.toString()
-                .padStart(2, '0')}
-            </strong>
-            <small>Held drafts</small>
-          </div>
-          <div>
-            <span>Repeat sources</span>
-            <strong>
-              {(sources.length - jobs.length).toString().padStart(2, '0')}
-            </strong>
-            <small>Joined to an existing job</small>
-          </div>
-        </section>
+            <div>
+              <span>Opportunities</span>
+              <strong>{jobs.length.toString().padStart(2, '0')}</strong>
+              <small>Unique job records</small>
+            </div>
+            <div>
+              <span>Ready for your review</span>
+              <strong>
+                {jobs
+                  .filter((j) => j.status === 'Held')
+                  .length.toString()
+                  .padStart(2, '0')}
+              </strong>
+              <small>Held drafts</small>
+            </div>
+            <div>
+              <span>Repeat sources</span>
+              <strong>
+                {(sources.length - jobs.length).toString().padStart(2, '0')}
+              </strong>
+              <small>Joined to an existing job</small>
+            </div>
+          </section>
         )}
         {signedOut ? (
           <section className="welcome" id="workspace-signin">
@@ -914,14 +984,20 @@ export default function Workspace() {
                   )}
                 </div>
               </section>
-              <section className="detail">
+              <section className="detail" ref={detailRef}>
                 {current ? (
                   <>
                     <div className="detailhead">
+                      <button
+                        className="textbutton back-to-jobs"
+                        onClick={() => chooseFilter(filter)}
+                      >
+                        Back to jobs
+                      </button>
                       <span className="badge">
                         Relay status: {current.status}
                       </span>
-                      <h2>{current.name}</h2>
+                      <h2 tabIndex={-1}>{current.name}</h2>
                       <p className="muted">{loopStepLead(current.status)}</p>
                       {current.url && (
                         <a href={current.url} target="_blank" rel="noreferrer">
@@ -929,7 +1005,25 @@ export default function Workspace() {
                         </a>
                       )}
                     </div>
-                    {connections}
+                    <BlockerReview
+                      key={current.id}
+                      blocker={current.blocker}
+                      direction={current.drafting_direction}
+                      preference={draftingPreference}
+                      disabled={blocked}
+                      dirty={
+                        !!editor &&
+                        (editor.draft !== editor.baseDraft ||
+                          editor.blocker !== editor.baseBlocker)
+                      }
+                      answer={editor?.progressNote ?? ''}
+                      onAnswer={(value) =>
+                        setEditor((ed) =>
+                          ed ? { ...ed, progressNote: value } : ed,
+                        )
+                      }
+                      onDecision={saveDecision}
+                    />
                     {showsExactAcceptance(current, editor) && (
                       <div className="notice">
                         This exact draft is accepted.
@@ -952,51 +1046,52 @@ export default function Workspace() {
                         </button>
                       </div>
                     )}
-                    <label className="field">
-                      Blocker or missing fact
-                      <textarea
-                        value={blocker}
-                        onChange={(e) =>
-                          setEditor((ed) =>
-                            ed ? { ...ed, blocker: e.target.value } : ed,
-                          )
-                        }
-                        placeholder="What needs to be resolved before accepting this draft?"
-                        maxLength={4000}
-                      />
-                    </label>
-                    <label className="field">
-                      Progress note
-                      <textarea
-                        value={editor?.progressNote ?? ''}
-                        onChange={(e) =>
-                          setEditor((ed) =>
-                            ed ? { ...ed, progressNote: e.target.value } : ed,
-                          )
-                        }
-                        maxLength={4000}
-                        placeholder="Completed work or a next action that does not prevent accepting the draft."
-                      />
-                    </label>
-                    <div className="actions">
-                      <button
-                        className="secondary"
-                        disabled={
-                          blocked ||
-                          (!editor?.progressNote.trim() &&
-                            blocker === editor?.baseBlocker)
-                        }
-                        onClick={() => void saveProgress()}
-                      >
-                        Save progress only
-                      </button>
-                    </div>
-                    <p className="muted">
-                      Save the note to review history and any explicit blocker
-                      edits. Notes do not block acceptance. Saved wording and
-                      application status stay unchanged; draft edits below
-                      remain unsaved.
-                    </p>
+                    <details className="review-notes">
+                      <summary>Edit blocker or save a progress note</summary>
+                      <label className="field">
+                        Blocker or missing fact
+                        <textarea
+                          value={blocker}
+                          onChange={(e) =>
+                            setEditor((ed) =>
+                              ed ? { ...ed, blocker: e.target.value } : ed,
+                            )
+                          }
+                          placeholder="What needs to be resolved before accepting this draft?"
+                          maxLength={4000}
+                        />
+                      </label>
+                      <label className="field">
+                        Progress note
+                        <textarea
+                          value={editor?.progressNote ?? ''}
+                          onChange={(e) =>
+                            setEditor((ed) =>
+                              ed ? { ...ed, progressNote: e.target.value } : ed,
+                            )
+                          }
+                          maxLength={4000}
+                          placeholder="Completed work or a next action that does not prevent accepting the draft."
+                        />
+                      </label>
+                      <div className="actions">
+                        <button
+                          className="secondary"
+                          disabled={
+                            blocked ||
+                            (!editor?.progressNote.trim() &&
+                              blocker === editor?.baseBlocker)
+                          }
+                          onClick={() => void saveProgress()}
+                        >
+                          Save progress only
+                        </button>
+                      </div>
+                      <p className="muted">
+                        Progress notes stay in history. They do not block draft
+                        acceptance.
+                      </p>
+                    </details>
                     <label className="field">
                       Application answer or outreach draft
                       <textarea
@@ -1064,6 +1159,7 @@ export default function Workspace() {
                       Acceptance records your approval of these exact words.
                       Changed wording needs fresh acceptance. Nothing is sent.
                     </small>
+                    {connections}
                     <h3>Evidence matches</h3>
                     <small className="muted">
                       Heuristic word and number matches against your confirmed,

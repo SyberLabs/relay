@@ -59,6 +59,7 @@ export const jobs = sqliteTable(
     url: text('url'),
     status: text('status').notNull(),
     blocker: text('blocker').notNull().default(''),
+    drafting_direction: text('drafting_direction').notNull().default(''),
     draft: text('draft').notNull().default(''),
     accepted_draft: text('accepted_draft'),
     version: integer('version').notNull().default(1),
@@ -177,6 +178,8 @@ export const reviewBatches = sqliteTable(
 );
 export const preferences = sqliteTable('preferences', {
   owner: text('owner').primaryKey(),
+  routine_drafting: integer('routine_drafting').notNull().default(0),
+  drafting_version: integer('drafting_version').notNull().default(1),
   weights: text('weights').notNull().default(''),
   pairs: integer('pairs').notNull().default(0),
   minutes: integer('minutes').notNull().default(120),

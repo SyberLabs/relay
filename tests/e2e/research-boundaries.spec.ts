@@ -48,6 +48,7 @@ test('imported holds refuse acceptance and About You qualifications remain visib
   expect(history.events).toHaveLength(0);
   await page.reload();
   await page.getByRole('button', { name: new RegExp(name) }).click();
+  await page.locator('details.review-notes > summary').click();
   await expect(
     page.getByRole('textbox', { name: 'Blocker or missing fact' }),
   ).toHaveValue(job.blocker);

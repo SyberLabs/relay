@@ -11,8 +11,12 @@ const compMax = `COALESCE(excluded.comp_max,jobs.comp_max)`;
 const posted = `COALESCE(excluded.posted,jobs.posted)`;
 const merged = `${status}, ${blocker}, ${accepted}, ${company}, ${level}, ${remote}, ${compMin}, ${compMax}, ${location}, ${posted}, ${source}`;
 const current = `jobs.status, jobs.blocker, jobs.accepted_draft, jobs.company, jobs.level, jobs.remote, jobs.comp_min, jobs.comp_max, jobs.location, jobs.posted, jobs.source`;
+// Research can continue during application work, but cannot change the job
+// underneath its exact proposal/permit. The separate observation insert keeps
+// new evidence. Cancelled or confirmed-not-submitted work no longer holds it.
+const noActiveApplication = `NOT EXISTS (SELECT 1 FROM application_operations a WHERE a.owner=jobs.owner AND a.job_id=jobs.id AND a.state IN ('proposed','authorized','executing','uncertain'))`;
 
-export const jobImportSql = `INSERT INTO jobs (id,owner,job_key,name,url,status,blocker,draft,updated,company,level,remote,comp_min,comp_max,location,posted,source,effort) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,job_key) DO UPDATE SET status=${status}, blocker=${blocker}, accepted_draft=${accepted}, company=${company}, level=${level}, remote=${remote}, comp_min=${compMin}, comp_max=${compMax}, location=${location}, posted=${posted}, source=${source}, effort=jobs.effort, version=jobs.version+1, updated=excluded.updated WHERE (${merged}) IS NOT (${current})`;
+export const jobImportSql = `INSERT INTO jobs (id,owner,job_key,name,url,status,blocker,draft,updated,company,level,remote,comp_min,comp_max,location,posted,source,effort) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(owner,job_key) DO UPDATE SET status=${status}, blocker=${blocker}, accepted_draft=${accepted}, company=${company}, level=${level}, remote=${remote}, comp_min=${compMin}, comp_max=${compMax}, location=${location}, posted=${posted}, source=${source}, effort=jobs.effort, version=jobs.version+1, updated=excluded.updated WHERE (${merged}) IS NOT (${current}) AND ${noActiveApplication}`;
 
 export const observationImportSql =
   'INSERT OR IGNORE INTO observations (id,owner,job_key,source_url,name,status,notes,created) VALUES (?,?,?,?,?,?,?,?)';

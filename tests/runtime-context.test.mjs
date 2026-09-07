@@ -15,10 +15,12 @@ function compile(text) {
 
 function deferred() {
   let resolve;
-  const promise = new Promise((ok) => {
+  let reject;
+  const promise = new Promise((ok, fail) => {
     resolve = ok;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function bind(text, deps) {
@@ -91,6 +93,8 @@ void test('policy and profile 401s expire before JSON and delayed 200s cannot re
         ? apps.promise
         : profile.promise,
     sessionRef: { current: session },
+    selectedRef: { current: 'job-1' },
+    refreshRef: { current: async () => {} },
   };
   expireKeys(state, deps);
   deps.applyExpired = bind(expiry, deps);
@@ -146,6 +150,8 @@ void test('policy POST 401 expires without parsing and a delayed 200 cannot rest
     jobs: [{ id: 'job-1', status: 'Held' }],
     busyRef: { current: false },
     policyRef: { current: state.policy },
+    selectedRef: { current: 'job-1' },
+    refresh: async () => {},
     fetch: async () => pending.promise,
     sessionRef: { current: session },
   };
@@ -187,6 +193,8 @@ void test('runtime context waits for a bound workspace viewer', async () => {
       return { status: 200, ok: true, json: async () => ({}) };
     },
     sessionRef: { current: session },
+    selectedRef: { current: '' },
+    refreshRef: { current: async () => {} },
     applyExpired: () => {
       throw Error('must not expire');
     },
@@ -222,6 +230,8 @@ void test('policy GET 401 expires without parsing JSON', async () => {
       url,
     }),
     sessionRef: { current: session },
+    selectedRef: { current: 'job-1' },
+    refreshRef: { current: async () => {} },
   };
   expireKeys(state, deps);
   deps.applyExpired = bind(expiry, deps);
@@ -329,4 +339,328 @@ void test('expired workspace refresh does not load plant context', async () => {
   assert.equal(state.autopilot, false);
   assert.equal(state.styleCount, 0);
   assert.equal(session.viewer, undefined);
+});
+
+void test('applications 401 expires before a hanging profile fetch settles', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const profile = deferred();
+  const state = {
+    jobs: [{ id: 'job-1', draft: 'Owner A private notes.' }],
+    policy: { version: 1, enabled: 1 },
+    autopilot: true,
+    styleCount: 2,
+    signedOut: false,
+    modal: 'tools',
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    fetch: async (url) =>
+      String(url).includes('/api/applications')
+        ? {
+            status: 401,
+            ok: false,
+            json: async () => {
+              throw Error('must not parse 401 JSON');
+            },
+          }
+        : profile.promise,
+    sessionRef: { current: session },
+    selectedRef: { current: 'job-1' },
+    refreshRef: { current: async () => {} },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const pending = bind(loadSrc, deps)();
+  let settled = false;
+  void pending.then(() => {
+    settled = true;
+  });
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+  assert.equal(state.signedOut, true);
+  assert.equal(state.policy, null);
+  assert.equal(state.jobs.length, 0);
+  assert.equal(settled, false);
+  profile.reject(Error('profile hung'));
+  await pending;
+  assert.equal(state.styleCount, 0);
+});
+
+void test('applications 401 expires when the profile fetch rejects', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const state = {
+    policy: { version: 4, enabled: 1 },
+    autopilot: true,
+    styleCount: 3,
+    signedOut: false,
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    fetch: async (url) => {
+      if (String(url).includes('/api/profile')) throw Error('profile down');
+      return {
+        status: 401,
+        ok: false,
+        json: async () => {
+          throw Error('must not parse 401 JSON');
+        },
+      };
+    },
+    sessionRef: { current: session },
+    selectedRef: { current: '' },
+    refreshRef: { current: async () => {} },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  await bind(loadSrc, deps)();
+  assert.equal(state.signedOut, true);
+  assert.equal(state.policy, null);
+  assert.equal(state.autopilot, false);
+});
+
+void test('a policy GET from a new viewer clears prior private fields and reloads', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const profile = deferred();
+  let reloads = 0;
+  const state = {
+    jobs: [{ id: 'job-1', draft: 'Owner A private notes.' }],
+    policy: { version: 1, enabled: 1, owner: 'owner-a' },
+    autopilot: true,
+    styleCount: 4,
+    signedOut: false,
+    loaded: true,
+    modal: 'tools',
+    message: 'Owner A notice',
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    fetch: async (url) =>
+      String(url).includes('/api/applications')
+        ? {
+            status: 200,
+            ok: true,
+            json: async () => ({
+              viewer: 'owner-b',
+              policy: { version: 8, enabled: 0, owner: 'owner-b' },
+            }),
+          }
+        : profile.promise,
+    sessionRef: { current: session },
+    selectedRef: { current: 'job-1' },
+    refreshRef: {
+      current: async () => {
+        reloads += 1;
+      },
+    },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const pending = bind(loadSrc, deps)();
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(state.signedOut, false);
+  assert.equal(state.jobs.length, 0);
+  assert.equal(state.modal, null);
+  assert.equal(state.message, '');
+  assert.equal(state.policy?.owner, 'owner-b');
+  assert.equal(state.autopilot, false);
+  assert.equal(deps.selectedRef.current, '');
+  assert.equal(reloads, 1);
+  assert.equal(state.styleCount, 0);
+  profile.reject(Error('unused profile'));
+  await pending;
+});
+
+void test('saveLimits catch after expiry does not write a message', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const saveSrc = src.slice(
+    src.indexOf('async function saveLimits'),
+    src.indexOf('\n  async function toggleAutopilot'),
+  );
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const pending = deferred();
+  const state = {
+    policy: { version: 2, enabled: 0, expires: '2026-09-14T00:00:00.000Z' },
+    signedOut: false,
+    message: '',
+    busy: true,
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    isTerminal,
+    boundedPolicyMaximum,
+    policyExpiryIso,
+    jobs: [{ id: 'job-1', status: 'Held' }],
+    busyRef: { current: false },
+    policyRef: { current: state.policy },
+    selectedRef: { current: 'job-1' },
+    refresh: async () => {},
+    fetch: async () => pending.promise,
+    sessionRef: { current: session },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const saving = bind(
+    saveSrc,
+    deps,
+  )({
+    maximum: 8,
+    review: 'all',
+    enabled: true,
+  });
+  helper.expireSession(session);
+  deps.applyExpired();
+  pending.reject(Error('network'));
+  assert.equal(await saving, false);
+  assert.equal(state.signedOut, true);
+  assert.equal(state.message, '');
+  assert.equal(state.policy, null);
+});
+
+void test('saveLimits finally after a viewer switch keeps a newer busy lock', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const saveSrc = src.slice(
+    src.indexOf('async function saveLimits'),
+    src.indexOf('\n  async function toggleAutopilot'),
+  );
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const pending = deferred();
+  const busyRef = { current: false };
+  const state = {
+    policy: { version: 2, enabled: 0, expires: '2026-09-14T00:00:00.000Z' },
+    autopilot: false,
+    signedOut: false,
+    message: '',
+    busy: true,
+    jobs: [{ id: 'job-1', draft: 'Owner A private notes.' }],
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    isTerminal,
+    boundedPolicyMaximum,
+    policyExpiryIso,
+    jobs: state.jobs,
+    busyRef,
+    policyRef: { current: state.policy },
+    selectedRef: { current: 'job-1' },
+    refresh: async () => {},
+    fetch: async () => pending.promise,
+    sessionRef: { current: session },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const saving = bind(
+    saveSrc,
+    deps,
+  )({
+    maximum: 8,
+    review: 'all',
+    enabled: true,
+  });
+  const jsonWait = deferred();
+  pending.resolve({
+    status: 200,
+    ok: true,
+    json: async () => {
+      await jsonWait.promise;
+      return {
+        viewer: 'owner-b',
+        policy: { version: 9, enabled: 1, owner: 'owner-b' },
+      };
+    },
+  });
+  for (let i = 0; i < 8; i++) await Promise.resolve();
+  busyRef.current = 99;
+  state.busy = true;
+  jsonWait.resolve();
+  assert.equal(await saving, false);
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(state.signedOut, false);
+  assert.equal(state.jobs.length, 0);
+  assert.equal(busyRef.current, 99);
+  assert.equal(state.busy, true);
+});
+
+void test('toggleAutopilot does not open Tools after a viewer switch', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const slice = src.slice(
+    src.indexOf('async function saveLimits'),
+    src.indexOf('\n  return ('),
+  );
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const startedEpoch = session.gate.epoch;
+  const state = {
+    policy: { version: 2, enabled: 0, expires: '2026-09-14T00:00:00.000Z' },
+    autopilot: false,
+    signedOut: false,
+    message: '',
+    busy: false,
+    modal: null,
+    jobs: [{ id: 'job-1', status: 'Held' }],
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    isTerminal,
+    boundedPolicyMaximum,
+    policyExpiryIso,
+    jobs: state.jobs,
+    current: null,
+    signedOut: false,
+    autopilot: false,
+    policy: state.policy,
+    busyRef: { current: false },
+    policyRef: { current: state.policy },
+    selectedRef: { current: '' },
+    refresh: async () => {},
+    loadNext: () => {
+      throw Error('must not load the previous queue');
+    },
+    fetch: async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        viewer: 'owner-b',
+        policy: { version: 9, enabled: 1, owner: 'owner-b' },
+      }),
+    }),
+    sessionRef: { current: session },
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  const compiled = stripTypeScriptTypes(slice, { mode: 'transform' })
+    .trim()
+    .replace(/;$/, '');
+  // oxlint-disable-next-line typescript/no-implied-eval -- compile actual Workspace callbacks
+  const toggleAutopilot = new Function(
+    ...Object.keys(deps),
+    compiled + ';return toggleAutopilot;',
+  )(...Object.values(deps));
+  await toggleAutopilot();
+  assert.equal(session.viewer, 'owner-b');
+  assert.notEqual(session.gate.epoch, startedEpoch);
+  assert.equal(state.modal, null);
+  assert.doesNotMatch(state.message, /Autopilot on/);
 });

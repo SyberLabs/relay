@@ -1,0 +1,16 @@
+{
+  "seed": 105,
+  "sources": [
+    { "format": "lastround", "path": "lastround.csv" },
+    { "format": "ats-jobs-mcp", "path": "ats-jobs-mcp.json" },
+    { "format": "intern-engine", "path": "intern-engine.json" },
+    { "format": "africa", "path": "africa.json" },
+    { "format": "cdx", "path": "cdx.jsonl" }
+  ],
+  "scout": [
+    { "format": "hn-algolia", "path": "hn-algolia.json" },
+    { "format": "yc-hiring", "path": "yc-hiring.json" },
+    { "format": "startups", "path": "startups.json" },
+    { "format": "speedrun", "path": "speedrun.json" }
+  ]
+}

@@ -72,7 +72,8 @@ LinkedIn, Indeed, Wellfound/AngelList, Crunchbase (unless a documented open dump
 
 ## Practical order
 
-1. **Live #105 treatment directory:** LastRound CC BY 4.0 CSV in `private-data/`, attribute, sample within caps, re-check with `--live`. Optionally union MIT rows from ats-jobs-mcp and intern-engine GH/Lever/Ashby that LastRound missed.
-2. **Scout experiment (separate slice, still no Worker crawl):** HN Algolia who-is-hiring **or** a frozen YC-hiring JSON → website/slug probe → compare unknown-company yield vs the LastRound snapshot vs `control_known`.
-3. **SEC / H-1B** only after a Workday-class adapter exists.
-4. The writing agent still does not find slugs in the same session as drafting.
+1. **Live #105 treatment catalog:** put the LastRound CC BY 4.0 CSV in `private-data/experiments/pre-agent-admit/`, point `--catalog` at a JSON that lists that file (and optional MIT dumps). The harness unions rows, **samples by provider share** (not the CSV prefix — LastRound is vendor-sorted, so first-N is almost all Ashby), re-GETs every sampled board, and writes LastRound attribution into compare JSON. Do not commit the CSV.
+2. **Optional union:** ats-jobs-mcp and intern-engine GH/Lever/Ashby rows that LastRound missed; africa-ats-directory only as schema/geo spice. Common Crawl CDX as a **local file** of captured URLs, not a live harvest during the labeled run.
+3. **Scout slice (same local process, still no Worker crawl):** HN Algolia who-is-hiring comments, and/or a frozen YC-hiring JSON, startups dump, or Speedrun company list under `catalog.scout`. Resolution is public board GET only. Skip LinkedIn / Indeed / Wellfound / Crunchbase. Do not scrape ycombinator.com; refuse Feashliaa CC BY-NC lists.
+4. **SEC / H-1B** only after a Workday-class adapter exists.
+5. The writing agent still does not find slugs in the same session as drafting.

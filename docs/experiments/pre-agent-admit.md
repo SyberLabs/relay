@@ -37,7 +37,7 @@ The comparison of interest is **treatment versus `control_known`**: same spec, s
 
 - Providers: public Greenhouse and Lever JSON (existing `pullBoard`) plus Ashby’s public job-board JSON (experiment-only; not a production connector).
 - No login walls, CAPTCHA bypass, robots evasion, or ToS-hostile major-board scrapes.
-- `--live` never uses the committed fixture directory and never runs without an explicit private `--directory`.
+- `--live` never uses the committed fixture directory or catalog and never runs without an explicit private `--directory` or `--catalog`.
 - Caps: boards, admitted rows, concurrency, timeout, minimum interval. A failed board is counted and skipped; it does not abort the run.
 - Compare JSON contains counts and rates only. Import files that contain posting text stay in `--out` (use ignored `private-data/` for live hunts).
 - This process is not admitted through the production Worker. It uses the operator’s machine. Do not add a Relay-funded crawl, embedder, or queue here; that would require the currency-budget controls in `docs/abuse-controls.md`.
@@ -62,16 +62,42 @@ Offline (committed fictional Northstar / ExampleCo / Harbor Labs / Acme Labs):
 pnpm experiment:pre-agent-admit -- --fixtures --out /tmp/pre-agent-admit
 ```
 
-Live (private spec, directory, known list; writing agent still asleep):
+The same fixture boards can be rebuilt from the committed catalog snapshot (LastRound-shaped CSV plus MIT JSON, CDX lines, and HN/YC scouts):
+
+```sh
+pnpm experiment:pre-agent-admit -- --fixtures \
+  --catalog scripts/experiments/pre-agent-admit/fixtures/catalog/catalog.json \
+  --out /tmp/pre-agent-admit-catalog
+```
+
+Live (private spec, catalog or directory, known list; writing agent still asleep):
 
 ```sh
 pnpm experiment:pre-agent-admit -- --live \
   --spec private-data/experiments/pre-agent-admit/spec.json \
-  --directory private-data/experiments/pre-agent-admit/directory.json \
+  --catalog private-data/experiments/pre-agent-admit/catalog.json \
   --known private-data/experiments/pre-agent-admit/known.json \
   --labels private-data/experiments/pre-agent-admit/labels.json \
   --out private-data/experiments/pre-agent-admit/runs/current
 ```
+
+`--catalog` unions local slug snapshots (LastRound CSV, ats-jobs-mcp, intern-engine GH/Lever/Ashby, africa-ats-directory, Common Crawl CDX files), optionally probes HN Algolia / frozen YC-hiring / startups / Speedrun name lists with public board GETs, then **stratifies by provider** down to `max_boards`. Do not pass `--catalog` and `--directory` together. A pre-built `{ "boards": [...] }` file still works as `--directory`.
+
+Keep the real LastRound CSV and any other slug dumps in ignored `private-data/`. A catalog file next to that CSV looks like:
+
+```json
+{
+  "seed": 105,
+  "sources": [
+    { "format": "lastround", "path": "lastround-ats-directory.csv" }
+  ],
+  "scout": [
+    { "format": "hn-algolia", "path": "hn-who-is-hiring.json" }
+  ]
+}
+```
+
+Attribute LastRound (CC BY 4.0) and the [pay transparency study](https://lastroundai.com/blog/salary-transparency-study-2026) whenever that CSV is used. Compare JSON stays counts, rates, and that attribution string; sampled tokens land only in `directory.used.json` under `--out`.
 
 Copy `scripts/experiments/pre-agent-admit/fixtures/spec.json` as a starting spec. Put real board tokens only under `private-data/`. Load `treatment.relay-import.json` with **Load research or draft** if you want those Held rows in a local workspace; load `control_known.relay-import.json` into a separate local D1 if you want to feel both workspaces. Preview still precedes import. Status stays Held.
 

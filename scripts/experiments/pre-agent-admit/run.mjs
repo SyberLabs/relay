@@ -3,8 +3,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRows } from '../../../lib/domain.ts';
+import { buildCatalog, countProviders } from './catalog.mjs';
 import { compareArms } from './compare.mjs';
-import { fetchDirectory } from './fetch.mjs';
+import { fetchDirectory, realClock, startGate } from './fetch.mjs';
 import { fixtureFetch, FIXTURE_ROOT } from './fixtures.mjs';
 import {
   loadDirectory,
@@ -15,9 +16,16 @@ import {
 } from './load.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
+export const FIXTURE_NOW = Date.parse('2026-09-07T12:00:00.000Z');
+
+export function clockForRun({ live = false, now } = {}) {
+  if (now != null) return now;
+  if (!live) return FIXTURE_NOW;
+  return Date.now();
+}
 
 export async function runCompare(options) {
-  const now = options.now ?? Date.parse('2026-09-07T12:00:00.000Z');
+  const now = options.now ?? Date.now();
   const fetched = await fetchDirectory({
     directory: options.directory,
     known: options.known,
@@ -25,6 +33,8 @@ export async function runCompare(options) {
     arm: 'treatment',
     fetchImpl: options.fetchImpl,
     now,
+    clock: options.clock,
+    reserveStart: options.reserveStart,
   });
   const compared = compareArms({
     postings: fetched.postings,
@@ -39,6 +49,7 @@ export async function runCompare(options) {
     boards_capped: fetched.boards_capped,
     failures: fetched.failures,
     fetched_postings: fetched.postings.length,
+    sample_seed: fetched.sample_seed,
     boards: fetched.boards.map((board) => ({
       ok: board.ok,
       provider: board.provider,
@@ -48,6 +59,7 @@ export async function runCompare(options) {
       error: board.error,
     })),
   };
+  if (options.catalog) compared.catalog = options.catalog;
   return compared;
 }
 
@@ -78,23 +90,53 @@ async function main(argv) {
   }
   if (args.live && args.fixtures)
     throw Error('Use either --fixtures or --live, not both.');
-  if (args.live && !args.directory)
+  if (args.catalog && args.directory)
+    throw Error('Use --catalog or --directory, not both.');
+  if (args.live && !args.directory && !args.catalog)
     throw Error(
-      '--live requires --directory pointing at a private board list, not the committed fixtures.',
+      '--live requires --directory or --catalog pointing at a private snapshot, not the committed fixtures.',
     );
   const useFixtures = !args.live;
-  if (args.live && isFixturePath(args.directory))
+  if (args.live && args.directory && isFixturePath(args.directory))
     throw Error(
       '--live refuses the committed fixture directory. Copy a private list into private-data/.',
+    );
+  if (args.live && args.catalog && isFixturePath(args.catalog))
+    throw Error(
+      '--live refuses the committed fixture catalog. Copy sources into private-data/.',
     );
   const spec = loadSpec(
     await readJson(args.spec || join(FIXTURE_ROOT, 'spec.json')),
   );
-  const directory = loadDirectory(
-    await readJson(
-      args.directory || join(FIXTURE_ROOT, 'directory.json'),
-    ),
-  );
+  const fetchImpl = useFixtures ? fixtureFetch() : fetch;
+  const now = clockForRun({ live: Boolean(args.live) });
+  const clock = args.live ? realClock() : {
+    now: () => now,
+    delay: async () => {},
+  };
+  const admit = startGate(clock, spec.caps.min_interval_ms);
+  let directory;
+  let catalogSummary = null;
+  if (args.catalog) {
+    const catalogPath = resolve(args.catalog);
+    const built = await buildCatalog({
+      catalog: await readJson(catalogPath),
+      catalogDir: dirname(catalogPath),
+      spec,
+      fetchImpl,
+      now,
+      clock,
+      reserveStart: admit,
+    });
+    directory = loadDirectory({ boards: built.boards });
+    catalogSummary = built.summary;
+  } else {
+    directory = loadDirectory(
+      await readJson(
+        args.directory || join(FIXTURE_ROOT, 'directory.json'),
+      ),
+    );
+  }
   const known = loadKnown(
     await readJson(args.known || join(FIXTURE_ROOT, 'known.json')),
   );
@@ -108,7 +150,11 @@ async function main(argv) {
     directory,
     known,
     labels,
-    fetchImpl: useFixtures ? fixtureFetch() : fetch,
+    fetchImpl,
+    now,
+    clock,
+    reserveStart: admit,
+    catalog: catalogSummary,
   });
   const publicReport = publicCompare(compared);
   if (args.out) {
@@ -117,6 +163,10 @@ async function main(argv) {
     await writeFile(
       join(outDir, 'compare.json'),
       `${JSON.stringify(publicReport, null, 2)}\n`,
+    );
+    await writeFile(
+      join(outDir, 'directory.used.json'),
+      `${JSON.stringify({ boards: directory }, null, 2)}\n`,
     );
     for (const [arm, rows] of Object.entries(compared.rows)) {
       await writeFile(
@@ -136,8 +186,16 @@ async function main(argv) {
 }
 
 function publicCompare(compared) {
-  const { rows: _rows, ...rest } = compared;
-  return rest;
+  const { rows: _rows, fetch, ...rest } = compared;
+  if (!fetch) return rest;
+  const { boards = [], ...fetchCounts } = fetch;
+  return {
+    ...rest,
+    fetch: {
+      ...fetchCounts,
+      by_provider: countProviders(boards),
+    },
+  };
 }
 
 export function isFixturePath(path) {
@@ -156,15 +214,20 @@ against today's known-company pull and a query-shaped search cap.
 
   node scripts/experiments/pre-agent-admit/run.mjs --fixtures
   node scripts/experiments/pre-agent-admit/run.mjs --fixtures --out /tmp/pre-agent-admit
+  node scripts/experiments/pre-agent-admit/run.mjs --fixtures \\
+    --catalog scripts/experiments/pre-agent-admit/fixtures/catalog/catalog.json
   node scripts/experiments/pre-agent-admit/run.mjs --live \\
     --spec private-data/experiments/pre-agent-admit/spec.json \\
-    --directory private-data/experiments/pre-agent-admit/directory.json \\
+    --catalog private-data/experiments/pre-agent-admit/catalog.json \\
     --known private-data/experiments/pre-agent-admit/known.json \\
     --labels private-data/experiments/pre-agent-admit/labels.json \\
     --out private-data/experiments/pre-agent-admit/runs/current
 
 --fixtures is the default. It never makes network calls.
 --live fetches Greenhouse, Lever, and Ashby public board JSON only.
+--catalog unions LastRound / ats-jobs-mcp / intern-engine / africa / CDX
+snapshots and optional HN/YC/startups/speedrun scouts, then samples to
+max_boards. Keep real tokens and CSVs in private-data/. Attribute LastRound.
 The writing/review agent stays asleep. Relay still does not submit.
 `);
 }

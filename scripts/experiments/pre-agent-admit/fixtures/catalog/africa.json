@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-03-02T00:00:00.000Z",
+  "total_entries": 2,
+  "entries": [
+    {
+      "id": "northstar-ke",
+      "company": "Northstar",
+      "ats": "greenhouse",
+      "careers_url": "https://northstar.example/careers",
+      "board_url": "https://boards.greenhouse.io/northstar",
+      "platform_metadata": {
+        "board_token": "northstar"
+      }
+    },
+    {
+      "id": "harbor-ke",
+      "company": "Harbor Labs",
+      "ats": "lever",
+      "careers_url": "https://harbor.example/careers",
+      "board_url": "https://jobs.lever.co/harbor",
+      "platform_metadata": {
+        "board_token": "harbor"
+      }
+    }
+  ]
+}

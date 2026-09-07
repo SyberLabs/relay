@@ -1,5 +1,6 @@
 import { pullBoard } from '../../../integrations/connectors.mjs';
 import { validateRows } from '../../../lib/domain.ts';
+import { selectBoards } from './catalog.mjs';
 import { ashbyBoardUrl, usableAshby } from './sources.mjs';
 import { isKnownPosting } from './filter.mjs';
 
@@ -18,6 +19,53 @@ export function boardsForArm(directory, known, arm) {
   return directory;
 }
 
+export function realClock() {
+  return {
+    now: () => Date.now(),
+    delay: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  };
+}
+
+export function resolveClock(clock) {
+  if (!clock) return realClock();
+  if (typeof clock.now === 'function') {
+    return {
+      now: () => clock.now(),
+      delay:
+        typeof clock.delay === 'function'
+          ? (ms) => clock.delay(ms)
+          : realClock().delay,
+    };
+  }
+  if (Number.isFinite(clock.now)) {
+    const frozen = clock.now;
+    return {
+      now: () => frozen,
+      delay:
+        typeof clock.delay === 'function' ? (ms) => clock.delay(ms) : async () => {},
+    };
+  }
+  return realClock();
+}
+
+export function startGate(clock, minInterval) {
+  const resolved = resolveClock(clock);
+  let tail = Promise.resolve();
+  let nextAllowed = 0;
+  return async function reserveStart() {
+    let startAt = 0;
+    const assigned = tail.then(() => {
+      startAt = Math.max(resolved.now(), nextAllowed);
+      nextAllowed = startAt + minInterval;
+    });
+    tail = assigned.catch(() => {});
+    await assigned;
+    const wait = startAt - resolved.now();
+    if (wait > 0) await resolved.delay(wait);
+    return startAt;
+  };
+}
+
 export async function fetchDirectory({
   directory,
   known,
@@ -25,21 +73,22 @@ export async function fetchDirectory({
   arm,
   fetchImpl,
   now = Date.now(),
+  clock = realClock(),
+  reserveStart,
 }) {
   const caps = spec.caps;
   const selected = boardsForArm(directory, known, arm);
-  const capped = selected.slice(0, caps.max_boards);
-  const boards_capped = selected.length > caps.max_boards;
+  const picked = selectBoards(selected, spec);
+  const capped = picked.boards;
+  const boards_capped = picked.sampled;
   const stats = [];
   const postings = [];
   let cursor = 0;
-  let lastStart = 0;
+  const admit = reserveStart || startGate(resolveClock(clock), caps.min_interval_ms);
   const worker = async () => {
     while (cursor < capped.length) {
       const index = cursor++;
-      const wait = caps.min_interval_ms - (Date.now() - lastStart);
-      if (wait > 0) await delay(wait);
-      lastStart = Date.now();
+      await admit();
       stats[index] = await fetchBoard(capped[index], {
         fetchImpl,
         timeout: caps.request_timeout_ms,
@@ -69,6 +118,7 @@ export async function fetchDirectory({
     boards: stats,
     postings,
     failures: stats.filter((item) => item && !item.ok).length,
+    sample_seed: picked.sampled ? picked.seed : undefined,
   };
 }
 
@@ -119,8 +169,4 @@ async function pullOne(entry, { fetchImpl, timeout }) {
     board: entry.board,
     fetchImpl: timed,
   });
-}
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -1,0 +1,24 @@
+{
+  "hits": [
+    {
+      "comment_text": "Northstar | Senior Backend | Remote\nhttps://boards.greenhouse.io/northstar/jobs/4001",
+      "created_at": "2026-09-01T00:00:00.000Z"
+    },
+    {
+      "comment_text": "Harbor Labs | Senior Backend | Remote\nhttps://jobs.lever.co/harbor",
+      "created_at": "2026-09-01T00:00:00.000Z"
+    },
+    {
+      "comment_text": "LinkedIn Only | Senior Backend\nhttps://www.linkedin.com/jobs/view/999",
+      "created_at": "2026-09-01T00:00:00.000Z"
+    },
+    {
+      "comment_text": "Indeed Mill | Senior Backend\nhttps://www.indeed.com/viewjob?jk=abc",
+      "created_at": "2026-09-01T00:00:00.000Z"
+    },
+    {
+      "comment_text": "Acme Labs | Senior Infrastructure | Remote\nhttps://acme.example/careers",
+      "created_at": "2026-09-01T00:00:00.000Z"
+    }
+  ]
+}

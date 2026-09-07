@@ -249,6 +249,8 @@ void test('fixture CLI writes count-only compare and importable treatment rows',
   assert.equal(report.schema, 'relay.pre-agent-admit.compare.v1');
   assert.equal(report.writing_agent, 'asleep');
   assert.equal(report.rows, undefined);
+  assert.equal(JSON.stringify(report).includes('northstar'), false);
+  assert.equal(Array.isArray(report.fetch?.boards), false);
   const imported = JSON.parse(
     await readFile(join(out, 'treatment.relay-import.json'), 'utf8'),
   );

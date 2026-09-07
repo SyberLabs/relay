@@ -1,0 +1,24 @@
+[
+  {
+    "name": "Northstar",
+    "slug": "northstar",
+    "ats": "greenhouse"
+  },
+  {
+    "name": "Harbor Labs",
+    "slug": "harbor",
+    "ats": "lever"
+  },
+  {
+    "name": "GiantCo",
+    "slug": "giantco",
+    "ats": "workday",
+    "wd": "wd1",
+    "site": "external"
+  },
+  {
+    "name": "SmartCo",
+    "slug": "smartco",
+    "ats": "smartrecruiters"
+  }
+]

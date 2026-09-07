@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Acme Labs",
+    "website": "https://www.acme.example",
+    "isHiring": true
+  },
+  {
+    "name": "Idle Co",
+    "website": "https://idle.example",
+    "isHiring": false
+  }
+]

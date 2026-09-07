@@ -1,0 +1,22 @@
+{
+  "boards": [
+    {
+      "ats": "greenhouse",
+      "board": "northstar",
+      "company": "Northstar Duplicate",
+      "checked": "2026-08-24"
+    },
+    {
+      "ats": "lever",
+      "board": "harbor",
+      "company": "Harbor Labs",
+      "checked": "2026-08-24"
+    },
+    {
+      "ats": "ashby",
+      "board": "quartz",
+      "company": "Quartz Labs",
+      "checked": "2026-08-24"
+    }
+  ]
+}

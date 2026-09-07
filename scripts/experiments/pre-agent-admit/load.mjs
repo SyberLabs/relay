@@ -1,8 +1,26 @@
 import { readFile } from 'node:fs/promises';
 import { levels } from '../../../lib/utility.ts';
 
-const BOARD = /^[\w.-]{1,80}$/;
-const PROVIDERS = new Set(['greenhouse', 'lever', 'ashby']);
+export const BOARD = /^[\w.-]{1,80}$/;
+export const PROVIDERS = new Set(['greenhouse', 'lever', 'ashby']);
+export const MAX_SNAPSHOT_BOARDS = 20_000;
+export const JUNK_SLUGS = new Set([
+  'api',
+  'boards',
+  'careers',
+  'embed',
+  'embedjs',
+  'job',
+  'jobboard',
+  'jobs',
+  'postingapi',
+  'postings',
+  'robotstxt',
+  'search',
+  'v0',
+  'v1',
+  'www',
+]);
 
 export const DEFAULT_CAPS = {
   max_boards: 40,
@@ -64,6 +82,9 @@ export function loadSpec(raw) {
   const query_k = raw.query_k == null ? 10 : raw.query_k;
   if (!Number.isInteger(query_k) || query_k < 1 || query_k > 50)
     throw Error('query_k must be an integer from 1 to 50.');
+  const sample_seed = raw.sample_seed == null ? 105 : raw.sample_seed;
+  if (!Number.isInteger(sample_seed) || sample_seed < 1 || sample_seed > 1_000_000_000)
+    throw Error('sample_seed must be an integer from 1 to 1000000000.');
   return {
     title_any,
     title_none: asStringList(raw.title_none),
@@ -74,28 +95,59 @@ export function loadSpec(raw) {
     freshness_days: freshness,
     queries: queries.length ? queries : title_any,
     query_k,
+    sample_seed,
     caps: loadCaps(raw.caps || {}),
   };
 }
 
 export function loadDirectory(raw) {
-  const boards = raw?.boards;
-  if (!Array.isArray(boards) || !boards.length)
-    throw Error('Directory needs a non-empty boards array.');
-  if (boards.length > 200) throw Error('Directory may list at most 200 boards.');
-  return boards.map((entry, i) => {
-    if (!PROVIDERS.has(entry?.provider))
-      throw Error(`Directory board ${i} needs provider greenhouse, lever, or ashby.`);
-    if (typeof entry.board !== 'string' || !BOARD.test(entry.board))
-      throw Error(`Directory board ${i} needs a public board identifier.`);
-    const company =
-      typeof entry.company === 'string' && entry.company.trim()
-        ? entry.company.trim()
-        : entry.board;
-    if (company.length > 120)
-      throw Error(`Directory board ${i} company is too long.`);
-    return { provider: entry.provider, board: entry.board, company };
-  });
+  const boards = parseRelayBoards(raw?.boards, 'directory');
+  if (!boards.length) throw Error('Directory needs a non-empty boards array.');
+  return boards;
+}
+
+export function parseRelayBoards(boards, label = 'directory') {
+  if (!Array.isArray(boards))
+    throw Error(`${label} needs a boards array.`);
+  if (boards.length > MAX_SNAPSHOT_BOARDS)
+    throw Error(`${label} may list at most ${MAX_SNAPSHOT_BOARDS} boards.`);
+  return boards.map((entry, i) => canonicalBoard(entry, `${label} board ${i}`));
+}
+
+export function canonicalBoard(entry, label) {
+  if (!PROVIDERS.has(entry?.provider))
+    throw Error(`${label} needs provider greenhouse, lever, or ashby.`);
+  if (typeof entry.board !== 'string' || !BOARD.test(entry.board))
+    throw Error(`${label} needs a public board identifier.`);
+  const slug = entry.board.toLowerCase();
+  if (JUNK_SLUGS.has(slug.replace(/[^a-z0-9]/g, '')))
+    throw Error(`${label} slug is a generic path, not a company board.`);
+  const company =
+    typeof entry.company === 'string' && entry.company.trim()
+      ? entry.company.trim()
+      : entry.board;
+  if (company.length > 120) throw Error(`${label} company is too long.`);
+  const board = {
+    provider: entry.provider,
+    board: entry.board,
+    company,
+  };
+  if (entry.source) board.source = entry.source;
+  if (Array.isArray(entry.sources)) board.sources = entry.sources;
+  return board;
+}
+
+export function usableSlug(value) {
+  if (typeof value !== 'string') return null;
+  const board = value.trim().toLowerCase().replace(/\/+$/, '');
+  if (!BOARD.test(board)) return null;
+  if (JUNK_SLUGS.has(board.replace(/[^a-z0-9]/g, ''))) return null;
+  if (board.endsWith('.txt')) return null;
+  return board;
+}
+
+export function boardKey(entry) {
+  return `${entry.provider}:${String(entry.board).toLowerCase()}`;
 }
 
 export function loadKnown(raw) {

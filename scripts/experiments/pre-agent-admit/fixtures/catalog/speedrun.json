@@ -1,0 +1,10 @@
+{
+  "companies": [
+    {
+      "name": "Northstar",
+      "slug": "northstar-talent",
+      "open_roles": 3
+    }
+  ],
+  "total": 1
+}

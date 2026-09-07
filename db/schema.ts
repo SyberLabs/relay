@@ -5,6 +5,40 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/sqlite-core';
+export const applicationPolicies = sqliteTable('application_policies', {
+  owner: text('owner').primaryKey(),
+  version: integer('version').notNull(),
+  enabled: integer('enabled').notNull(),
+  review: text('review').notNull(),
+  jobs: text('jobs').notNull(),
+  expires: text('expires').notNull(),
+  maximum: integer('maximum').notNull(),
+  updated: text('updated').notNull(),
+});
+export const applicationOperations = sqliteTable(
+  'application_operations',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    job_id: text('job_id').notNull(),
+    job_version: integer('job_version').notNull(),
+    policy_version: integer('policy_version').notNull(),
+    policy_snapshot: text('policy_snapshot').notNull(),
+    actor: text('actor').notNull(),
+    manifest: text('manifest').notNull(),
+    digest: text('digest').notNull(),
+    state: text('state').notNull(),
+    authority: text('authority').notNull(),
+    created: text('created').notNull(),
+    started: text('started'),
+    finished: text('finished'),
+    receipt: text('receipt').notNull(),
+  },
+  (t) => [
+    index('application_operations_owner_id').on(t.owner, t.id),
+    index('application_operations_owner_job').on(t.owner, t.job_id),
+  ],
+);
 // Fixed rows per authenticated owner/scope; windows overwrite rather than grow.
 export const securityCounters = sqliteTable('security_counters', {
   scope: text('scope').primaryKey(),

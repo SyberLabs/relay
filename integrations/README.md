@@ -1,5 +1,11 @@
 # Relay integrations
 
+## External-agent applications
+
+The [application coordination contract](../docs/agent-applications.md) adds `/applications`: configure allowed jobs, expiration and review, save exact field/file proposals, obtain one execution permit, then record the observed employer result. Both assistants use their own authenticated browser through the existing gateway. Grok imports research as Held; an applying assistant uses the proposal and history page. Agent names and receipts are reported provenance. This browser path does not establish scoped per-agent credentials or a remotely authenticated CLI; #111 remains open. No recurring scouting or application submission starts merely by enabling the page.
+
+An agent must stop on unknown answers, existing blockers, authentication/CAPTCHA refusal, changed content or ambiguous execution. Never click an approval control on behalf of the user without their exact approval. Never infer permission from an import, a draft acceptance, or an existing Submitted source status. Before entering data at the employer, verify the full manifest, acquire its single execution permit, and perform it once. After a lost response inspect the saved operation; an executing or uncertain operation is not permission to retry. Record only an observed employer confirmation, with a clear uncertainty explanation otherwise. Human browser review and policy authorization remain distinct.
+
 Relay supports browser assistants through WebMCP where available, alongside local commands and explicit file handoffs. You choose which data leaves your workspace. Start with the [existing-assistant workflow](ASSISTANT-WORKFLOW.md) to reuse saved context and return work for human review without files. The command tool works in a Grok Bot VM, Claude Code terminal, or a normal shell. It needs Node 24; it does not require a hosted Relay API token.
 
 ## Tracker CSV → Relay

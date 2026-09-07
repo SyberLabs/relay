@@ -4,7 +4,7 @@ Obsidian holds editable research and interview notes. Relay holds the opportunit
 
 ## Start with one opportunity
 
-Open Relay's **Connect your tools** panel. If the opportunity is already in Relay, select it, choose the note purpose, then **Create note for selected job**. This fills in the job name, posting URL and a unique note ID. Move the downloaded file into your vault and edit it there.
+Open Relay's **Prepare this job for an assistant** panel. If the opportunity is already in Relay, select it, choose the note purpose, then **Create note for selected job**. This fills in the job name, posting URL and a unique note ID. Move the downloaded file into your vault and edit it there.
 
 For an opportunity that is not yet in Relay, use **Download example note** and replace its example job details. The note must begin with properties like these:
 

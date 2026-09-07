@@ -18,6 +18,13 @@ export const PAGE_LINKS = [
   { href: '/advanced', label: 'Advanced', page: 'advanced' },
 ] as const;
 
+export const PORTFOLIO_PAGE_LINKS = PAGE_LINKS.filter(
+  (item) => item.page === 'track',
+);
+export const CONTEXT_PAGE_LINKS = PAGE_LINKS.filter(
+  (item) => item.page !== 'track',
+);
+
 export type ShellPage =
   | 'workspace'
   | 'profile'

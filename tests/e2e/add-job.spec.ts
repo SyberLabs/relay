@@ -17,6 +17,13 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
   await expect(
     page.getByRole('heading', { name: 'No jobs yet' }),
   ).toBeVisible();
+  await expect(
+    page.locator('header').getByText(/Your facts and Advanced tools are optional/),
+  ).toBeVisible();
+  await expect(
+    page.locator('aside').getByRole('group', { name: 'Job list' }),
+  ).toHaveCount(0);
+  await expect(page).not.toHaveURL(/\/profile/);
   await page.getByRole('button', { name: 'Add job', exact: true }).click();
   await page
     .getByRole('textbox', { name: 'Role title' })
@@ -31,6 +38,15 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
   await expect(
     page.getByText('Job saved. Continue from the selected record.'),
   ).toBeVisible();
+  await expect(
+    page.getByText(
+      'Review research and accept the exact wording for this job.',
+    ),
+  ).toHaveCount(2);
+  await expect(
+    page.locator('aside').getByRole('group', { name: 'Job list' }),
+  ).toBeVisible();
+  await expect(page).not.toHaveURL(/\/profile/);
   await expect(
     page.getByRole('heading', { name: 'Cedar Example — First Job Engineer' }),
   ).toBeVisible();
@@ -93,7 +109,26 @@ test('cancel creates nothing and keeps unsaved editor work', async ({
   page,
 }) => {
   await signIn(page);
-  const before = await (await page.request.get('/api/workspace')).json();
+  let before = await (await page.request.get('/api/workspace')).json();
+  if (before.jobs.length === 0) {
+    const imported = await page.request.post('/api/workspace', {
+      data: {
+        action: 'import',
+        rows: [
+          {
+            url: 'https://example.com/research/first-job-cancel-host',
+            Name: 'Cedar Example — Cancel Host',
+            Job: 'https://example.com/jobs/first-job-cancel-host',
+            Status: 'Held',
+            Notes: 'Fictional host for cancel coverage.',
+          },
+        ],
+      },
+    });
+    expect(imported.ok()).toBe(true);
+    await page.reload();
+    before = await (await page.request.get('/api/workspace')).json();
+  }
   await page.getByRole('button', { name: /All opportunities/ }).click();
   await page.locator('section.queue .joblist button').first().click();
   const draft = page.getByRole('textbox', {

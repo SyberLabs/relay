@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { jobKey, validateRows, type SourceRow } from '../lib/domain';
 import { firstJobShouldSelectSaved } from '../lib/first-job';
 import { isTerminal } from '../lib/outcomes';
@@ -47,6 +48,12 @@ import {
   refreshIsLive,
 } from '../lib/workspace-refresh';
 import { mergeReviewEvents } from '../lib/workspace-events';
+import {
+  headerAddJobIsPrimary,
+  loopStepLead,
+  primaryAction,
+  stageLead,
+} from '../lib/workspace-stage';
 import {
   ArrowUpRight,
   Search,
@@ -163,6 +170,15 @@ export default function Workspace() {
       byStatus[job.status] = (byStatus[job.status] || 0) + 1;
     return { total: jobs.length, byStatus };
   }, [jobs]);
+  const stageView = {
+    page: 'workspace' as const,
+    signedOut,
+    jobCount: jobs.length,
+    selectedStatus: current?.status ?? null,
+    editorDirty: editorIsDirty(editor),
+  };
+  const action = primaryAction(stageView);
+  const addJobPrimary = headerAddJobIsPrimary(stageView);
   const selectedRef = useRef('');
   const editorRef = useRef<Editor | null>(null);
   const addJobViewerRef = useRef<string | undefined>(undefined);
@@ -560,13 +576,15 @@ export default function Workspace() {
         <header>
           <div>
             <h1>Workspace</h1>
-            <p>
-              Manage applications, review drafts, and keep your work for reuse.
-            </p>
+            <p>{stageLead(stageView)}</p>
           </div>
           <div className="actions">
             {loaded && !signedOut && jobs.length > 0 && (
-              <button className="primary" onClick={openAddJob} type="button">
+              <button
+                className={addJobPrimary ? 'primary' : 'secondary'}
+                onClick={openAddJob}
+                type="button"
+              >
                 Add job
               </button>
             )}
@@ -763,7 +781,8 @@ export default function Workspace() {
             </details>
           </section>
         )}
-        <section className="stats">
+        {jobs.length > 0 && (
+          <section className="stats">
           <div>
             <span>Opportunities</span>
             <strong>{jobs.length.toString().padStart(2, '0')}</strong>
@@ -787,13 +806,14 @@ export default function Workspace() {
             <small>Joined to an existing job</small>
           </div>
         </section>
+        )}
         {signedOut ? (
           <section className="welcome" id="workspace-signin">
             <h2>Your private workspace</h2>
             <p>Sign in to load and save your application history.</p>
             {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
             <a
-              className="primary"
+              className={action === 'sign_in' ? 'primary' : 'secondary'}
               href="/signin-with-chatgpt?return_to=/"
               target="_top"
             >
@@ -808,7 +828,11 @@ export default function Workspace() {
               saved as research.
             </p>
             <div className="actions">
-              <button className="primary" onClick={openAddJob} type="button">
+              <button
+                className={action === 'add_job' ? 'primary' : 'secondary'}
+                onClick={openAddJob}
+                type="button"
+              >
                 Add job <ArrowRight size={16} />
               </button>
               <button
@@ -825,9 +849,9 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
-        {!signedOut && loaded && (
+        {!signedOut && loaded && jobs.length > 0 && (
           <>
-            {jobs.length > 0 && (
+            {jobs.length > 0 && !current && (
               <section className="replay">
                 <GitMerge size={20} />
                 <div>
@@ -890,6 +914,7 @@ export default function Workspace() {
                         Relay status: {current.status}
                       </span>
                       <h2>{current.name}</h2>
+                      <p className="muted">{loopStepLead(current.status)}</p>
                       {current.url && (
                         <a href={current.url} target="_blank" rel="noreferrer">
                           Open employer posting <ArrowUpRight size={15} />
@@ -1045,8 +1070,12 @@ export default function Workspace() {
                     )}
                     {fit?.reason === 'facts' && (
                       <p className="muted">
-                        Confirm facts on Your facts to compare them with this
-                        posting. Proposed facts are not used.
+                        Confirm facts on{' '}
+                        <Link href="/profile" onClick={confirmLeave}>
+                          Your facts
+                        </Link>{' '}
+                        to compare them with this posting. Proposed facts are
+                        not used. You can still draft and accept this job.
                       </p>
                     )}
                     {fit && fit.gates.length > 0 && (
@@ -1143,10 +1172,8 @@ export default function Workspace() {
                     </div>
                     <h2>Select a role</h2>
                     <p>
-                      Open a job to see its research, resolve a blocker, and
-                      prepare the exact text you want to use.
+                      Open a job to continue its review, or add another posting.
                     </p>
-                    {connections}
                   </div>
                 )}
               </section>

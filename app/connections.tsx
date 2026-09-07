@@ -132,15 +132,15 @@ export function Connections({
   return (
     <details className="import">
       <summary>
-        <b>Connect your tools</b>
+        <b>Prepare this job for an assistant</b>
       </summary>
       <p>
-        Bring research from Obsidian, Notion or Grok Bot, and review drafts
-        prepared with ChatGPT, Codex or Claude. Choose which files to share.
-        Accounts are not connected automatically.
+        Packet and draft files for this selected job. Bring research from
+        Obsidian, Notion or Grok Bot, then review wording prepared with
+        ChatGPT, Codex or Claude. Accounts are not connected automatically.
       </p>
       <p>
-        <Link href="/about">About Relay and integration setup ↗</Link>
+        <Link href="/about">About Relay handoffs ↗</Link>
       </p>
       <h3>Obsidian notes</h3>
       <p>

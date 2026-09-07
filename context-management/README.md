@@ -14,7 +14,7 @@ A [ready-to-use fictional exercise](examples/fictional-handoff/README.md) includ
 
 ## Use in Relay
 
-Select one job, open **Connect your tools**, and expand **Continue a task with ChatGPT or Codex**. Enter the next drafting task and optionally select **Use this job’s research**. Review and edit the research before using **Prepare for ChatGPT** or **Prepare for Codex**. These temporary fields clear when you switch jobs; they are not saved. Load the assistant’s JSON response for review, then save the draft explicitly. Existing version checks reject stale returns.
+Select one job, open **Prepare this job for an assistant**, and expand **Continue a task with ChatGPT or Codex**. Enter the next drafting task and optionally select **Use this job’s research**. Review and edit the research before using **Prepare for ChatGPT** or **Prepare for Codex**. These temporary fields clear when you switch jobs; they are not saved. Load the assistant’s JSON response for review, then save the draft explicitly. Existing version checks reject stale returns.
 
 The optional context applies to these two prompt downloads only. The plain packet and command-line connectors retain their existing format. There is no database migration or new provider service.
 

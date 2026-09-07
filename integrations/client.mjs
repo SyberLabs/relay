@@ -6,8 +6,8 @@ import { dirname } from 'node:path';
 
 // Exit codes are the contract an unattended agent relies on. The distinction
 // that matters is 3 against 4: a domain refusal means fix the input, a server
-// failure means try again. An agent that confuses them will retry a refused
-// draft until some phrasing slips past the citation gate, which turns a safety
+// failure needs inspection before a deliberate retry. An agent that confuses
+// them will retry a refused draft until some phrasing slips past the citation gate, which turns a safety
 // check into an obstacle to route around.
 export const EXIT = {
   ok: 0,
@@ -66,13 +66,13 @@ export async function login(fetchImpl = fetch) {
   await writeFile(SESSION_FILE, session + '\n', { mode: 0o600 });
   return session;
 }
-// HTTP status to exit code. 403 is included with the refusals because the only
-// way to provoke it is sending a request the server considers malformed.
+// HTTP status to exit code. Verification, quotas and other 4xx refusals cannot
+// report success. No code here authorizes automatic mutation retries.
 export function exitFor(status) {
   if (status === 401) return EXIT.auth;
-  if ([400, 403, 404, 409, 413].includes(status)) return EXIT.refused;
+  if (status >= 400 && status < 500) return EXIT.refused;
   if (status >= 500) return EXIT.server;
-  return EXIT.ok;
+  return status >= 200 && status < 300 ? EXIT.ok : EXIT.server;
 }
 export async function request(path, body, { fetchImpl = fetch, session } = {}) {
   // `undefined` means look one up; `null` means the caller knows there is none.

@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 import { releaseConfig } from '../release/config.mjs';
+import { stageDraft } from '../../lib/draft-stage.ts';
 import {
   describeUnexpectedResponse,
   finishProductionServer,
@@ -305,6 +306,57 @@ try {
   assert.equal(ownerB.sources.length, 1);
   assert.equal(ownerB.events.length, 0);
   const foreign = ownerB.jobs[0];
+  let stageCalls = 0;
+  const stageAs = (identity) => async (_path, body) => {
+    stageCalls++;
+    const response = await call(identity, body);
+    if (!response.ok)
+      throw Object.assign(Error(await response.text()), { status: response.status });
+    return response.json();
+  };
+  const stageInput = {
+    id: foreign.id,
+    version: foreign.version,
+    draft: 'Exact fictional assistant wording.\r\n',
+    blocker: 'Confirm availability.',
+  };
+  await assert.rejects(
+    stageDraft(stageAs(first), stageInput),
+    /Record not found/,
+  );
+  assert.equal(stageCalls, 1, 'foreign-owner stage must never send a save');
+  stageCalls = 0;
+  await assert.rejects(
+    stageDraft(stageAs(null), stageInput),
+    (e) => e.status === 401,
+  );
+  assert.equal(stageCalls, 1, 'unauthenticated stage is not retried');
+  assert.deepEqual(
+    await (await call(second)).json(),
+    ownerB,
+    'refusals preserve owner data',
+  );
+  await stageDraft(stageAs(second), stageInput);
+  const afterStage = await (await call(second)).json();
+  assert.equal(afterStage.jobs[0].draft, stageInput.draft);
+  assert.equal(afterStage.jobs[0].blocker, stageInput.blocker);
+  assert.equal(afterStage.jobs[0].version, foreign.version + 1);
+  assert.equal(afterStage.jobs[0].accepted_draft, null);
+  assert.deepEqual(afterStage.sources, ownerB.sources);
+  assert.equal(afterStage.events[0].kind, 'Review saved');
+  assert.equal(JSON.parse(afterStage.events[0].detail).draft, stageInput.draft);
+  stageCalls = 0;
+  await assert.rejects(
+    stageDraft(stageAs(second), stageInput),
+    (e) => e.status === 409,
+  );
+  assert.equal(stageCalls, 2, 'stale stage sends exactly one save');
+  assert.deepEqual(await (await call(second)).json(), afterStage);
+  assert.deepEqual(
+    await (await call(first)).json(),
+    ownerA,
+    'staging never changes another owner',
+  );
   assert.equal(
     (
       await call(first, {

@@ -7,6 +7,8 @@ import {
   validateRows,
   validateEdit,
   importedJobStatus,
+  sourceJobKey,
+  sourcePostingUrl,
 } from '../lib/domain.ts';
 function row(status, job = 'https://example.com/jobs/a', notes = '') {
   return {
@@ -64,6 +66,23 @@ void test('role-title Job with posting url validates and keys as Greenhouse iden
   assert.equal(report.items[0].key, jobKey(posting, ''));
   assert.equal(report.new, 1);
 });
+void test('colon-bearing role titles key from the posting url', () => {
+  const posting = 'https://boards.greenhouse.io/acme/jobs/1';
+  for (const title of ['Engineer: Backend', 'SRE: Platform']) {
+    const r = {
+      url: posting,
+      Name: 'Acme',
+      Job: title,
+      Status: 'Held',
+      Notes: '',
+    };
+    assert.deepEqual(validateRows([r]), [r]);
+    const report = classify([r], []);
+    assert.equal(report.items[0].key, jobKey(posting, ''));
+    assert.equal(sourcePostingUrl(r), posting);
+    assert.equal(sourceJobKey(r), jobKey(posting, ''));
+  }
+});
 void test('rejects script URLs and invalid records', () => {
   assert.throws(() => jobKey('javascript:alert(1)', ''));
   assert.throws(() => jobKey('Software Engineer', ''), /HTTP or HTTPS job URL/);
@@ -83,6 +102,42 @@ void test('rejects script URLs and invalid records', () => {
       },
     ]),
   );
+  assert.throws(() =>
+    validateRows([
+      {
+        url: 'javascript:alert(1)',
+        Name: 'Acme',
+        Job: 'Software Engineer',
+        Status: 'Held',
+        Notes: '',
+      },
+    ]),
+  );
+  assert.throws(() =>
+    validateRows([
+      {
+        url: 'https://boards.greenhouse.io/acme/jobs/1',
+        Name: 'Acme',
+        Job: 'ftp://example.com/jobs/a',
+        Status: 'Held',
+        Notes: '',
+      },
+    ]),
+  );
+});
+void test('HTTP Job posting still keys from Job when url is a research identity', () => {
+  const posting = 'https://example.com/jobs/backend';
+  const r = {
+    url: 'https://example.com/research/0',
+    Name: 'Acme — Role',
+    Job: posting,
+    Status: 'Held',
+    Notes: '',
+  };
+  assert.deepEqual(validateRows([r]), [r]);
+  assert.equal(sourcePostingUrl(r), posting);
+  assert.equal(sourceJobKey(r), jobKey(posting, r.url));
+  assert.equal(classify([r], []).items[0].key, jobKey(posting, ''));
 });
 void test('submitted state cannot become a fresh application', () =>
   assert.throws(() =>

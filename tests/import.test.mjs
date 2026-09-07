@@ -195,6 +195,29 @@ void test('import upsert SQL and observation insert are the workspace statements
     true,
   );
 });
+void test('colon-title grok row stores the Greenhouse posting identity', () => {
+  const db = open();
+  try {
+    const posting = 'https://boards.greenhouse.io/acme/jobs/1';
+    for (const title of ['Engineer: Backend', 'SRE: Platform']) {
+      const owner = 'colon-' + title;
+      const r = {
+        url: posting,
+        Name: 'Acme',
+        Job: title,
+        Status: 'Held',
+        Notes: '',
+      };
+      importRow(db, owner, r);
+      const stored = jobOf(db, owner, posting);
+      assert.equal(stored.job_key, jobKey(posting, ''));
+      assert.equal(stored.url, posting);
+      assert.equal(stored.name, 'Acme');
+    }
+  } finally {
+    db.close();
+  }
+});
 void test('exact-repeat import keeps version, updated, and effort', () => {
   const db = open();
   const owner = 'noop-import';

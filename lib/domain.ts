@@ -55,11 +55,19 @@ export function sourcePostingUrl(
 ): string | null {
   if (!r.Job) return null;
   try {
-    new URL(r.Job);
-    return r.Job;
+    const parsed = new URL(r.Job);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      return r.Job;
+    if (
+      r.Job.includes('://') ||
+      parsed.protocol === 'javascript:' ||
+      parsed.protocol === 'data:'
+    )
+      return r.Job;
   } catch {
-    return r.url;
+    /* Role titles, including "Engineer: Backend", are not posting URLs. */
   }
+  return r.url;
 }
 export function sourceJobKey(
   r: Pick<SourceRow, 'url' | 'Name' | 'Job'>,

@@ -19,6 +19,7 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.match(modals, /onClick=\{onNavigate\}/);
   assert.match(modals, /Review every application/);
   assert.match(modals, /readRuntimeModalProfile/);
+  assert.match(modals, /settleRuntimeModalProfileRead/);
   assert.match(modals, /if \(!which\) return null/);
   assert.match(modals, /function RuntimeModalDialog/);
   assert.doesNotMatch(modals, /Stop and ask instead of guessing/);
@@ -43,6 +44,7 @@ void test('expiry clears runtime policy and context tiles', () => {
   assert.match(body, /setAutopilot\(false\)/);
   assert.match(body, /setStyleCount\(0\)/);
   assert.match(workspace, /processAuthorizedGet/);
+  assert.match(workspace, /if \(outcome\.switched\) \{\s*setModal\(null\)/);
 });
 
 void test('stuck cards select the job without opening a dialog', () => {

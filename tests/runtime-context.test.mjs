@@ -797,3 +797,48 @@ void test('enabling autopilot with 101 held jobs fails closed without a policy P
   assert.equal(state.modal, 'tools');
   assert.match(state.message, /at most 100 jobs/);
 });
+
+void test('workspace viewer switch unmounts an open resume modal', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const expiry = useCallbackBody(src, 'applyExpired');
+  const refreshSrc = src.match(
+    /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,
+  )[1];
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const state = {
+    jobs: [{ id: 'job-a', name: 'Owner A private role' }],
+    modal: 'resume',
+    signedOut: false,
+    loaded: true,
+    showAddJob: true,
+    importText: 'Owner A research paste.',
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    fetch: async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({
+        viewer: 'owner-b',
+        jobs: [{ id: 'job-b', name: 'Owner B role' }],
+        sources: [],
+        events: [],
+        facts: [],
+      }),
+    }),
+    sessionRef: { current: session },
+    selectedRef: { current: 'job-a' },
+    loadJobHistory: async () => {},
+    loadRuntimeContext: async () => {},
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = bind(expiry, deps);
+  await bind(refreshSrc, deps)();
+  assert.equal(session.viewer, 'owner-b');
+  assert.equal(state.modal, null);
+  assert.equal(state.signedOut, false);
+  assert.equal(state.jobs[0].id, 'job-b');
+  assert.equal(state.showAddJob, false);
+});

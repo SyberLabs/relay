@@ -34,17 +34,22 @@ function Job({ row, rank }: { row: Row; rank?: number }) {
       <div className="planhead">
         {rank !== undefined && <span className="rank">{rank}</span>}
         <b>{row.name}</b>
-        <span className={'badge tier-' + row.tier}>{row.tier}</span>
+        <span className={'badge tier-' + row.tier}>
+          {row.tier === 'reach'
+            ? 'Lower reply estimate'
+            : row.tier === 'floor'
+              ? 'Higher reply estimate'
+              : 'Middle reply estimate'}
+        </span>
         <span className="badge">{row.cluster}</span>
       </div>
-      <p className="why">{row.reason}</p>
       <dl className="planstats">
         <div>
-          <dt>Value</dt>
+          <dt>Preference score</dt>
           <dd className="num">{row.u.toFixed(2)}</dd>
         </div>
         <div>
-          <dt>Reply odds</dt>
+          <dt>Estimated reply rate</dt>
           <dd className="num">
             {pct(row.p)}
             <small>
@@ -103,10 +108,14 @@ export default function PlanPage() {
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
+      <Link className="backlink" href="/advanced">
+        Advanced
+      </Link>
       <h1>This week</h1>
       <p className="lead">
-        Roles ranked for the time you have this week. A long shot can outrank a
-        safer role you already have covered, because you only accept one offer.
+        Experimental planning from preference weights, estimated reply rates,
+        posting age and your time budget. A reply is not an offer; these scores
+        do not predict hiring outcomes.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
@@ -119,7 +128,7 @@ export default function PlanPage() {
           <strong>
             {(plan?.plan.length ?? 0).toString().padStart(2, '0')}
           </strong>
-          <small>Applications this week</small>
+          <small>Roles to consider</small>
         </div>
         <div>
           <span>Attention spent</span>
@@ -127,18 +136,18 @@ export default function PlanPage() {
           <small>of {plan?.minutes ?? 0} minutes</small>
         </div>
         <div>
-          <span>Expected best offer</span>
+          <span>Experimental plan score</span>
           <strong className="num">{(plan?.expected ?? 0).toFixed(3)}</strong>
-          <small>On the normalised value scale</small>
+          <small>Uses reply estimates, not offer probabilities</small>
         </div>
         <div className="stataccent">
           <TrendingUp size={22} />
           <b>
             {lift > 0.005
-              ? `${(lift * 100).toFixed(0)}% above ranking by value`
-              : 'Matches a plain value ranking here'}
+              ? `${(lift * 100).toFixed(0)}% higher model score`
+              : 'Same model score as preference ranking'}
           </b>
-          <small>Same budget, portfolio instead of top-N</small>
+          <small>Compared with preference ranking at the same budget</small>
         </div>
       </section>
 
@@ -149,8 +158,8 @@ export default function PlanPage() {
             <b>The value model is still thin.</b>
             <p>
               {plan.calibrated} comparisons recorded. Until there are around a
-              dozen, roles are ranked mostly on odds and cost rather than on
-              what you actually want.
+              dozen, roles are ranked mostly on reply estimates and time rather
+              than on what you actually want.
             </p>
           </div>
           <Link className="secondary" href="/preferences">
@@ -160,8 +169,11 @@ export default function PlanPage() {
       )}
 
       <section className="import">
-        <h2>Apply to these</h2>
-        <p>Chosen by gain per minute. Each row includes why it was chosen.</p>
+        <h2>Suggested for consideration</h2>
+        <p>
+          Selected by added model score per estimated minute. Review each job
+          yourself.
+        </p>
         {!plan?.plan.length && (
           <p className="empty">
             Nothing selected. Either there are no open roles in the workspace,
@@ -177,9 +189,8 @@ export default function PlanPage() {
         <section className="import">
           <h2>Considered, not selected</h2>
           <p>
-            These lost on gain per minute this week — usually because something
-            already chosen covers the same outcome, or the cost is too high for
-            what it adds.
+            These added less model score per minute or did not fit the remaining
+            time budget. This does not assess your qualifications.
           </p>
           {plan.rest.map((row) => (
             <Job key={row.id} row={row} />

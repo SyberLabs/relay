@@ -37,8 +37,14 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
     .getByRole('button', { name: /Assistant Example — Engineer/ })
     .click();
   await page.getByText('Connect your tools', { exact: true }).click();
+  await expect(
+    page.getByText(
+      'This separate text box is not saved or linked to your ledger.',
+      { exact: false },
+    ),
+  ).toBeVisible();
   await page
-    .getByRole('textbox', { name: 'Verified facts for this draft' })
+    .getByRole('textbox', { name: 'Facts to share for this draft' })
     .fill('Built a fictional inventory service.');
   const editor = page.getByRole('textbox', {
     name: 'Application answer or outreach draft',
@@ -95,6 +101,14 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
       });
     }
     await expect(editor).toHaveValue(result.draft);
+    await expect(
+      page.getByText(
+        /Draft format, job identity and version checked; claims were not citation-checked/,
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Saving here does not run the agent citation check/),
+    ).toBeVisible();
     let workspace = await (await page.request.get('/api/workspace')).json();
     const original = workspace.jobs.find(
       (job: { id: string }) => job.id === result.job.id,
@@ -141,7 +155,7 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
     }
   }
   await page
-    .getByRole('textbox', { name: 'Verified facts for this draft' })
+    .getByRole('textbox', { name: 'Facts to share for this draft' })
     .fill('Facts for the first job only.');
   await page
     .getByText('Continue a task with ChatGPT or Codex', { exact: true })
@@ -153,7 +167,7 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
   await page.getByRole('button', { name: /Other Context Job/ }).click();
   await page.getByText('Connect your tools', { exact: true }).click();
   await expect(
-    page.getByRole('textbox', { name: 'Verified facts for this draft' }),
+    page.getByRole('textbox', { name: 'Facts to share for this draft' }),
   ).toHaveValue('');
   await page
     .getByText('Continue a task with ChatGPT or Codex', { exact: true })

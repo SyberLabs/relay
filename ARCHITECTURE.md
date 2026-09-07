@@ -37,7 +37,11 @@ Obsidian research notes own their editable source text. Relay owns the imported 
 
 All Obsidian research rows enter with source status Held regardless of status-like properties. Existing job status, draft and exact acceptance are preserved by the established import rules. New jobs start Held. Import advances the job version only when the upsert would change that row (merged status, blocker, accepted text, or posting fields). Exact-repeat research and new observations alone do not invalidate an outstanding draft packet. Rediscovery does not replace a stored effort estimate.
 
-The selected job derives hit/miss/unknown coverage of required lines in source notes against verified, unexpired facts. That comparison is not stored, does not change status or acceptance, and is not an employer score.
+The selected job derives heuristic hit/miss/unknown matches between required lines in source notes and user-confirmed, unexpired facts. These internal values display as Possible evidence / No matching evidence found / Not compared. Word and number overlap does not establish meaning or qualifications. The comparison is not stored and does not change status or acceptance.
+
+The pilot workspace keeps individual job review, candidate facts and history visible. `/advanced` links to the preserved `/review`, `/preferences` and `/plan` routes. Their records and behavior remain unchanged. Planning uses estimated reply rates in an expected-maximum calculation; the UI calls its output an experimental plan score, not an expected offer.
+
+`lib/profile.ts` checks selected claim patterns and vocabulary overlap with cited facts, with numbers pooled across those facts. This is a heuristic, not semantic entailment. The stored `Verified` fact status records human confirmation, not independent verification. This draft-log gate is distinct from browser format/identity/version checks and from `/api/workspace` saves, which do not run it. See [product trust boundaries and follow-ups](docs/product-trust.md).
 
 Draft imports stage proposed text, without persisting or accepting it. `lib/editor.ts` binds an editor to its loaded job version and session and rejects late file results after selection, session, version or draft changes. Server writes use version checks; stale writes return a conflict. Changing accepted wording requires another explicit review. Submitted and Live loop records allow follow-up edits without resetting their status. Nothing in this flow submits applications or sends messages.
 

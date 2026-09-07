@@ -46,9 +46,7 @@ import {
   Upload,
   ChevronRight,
   FileText,
-  Sparkles,
-  Scale,
-  Target,
+  Settings2,
   Activity,
   Award,
   BadgeCheck,
@@ -341,23 +339,14 @@ export default function Workspace() {
         ))}
         <Link className="nav" href="/profile" onClick={confirmLeave}>
           <FileText size={18} />
-          Profile
-        </Link>
-        <Link className="nav" href="/review" onClick={confirmLeave}>
-          <Sparkles size={18} />
-          Review drafts
-        </Link>
-        <Link className="nav" href="/preferences" onClick={confirmLeave}>
-          <Scale size={18} />
-          Preferences
-        </Link>
-        <Link className="nav" href="/plan" onClick={confirmLeave}>
-          <Target size={18} />
-          This week
+          Your facts
         </Link>
         <Link className="nav" href="/track" onClick={confirmLeave}>
           <Activity size={18} />
           Track outcomes
+        </Link>
+        <Link className="nav" href="/advanced" onClick={confirmLeave}>
+          <Settings2 size={18} /> Advanced
         </Link>
         <div className="sidebottom">
           <p>Does not send applications.</p>
@@ -367,7 +356,7 @@ export default function Workspace() {
         <header>
           <div>
             <h1>Workspace</h1>
-            <p>Jobs, drafts, and research for the roles you are considering.</p>
+            <p>Choose a job, prepare a draft, and review the exact words.</p>
           </div>
           <button
             className="secondary"
@@ -690,6 +679,10 @@ export default function Workspace() {
                         }
                       />
                     </label>
+                    <p className="muted">
+                      Check each claim against your evidence. Saving here does
+                      not run the agent citation check.
+                    </p>
                     {protectedState && (
                       <div className="actions">
                         <button
@@ -733,13 +726,14 @@ export default function Workspace() {
                       </div>
                     )}
                     <small className="muted">
-                      Acceptance saves this version. It does not send or submit
-                      anything.
+                      Acceptance records your approval of these exact words.
+                      Changed wording needs fresh acceptance. Nothing is sent.
                     </small>
-                    <h3>Posting vs verified facts</h3>
+                    <h3>Evidence matches</h3>
                     <small className="muted">
-                      Coverage of source notes by facts you verified. Not an
-                      employer score, and it does not change status.
+                      Heuristic word and number matches against your confirmed,
+                      unexpired facts. These do not assess your qualifications
+                      or change this job’s status.
                     </small>
                     {fit?.reason === 'notes' && (
                       <p className="muted">
@@ -749,7 +743,7 @@ export default function Workspace() {
                     )}
                     {fit?.reason === 'facts' && (
                       <p className="muted">
-                        Verify facts on Profile to compare them with this
+                        Confirm facts on Your facts to compare them with this
                         posting. Proposed facts are not used.
                       </p>
                     )}
@@ -758,8 +752,11 @@ export default function Workspace() {
                         {fit.gates.map((gate) => (
                           <li key={gate.text}>
                             <span className="badge">
-                              {gate.status[0].toUpperCase() +
-                                gate.status.slice(1)}
+                              {gate.status === 'hit'
+                                ? 'Possible evidence'
+                                : gate.status === 'miss'
+                                  ? 'No matching evidence found'
+                                  : 'Not compared'}
                             </span>
                             {gate.text}
                           </li>
@@ -768,8 +765,9 @@ export default function Workspace() {
                     )}
                     {fit?.gates.some((gate) => gate.status === 'miss') && (
                       <small className="muted">
-                        A miss is a reason to set this job aside or to verify a
-                        real fact, not to invent a skill.
+                        No match can mean missing evidence or different wording.
+                        Review the requirement and your experience before
+                        deciding.
                       </small>
                     )}
                     <h3>Source history</h3>

@@ -13,7 +13,8 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.match(workspace, /Approve and send/);
   assert.match(workspace, /No jobs yet/);
   assert.match(workspace, /id="workspace-queue"/);
-  assert.match(workspace, /aria-label="Import research"/);
+  assert.match(shell, /aria-label="Import research"/);
+  assert.match(workspace, /id="import-dock"/);
   assert.match(
     workspace,
     /disabled=\{blocked\}\s+onClick=\{\(\) => save\('Skip'\)\}/,

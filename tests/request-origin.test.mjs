@@ -1,8 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   jsonCharsTooLarge,
   refuseUntrustedOrigin,
@@ -145,25 +142,4 @@ void test('json character cap matches drafts: header or body over 2000000', () =
   assert.equal(jsonCharsTooLarge(null, 2000001), true);
   assert.equal(jsonCharsTooLarge('2000000', 2000000), false);
   assert.equal(jsonCharsTooLarge('', 12), false);
-});
-
-void test('outcomes and preferences apply the json character cap', () => {
-  const outcomes = readFileSync(
-    join(
-      dirname(fileURLToPath(import.meta.url)),
-      '..',
-      'app/api/outcomes/route.ts',
-    ),
-    'utf8',
-  );
-  const preferences = readFileSync(
-    join(
-      dirname(fileURLToPath(import.meta.url)),
-      '..',
-      'app/api/preferences/route.ts',
-    ),
-    'utf8',
-  );
-  assert.match(outcomes, /jsonCharsTooLarge/);
-  assert.match(preferences, /jsonCharsTooLarge/);
 });

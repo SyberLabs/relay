@@ -393,8 +393,10 @@ try {
     );
   });
   const limitedUser = await token('quota-fixture');
+  console.log('Checking concurrent planner throttling.');
   const planReplies = await Promise.all(Array.from({ length: 15 }, () => fetch(`${base}/api/plan`, {
     headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+    signal: AbortSignal.timeout(20_000),
   })));
   assert.ok(planReplies.every(response => [200, 429].includes(response.status)));
   assert.ok(planReplies.some(response => response.status === 429), 'Concurrent planner calls must exhaust the D1 throttle');
@@ -402,13 +404,20 @@ try {
     if (response.status === 429) assert.ok(Number(response.headers.get('retry-after')) > 0);
     await response.text();
   }
+  console.log('Checking oversized mutation refusal.');
   const oversized = await fetch(`${base}/api/workspace`, {
     method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
     body: 'x'.repeat(2_000_001),
+    signal: AbortSignal.timeout(20_000),
   });
   await expectStatus(oversized, 413, 'Oversized mutation refused before the application');
   await oversized.text();
-  assert.deepEqual((await (await call(limitedUser)).json()).jobs, []);
+  console.log('Checking persistence after oversized mutation refusal.');
+  const afterRefusal = await fetch(`${base}/api/workspace`, {
+    headers: { 'Cf-Access-Jwt-Assertion': limitedUser }, signal: AbortSignal.timeout(20_000),
+  });
+  await expectStatus(afterRefusal, 200, 'Read after oversized mutation refusal');
+  assert.deepEqual((await afterRefusal.json()).jobs, []);
   console.log(
     'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation, concurrent D1 throttling and oversized request refusal.',
   );

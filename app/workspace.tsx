@@ -1785,9 +1785,7 @@ export default function Workspace() {
             setModal(null);
             save('Skip');
           }}
-          onUnauthorized={() => {
-            applyExpired();
-          }}
+          onUnauthorized={applyExpired}
           policy={policy}
           remember={rememberAnswer}
           sessionRef={sessionRef}

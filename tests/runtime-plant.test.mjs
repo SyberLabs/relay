@@ -20,6 +20,8 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.match(modals, /Review every application/);
   assert.match(modals, /readRuntimeModalProfile/);
   assert.match(modals, /settleRuntimeModalProfileRead/);
+  assert.doesNotMatch(modals, /if \(cancelled\) return/);
+  assert.match(workspace, /onUnauthorized=\{applyExpired\}/);
   assert.match(modals, /if \(!which\) return null/);
   assert.match(modals, /function RuntimeModalDialog/);
   assert.doesNotMatch(modals, /Stop and ask instead of guessing/);

@@ -333,3 +333,124 @@ void test('cancelled modal profile GET 200 does not restore facts or expire', as
   assert.equal(dialog.profile, null);
   assert.equal(dialog.resume, 'Owner A pasted resume.');
 });
+
+void test('superseded modal GET 401 still clears when the newer read is ignored', async () => {
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const first = deferred();
+  const second = deferred();
+  const older = readRuntimeModalProfile(session, async () => first.promise);
+  const newer = readRuntimeModalProfile(session, async () => second.promise);
+  const state = {
+    jobs: [{ id: 'job-a', name: 'Owner A private role' }],
+    signedOut: false,
+    modal: 'resume',
+    loaded: true,
+  };
+  const deps = {
+    ...helper,
+    defaultDraftingPreference,
+    settleRuntimeModalProfileRead,
+  };
+  expireKeys(state, deps);
+  deps.applyExpired = workspaceExpiry(deps);
+  let clears = 0;
+  const onUnauthorized = () => {
+    clears += 1;
+    deps.applyExpired();
+  };
+  function thenDeps(cancelled) {
+    return {
+      ...deps,
+      cancelled,
+      onUnauthorized,
+      setProfile() {},
+      setResume() {},
+      setCandidates() {},
+      setRule() {},
+      setNote() {},
+    };
+  }
+  first.resolve({
+    status: 401,
+    ok: false,
+    json: async () => {
+      throw Error('must not parse 401 JSON');
+    },
+  });
+  const olderOutcome = await older;
+  assert.equal(olderOutcome.type, 'expire');
+  bind(
+    '(outcome) => {' + modalProfileThenBody() + '\n}',
+    thenDeps(true),
+  )(olderOutcome);
+  second.resolve({
+    status: 200,
+    ok: true,
+    json: async () => ({
+      facts: [
+        { id: 'b', claim: 'Must not restore', tag: 'x', status: 'Verified' },
+      ],
+    }),
+  });
+  const newerOutcome = await newer;
+  assert.equal(newerOutcome.type, 'ignore');
+  bind(
+    '(outcome) => {' + modalProfileThenBody() + '\n}',
+    thenDeps(false),
+  )(newerOutcome);
+  assert.equal(clears, 1);
+  assert.equal(session.viewer, undefined);
+  assert.equal(session.gate.epoch, 1);
+  assert.equal(state.signedOut, true);
+  assert.deepEqual(state.jobs, []);
+  assert.equal(state.modal, null);
+});
+
+void test('modal profile GET 502 HTML becomes an error instead of rejecting', async () => {
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const outcome = await readRuntimeModalProfile(session, async () => ({
+    status: 502,
+    ok: false,
+    json: async () => {
+      throw new SyntaxError('Unexpected token <');
+    },
+  }));
+  assert.equal(outcome.type, 'error');
+  assert.equal(outcome.error, 'Unable to load profile.');
+  assert.equal(session.viewer, 'owner-a');
+});
+
+void test('modal profile POST 502 HTML becomes an error instead of rejecting', async () => {
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const outcome = await postRuntimeModalProfile(
+    session,
+    { action: 'extract', text: 'Fictional resume' },
+    async () => ({
+      status: 502,
+      ok: false,
+      json: async () => {
+        throw new SyntaxError('Unexpected token <');
+      },
+    }),
+  );
+  assert.equal(outcome.type, 'error');
+  assert.equal(outcome.error, 'Unable to save.');
+});
+
+void test('modal profile GET json reject after expiry is ignored', async () => {
+  const session = helper.createWorkspaceSession();
+  helper.bindViewer(session, 'owner-a');
+  const outcome = await readRuntimeModalProfile(session, async () => ({
+    status: 502,
+    ok: false,
+    json: async () => {
+      helper.expireSession(session);
+      throw new SyntaxError('Unexpected token <');
+    },
+  }));
+  assert.equal(outcome.type, 'ignore');
+  assert.equal(session.viewer, undefined);
+});

@@ -188,7 +188,12 @@ export default function Track() {
           {message}
         </div>
       )}
-      <TrackJobSheet filter={filter} jobs={jobs} onFilter={chooseSheetFilter} />
+      <TrackJobSheet
+        filter={filter}
+        jobs={jobs}
+        loaded={data !== null}
+        onFilter={chooseSheetFilter}
+      />
 
       {data && Object.keys(data.rates).length > 0 && (
         <section className="import">

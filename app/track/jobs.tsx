@@ -15,10 +15,12 @@ import {
 export function TrackJobSheet({
   jobs,
   filter,
+  loaded,
   onFilter,
 }: {
   jobs: SheetJob[];
   filter: QueueFilter;
+  loaded: boolean;
   onFilter: (value: QueueFilter) => void;
 }) {
   const rows = jobsMatchingQueue(jobs, filter);
@@ -50,7 +52,7 @@ export function TrackJobSheet({
           );
         })}
       </fieldset>
-      {!jobs.length ? (
+      {!loaded ? null : !jobs.length ? (
         <p className="empty">
           No jobs yet. Add a job from the workspace, then return here to scan
           the list.

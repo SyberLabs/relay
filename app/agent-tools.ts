@@ -313,7 +313,11 @@ export function useRelayTools(
           } catch {
             // Begin already consumed the permit. A failed display refresh
             // cannot undo it; still return { execute, operation }.
-            return { execute: result.execute, operation: result.operation };
+            return {
+              execute: result.execute,
+              operation: result.operation,
+              refresh_required: true,
+            };
           }
           return { execute: result.execute, operation: result.operation };
         },

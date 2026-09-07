@@ -131,7 +131,7 @@ Relay does not generate essay text. `r.write` returns stored exact text or asks 
 | `r.write(label)` | If preparation has a nonempty value for `label`, return it. Else 409 `unknown` with that label; agent writes using `relay_read_profile`, then `prepare` | Paste returned text into the matching control |
 | `r.block(label)` | `prepare` with `unknown: true` for that label | Stop; do not invent |
 | `r.arm` | `arm` | Do not submit |
-| `r.wait_accept` | Poll `GET ?job=` until `state=authorized` or cancelled/timeout (client-side, ≤5 min, 500ms–1s) | Do not submit |
+| `r.wait_accept` | Poll `GET ?job=` until `state=authorized` or cancelled/timeout (client-side, ≤5 min, at least every 2 seconds (prefer 3)) | Do not submit |
 | `r.send` | `begin`; only if `execute===true`, click employer Submit **once**; then `complete` with observed receipt | Submit control |
 | `r.close` | `cancel` if pre-`begin`; else stop | Leave the page |
 | `r.status_change` | **Not a free status write.** Map `submitted` → `complete`, `uncertain` → `uncertain`, `not-submitted` → `not-submitted`. Anything else 400. | — |

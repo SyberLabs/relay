@@ -14,7 +14,7 @@ void test('relay_begin_application swallows a failed display refresh after a suc
   assert.match(begin, /try \{\s*await refresh\(\);\s*\} catch \{/);
   assert.match(
     begin,
-    /return \{ execute: result\.execute, operation: result\.operation \}/,
+    /catch \{[\s\S]*return \{\s*execute: result\.execute,\s*operation: result\.operation,\s*refresh_required: true/,
   );
   assert.doesNotMatch(begin, /await refresh\(\);\s*return \{ execute/);
 });

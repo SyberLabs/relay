@@ -1117,6 +1117,19 @@ void test('database protects exact evidence and caps history across insertion pa
   db.sqlite.close();
 });
 
+void test('0010 drops and recreates the preparations capacity trigger with the existing-row exception', () => {
+  const files = readdirSync('drizzle').filter(
+    (f) => f.startsWith('0010_') && f.endsWith('.sql'),
+  );
+  assert.equal(files.length, 1);
+  const sql = readFileSync(`drizzle/${files[0]}`, 'utf8');
+  assert.match(sql, /DROP TRIGGER IF EXISTS application_preparations_capacity/);
+  assert.match(
+    sql,
+    /WHEN \(SELECT COUNT\(\*\) FROM application_preparations WHERE owner=NEW\.owner\)>=500 AND NOT EXISTS \(SELECT 1 FROM application_preparations WHERE owner=NEW\.owner AND job_id=NEW\.job_id\)/,
+  );
+});
+
 void test('preparations cap allows overwrite of an existing job at 500 and aborts a 501st distinct job', async () => {
   const db = database();
   await changeApplicationPolicy(db, 'alice', config(), now);

@@ -305,6 +305,38 @@ test('short user answer is job-specific and cannot confirm a personal fact or ac
   await expect(
     page.getByRole('heading', { name: 'Ready for your assistant' }),
   ).toBeVisible();
+  // A saved one-time answer must remain correctable after reload.
+  await page.getByRole('button', { name: 'Add or change context' }).click();
+  const correction = page.getByRole('textbox', {
+    name: 'Your answer or direction',
+  });
+  await expect(correction).toBeFocused();
+  await correction.fill('Use the second confirmed project instead.');
+  const changed = await decisionResponse(page, () =>
+    page.getByRole('button', { name: 'Share with assistant' }).click(),
+  );
+  expect(changed.ok()).toBe(true);
+  const corrected = await state(page);
+  current = corrected.jobs.find((j: { id: string }) => j.id === job.id);
+  expect(current).toMatchObject({
+    drafting_direction: 'Use the second confirmed project instead.',
+    blocker: job.blocker,
+    accepted_draft: null,
+  });
+  expect(corrected.draftingPreference).toEqual(before.draftingPreference);
+  expect(corrected.facts).toEqual(before.facts);
+  const decisions = corrected.events
+    .filter(
+      (event: { job_id: string; kind: string }) =>
+        event.job_id === job.id && event.kind === 'Drafting decision',
+    )
+    .map((event: { detail: string }) => JSON.parse(event.detail).answer);
+  expect(decisions).toEqual(
+    expect.arrayContaining([
+      'Use the existing project example.',
+      'Use the second confirmed project instead.',
+    ]),
+  );
   const partial = await page.request.post('/api/workspace', {
     data: {
       action: 'save',
@@ -320,7 +352,9 @@ test('short user answer is job-specific and cannot confirm a personal fact or ac
   current = (await state(page)).jobs.find(
     (j: { id: string }) => j.id === job.id,
   );
-  expect(current.drafting_direction).toBe('Use the existing project example.');
+  expect(current.drafting_direction).toBe(
+    'Use the second confirmed project instead.',
+  );
   const resolved = await page.request.post('/api/workspace', {
     data: {
       action: 'save',

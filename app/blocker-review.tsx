@@ -80,71 +80,71 @@ export function BlockerReview({
             )}
           </details>
           {!pending && (
-            <>
-              <div className="decision-recommendation">
-                <p>
-                  Use your saved facts and leave out optional details. Ask only
-                  if a required answer is missing.
-                </p>
-              </div>
-              <div className="actions">
-                <button
-                  className="primary"
-                  disabled={disabled || dirty || !!answer}
-                  onClick={() => void onDecision('delegate', remember, '')}
-                >
-                  Use your judgment <ArrowRight size={16} />
-                </button>
-                <button
-                  className="secondary"
+            <div className="decision-recommendation">
+              <p>
+                Use your saved facts and leave out optional details. Ask only if
+                a required answer is missing.
+              </p>
+            </div>
+          )}
+          <div className="actions">
+            {!pending && (
+              <button
+                className="primary"
+                disabled={disabled || dirty || !!answer}
+                onClick={() => void onDecision('delegate', remember, '')}
+              >
+                Use your judgment <ArrowRight size={16} />
+              </button>
+            )}
+            <button
+              className="secondary"
+              disabled={disabled}
+              aria-expanded={answering}
+              onClick={() => setAnswering(!answering)}
+            >
+              {pending ? 'Add or change context' : 'I’ll add context'}
+            </button>
+          </div>
+          {!pending && !preference.routine && (
+            <label className="decision-remember">
+              <input
+                type="checkbox"
+                checked={remember}
+                disabled={disabled}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              Don’t ask me about routine writing choices again
+            </label>
+          )}
+          {answering && (
+            <form
+              className="decision-answer"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (await onDecision('answer', false, answer)) {
+                  setAnswering(false);
+                }
+              }}
+            >
+              <label className="field">
+                Your answer or direction
+                <textarea
+                  ref={answerField}
                   disabled={disabled}
-                  aria-expanded={answering}
-                  onClick={() => setAnswering(!answering)}
-                >
-                  I’ll add context
-                </button>
-              </div>
-              {!preference.routine && (
-                <label className="decision-remember">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    disabled={disabled}
-                    onChange={(e) => setRemember(e.target.checked)}
-                  />
-                  Don’t ask me about routine writing choices again
-                </label>
-              )}
-              {answering && (
-                <form
-                  className="decision-answer"
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    if (await onDecision('answer', false, answer)) {
-                      setAnswering(false);
-                    }
-                  }}
-                >
-                  <label className="field">
-                    Your answer or direction
-                    <textarea
-                      ref={answerField}
-                      disabled={disabled}
-                      value={answer}
-                      onChange={(e) => onAnswer(e.target.value)}
-                      maxLength={2000}
-                      placeholder="A quick answer is enough."
-                    />
-                  </label>
-                  <button
-                    className="primary"
-                    disabled={disabled || dirty || !answer.trim()}
-                  >
-                    Share with assistant
-                  </button>
-                </form>
-              )}
-            </>
+                  value={answer}
+                  onChange={(e) => onAnswer(e.target.value)}
+                  maxLength={2000}
+                  placeholder="A quick answer is enough."
+                />
+              </label>
+              <button
+                className="primary"
+                disabled={disabled || dirty || !answer.trim()}
+              >
+                Share with assistant
+              </button>
+            </form>
           )}
           {dirty && (
             <p className="muted">

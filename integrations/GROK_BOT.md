@@ -37,7 +37,10 @@ returned 200 JSON from `/api/workspace` without exporting cookies or response
 bodies. That proves authenticated reads without WebMCP, not a completed draft
 write or a remote CLI. Any browser API operation must retain the gateway,
 generation-time version, explicit blocker and refusal/recovery rules in the
-[assistant workflow](ASSISTANT-WORKFLOW.md).
+[assistant workflow](ASSISTANT-WORKFLOW.md). After `begin`, an employer captcha or
+submit no-op is `uncertain`: stop, record observed evidence, and do not consume
+a second permit. Human unlock is outside Relay; it is not a `relay_stage_draft`
+failure.
 
 For a private local development session, use [the assistant context and staging path](ASSISTANT-WORKFLOW.md): `login`, `context <job_id> --json`, write your own draft file from that context, then `stage <job_id> <draft-file> --version <generation-time-version> --blocker= --json`. Supply a nonempty blocker when information is unresolved. Reread context to verify exact wording, version, blocker and history. No manual copying or packet transfer is needed when the Bot can run these local commands. Stage saves for review only; human exact-text acceptance remains in the signed-in workspace. It does not change Probation or the separate draft ledger's automatic-staging policy.
 

@@ -502,7 +502,7 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   expect(manifest.files[0].base64).toBe(resume.base64);
 });
 
-test('inspect shows captcha-uncertain separately from waiting to send', async ({
+test('inspect shows employer-uncertain separately from waiting to send', async ({
   page,
 }) => {
   await page.goto('/');
@@ -512,22 +512,22 @@ test('inspect shows captcha-uncertain separately from waiting to send', async ({
       action: 'import',
       rows: [
         {
-          Name: 'Cedar Example — Inspect Captcha Engineer',
-          Job: 'https://employer.example/jobs/inspect-captcha',
-          url: 'https://scout.example/observations/inspect-captcha',
+          Name: 'Cedar Example — Inspect Uncertain Engineer',
+          Job: 'https://employer.example/jobs/inspect-uncertain',
+          url: 'https://scout.example/observations/inspect-uncertain',
           Status: 'Held',
-          Notes: 'Fictional inspect-captcha fixture.',
+          Notes: 'Fictional inspect-uncertain fixture.',
         },
       ],
     },
   });
   const ws = await (await page.request.get('/api/workspace')).json();
   const job = ws.jobs.find((j: { name: string }) =>
-    j.name.includes('Inspect Captcha'),
+    j.name.includes('Inspect Uncertain'),
   );
   await enableInspectJob(page, ws.viewer, job.id);
   await page.goto('/');
-  await page.getByRole('button', { name: /Inspect Captcha/ }).click();
+  await page.getByRole('button', { name: /Inspect Uncertain/ }).click();
   const prepared = await page.request.post('/api/applications', {
     data: {
       action: 'prepare',
@@ -547,7 +547,7 @@ test('inspect shows captcha-uncertain separately from waiting to send', async ({
       preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
-      id: 'op-inspect-captcha',
+      id: 'op-inspect-uncertain',
       actor: 'Fictional applying agent',
     },
   });
@@ -564,7 +564,7 @@ test('inspect shows captcha-uncertain separately from waiting to send', async ({
     data: {
       action: 'begin',
       viewer: ws.viewer,
-      id: 'op-inspect-captcha',
+      id: 'op-inspect-uncertain',
       digest: armedView.digest,
     },
   });
@@ -585,7 +585,7 @@ test('inspect shows captcha-uncertain separately from waiting to send', async ({
     data: {
       action: 'uncertain',
       viewer: ws.viewer,
-      id: 'op-inspect-captcha',
+      id: 'op-inspect-uncertain',
       digest: armedView.digest,
       receipt:
         'Fictional Greenhouse invisible reCAPTCHA; employer submit no-op after a clean fill.',
@@ -612,7 +612,7 @@ test('inspect shows captcha-uncertain separately from waiting to send', async ({
     data: {
       action: 'begin',
       viewer: ws.viewer,
-      id: 'op-inspect-captcha',
+      id: 'op-inspect-uncertain',
       digest: armedView.digest,
     },
   });

@@ -10,6 +10,7 @@ SyberLabs' invited-pilot workspace for one job at a time: keep candidate facts f
 ## Available in this early release
 
 - One history per job: matching posting URLs join the same record, and earlier research stays visible.
+- Add one job from a role title, HTTP(S) posting URL, and optional notes. Matching URLs join that existing record without resetting status or accepted drafts.
 - Exact draft acceptance: you approve specific wording; changing it requires review again.
 - Interview notes and follow-ups that do not reset a submitted or live-loop application.
 - Import a tracker CSV through column mapping and a record preview. Imported statuses stay research; existing Relay status and accepted drafts are preserved.

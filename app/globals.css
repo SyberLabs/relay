@@ -393,6 +393,17 @@ a.primary,
   color: var(--ink);
   resize: vertical;
 }
+.field input {
+  display: block;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid #ced5c6;
+  border-radius: 4px;
+  width: 100%;
+  font-size: 16px;
+  background: #fffffd;
+  color: var(--ink);
+}
 .field .draft {
   min-height: 190px;
   line-height: 1.7;

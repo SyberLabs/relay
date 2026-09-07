@@ -50,6 +50,8 @@ async function call(body, h = headers) {
 const boot = await call({ action: 'bootstrap' });
 assert.equal(boot.status, 200, JSON.stringify(boot.data));
 const a = (await call()).data;
+assert.equal(typeof a.viewer, 'string');
+assert.ok(a.viewer.length > 0);
 await call({ action: 'bootstrap' });
 const b = (await call()).data;
 assert.equal(b.jobs.length, a.jobs.length);
@@ -303,11 +305,33 @@ result = await call({
 });
 assert.equal(result.status, 200, JSON.stringify(result.data));
 const afterNull = (await call()).data;
-const nullJob = afterNull.jobs.find((j) => j.job_key === jobKey(null, sourceUrl));
+const nullJob = afterNull.jobs.find(
+  (j) => j.job_key === jobKey(null, sourceUrl),
+);
 assert.ok(nullJob);
 assert.equal(nullJob.url, null);
 console.log(
   'PASS: selected-job history remains retrievable after 200 later events; null-URL jobs import.',
+);
+const mismatchUrl = 'https://example.com/jobs/viewer-mismatch';
+result = await call({
+  action: 'import',
+  viewer: 'different-account',
+  rows: [
+    {
+      url: 'first-job:' + jobKey(mismatchUrl, ''),
+      Name: 'Must Not Persist',
+      Job: mismatchUrl,
+      Status: 'Held',
+      Notes: 'Owner A private notes.',
+    },
+  ],
+});
+assert.equal(result.status, 409, JSON.stringify(result.data));
+const afterMismatch = (await call()).data;
+assert.equal(
+  afterMismatch.jobs.some((j) => j.job_key === jobKey(mismatchUrl, '')),
+  false,
 );
 result = await call(undefined, {});
 assert.equal(result.status, 401);

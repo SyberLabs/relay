@@ -46,13 +46,12 @@ export async function GET() {
     .bind(user)
     .all();
   const events = await db
-    .prepare(
-      'SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT ?',
-    )
+    .prepare('SELECT * FROM events WHERE owner=? ORDER BY created DESC LIMIT ?')
     .bind(user, INITIAL_EVENT_LIMIT)
     .all();
   const facts = (await loadFacts(db, user)).filter((f) => usableFact(f, now));
   return reply({
+    viewer: user,
     jobs: jobs.results,
     sources: sources.results,
     events: events.results,
@@ -72,6 +71,15 @@ export async function POST(request: Request) {
     const b = JSON.parse(raw),
       db = database(),
       now = new Date().toISOString();
+    if (
+      b.action === 'import' &&
+      typeof b.viewer === 'string' &&
+      b.viewer !== user
+    )
+      return reply(
+        { error: 'This add-job form belongs to a different account.' },
+        409,
+      );
     if (['bootstrap', 'import', 'preview', 'replay'].includes(b.action)) {
       const rows = validateRows(
         b.action === 'bootstrap' || b.action === 'replay' ? seed : b.rows,

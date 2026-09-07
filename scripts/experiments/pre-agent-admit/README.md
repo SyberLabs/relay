@@ -12,6 +12,6 @@ pnpm experiment:pre-agent-admit -- --fixtures \
 
 `--fixtures` (default) uses the fictional boards in `fixtures/` and makes no network calls.
 
-`--live` requires a private `--catalog` or `--directory` and refuses this folder. `--catalog` unions LastRound / MIT JSON / CDX snapshots, optionally scouts HN/YC/startups/Speedrun with public GETs, then samples by provider share to `max_boards`. `--full-directory` fetches the snapshot instead of sampling. `--instruments` is intern regex plus local vocabulary cosine, not an embedder. Keep real CSVs and tokens in ignored `private-data/`. Attribute LastRound (CC BY 4.0) when that CSV is used.
+`--live` requires a private `--catalog` or `--directory` and refuses this folder. `--catalog` unions LastRound / MIT JSON / CDX snapshots, optionally scouts HN/YC/startups/Speedrun with public GETs, then samples by provider share to `max_boards`. `--full-directory` fetches the snapshot instead of sampling. `--instruments` is intern regex on the title after `Company — `, local vocabulary cosine, and a US-seat location check — not an embedder. Keep real CSVs and tokens in ignored `private-data/`. Attribute LastRound (CC BY 4.0) when that CSV is used.
 
 Compare JSON is counts and rates only. Sampled board tokens are written to `directory.used.json` under `--out`. The writing/review agent stays asleep.

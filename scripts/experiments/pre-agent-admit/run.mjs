@@ -333,8 +333,9 @@ against today's known-company pull and a query-shaped search cap.
 --live fetches Greenhouse, Lever, and Ashby public board JSON only.
 --full-directory raises max_boards to 20000 so LastRound is not sampled.
 --save-corpus writes compact postings.ndjson under --out and resumes.
---instruments scores the corpus with intern regex then local vocabulary
-cosine. No embedder, no LLM, writing agent asleep.
+--instruments scores the corpus with intern regex on the title after
+Company —, then local vocabulary cosine, then a US-seat location check.
+No embedder, no LLM, writing agent asleep.
 --catalog unions LastRound / ats-jobs-mcp / intern-engine / africa / CDX
 snapshots and optional HN/YC/startups/speedrun scouts, then samples to
 max_boards. Keep real tokens and CSVs in private-data/. Attribute LastRound.

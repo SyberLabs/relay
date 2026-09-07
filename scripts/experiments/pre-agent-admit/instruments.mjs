@@ -7,12 +7,29 @@ const EARLY =
   /\b(intern(?:ship)?s?|co-?ops?|new[\s-]*grads?|early[\s-]*career|university|campus)\b/i;
 const JUNIOR = /\b(junior|entry[ -]?level|swe\s*i\b|software engineer i\b)/i;
 const HARDWARE = /\bhardware\b/i;
+const SENIORISH = /\b(senior|staff|principal|director|manager)\b/i;
+const US_NAMES =
+  /\b(united states|usa|u\.s\.a\.|u\.s\.|utah|salt lake|california|walnut creek)\b/i;
+const US_ABBR = /(^|[^A-Za-z])US(A)?([^A-Za-z]|$)/;
+const US_STATE = new Set(
+  'AL AK AZ AR CA CO CT DC DE FL GA HI IA ID IL IN KS KY LA MA MD ME MI MN MO MS MT NC ND NE NH NJ NM NV NY OH OK OR PA RI SC SD TN TX UT VA VT WA WI WV WY'.split(
+    ' ',
+  ),
+);
 
 export const DEFAULT_HUNT_PACKET =
   'software engineer intern internship new grad early career junior swe university campus';
 
+/** LastRound `Name` is `Company — Title`. Instruments score the title only. */
+export function roleTitle(name) {
+  const text = String(name || '');
+  const cut = text.indexOf(' — ');
+  return cut === -1 ? text : text.slice(cut + 3);
+}
+
 export function internTitleMatch(name) {
-  const title = String(name || '');
+  const title = roleTitle(name);
+  if (SENIORISH.test(title)) return { ok: false, reason: 'senior' };
   const software = SOFTWARE.test(title);
   const early = EARLY.test(title);
   const junior = JUNIOR.test(title);
@@ -32,6 +49,23 @@ export function lexicalCosine(text, packet) {
   return overlap / Math.sqrt(left.size * right.size);
 }
 
+/**
+ * US hunt seat from location/remote fields only. Bare remote / worldwide
+ * is not US. Two-letter state codes are matched case-sensitively.
+ */
+export function usHuntLocation(posting) {
+  const row = posting?.row || posting || {};
+  const place = `${row.location || ''} ${row.remote || ''}`;
+  if (!place.trim()) return false;
+  if (US_NAMES.test(place) || US_ABBR.test(place)) return true;
+  const stateCode = /(?:^|[\s,(/])([A-Z]{2})(?:$|[\s,)/])/g;
+  let match;
+  while ((match = stateCode.exec(place))) {
+    if (US_STATE.has(match[1])) return true;
+  }
+  return false;
+}
+
 export function compactPosting(posting) {
   const row = posting.row || posting;
   const rest = { ...row };
@@ -44,11 +78,13 @@ export function compactPosting(posting) {
   };
 }
 
-export function scoreCorpus(postings, { known, packet, min_cosine = 0.08 } = {}) {
+export function instrumentHits(
+  postings,
+  { known, packet, min_cosine = 0.08 } = {},
+) {
   const hunt = packet || DEFAULT_HUNT_PACKET;
   const huntWords = contentWords(hunt);
-  const regexHits = [];
-  const lexicalHits = [];
+  const hits = [];
   const seen = new Set();
   for (const posting of postings) {
     const compact = compactPosting(posting);
@@ -61,26 +97,36 @@ export function scoreCorpus(postings, { known, packet, min_cosine = 0.08 } = {})
     const regex = internTitleMatch(title);
     if (!regex.ok) continue;
     const unknown = !isKnownPosting(compact, known || { companies: [], boards: [] });
-    const item = {
+    const cosine = lexicalCosine(
+      `${roleTitle(title)} ${compact.row.location || ''} ${compact.row.remote || ''}`,
+      huntWords,
+    );
+    hits.push({
       posting: compact,
       regex: regex.reason,
       unknown_company: unknown,
-      cosine: lexicalCosine(
-        `${title} ${compact.row.location || ''} ${compact.row.remote || ''}`,
-        huntWords,
-      ),
-    };
-    regexHits.push(item);
-    if (item.cosine >= min_cosine) lexicalHits.push(item);
+      cosine,
+      us: usHuntLocation(compact),
+      lexical: cosine >= min_cosine,
+    });
   }
+  return hits;
+}
+
+export function scoreCorpus(postings, options = {}) {
+  const min_cosine = options.min_cosine ?? 0.08;
+  const hits = instrumentHits(postings, options);
+  const hunt = options.packet || DEFAULT_HUNT_PACKET;
   return {
     corpus: postings.length,
     embedder: 'none',
     llm: 'asleep',
-    packet_terms: huntWords.size,
+    packet_terms: contentWords(hunt).size,
     min_cosine,
-    regex: tally(regexHits),
-    lexical: tally(lexicalHits),
+    regex: tally(hits),
+    lexical: tally(hits.filter((item) => item.lexical)),
+    regex_us: tally(hits.filter((item) => item.us)),
+    lexical_us: tally(hits.filter((item) => item.lexical && item.us)),
   };
 }
 

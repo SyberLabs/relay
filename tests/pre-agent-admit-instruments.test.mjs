@@ -6,12 +6,15 @@ import { fixtureFetch } from '../scripts/experiments/pre-agent-admit/fixtures.mj
 import {
   internTitleMatch,
   lexicalCosine,
+  roleTitle,
   scoreCorpus,
+  usHuntLocation,
 } from '../scripts/experiments/pre-agent-admit/instruments.mjs';
 
 const NOW = Date.parse('2026-09-07T12:00:00.000Z');
 
 void test('intern regex keeps software internships and rejects internal/hardware/senior SWE', () => {
+  assert.equal(roleTitle('Software Corp — Mechanical Engineering Intern'), 'Mechanical Engineering Intern');
   assert.equal(
     internTitleMatch('Northstar — Software Engineer Intern Summer 2027').ok,
     true,
@@ -31,6 +34,45 @@ void test('intern regex keeps software internships and rejects internal/hardware
   );
   assert.equal(
     internTitleMatch('Harbor Labs — Senior Software Engineer').ok,
+    false,
+  );
+  assert.equal(
+    internTitleMatch('Acme — Senior Software Engineer I').ok,
+    false,
+  );
+  assert.equal(
+    internTitleMatch('Acme — Senior Software Engineer I').reason,
+    'senior',
+  );
+  assert.equal(
+    internTitleMatch('Software Corp — Mechanical Engineering Intern').ok,
+    false,
+  );
+});
+
+void test('usHuntLocation requires a US seat, not bare remote', () => {
+  assert.equal(
+    usHuntLocation(posting('Acme — Software Engineer Intern', 'Acme', 'https://x', 'United States', 'remote')),
+    true,
+  );
+  assert.equal(
+    usHuntLocation(posting('Acme — Software Engineer Intern', 'Acme', 'https://x', 'San Francisco, CA', '')),
+    true,
+  );
+  assert.equal(
+    usHuntLocation(posting('Acme — Software Engineer Intern', 'Acme', 'https://x', 'Walnut Creek', '')),
+    true,
+  );
+  assert.equal(
+    usHuntLocation(posting('Acme — Software Engineer Intern', 'Acme', 'https://x', 'Remote', 'remote')),
+    false,
+  );
+  assert.equal(
+    usHuntLocation(posting('Acme — Software Engineer Intern', 'Acme', 'https://x', 'Lagos, Nigeria', 'remote')),
+    false,
+  );
+  assert.equal(
+    usHuntLocation(posting('Acme — Software Engineer Intern', 'Acme', 'https://x', 'Spain', '')),
     false,
   );
 });
@@ -62,9 +104,16 @@ void test('corpus scoring reports regex then lexical counts without embedding', 
         'https://boards.greenhouse.io/northstar/jobs/1',
       ),
       posting(
-        'Harbor — Senior Software Engineer',
+        'Harbor — Senior Software Engineer I',
         'Harbor',
         'https://jobs.lever.co/harbor/senior',
+      ),
+      posting(
+        'Globex — Software Engineer Intern',
+        'Globex',
+        'https://jobs.ashbyhq.com/globex/remote-intern',
+        'Remote',
+        'remote',
       ),
     ],
     {
@@ -73,10 +122,12 @@ void test('corpus scoring reports regex then lexical counts without embedding', 
       min_cosine: 0.08,
     },
   );
-  assert.equal(report.corpus, 3);
-  assert.equal(report.regex.matched, 1);
-  assert.equal(report.regex.unknown_company, 0);
-  assert.equal(report.lexical.matched, 1);
+  assert.equal(report.corpus, 4);
+  assert.equal(report.regex.matched, 2);
+  assert.equal(report.regex.unknown_company, 1);
+  assert.equal(report.lexical.matched, 2);
+  assert.equal(report.regex_us.matched, 1);
+  assert.equal(report.lexical_us.matched, 1);
   assert.equal(report.embedder, 'none');
   assert.equal(report.llm, 'asleep');
 });
@@ -131,15 +182,15 @@ void test('fetchDirectory resumes by skipping boards already in the corpus', asy
   assert.equal(urls.some((url) => url.includes('northstar')), false);
 });
 
-function posting(Name, company, url) {
+function posting(Name, company, url, location = 'United States', remote = '') {
   return {
     row: {
       Name,
       company,
       url,
       Job: url,
-      location: 'United States',
-      remote: '',
+      location,
+      remote,
       level: 'junior',
       posted: '2026-09-01T00:00:00.000Z',
       source: 'greenhouse',

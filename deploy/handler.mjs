@@ -1,16 +1,21 @@
 import { accessConfig, authenticatedRequest, authenticatedReadiness } from './access.mjs';
 import { edgeGuard, usageGuard, bodyGuard, refusal } from './security.mjs';
 import { captchaPage } from './captcha.mjs';
+import { drainBoundedBody } from '../lib/request-origin.ts';
 
 // The production entry supplies no keyResolver: only the configured Access JWKS is trusted.
 // The local integration fixture supplies a generated public key without adding a runtime bypass.
 export async function handleRequest(request, env, context, app, keyResolver) {
   const url = new URL(request.url);
+  const deny = async (response) => {
+    await drainBoundedBody(request);
+    return response;
+  };
   try { accessConfig(env); } catch {
     return new Response('Service unavailable', { status: 503 });
   }
   const edgeDenied = await edgeGuard(request, env);
-  if (edgeDenied) return edgeDenied;
+  if (edgeDenied) return deny(edgeDenied);
   if (url.pathname === '/healthz' && request.method === 'GET') {
     return Response.json({ status: 'ok', release: env.RELEASE_SHA }, {
       headers: { 'cache-control': 'no-store' },
@@ -54,13 +59,13 @@ export async function handleRequest(request, env, context, app, keyResolver) {
   }
   try {
     const denied = await usageGuard(request, env);
-    if (denied) return denied;
+    if (denied) return deny(denied);
     if (url.pathname === '/security/check') return captchaPage(request, env);
     const bounded = await bodyGuard(request, env);
-    if (bounded instanceof Response) return bounded;
+    if (bounded instanceof Response) return deny(bounded);
     request = bounded;
   } catch {
-    return refusal(503, 'security_unavailable', 'Service unavailable', 60);
+    return deny(refusal(503, 'security_unavailable', 'Service unavailable', 60));
   }
   if ((request.method === 'GET' || request.method === 'HEAD') && !staticPath) {
     const asset = await env.ASSETS.fetch(request);

@@ -469,3 +469,16 @@ void test('successful CAPTCHA grants only the authenticated owner a bounded clea
   );
   db.sqlite.close();
 });
+
+void test('oversized declared bodies are consumed to the byte boundary and cancelled before refusal', async () => {
+  let cancelled = false;
+  const body = new ReadableStream({
+    pull(controller) { controller.enqueue(new Uint8Array([1, 2])); },
+    cancel() { cancelled = true; },
+  });
+  const req = new Request('https://relay.example/api/workspace', {
+    method: 'POST', headers: { 'content-length': '2' }, body, duplex: 'half',
+  });
+  await assert.rejects(boundedBody(req, 1), RangeError);
+  assert.equal(cancelled, true);
+});

@@ -155,8 +155,9 @@ export async function usageGuard(request, env, now = Date.now()) {
 
 // Read the actual byte stream before parsing; Content-Length alone is not a limit.
 export async function boundedBody(request, limit) {
-  if (Number(request.headers.get('content-length')) > limit)
-    throw new RangeError('Body too large');
+  // Consume up to the actual byte boundary even when Content-Length already
+  // proves excess: leaving the upload unread can stall a subsequent request
+  // through Wrangler's local proxy. Never trust the declared length alone.
   if (!request.body) return new Uint8Array();
   const reader = request.body.getReader();
   let timer;

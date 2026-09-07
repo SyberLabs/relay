@@ -55,9 +55,9 @@ The workspace is a light dashboard: left sidebar of nine status filters plus App
 
 ## Lane mapping
 
-- **Up next:** current queue filter (default Held), minus the selected job, minus blocked jobs. Search still filters this list. `#workspace-queue` stays this plate.
+- **Up next:** current queue filter (default Held), minus blocked jobs. Search still filters this list. `#workspace-queue` stays this plate. The selected job stays in its lane with a selected class.
 - **Sent:** Submitted, Live loop, Skip, Offer, Accepted, Closed.
-- **Stuck:** non-empty `blocker`, and status is not sent/ended/skip.
+- **Stuck:** non-empty `blocker`, and status is not sent/ended/skip, including the selected job.
 - **Core:** `selected` job, or empty “load next”.
 - Sidebar **Job list** filters remain, compacted into the top bar, so existing journeys can still choose Ready/All/Submitted.
 

@@ -62,7 +62,7 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
       /heuristic word and number match, not a qualification score/i,
     ),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
 
   await page.getByRole('button', { name: /^Tools/ }).click();
   await expect(
@@ -87,7 +87,7 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   await expect(
     page.getByRole('heading', { name: 'The agent needs an answer' }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
 
   const before = await (await page.request.get('/api/applications')).json();
   const auto = page.getByRole('button', { name: 'Autopilot' });

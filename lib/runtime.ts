@@ -150,14 +150,11 @@ export function runtimeLanes<
   filter: string,
 ): { queue: T[]; sent: T[]; blocked: T[]; core: T | null } {
   const core = jobs.find((job) => job.id === selectedId) ?? null;
-  const blocked = jobs.filter(
-    (job) => isBlockedJob(job) && job.id !== selectedId,
-  );
+  const blocked = jobs.filter((job) => isBlockedJob(job));
   const blockedIds = new Set(blocked.map((job) => job.id));
   const sent = jobs.filter((job) => isSentJob(job));
   const sentIds = new Set(sent.map((job) => job.id));
   const queue = jobs.filter((job) => {
-    if (job.id === selectedId) return false;
     if (blockedIds.has(job.id)) return false;
     if (filter === 'All') return !sentIds.has(job.id);
     return job.status === filter;

@@ -7,14 +7,18 @@ import { asSheetJobs } from '../lib/runtime.ts';
 
 // Coverage: helper 401-before-parse; each page refresh/mutation/extract via
 // compiled source callbacks; review sibling GET held after the other 401s;
-// delayed GET/POST/json cannot restore or start a follow-up refresh;
-// helper kind=ok then a later-turn 401 cannot restore refresh/extract state
-// (microtask offset sweep plus a forced helper-to-caller gap).
+// track sibling GET/JSON held or rejected after the other 401s, with
+// preloaded private jobs/outcomes/receipts; delayed GET/POST/json cannot
+// restore or start a follow-up refresh; helper kind=ok then a later-turn 401
+// cannot restore refresh/extract state (microtask offset sweep plus a forced
+// helper-to-caller gap).
 // Gaps: browser tests cover same-mount POST 401 and profile extract 401 only
 // (no user-triggered GET refresh). Overlapping successful GETs without 401
 // are not generation-gated. Same-mount reauthentication is not offered.
 // Delayed restoration was not observed in prior QA; these cases are
-// regressions, not a claim that it was seen.
+// regressions, not a claim that it was seen. Source-compiled refresh
+// callbacks are the evidence for sibling 401 ordering; navigation and
+// helper tests do not cover it.
 
 function http(status, body, jsonHook) {
   const state = { jsonCalls: 0 };
@@ -36,10 +40,12 @@ function http(status, body, jsonHook) {
 
 function deferred() {
   let resolve;
-  const promise = new Promise((ok) => {
+  let reject;
+  const promise = new Promise((ok, fail) => {
     resolve = ok;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function compile(text) {
@@ -111,6 +117,33 @@ function pageDeps(state, keys, fetchImpl) {
 
 function bindExpired(source, deps) {
   deps.applyExpired = bind(callbackBody(source, 'applyExpired'), deps);
+}
+
+function bindTrackRefresh(fetchImpl) {
+  const source = readFileSync('app/track/page.tsx', 'utf8');
+  const state = loadedTrack();
+  const { session, deps } = pageDeps(state, trackKeys, fetchImpl);
+  bindExpired(source, deps);
+  return {
+    state,
+    session,
+    refresh: bind(callbackBody(source, 'refresh'), deps),
+  };
+}
+
+async function settleRefresh(pending) {
+  try {
+    await pending;
+  } catch {
+    /* A sibling GET/JSON rejection must not prevent 401 expiry. */
+  }
+}
+
+function assertTrackPrivateCleared(state, detail) {
+  assertCleared('track', state, detail);
+  assert.deepEqual(state.receipts, {}, detail);
+  assert.equal(state.busy, false, detail);
+  assert.equal(state.message, '', detail);
 }
 
 function watchAuthorizedJson(deps, onReply) {
@@ -289,6 +322,7 @@ const reviewDraftsOk = {
 };
 const reviewProfileOk = { facts: loadedReview().facts };
 const trackOk = loadedTrack().data;
+const trackWorkspaceOk = { jobs: loadedTrack().jobs };
 const extractOk = {
   candidates: [{ claim: 'PRIVATE_CANDIDATE', evidence: 'e', tag: 'role' }],
 };
@@ -793,6 +827,127 @@ void test('review drafts sibling 401 expires while profile GET is held', async (
   assert.deepEqual(state.facts, []);
   assert.deepEqual(state.drafts, []);
 });
+
+const trackSibling401s = [
+  {
+    unauthorizedLabel: 'workspace',
+    siblingLabel: 'outcomes',
+    unauthorizedPath: '/api/workspace',
+    siblingPath: '/api/outcomes',
+    siblingOk: trackOk,
+  },
+  {
+    unauthorizedLabel: 'outcomes',
+    siblingLabel: 'workspace',
+    unauthorizedPath: '/api/outcomes',
+    siblingPath: '/api/workspace',
+    siblingOk: trackWorkspaceOk,
+  },
+];
+
+for (const sibling401 of trackSibling401s) {
+  void test(`track ${sibling401.unauthorizedLabel} sibling 401 expires while ${sibling401.siblingLabel} GET is held`, async () => {
+    const unauthorized = deferred();
+    const sibling = deferred();
+    const { state, session, refresh } = bindTrackRefresh(async (url) => {
+      const href = String(url);
+      if (href.includes(sibling401.unauthorizedPath))
+        return unauthorized.promise;
+      if (href.includes(sibling401.siblingPath)) return sibling.promise;
+      throw new Error('unexpected ' + url);
+    });
+    const pending = refresh();
+    const unauthorizedResponse = http(401, { error: 'Sign in first.' });
+    unauthorized.resolve(unauthorizedResponse);
+    await flush();
+    assert.equal(state.signedOut, true, 'must not wait for Promise.all');
+    assert.equal(unauthorizedResponse.jsonCalls, 0);
+    assertTrackPrivateCleared(state);
+    sibling.resolve(http(200, sibling401.siblingOk));
+    await settleRefresh(pending);
+    assert.equal(session.expired, true);
+    assertTrackPrivateCleared(state);
+  });
+
+  void test(`track ${sibling401.unauthorizedLabel} sibling 401 expires while ${sibling401.siblingLabel} JSON is held`, async () => {
+    const jsonHeld = deferred();
+    const unauthorizedResponse = http(401, { error: 'Sign in first.' });
+    const siblingResponse = http(
+      200,
+      sibling401.siblingOk,
+      () => jsonHeld.promise,
+    );
+    const { state, session, refresh } = bindTrackRefresh(async (url) => {
+      const href = String(url);
+      if (href.includes(sibling401.unauthorizedPath))
+        return unauthorizedResponse;
+      if (href.includes(sibling401.siblingPath)) return siblingResponse;
+      throw new Error('unexpected ' + url);
+    });
+    const pending = refresh();
+    await flush();
+    assert.equal(state.signedOut, true, 'must not wait for sibling JSON');
+    assert.equal(unauthorizedResponse.jsonCalls, 0);
+    assertTrackPrivateCleared(state);
+    jsonHeld.resolve();
+    await settleRefresh(pending);
+    assert.equal(session.expired, true);
+    assertTrackPrivateCleared(state);
+  });
+
+  void test(`track ${sibling401.unauthorizedLabel} sibling 401 expires when ${sibling401.siblingLabel} GET rejects`, async () => {
+    const unauthorized = deferred();
+    const sibling = deferred();
+    const { state, session, refresh } = bindTrackRefresh(async (url) => {
+      const href = String(url);
+      if (href.includes(sibling401.unauthorizedPath))
+        return unauthorized.promise;
+      if (href.includes(sibling401.siblingPath)) return sibling.promise;
+      throw new Error('unexpected ' + url);
+    });
+    const pending = refresh();
+    sibling.reject(Error(`${sibling401.siblingLabel} GET failed`));
+    const unauthorizedResponse = http(401, { error: 'Sign in first.' });
+    unauthorized.resolve(unauthorizedResponse);
+    await flush();
+    assert.equal(
+      state.signedOut,
+      true,
+      'must expire when the sibling GET rejects',
+    );
+    assert.equal(unauthorizedResponse.jsonCalls, 0);
+    assertTrackPrivateCleared(state);
+    await settleRefresh(pending);
+    assert.equal(session.expired, true);
+    assertTrackPrivateCleared(state);
+  });
+
+  void test(`track ${sibling401.unauthorizedLabel} sibling 401 expires when ${sibling401.siblingLabel} JSON rejects`, async () => {
+    const unauthorizedResponse = http(401, { error: 'Sign in first.' });
+    const siblingResponse = http(200, sibling401.siblingOk, async () => {
+      throw Error(`${sibling401.siblingLabel} JSON failed`);
+    });
+    const { state, session, refresh } = bindTrackRefresh(async (url) => {
+      const href = String(url);
+      if (href.includes(sibling401.unauthorizedPath))
+        return unauthorizedResponse;
+      if (href.includes(sibling401.siblingPath)) return siblingResponse;
+      throw new Error('unexpected ' + url);
+    });
+    const pending = refresh();
+    await flush();
+    assert.equal(
+      state.signedOut,
+      true,
+      'must expire when the sibling JSON rejects',
+    );
+    assert.equal(unauthorizedResponse.jsonCalls, 0);
+    assertTrackPrivateCleared(state);
+    await settleRefresh(pending);
+    assert.equal(session.expired, true);
+    assertTrackPrivateCleared(state);
+  });
+}
 
 void test('review Save correction does not stage proposals after expiry', async () => {
   const source = readFileSync('app/review/page.tsx', 'utf8');

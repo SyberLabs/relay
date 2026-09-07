@@ -10,6 +10,7 @@ import {
 import {
   beginPageWork,
   createPageSession,
+  expireIfUnauthorized,
   pageWorkIsLive,
   readAuthorizedJson,
 } from '../../lib/page-session';
@@ -80,12 +81,23 @@ export default function Track() {
   const refresh = useCallback(async () => {
     if (sessionRef.current.expired) return;
     const started = beginPageWork(sessionRef.current);
+    const session = sessionRef.current;
+    const watch = (request: Promise<Response>) =>
+      request.then((response) => {
+        if (expireIfUnauthorized(session, response)) applyExpired();
+        return response;
+      });
     const [outcomesResponse, workspaceResponse] = await Promise.all([
-      fetch('/api/outcomes'),
-      fetch('/api/workspace'),
+      watch(fetch('/api/outcomes')).catch(() => undefined),
+      watch(fetch('/api/workspace')).catch(() => undefined),
     ]);
+    if (!pageWorkIsLive(session, started)) return;
+    if (!outcomesResponse || !workspaceResponse)
+      throw Error(
+        !outcomesResponse ? 'Unable to load outcomes.' : 'Unable to load jobs.',
+      );
     const outcomesReply = await readAuthorizedJson<Data>(
-      sessionRef.current,
+      session,
       started,
       outcomesResponse,
       'Unable to load outcomes.',
@@ -95,10 +107,11 @@ export default function Track() {
       return;
     }
     if (outcomesReply.kind === 'ignore') return;
+    if (!pageWorkIsLive(session, started)) return;
     const workspaceReply = await readAuthorizedJson<{
       jobs?: unknown;
       error?: string;
-    }>(sessionRef.current, started, workspaceResponse, 'Unable to load jobs.');
+    }>(session, started, workspaceResponse, 'Unable to load jobs.');
     if (workspaceReply.kind === 'expired') {
       applyExpired();
       return;
@@ -106,7 +119,7 @@ export default function Track() {
     if (workspaceReply.kind === 'ignore') return;
     if (outcomesReply.kind === 'error') throw Error(outcomesReply.error);
     if (workspaceReply.kind === 'error') throw Error(workspaceReply.error);
-    if (!pageWorkIsLive(sessionRef.current, started)) return;
+    if (!pageWorkIsLive(session, started)) return;
     setData(outcomesReply.body);
     setJobs(asSheetJobs(workspaceReply.body.jobs));
   }, [applyExpired]);

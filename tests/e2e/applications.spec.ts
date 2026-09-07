@@ -31,18 +31,16 @@ test('scout research becomes an exact reviewed application with one execution an
   await expect(page.getByRole('status')).toContainText('Permissions saved');
   await page.getByText('Prepare an application', { exact: true }).click();
   await page
-    .getByLabel('Job', { exact: true })
+    .getByRole('combobox', { name: 'Job', exact: true })
     .selectOption({ label: 'Cedar Example — Application Pilot Engineer' });
   await page
     .getByLabel('Exact answer')
     .fill('Avery Example\nExact second line');
-  await page
-    .getByLabel('Exact files')
-    .setInputFiles({
-      name: 'resume.txt',
-      mimeType: 'text/plain',
-      buffer: Buffer.from('Fictional exact resume\nSecond line'),
-    });
+  await page.getByLabel('Exact files').setInputFiles({
+    name: 'resume.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('Fictional exact resume\nSecond line'),
+  });
   await expect(
     page.getByRole('button', { name: 'Save exact proposal' }),
   ).toBeEnabled();
@@ -115,4 +113,28 @@ test('scout research becomes an exact reviewed application with one execution an
   const job = workspace.jobs.find((j: { id: string }) => j.id === op.job_id);
   expect(job.status).toBe('Submitted');
   expect(job.accepted_draft).toBeNull();
+});
+
+test('expired application session clears proposed private fields before any work', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  await page.goto('/applications');
+  await page.getByText('Prepare an application', { exact: true }).click();
+  await page.getByLabel('Exact answer').fill('Private fictional answer');
+  await page.route('**/api/applications?after=*', (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: 'text/plain',
+      body: 'Unauthorized',
+    }),
+  );
+  await page.getByRole('button', { name: 'Refresh history' }).click();
+  await expect(page.getByRole('link', { name: 'Sign in again' })).toBeVisible();
+  await expect(page.getByLabel('Exact answer')).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Save exact proposal' }),
+  ).toHaveCount(0);
+  await expect(page.getByText('Private fictional answer')).toHaveCount(0);
 });

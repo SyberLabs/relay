@@ -2,6 +2,9 @@
 
 Owner: Seth. Implementation: #112; authenticated assistant verification: #111.
 
+For the exact existing requests and interruption rules without WebMCP or file
+transfer, use the [direct browser handoff](../integrations/BROWSER-API.md) (#144).
+
 Seth's September 7 direction expands Relay from draft review to coordinating external agents that discover roles and submit applications. Grok Bot scouts; ChatGPT with computer use applies. Relay owns durable evidence and authorization. The existing peer merge review and production environment approval remain required.
 
 ## Smallest complete workflow

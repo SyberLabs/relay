@@ -53,7 +53,10 @@ async function applications(body: Json) {
   const workspace = (await call('/api/workspace')) as { viewer: string };
   return call('/api/applications', { ...body, viewer: workspace.viewer });
 }
-export function useRelayTools(refresh: () => Promise<unknown>) {
+export function useRelayTools(
+  refresh: () => Promise<unknown>,
+  onVerb?: (name: string, result: unknown) => void,
+) {
   const [status, setStatus] = useState<RelayToolStatus>('checking');
   useEffect(() => {
     const lifecycle = new AbortController();
@@ -358,7 +361,11 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
               readOnlyHint: tool.readOnly,
               untrustedContentHint: true,
             },
-            execute: tool.run,
+            execute: async (input: Json) => {
+              const result = await tool.run(input);
+              onVerb?.(tool.name, result);
+              return result;
+            },
           },
           { signal: lifecycle.signal },
         ),
@@ -374,6 +381,6 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
       },
     );
     return () => lifecycle.abort();
-  }, [refresh]);
+  }, [refresh, onVerb]);
   return status;
 }

@@ -4,6 +4,7 @@ import {
   applyInspectPoll,
   beginInspectPoll,
   createInspectPollGate,
+  inspectOperativeStatus,
   inspectShowsAuthorizedWaiting,
   inspectShowsReadyNotArmed,
   selectInspectJob,
@@ -163,4 +164,39 @@ void test('submitted hides ready-not-armed and authorized-waiting copy', () => {
   });
   assert.equal(inspectShowsReadyNotArmed(view), false);
   assert.equal(inspectShowsAuthorizedWaiting(view), false);
+});
+
+void test('overlay operative status is armed until authorized waiting', () => {
+  assert.equal(inspectOperativeStatus(snapshot('job-a')), 'armed');
+  assert.equal(
+    inspectOperativeStatus(
+      snapshot('job-a', {
+        armed: false,
+        state: 'authorized',
+        accept_enabled: false,
+      }),
+    ),
+    'waiting',
+  );
+  assert.equal(
+    inspectOperativeStatus(
+      snapshot('job-a', {
+        armed: true,
+        state: 'executing',
+        accept_enabled: false,
+      }),
+    ),
+    'waiting',
+  );
+  assert.equal(
+    inspectOperativeStatus(
+      snapshot('job-a', {
+        armed: false,
+        state: 'submitted',
+        accept_enabled: false,
+      }),
+    ),
+    null,
+  );
+  assert.equal(inspectOperativeStatus(null), null);
 });

@@ -97,3 +97,11 @@ export function inspectShowsReadyNotArmed(view: InspectSnapshot | null) {
 export function inspectShowsAuthorizedWaiting(view: InspectSnapshot | null) {
   return WAITING_STATES.has(view?.state ?? '');
 }
+
+export function inspectOperativeStatus(
+  view: InspectSnapshot | null,
+): 'armed' | 'waiting' | null {
+  if (inspectShowsAuthorizedWaiting(view)) return 'waiting';
+  if (view?.armed) return 'armed';
+  return null;
+}

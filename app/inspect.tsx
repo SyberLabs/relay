@@ -33,26 +33,11 @@ function fieldMark(field: InspectSnapshot['fields'][number]) {
   return 'empty';
 }
 
-export function inspectMarkup({
-  view,
-  busy,
-  error,
-  onAccept,
-}: {
-  view: InspectSnapshot | null;
-  busy: boolean;
-  error: string;
-  onAccept: () => void;
-}): ReactNode {
+export function inspectSummaryMarkup(view: InspectSnapshot | null): ReactNode {
   const host = destinationHost(view?.destination ?? null);
   const blocked = view?.fields.filter((field) => field.unknown) ?? [];
   return (
-    <div className="import">
-      <h3>Inspect</h3>
-      <p>
-        Accept sends this application via the waiting operative; not draft
-        Ready.
-      </p>
+    <>
       {host && (
         <p>
           Destination host: <strong>{host}</strong>
@@ -89,6 +74,29 @@ export function inspectMarkup({
           </ul>
         </>
       )}
+    </>
+  );
+}
+
+export function inspectMarkup({
+  view,
+  busy,
+  error,
+  onAccept,
+}: {
+  view: InspectSnapshot | null;
+  busy: boolean;
+  error: string;
+  onAccept: () => void;
+}): ReactNode {
+  return (
+    <div className="import">
+      <h3>Inspect</h3>
+      <p>
+        Accept sends this application via the waiting operative; not draft
+        Ready.
+      </p>
+      {inspectSummaryMarkup(view)}
       {inspectShowsReadyNotArmed(view) && <p>Operative is not on the page.</p>}
       {inspectShowsAuthorizedWaiting(view) && (
         <p>Accepted — waiting for the operative to send.</p>
@@ -108,11 +116,12 @@ export function inspectMarkup({
   );
 }
 
-export function useInspect(jobId: string | undefined) {
+export function useInspectSnapshot(jobId: string | undefined) {
   const [view, setView] = useState<InspectSnapshot | null>(null);
   const [viewer, setViewer] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [signedOut, setSignedOut] = useState(false);
   const gateRef = useRef(createInspectPollGate());
   const inflightRef = useRef<AbortController | null>(null);
   const selectedRef = useRef(jobId);
@@ -122,6 +131,7 @@ export function useInspect(jobId: string | undefined) {
     setView(null);
     setBusy(false);
     setError('');
+    setSignedOut(false);
   }
 
   const load = useCallback(async () => {
@@ -139,6 +149,16 @@ export function useInspect(jobId: string | undefined) {
         `/api/applications?job=${encodeURIComponent(job)}`,
         { signal: controller.signal },
       );
+      if (r.status === 401) {
+        if (
+          started.generation !== gateRef.current.generation ||
+          started.jobId !== gateRef.current.jobId
+        )
+          return;
+        setSignedOut(true);
+        setView(null);
+        return;
+      }
       let data: unknown;
       try {
         data = await r.json();
@@ -158,6 +178,7 @@ export function useInspect(jobId: string | undefined) {
         setView(null);
         return;
       }
+      setSignedOut(false);
       if (outcome.viewer) setViewer(outcome.viewer);
       setView(outcome.view);
     } catch (e) {
@@ -186,19 +207,33 @@ export function useInspect(jobId: string | undefined) {
     };
   }, [jobId, load]);
 
-  const shown = view?.job_id === jobId ? view : null;
+  return {
+    view: view?.job_id === jobId ? view : null,
+    viewer,
+    busy,
+    error,
+    signedOut,
+    setBusy,
+    setError,
+    load,
+  };
+}
+
+export function useInspect(jobId: string | undefined) {
+  const inspect = useInspectSnapshot(jobId);
+  const shown = inspect.view;
 
   async function approve() {
-    if (!shown?.operation_id || !shown.digest || !viewer) return;
-    setBusy(true);
-    setError('');
+    if (!shown?.operation_id || !shown.digest || !inspect.viewer) return;
+    inspect.setBusy(true);
+    inspect.setError('');
     try {
       const r = await fetch('/api/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'approve',
-          viewer,
+          viewer: inspect.viewer,
           id: shown.operation_id,
           digest: shown.digest,
         }),
@@ -206,21 +241,21 @@ export function useInspect(jobId: string | undefined) {
       const data = (await r.json()) as { error?: string };
       if (!r.ok)
         throw Error(data.error || 'Unable to accept this application.');
-      await load();
+      await inspect.load();
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      setError(
+      inspect.setError(
         e instanceof Error ? e.message : 'Unable to accept this application.',
       );
     } finally {
-      setBusy(false);
+      inspect.setBusy(false);
     }
   }
 
   return inspectMarkup({
     view: shown,
-    busy,
-    error,
+    busy: inspect.busy,
+    error: inspect.error,
     onAccept: () => void approve(),
   });
 }

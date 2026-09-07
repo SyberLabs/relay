@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
 
 const BODY_BYTE_LIMIT = 2048;
 const BODY_READ_TIMEOUT_MS = 2_000;
@@ -193,11 +192,6 @@ async function signalGroup(server, posixSignal) {
   }
 }
 
-async function waitForGroupExit(server, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (groupAlive(server) && Date.now() < deadline) await delay(10);
-}
-
 export async function finishProductionServer(
   server,
   log,
@@ -209,7 +203,7 @@ export async function finishProductionServer(
   if (groupAlive(server)) {
     const last = waitForClose(server, timeoutMs);
     await signalGroup(server, 'SIGKILL');
-    await Promise.all([last, waitForGroupExit(server, timeoutMs)]);
+    await last;
   }
   if (log && !log.writableEnded) {
     await new Promise((accept, reject) => {

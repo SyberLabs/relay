@@ -207,11 +207,12 @@ export function useRelayTools(
       {
         name: 'relay_prepare_application',
         description:
-          'Replace the Inspect snapshot for one job with exact employer-form fields, files and destination. Unknown answers use unknown: true and never invent. Does not freeze, arm, Accept, or submit. Batch the snapshot; do not send one request per keystroke.',
+          'Replace the Inspect snapshot for one job with exact employer-form fields, files and destination. Supply preparation_revision from the Inspect snapshot you read; never refresh it automatically to replay stale content. Unknown answers use unknown: true and never invent. Does not freeze, arm, Accept, or submit. Batch the snapshot; do not send one request per keystroke.',
         readOnly: false,
         schema: object(
           {
             job: { type: 'string', minLength: 1, maxLength: 100 },
+            preparation_revision: { type: ['string', 'null'], maxLength: 100 },
             actor: { type: 'string', minLength: 1, maxLength: 100 },
             destination: { type: 'string', minLength: 1, maxLength: 2048 },
             fields: {
@@ -237,12 +238,20 @@ export function useRelayTools(
               ),
             },
           },
-          ['job', 'actor', 'destination', 'fields', 'files'],
+          [
+            'job',
+            'preparation_revision',
+            'actor',
+            'destination',
+            'fields',
+            'files',
+          ],
         ),
         run: async (input) => {
           const result = await applications({
             action: 'prepare',
             job: input.job,
+            preparation_revision: input.preparation_revision,
             actor: input.actor,
             destination: input.destination,
             fields: input.fields,
@@ -255,20 +264,22 @@ export function useRelayTools(
       {
         name: 'relay_arm_application',
         description:
-          'Freeze a complete prepared snapshot and keep the operative present so the human can Accept. Unknown answers use unknown: true and never invent; incomplete or unknown fields are refused. Does not click Accept, begin, or submit. Repeat to extend presence without changing the digest.',
+          'Freeze a complete prepared snapshot and keep the operative present so the human can Accept. Supply preparation_revision from the Inspect snapshot you read; never refresh it automatically to replay stale content. Unknown answers use unknown: true and never invent; incomplete or unknown fields are refused. Does not click Accept, begin, or submit. Repeat to extend presence without changing the digest.',
         readOnly: false,
         schema: object(
           {
             job: { type: 'string', minLength: 1, maxLength: 100 },
+            preparation_revision: { type: ['string', 'null'], maxLength: 100 },
             id: { type: 'string', minLength: 1, maxLength: 100 },
             actor: { type: 'string', minLength: 1, maxLength: 100 },
           },
-          ['job', 'id', 'actor'],
+          ['job', 'preparation_revision', 'id', 'actor'],
         ),
         run: async (input) => {
           const result = await applications({
             action: 'arm',
             job: input.job,
+            preparation_revision: input.preparation_revision,
             id: input.id,
             actor: input.actor,
           });
@@ -279,7 +290,7 @@ export function useRelayTools(
       {
         name: 'relay_inspect_application',
         description:
-          'Read the Inspect view for one job: destination, filled/unknown marks, files, ready/armed, operation state, and whether Accept is enabled. Wait here for human Accept (state authorized). Unknown answers use unknown: true and never invent. Does not modify records, click Accept, or submit.',
+          'Read the Inspect view for one job: preparation_revision, destination, filled/unknown marks, files, ready/armed, operation state, and whether Accept is enabled. Wait here for human Accept (state authorized). Unknown answers use unknown: true and never invent. Does not modify records, click Accept, or submit.',
         readOnly: true,
         schema: object(
           { job: { type: 'string', minLength: 1, maxLength: 100 } },

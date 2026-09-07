@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import {
   actOnApplication,
-  armPreparation,
+  armPreparation as armCurrentPreparation,
   changeApplicationPolicy,
   proposeApplication,
   loadOperation,
@@ -12,8 +12,8 @@ import {
   validateManifest,
   digest,
   inspectApplication,
-  upsertPreparation,
-  answerPreparation,
+  upsertPreparation as replaceCurrentPreparation,
+  answerPreparation as answerCurrentPreparation,
   cancelPreBeginForJob,
 } from '../lib/application-automation.ts';
 
@@ -108,6 +108,21 @@ const counts = (db) =>
       'SELECT (SELECT COUNT(*) FROM application_operations) AS operations,(SELECT COUNT(*) FROM events) AS events,(SELECT SUM(version) FROM jobs) AS versions',
     )
     .get();
+
+// Existing scenario fixtures read their revision before each intended write.
+// Staleness regressions pass the captured revision explicitly instead.
+async function withRevision(fn, db, owner, input, at) {
+  const revision = Object.hasOwn(input, 'preparation_revision')
+    ? input.preparation_revision
+    : (await inspectApplication(db, owner, input.job, at)).preparation_revision;
+  return fn(db, owner, { ...input, preparation_revision: revision }, at);
+}
+const upsertPreparation = (...args) =>
+  withRevision(replaceCurrentPreparation, ...args);
+const armPreparation = (...args) =>
+  withRevision(armCurrentPreparation, ...args);
+const answerPreparation = (...args) =>
+  withRevision(answerCurrentPreparation, ...args);
 
 void test('prepare streams field fill into inspect without creating an operation', async () => {
   const db = database();
@@ -369,18 +384,30 @@ void test('a concurrent prepare cannot arm the old payload behind newly displaye
   assert.equal(view.operation_id, null);
   assert.equal(view.armed, false);
   assert.equal(view.accept_enabled, false);
-  const stale = await loadOperation(db, 'alice', 'race-op');
+  assert.equal(
+    db.sqlite.prepare('SELECT COUNT(*) c FROM application_operations').get().c,
+    0,
+  );
   const before = counts(db);
   await assert.rejects(
-    actOnApplication(db, 'alice', action(stale, 'approve'), now),
-    /not on the page/,
+    actOnApplication(
+      db,
+      'alice',
+      { id: 'race-op', digest: 'stale', action: 'approve' },
+      now,
+    ),
+    /not found/,
   );
   await assert.rejects(
-    actOnApplication(db, 'alice', action(stale, 'begin'), now),
-    /No permission/,
+    actOnApplication(
+      db,
+      'alice',
+      { id: 'race-op', digest: 'stale', action: 'begin' },
+      now,
+    ),
+    /not found/,
   );
   assert.deepEqual(counts(db), before);
-  assert.equal((await loadOperation(db, 'alice', 'race-op')).started, null);
   db.sqlite.close();
 });
 
@@ -1820,5 +1847,363 @@ void test('answer of a different digest cancels a pre-begin freeze', async () =>
       now,
     ),
   );
+  db.sqlite.close();
+});
+
+function pauseNextBatch(db) {
+  const original = db.batch.bind(db);
+  let reached, release;
+  const paused = new Promise((resolve) => {
+    reached = resolve;
+  });
+  const resume = new Promise((resolve) => {
+    release = resolve;
+  });
+  db.batch = async (statements) => {
+    db.batch = original;
+    reached();
+    await resume;
+    return original(statements);
+  };
+  return { paused, release: () => release() };
+}
+
+async function authorizedPreparation(db) {
+  await changeApplicationPolicy(db, 'alice', config({ review: 'all' }), now);
+  const view = await upsertPreparation(db, 'alice', completePrep(), now);
+  await armPreparation(
+    db,
+    'alice',
+    { job: 'alice-0', id: 'race-authorized', actor: 'Fixture agent' },
+    now,
+  );
+  const op = await loadOperation(db, 'alice', 'race-authorized');
+  await actOnApplication(db, 'alice', action(op, 'approve'), now);
+  return { view, op };
+}
+
+for (const mutation of ['prepare', 'answer']) {
+  for (const winner of ['begin', 'edit']) {
+    for (const same of [false, true]) {
+      void test(`${mutation}/begin is atomic when ${winner} wins with ${same ? 'same' : 'changed'} content`, async () => {
+        const db = database();
+        const { view, op } = await authorizedPreparation(db);
+        const value = same ? view.fields[0].value : 'Updated exact answer';
+        const edit = () =>
+          mutation === 'prepare'
+            ? replaceCurrentPreparation(
+                db,
+                'alice',
+                {
+                  ...completePrep(),
+                  fields: [
+                    { label: view.fields[0].label, value, unknown: false },
+                  ],
+                  preparation_revision: view.preparation_revision,
+                },
+                now,
+              )
+            : answerCurrentPreparation(
+                db,
+                'alice',
+                {
+                  job: 'alice-0',
+                  label: view.fields[0].label,
+                  value,
+                  preparation_revision: view.preparation_revision,
+                },
+                now,
+              );
+        const begin = () =>
+          actOnApplication(db, 'alice', action(op, 'begin'), now);
+        const pause = pauseNextBatch(db);
+        const loser = winner === 'begin' ? edit() : begin();
+        // Attach before releasing the controlled race, including the permitted
+        // same-content case where editing wins and exact authorization survives.
+        const outcome = loser.then(
+          (value) => ({ value }),
+          (error) => ({ error }),
+        );
+        await pause.paused;
+        const won = winner === 'begin' ? await begin() : await edit();
+        const stable = await inspectApplication(db, 'alice', 'alice-0', now);
+        const history = counts(db);
+        pause.release();
+        const result = await outcome;
+        if (winner === 'edit' && same) {
+          assert.equal(result.value.execute, true);
+          assert.equal(
+            JSON.parse(result.value.operation.manifest).fields[0].value,
+            value,
+          );
+        } else {
+          assert.equal(result.error.status, 409);
+          assert.deepEqual(
+            await inspectApplication(db, 'alice', 'alice-0', now),
+            stable,
+          );
+          assert.deepEqual(counts(db), history);
+        }
+        const saved = await loadOperation(db, 'alice', op.id);
+        assert.equal(
+          saved.state,
+          winner === 'begin' || same ? 'executing' : 'cancelled',
+        );
+        assert.equal(
+          JSON.parse(saved.manifest).fields[0].value,
+          view.fields[0].value,
+        );
+        if (winner === 'begin') assert.equal(won.execute, true);
+        db.sqlite.close();
+      });
+    }
+  }
+}
+
+void test('stale prepare after an answer and concurrent answers cannot erase newer work', async () => {
+  const db = database();
+  const initial = await upsertPreparation(
+    db,
+    'alice',
+    {
+      ...completePrep(),
+      fields: [
+        { label: 'One', value: '', unknown: true },
+        { label: 'Two', value: '', unknown: true },
+      ],
+    },
+    now,
+  );
+  const answer = (label, value) =>
+    answerCurrentPreparation(
+      db,
+      'alice',
+      {
+        job: 'alice-0',
+        label,
+        value,
+        preparation_revision: initial.preparation_revision,
+      },
+      now,
+    );
+  const pause = pauseNextBatch(db);
+  const first = answer('One', 'Older answer').then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  await pause.paused;
+  const newer = await answer('Two', 'Newer answer');
+  const before = counts(db);
+  pause.release();
+  assert.equal((await first).error.status, 409);
+  await assert.rejects(
+    replaceCurrentPreparation(
+      db,
+      'alice',
+      {
+        ...completePrep(),
+        preparation_revision: initial.preparation_revision,
+      },
+      now,
+    ),
+    /Preparation changed/,
+  );
+  assert.deepEqual(
+    await inspectApplication(db, 'alice', 'alice-0', now),
+    newer,
+  );
+  assert.deepEqual(counts(db), before);
+  assert.equal(newer.fields[0].value, '');
+  assert.equal(newer.fields[1].value, 'Newer answer');
+  assert.notEqual(newer.preparation_revision, initial.preparation_revision);
+  db.sqlite.close();
+});
+
+void test('a stale arm cannot create history or cancel a newer accepted operation', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config({ review: 'all' }), now);
+  const first = await upsertPreparation(db, 'alice', completePrep(), now);
+  const pause = pauseNextBatch(db);
+  const stale = armCurrentPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'stale-arm',
+      actor: 'Fixture agent',
+      preparation_revision: first.preparation_revision,
+    },
+    now,
+  ).then(
+    (value) => ({ value }),
+    (error) => ({ error }),
+  );
+  await pause.paused;
+  const newer = await upsertPreparation(
+    db,
+    'alice',
+    {
+      ...completePrep(),
+      fields: [{ label: 'Full name', value: 'Newer name', unknown: false }],
+    },
+    now,
+  );
+  await armCurrentPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'new-arm',
+      actor: 'Fixture agent',
+      preparation_revision: newer.preparation_revision,
+    },
+    now,
+  );
+  const op = await loadOperation(db, 'alice', 'new-arm');
+  await actOnApplication(db, 'alice', action(op, 'approve'), now);
+  const before = counts(db);
+  const current = await inspectApplication(db, 'alice', 'alice-0', now);
+  pause.release();
+  assert.equal((await stale).error.status, 409);
+  assert.deepEqual(counts(db), before);
+  assert.deepEqual(
+    await inspectApplication(db, 'alice', 'alice-0', now),
+    current,
+  );
+  assert.equal((await loadOperation(db, 'alice', op.id)).state, 'authorized');
+  db.sqlite.close();
+});
+
+void test('preparation revision is required and uncertain work remains locked', async () => {
+  const db = database();
+  await assert.rejects(
+    replaceCurrentPreparation(db, 'alice', completePrep(), now),
+    /preparation_revision/,
+  );
+  const { view, op } = await authorizedPreparation(db);
+  await actOnApplication(db, 'alice', action(op, 'begin'), now);
+  await actOnApplication(
+    db,
+    'alice',
+    action(op, 'uncertain', {
+      receipt: 'Fictional interrupted operation; do not retry.',
+    }),
+    now,
+  );
+  const before = counts(db);
+  const current = await inspectApplication(db, 'alice', 'alice-0', now);
+  await assert.rejects(
+    replaceCurrentPreparation(
+      db,
+      'alice',
+      { ...completePrep(), preparation_revision: view.preparation_revision },
+      now,
+    ),
+    /locked/,
+  );
+  await assert.rejects(
+    answerCurrentPreparation(
+      db,
+      'alice',
+      {
+        job: 'alice-0',
+        label: view.fields[0].label,
+        value: 'Changed',
+        preparation_revision: view.preparation_revision,
+      },
+      now,
+    ),
+    /locked/,
+  );
+  await assert.rejects(
+    armCurrentPreparation(
+      db,
+      'alice',
+      {
+        job: 'alice-0',
+        id: 'after-uncertain',
+        actor: 'Fixture agent',
+        preparation_revision: view.preparation_revision,
+      },
+      now,
+    ),
+    /locked/,
+  );
+  assert.deepEqual(counts(db), before);
+  assert.deepEqual(
+    await inspectApplication(db, 'alice', 'alice-0', now),
+    current,
+  );
+  db.sqlite.close();
+});
+
+void test('preparation revision migration preserves legacy snapshots and requires their empty token', async () => {
+  const db = database();
+  // Model the schema before the additive migration, preserving an existing row.
+  db.sqlite.exec('ALTER TABLE application_preparations DROP COLUMN revision');
+  db.sqlite
+    .prepare(`INSERT INTO application_preparations
+    (owner,job_id,actor,job_version,destination,fields,files,operation_id,ready,armed_until,updated)
+    VALUES ('alice','alice-0','Legacy fixture',1,'https://employer.example/jobs/0',?, '[]',NULL,0,'',?)`)
+    .run(JSON.stringify(completePrep().fields), now);
+  const before = db.sqlite
+    .prepare('SELECT * FROM application_preparations')
+    .get();
+  db.sqlite.exec(
+    readFileSync('drizzle/0011_application_preparation_revision.sql', 'utf8'),
+  );
+  const { revision, ...saved } = db.sqlite
+    .prepare('SELECT * FROM application_preparations')
+    .get();
+  assert.equal(revision, '');
+  assert.deepEqual({ ...saved }, { ...before });
+  const view = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(view.preparation_revision, '');
+  await assert.rejects(
+    replaceCurrentPreparation(
+      db,
+      'alice',
+      { ...completePrep(), preparation_revision: null },
+      now,
+    ),
+    /Preparation changed/,
+  );
+  assert.deepEqual(await inspectApplication(db, 'alice', 'alice-0', now), view);
+  const revised = await replaceCurrentPreparation(
+    db,
+    'alice',
+    { ...completePrep(), preparation_revision: '' },
+    now,
+  );
+  assert.equal(typeof revised.preparation_revision, 'string');
+  assert.notEqual(revised.preparation_revision, '');
+  db.sqlite.close();
+});
+
+void test('marking an accepted answer unknown revokes its permit even with identical text', async () => {
+  const db = database();
+  const { view, op } = await authorizedPreparation(db);
+  const changed = await replaceCurrentPreparation(
+    db,
+    'alice',
+    {
+      ...completePrep(),
+      preparation_revision: view.preparation_revision,
+      fields: view.fields.map(({ label, value }) => ({
+        label,
+        value,
+        unknown: true,
+      })),
+    },
+    now,
+  );
+  assert.equal(changed.operation_id, null);
+  assert.equal((await loadOperation(db, 'alice', op.id)).state, 'cancelled');
+  const before = counts(db);
+  await assert.rejects(
+    actOnApplication(db, 'alice', action(op, 'begin'), now),
+    /No permission/,
+  );
+  assert.deepEqual(counts(db), before);
   db.sqlite.close();
 });

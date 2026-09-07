@@ -13,6 +13,7 @@ import {
 function snapshot(jobId, extra = {}) {
   return {
     job_id: jobId,
+    preparation_revision: 'revision-' + jobId,
     destination: 'https://employer.example/jobs/' + jobId,
     fields: [
       {

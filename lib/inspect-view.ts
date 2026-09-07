@@ -1,5 +1,6 @@
 export type InspectSnapshot = {
   job_id: string;
+  preparation_revision: string | null;
   destination: string | null;
   fields: {
     label: string;
@@ -62,6 +63,8 @@ function isInspectSnapshot(data: unknown): data is InspectSnapshot {
   const view = data as InspectSnapshot;
   return (
     typeof view.job_id === 'string' &&
+    (view.preparation_revision === null ||
+      typeof view.preparation_revision === 'string') &&
     view.job_id.length > 0 &&
     Array.isArray(view.fields) &&
     Array.isArray(view.files) &&

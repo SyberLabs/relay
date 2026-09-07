@@ -70,6 +70,13 @@ test('scout research becomes an exact reviewed application with one execution an
       await page.request.post('/api/applications', {
         data: {
           action: 'prepare',
+          preparation_revision: (
+            await (
+              await page.request.get(
+                `/api/applications?job=${detail.operation.job_id}`,
+              )
+            ).json()
+          ).preparation_revision,
           viewer: ledger.viewer,
           job: detail.operation.job_id,
           actor: detail.operation.actor,
@@ -88,6 +95,13 @@ test('scout research becomes an exact reviewed application with one execution an
       await page.request.post('/api/applications', {
         data: {
           action: 'arm',
+          preparation_revision: (
+            await (
+              await page.request.get(
+                `/api/applications?job=${detail.operation.job_id}`,
+              )
+            ).json()
+          ).preparation_revision,
           viewer: ledger.viewer,
           job: detail.operation.job_id,
           id: detail.operation.id,

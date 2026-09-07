@@ -29,6 +29,7 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   await page.request.post('/api/applications', {
     data: {
       action: 'prepare',
+      preparation_revision: null,
       viewer: ws.viewer,
       job: job.id,
       actor: 'Fictional applying agent',
@@ -40,6 +41,9 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   await page.request.post('/api/applications', {
     data: {
       action: 'arm',
+      preparation_revision: (
+        await (await page.request.get(`/api/applications?job=${job.id}`)).json()
+      ).preparation_revision,
       viewer: ws.viewer,
       job: job.id,
       id: 'op-apply-overlay-1',

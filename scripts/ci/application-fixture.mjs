@@ -100,6 +100,7 @@ export async function verifyApplicationGateway({
   await expectStatus(
     await call(owner, {
       action: 'prepare',
+      preparation_revision: null,
       viewer: initial.viewer,
       job: job.id,
       actor: 'Fictional applying agent',
@@ -113,6 +114,9 @@ export async function verifyApplicationGateway({
   await expectStatus(
     await call(owner, {
       action: 'arm',
+      preparation_revision: (
+        await (await call(owner, undefined, `?job=${job.id}`)).json()
+      ).preparation_revision,
       viewer: initial.viewer,
       job: job.id,
       id: operation.id,

@@ -17,6 +17,8 @@ If browser tools are unavailable, the existing packet download/assistant respons
 
 **Accept exact draft** still only approves wording. Sending uses Inspect **Accept and send** after the operative has filled the employer form. There is no `relay_approve_application`; the assistant must not click Accept.
 
+Read `relay_inspect_application` first and retain its opaque `preparation_revision` (null if no preparation exists). Pass that exact token to prepare and arm; each successful prepare or human answer changes it. A stale-token refusal requires reconsidering the new snapshot, never automatic token refresh/replay.
+
 1. `relay_prepare_application` streams the exact field/file snapshot for the job. Unknown answers use `unknown: true` and must never be invented. Batch the snapshot.
 2. `relay_arm_application` freezes a complete snapshot and keeps presence live. Incomplete or unknown fields are refused. Do not submit.
 3. Wait for the human to click **Accept and send** on the signed-in workspace. Poll `relay_inspect_application` at least every 2 seconds (prefer 3) until `state` is `authorized`, or cancelled/timeout. Chat “yes” and draft Ready are not send permission.

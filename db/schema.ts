@@ -43,6 +43,7 @@ export const applicationOperations = sqliteTable(
 export const applicationPreparations = sqliteTable(
   'application_preparations',
   {
+    revision: text('revision').notNull().default(''),
     owner: text('owner').notNull(),
     job_id: text('job_id').notNull(),
     actor: text('actor').notNull(),

@@ -249,6 +249,55 @@ void test('import that fills an empty blocker still advances version', () => {
   assert.equal(after.version, 5);
   db.close();
 });
+void test('explicit submission holds become blockers without overwriting reviewed or active work', () => {
+  const db = open();
+  try {
+    for (const note of [
+      'Do not submit until the compensation question is resolved.',
+      'Do not apply before checking the location requirement.',
+      'Do not submit.',
+      'Source checked. Do not apply until the location is confirmed.',
+      '- Do not submit until the location question is resolved.',
+      '   Do not apply before confirming location.',
+      'Other notes\r\n  * Do not submit until the question is resolved.',
+      '1. Do not submit until the location question is resolved.',
+      'Do not submit\nuntil location is confirmed.',
+      'Do not submit.\nLocation is still unknown.',
+    ]) {
+      const owner = 'hold-' + note;
+      const job = 'https://example.com/jobs/source-hold';
+      const row = source('Held', job, note);
+      importRow(db, owner, row);
+      assert.match(jobOf(db, owner, job).blocker, /restriction recorded/);
+      assert.equal(observationsOf(db, owner)[0].notes, note);
+      for (const status of ['Held', 'Ready', 'Submitted', 'Live loop']) {
+        db.prepare(
+          'UPDATE jobs SET status=?,blocker=?,draft=?,accepted_draft=?,version=7 WHERE owner=?',
+        ).run(
+          status,
+          status === 'Held' ? 'A specific human question' : '',
+          'Exact wording',
+          status === 'Ready' ? 'Exact wording' : null,
+          owner,
+        );
+        const before = jobOf(db, owner, job);
+        importRow(db, owner, row);
+        assert.deepEqual(jobOf(db, owner, job), before);
+      }
+    }
+    for (const note of [
+      'You do not need to submit a cover letter.',
+      'These location restrictions do not apply to remote applicants.',
+      'Do not submit a cover letter; it is optional.',
+      'These restrictions do not apply until October.',
+      'Do not submit\na cover letter; it is optional.',
+      'Do not submit\r\na cover letter; it is optional.',
+      '- Do not submit\na cover letter; it is optional.',
+    ]) assert.equal(importedBlocker(note), '');
+  } finally {
+    db.close();
+  }
+});
 void test('import that writes a posting field still advances version', () => {
   const db = open();
   const owner = 'company-bump';

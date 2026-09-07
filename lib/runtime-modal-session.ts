@@ -1,5 +1,6 @@
 import {
   beginMutation,
+  mutationIsLive,
   processAuthorizedGet,
   type ResponseLike,
   type WorkspaceSession,
@@ -47,6 +48,16 @@ export function settleRuntimeModalProfileRead(
   return outcome;
 }
 
+function catchAuthorizedRead(
+  session: WorkspaceSession,
+  started: { epoch: number },
+  error: string,
+) {
+  if (!mutationIsLive(session.gate, started))
+    return { type: 'ignore' as const };
+  return { type: 'error' as const, error, status: 0 };
+}
+
 export async function readRuntimeModalProfile(
   session: WorkspaceSession,
   fetchImpl: (
@@ -58,17 +69,13 @@ export async function readRuntimeModalProfile(
   const started = beginMutation(session.gate);
   try {
     const response = await fetchImpl('/api/profile');
-    return processAuthorizedGet<RuntimeModalProfile>(
+    return await processAuthorizedGet<RuntimeModalProfile>(
       session,
       started,
       response,
     );
   } catch {
-    return {
-      type: 'error' as const,
-      error: 'Unable to load profile.',
-      status: 0,
-    };
+    return catchAuthorizedRead(session, started, 'Unable to load profile.');
   }
 }
 
@@ -88,8 +95,8 @@ export async function postRuntimeModalProfile<T extends { error?: string }>(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return processAuthorizedGet<T>(session, started, response);
+    return await processAuthorizedGet<T>(session, started, response);
   } catch {
-    return { type: 'error' as const, error: 'Unable to save.', status: 0 };
+    return catchAuthorizedRead(session, started, 'Unable to save.');
   }
 }

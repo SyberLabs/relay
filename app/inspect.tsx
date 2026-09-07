@@ -1,27 +1,22 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  applyInspectPoll,
+  beginInspectPoll,
+  createInspectPollGate,
+  inspectShowsAuthorizedWaiting,
+  inspectShowsReadyNotArmed,
+  selectInspectJob,
+  type InspectSnapshot,
+} from '../lib/inspect-view';
 
 // Vinext hydrates a nested Inspect component as a second Accept button.
 // Workspace calls useInspect so this markup stays in the existing client tree.
-
-type InspectField = {
-  label: string;
-  filled: boolean;
-  unknown: boolean;
-  value?: string;
-};
-type InspectSnapshot = {
-  job_id: string;
-  destination: string | null;
-  fields: InspectField[];
-  files: { name: string; sha256: string }[];
-  ready: boolean;
-  armed: boolean;
-  operation_id: string | null;
-  digest: string | null;
-  state: string | null;
-  accept_enabled: boolean;
-  viewer?: string;
-};
 
 function destinationHost(destination: string | null) {
   if (!destination) return null;
@@ -32,7 +27,7 @@ function destinationHost(destination: string | null) {
   }
 }
 
-function fieldMark(field: InspectField) {
+function fieldMark(field: InspectSnapshot['fields'][number]) {
   if (field.unknown) return 'unknown';
   if (field.filled) return 'filled';
   return 'empty';
@@ -51,7 +46,6 @@ export function inspectMarkup({
 }): ReactNode {
   const host = destinationHost(view?.destination ?? null);
   const blocked = view?.fields.filter((field) => field.unknown) ?? [];
-  const waiting = view?.state === 'authorized' || view?.state === 'executing';
   return (
     <div className="import">
       <h3>Inspect</h3>
@@ -95,8 +89,10 @@ export function inspectMarkup({
           </ul>
         </>
       )}
-      {view?.ready && !view.armed && <p>Operative is not on the page.</p>}
-      {waiting && <p>Accepted — waiting for the operative to send.</p>}
+      {inspectShowsReadyNotArmed(view) && <p>Operative is not on the page.</p>}
+      {inspectShowsAuthorizedWaiting(view) && (
+        <p>Accepted — waiting for the operative to send.</p>
+      )}
       <div className="actions">
         <button
           className="primary"
@@ -117,45 +113,83 @@ export function useInspect(jobId: string | undefined) {
   const [viewer, setViewer] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const gateRef = useRef(createInspectPollGate());
+  const inflightRef = useRef<AbortController | null>(null);
+  const selectedRef = useRef(jobId);
+  if (selectedRef.current !== jobId) {
+    selectedRef.current = jobId;
+    selectInspectJob(gateRef.current, jobId);
+    setView(null);
+    setBusy(false);
+    setError('');
+  }
 
-  const load = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!jobId) return;
+  const load = useCallback(async () => {
+    const job = gateRef.current.jobId;
+    if (!job) return;
+    inflightRef.current?.abort();
+    const controller = new AbortController();
+    inflightRef.current = controller;
+    const started = {
+      jobId: job,
+      generation: beginInspectPoll(gateRef.current),
+    };
+    try {
       const r = await fetch(
-        `/api/applications?job=${encodeURIComponent(jobId)}`,
-        { signal },
+        `/api/applications?job=${encodeURIComponent(job)}`,
+        { signal: controller.signal },
       );
-      const data = (await r.json()) as InspectSnapshot;
-      if (signal?.aborted) return;
-      if (data.viewer) setViewer(data.viewer);
-      if (typeof data.job_id === 'string') setView(data);
-    },
-    [jobId],
-  );
+      let data: unknown;
+      try {
+        data = await r.json();
+      } catch {
+        const outcome = applyInspectPoll(gateRef.current, started, {
+          ok: false,
+        });
+        if (outcome.type === 'clear') setView(null);
+        return;
+      }
+      const outcome = applyInspectPoll(gateRef.current, started, {
+        ok: r.ok,
+        data,
+      });
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'clear') {
+        setView(null);
+        return;
+      }
+      if (outcome.viewer) setViewer(outcome.viewer);
+      setView(outcome.view);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      const outcome = applyInspectPoll(gateRef.current, started, { ok: false });
+      if (outcome.type === 'clear') setView(null);
+    }
+  }, []);
 
   useEffect(() => {
+    if (gateRef.current.jobId !== jobId)
+      selectInspectJob(gateRef.current, jobId);
     if (!jobId) return;
-    const controller = new AbortController();
-    void Promise.resolve()
-      .then(() => load(controller.signal))
-      .catch(() => {});
+    void load();
     const timer = window.setInterval(() => {
-      void load(controller.signal).catch(() => {});
+      void load();
     }, 1000);
     function onVisibility() {
-      if (document.visibilityState === 'visible')
-        void load(controller.signal).catch(() => {});
+      if (document.visibilityState === 'visible') void load();
     }
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      controller.abort();
+      inflightRef.current?.abort();
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [jobId, load]);
 
+  const shown = view?.job_id === jobId ? view : null;
+
   async function approve() {
-    if (!view?.operation_id || !view.digest || !viewer) return;
+    if (!shown?.operation_id || !shown.digest || !viewer) return;
     setBusy(true);
     setError('');
     try {
@@ -165,8 +199,8 @@ export function useInspect(jobId: string | undefined) {
         body: JSON.stringify({
           action: 'approve',
           viewer,
-          id: view.operation_id,
-          digest: view.digest,
+          id: shown.operation_id,
+          digest: shown.digest,
         }),
       });
       const data = (await r.json()) as { error?: string };
@@ -184,7 +218,7 @@ export function useInspect(jobId: string | undefined) {
   }
 
   return inspectMarkup({
-    view,
+    view: shown,
     busy,
     error,
     onAccept: () => void approve(),

@@ -67,6 +67,7 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   await expect(
     page.getByText(/waiting for the operative to send/i),
   ).toBeVisible();
+  await expect(page.getByText('Operative is not on the page')).toHaveCount(0);
   const data = await (await page.request.get('/api/applications')).json();
   const op = data.operations.find(
     (o: { id: string }) => o.id === 'op-inspect-1',

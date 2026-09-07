@@ -23,6 +23,7 @@ import {
   pageWorkIsLive,
   readAuthorizedJson,
 } from '../../lib/page-session';
+import { ProductShell } from '../shell';
 type Trust = {
   cluster: string;
   state: string;
@@ -196,7 +197,7 @@ export default function Review() {
   }
   if (signedOut)
     return (
-      <main className="productpage">
+      <ProductShell current="review">
         <h1>Batch review</h1>
         <p className="lead">Sign in to open your review sessions.</p>
         {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
@@ -207,10 +208,10 @@ export default function Review() {
         >
           Sign in with ChatGPT
         </a>
-      </main>
+      </ProductShell>
     );
   return (
-    <main className="productpage">
+    <ProductShell current="review">
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
@@ -459,6 +460,6 @@ export default function Review() {
         ))}
       </section>
       <footer>Relay / SyberLabs</footer>
-    </main>
+    </ProductShell>
   );
 }

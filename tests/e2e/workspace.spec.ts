@@ -143,10 +143,11 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/signin-with-chatgpt?return_to=/');
-  const panel = page.locator('details').filter({
-    has: page.getByText('Import a tracker CSV', { exact: true }),
-  });
-  await panel.locator('summary').click();
+  await page
+    .getByRole('button', { name: 'Import research', exact: true })
+    .click();
+  await page.getByRole('tab', { name: 'Tracker CSV' }).click();
+  const panel = page.locator('#import-panel-csv');
   const csv =
     'Company,Position,Job URL,Status,Notes,Private extra\n' +
     'CSV Browser Example,Engineer,https://example.com/jobs/csv-browser,Applied,"Research, with a comma",OMITTED_MARKER\n';
@@ -271,4 +272,99 @@ test('a dirty editor asks before opening the saved facts screen', async ({
   await expect(
     page.getByRole('heading', { name: 'Your profile' }),
   ).toBeVisible();
+});
+
+test('controls act on the adjacent panel they name', async ({ page }) => {
+  await page.goto('/signin-with-chatgpt?return_to=/');
+  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  await expect(page.locator('#workspace-queue')).toBeVisible();
+  const sidebar = page.locator('aside');
+  await expect(sidebar.getByRole('group', { name: 'Job list' })).toBeVisible();
+  await expect(sidebar.getByRole('group', { name: 'Pages' })).toBeVisible();
+  await expect(
+    sidebar.getByRole('button', { name: /Review queue/ }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
+  await expect(
+    sidebar.getByRole('link', { name: 'Your facts' }),
+  ).not.toHaveAttribute('aria-current', 'page');
+
+  const importBtn = page.getByRole('button', {
+    name: 'Import research',
+    exact: true,
+  });
+  await expect(importBtn).toHaveAttribute('aria-expanded', 'false');
+  await importBtn.click();
+  await expect(importBtn).toHaveAttribute('aria-expanded', 'true');
+  const dock = page.locator('#import-dock');
+  await expect(
+    dock.getByRole('heading', { name: 'Import research' }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => {
+      const panel = document.getElementById('import-dock');
+      const queue = document.getElementById('workspace-queue');
+      return !!(
+        panel &&
+        queue &&
+        panel.compareDocumentPosition(queue) & Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    }),
+  ).toBe(true);
+  await page.getByRole('tab', { name: 'Tracker CSV' }).click();
+  await expect(
+    dock.getByRole('heading', { name: 'Import a tracker CSV' }),
+  ).toBeVisible();
+
+  await sidebar.getByRole('button', { name: /All opportunities/ }).click();
+  await expect(page.locator('#workspace-queue h2')).toHaveText(
+    'All opportunities',
+  );
+  await expect(page).toHaveURL(/\?queue=All/);
+
+  await sidebar.getByRole('link', { name: 'Your facts' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Your profile' }),
+  ).toBeVisible();
+  await expect(
+    page.locator('aside').getByRole('link', { name: 'Your facts' }),
+  ).toHaveAttribute('aria-current', 'page');
+  await page
+    .locator('aside')
+    .getByRole('group', { name: 'Job list' })
+    .getByRole('link', { name: /Review queue/ })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+});
+
+test('tracker import actions stay inside the window after a long preview', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  await page.goto('/signin-with-chatgpt?return_to=/');
+  await expect(page.locator('#workspace-queue')).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Import research', exact: true })
+    .click();
+  await page.getByRole('tab', { name: 'Tracker CSV' }).click();
+  const rows = Array.from(
+    { length: 24 },
+    (_, i) =>
+      `CsvCo${i},Engineer,https://example.com/jobs/csv-view-${i},"Note ${i}"`,
+  );
+  await page.getByLabel('Choose tracker CSV').setInputFiles({
+    name: 'fictional-long-tracker.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(['Company,Role,URL,Notes', ...rows].join('\n')),
+  });
+  await expect(page.getByText(/Read 24 rows locally/)).toBeVisible();
+  await page.getByRole('button', { name: 'Preview tracker records' }).click();
+  const importAction = page.getByRole('button', {
+    name: 'Import 24 research records',
+  });
+  await expect(importAction).toBeVisible();
+  const box = await importAction.boundingBox();
+  expect(box).toBeTruthy();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(640);
 });

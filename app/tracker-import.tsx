@@ -93,10 +93,8 @@ export function TrackerImport({
   }
 
   return (
-    <details className="import">
-      <summary>
-        <b>Import a tracker CSV</b>
-      </summary>
+    <div className="import-pane">
+      <h3>Import a tracker CSV</h3>
       <p>
         Bring selected opportunities from a Simplify export or another tracker.
         Match its columns, then review the records before saving. New jobs enter
@@ -190,13 +188,6 @@ export function TrackerImport({
                 .join(', ') || 'none'}
               . Keep your original export for all other data.
             </p>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => void submit('preview')}
-            >
-              Preview tracker records
-            </button>
           </>
         )}
       </fieldset>
@@ -218,16 +209,31 @@ export function TrackerImport({
               </article>
             ))}
           </div>
-          <button
-            type="button"
-            className="primary"
-            disabled={busy}
-            onClick={() => void submit('import')}
-          >
-            Import {preview.rows.length} research records
-          </button>
         </>
       )}
-    </details>
+      {(csv || preview) && (
+        <div className="import-dock-actions">
+          {csv && (
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void submit('preview')}
+            >
+              Preview tracker records
+            </button>
+          )}
+          {preview && (
+            <button
+              type="button"
+              className="primary"
+              disabled={busy}
+              onClick={() => void submit('import')}
+            >
+              Import {preview.rows.length} research records
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Target, TrendingUp } from 'lucide-react';
+import { ProductShell } from '../shell';
 type Row = {
   id: string;
   job_key: string;
@@ -89,7 +90,7 @@ export default function PlanPage() {
   }, [refresh]);
   if (signedOut)
     return (
-      <main className="productpage">
+      <ProductShell current="plan">
         <h1>This week</h1>
         <p className="lead">Sign in to see your plan.</p>
         {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
@@ -100,11 +101,11 @@ export default function PlanPage() {
         >
           Sign in with ChatGPT
         </a>
-      </main>
+      </ProductShell>
     );
   const lift = plan && plan.naive > 0 ? plan.expected / plan.naive - 1 : 0;
   return (
-    <main className="productpage">
+    <ProductShell current="plan">
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
@@ -198,6 +199,6 @@ export default function PlanPage() {
         </section>
       )}
       <footer>Relay / SyberLabs</footer>
-    </main>
+    </ProductShell>
   );
 }

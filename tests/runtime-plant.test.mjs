@@ -24,6 +24,16 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.doesNotMatch(modals, /match percentage|ATS score/i);
 });
 
+void test('expiry clears runtime policy and context tiles', () => {
+  const start = workspace.indexOf('const applyExpired = useCallback');
+  const end = workspace.indexOf('const researchRows', start);
+  const body = workspace.slice(start, end);
+  assert.match(body, /setPolicy\(null\)/);
+  assert.match(body, /setAutopilot\(false\)/);
+  assert.match(body, /setStyleCount\(0\)/);
+  assert.match(workspace, /processAuthorizedGet/);
+});
+
 void test('stuck cards select the job without opening a dialog', () => {
   const start = workspace.indexOf('Stuck, needs your answer');
   const end = workspace.indexOf('<RuntimeModals');
@@ -52,6 +62,7 @@ void test('autopilot writes policy and never begins or accepts a draft', () => {
   const body = workspace.slice(start, end);
   assert.match(body, /action: 'policy'/);
   assert.match(body, /review: 'all'/);
+  assert.match(body, /processAuthorizedGet/);
   assert.doesNotMatch(body, /['"]begin['"]/);
   assert.doesNotMatch(body, /save\('Ready'\)/);
   assert.doesNotMatch(body, /action:\s*['"]save['"]/);

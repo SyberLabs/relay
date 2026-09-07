@@ -91,8 +91,12 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
 
   const before = await (await page.request.get('/api/applications')).json();
   const auto = page.getByRole('button', { name: 'Autopilot' });
-  if ((await auto.getAttribute('aria-pressed')) === 'true') await auto.click();
+  if ((await auto.getAttribute('aria-pressed')) === 'true') {
+    await auto.click();
+    await expect(auto).toHaveAttribute('aria-pressed', 'false');
+  }
   await auto.click();
+  await expect(auto).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByText(/Autopilot on/)).toBeVisible();
   const after = await (await page.request.get('/api/applications')).json();
   expect(after.operations || []).toHaveLength((before.operations || []).length);

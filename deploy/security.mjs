@@ -76,8 +76,18 @@ async function applicationsArm(request, path) {
   if (path !== '/api/applications' || request.method !== 'POST') return false;
   const length = Number(request.headers.get('content-length'));
   if (!Number.isFinite(length) || length <= 0 || length > 4096) return false;
+  let body;
   try {
-    return JSON.parse(await request.clone().text())?.action === 'arm';
+    body = await boundedBody(request.clone(), 256_000);
+  } catch (error) {
+    return refusal(
+      error instanceof RangeError ? 413 : 408,
+      'invalid_body',
+      'Request is too large or took too long.',
+    );
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(body))?.action === 'arm';
   } catch {
     return false;
   }
@@ -96,6 +106,7 @@ export async function usageGuard(request, env, now = Date.now()) {
     );
   }
   const arm = await applicationsArm(request, path);
+  if (arm instanceof Response) return arm;
   const mutation = write && !arm;
   const minute = Math.floor(now / 60_000);
   const day = Math.floor(now / 86_400_000);

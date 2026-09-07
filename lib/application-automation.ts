@@ -614,15 +614,26 @@ export async function armPreparation(
     );
     operationId = op.id;
   }
-  await statement(
+  const armed = await statement(
     db,
-    `UPDATE application_preparations SET ready=1,armed_until=?,operation_id=?,updated=? WHERE owner=? AND job_id=?`,
+    `UPDATE application_preparations SET ready=1,armed_until=?,operation_id=?,updated=?
+     WHERE owner=? AND job_id=? AND job_version=? AND destination=? AND fields=? AND files=? AND operation_id IS ?`,
     new Date(Date.parse(now) + 20_000).toISOString(),
     operationId,
     now,
     owner,
     input.job,
+    prep.job_version,
+    prep.destination,
+    prep.fields,
+    prep.files,
+    prep.operation_id,
   ).run();
+  requireThat(
+    armed.meta.changes === 1,
+    'Preparation changed. Inspect the current payload before arming.',
+    409,
+  );
   return inspectApplication(db, owner, input.job, now);
 }
 function statement(

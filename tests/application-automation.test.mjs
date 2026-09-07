@@ -305,6 +305,84 @@ void test('arm refuses incomplete or unknown fields and freezes a complete snaps
   db.sqlite.close();
 });
 
+void test('a concurrent prepare cannot arm the old payload behind newly displayed fields', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config({ review: 'all' }), now);
+  const prepare = (value) => ({
+    job: 'alice-0',
+    actor: 'Fictional applying agent',
+    destination: 'https://employer.example/jobs/0',
+    fields: [{ label: 'Cover letter', value, unknown: false }],
+    files: [],
+  });
+  await upsertPreparation(db, 'alice', prepare('Old payload'), now);
+  const originalPrepare = db.prepare.bind(db);
+  let release, reached;
+  const paused = new Promise((resolve) => {
+    reached = resolve;
+  });
+  const resume = new Promise((resolve) => {
+    release = resolve;
+  });
+  let intercept = true;
+  db.prepare = (sql) => {
+    const statement = originalPrepare(sql);
+    if (
+      intercept &&
+      sql ===
+        'SELECT * FROM application_preparations WHERE owner=? AND job_id=?'
+    ) {
+      intercept = false;
+      const bind = statement.bind;
+      statement.bind = (...args) => {
+        const bound = bind(...args);
+        const first = bound.first.bind(bound);
+        bound.first = async () => {
+          const row = await first();
+          reached();
+          await resume;
+          return row;
+        };
+        return bound;
+      };
+    }
+    return statement;
+  };
+  const arming = armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: 'race-op',
+      actor: 'Fictional applying agent',
+    },
+    now,
+  );
+  await paused;
+  await upsertPreparation(db, 'alice', prepare('New reviewed payload'), now);
+  const refused = assert.rejects(arming, /Preparation changed/);
+  release();
+  await refused;
+  const view = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(view.fields[0].value, 'New reviewed payload');
+  assert.equal(view.operation_id, null);
+  assert.equal(view.armed, false);
+  assert.equal(view.accept_enabled, false);
+  const stale = await loadOperation(db, 'alice', 'race-op');
+  const before = counts(db);
+  await assert.rejects(
+    actOnApplication(db, 'alice', action(stale, 'approve'), now),
+    /not on the page/,
+  );
+  await assert.rejects(
+    actOnApplication(db, 'alice', action(stale, 'begin'), now),
+    /No permission/,
+  );
+  assert.deepEqual(counts(db), before);
+  assert.equal((await loadOperation(db, 'alice', 'race-op')).started, null);
+  db.sqlite.close();
+});
+
 void test('approve without a live arm refuses; approve with arm authorizes and does not begin', async () => {
   const db = database();
   await changeApplicationPolicy(

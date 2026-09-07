@@ -498,6 +498,77 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
   db.sqlite.close();
 });
 
+void test(
+  'arm classification bounds actual bytes and stalled bodies before application work',
+  { timeout: 15000 },
+  async () => {
+    const { privateKey, publicKey } = await generateKeyPair('RS256');
+    const db = database();
+    const env = {
+      DB: db,
+      ACCESS_ISSUER: 'https://relay.cloudflareaccess.com',
+      ACCESS_AUD: 'a'.repeat(64),
+      EDGE_RATE_LIMITER: {
+        async limit() {
+          return { success: true };
+        },
+      },
+    };
+    const jwt = await new SignJWT({ sub: 'alice', email: 'alice@example.com' })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuedAt()
+      .setIssuer(env.ACCESS_ISSUER)
+      .setAudience(env.ACCESS_AUD)
+      .setExpirationTime('5m')
+      .sign(privateKey);
+    let calls = 0;
+    const app = {
+      async fetch() {
+        calls++;
+        return new Response('unexpected');
+      },
+    };
+    for (const [size, status] of [
+      [256001, 413],
+      [1, 408],
+    ]) {
+      let cancelled = false;
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(size));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      const request = new Request('https://relay.example/api/applications', {
+        method: 'POST',
+        duplex: 'half',
+        body: stream,
+        headers: { 'Cf-Access-Jwt-Assertion': jwt, 'content-length': '16' },
+      });
+      const result = await handleRequest(request, env, {}, app, publicKey);
+      assert.equal(result.status, status);
+      assert.equal((await result.json()).code, 'invalid_body');
+      assert.equal(cancelled, true);
+      assert.equal(calls, 0);
+      assert.equal(
+        db.sqlite
+          .prepare('SELECT COUNT(*) AS count FROM security_counters')
+          .get().count,
+        0,
+      );
+      assert.equal(
+        db.sqlite
+          .prepare('SELECT COUNT(*) AS count FROM application_operations')
+          .get().count,
+        0,
+      );
+    }
+    db.sqlite.close();
+  },
+);
+
 void test('application arm is presence weight 1 and six per minute, not a mutation of 10', async () => {
   const db = database(),
     env = { DB: db };

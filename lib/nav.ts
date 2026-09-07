@@ -20,10 +20,10 @@ export const PAGE_LINKS = [
 ] as const;
 
 export const PORTFOLIO_PAGE_LINKS = PAGE_LINKS.filter(
-  (item) => item.page === 'track',
+  (item) => item.page === 'track' || item.page === 'applications',
 );
 export const CONTEXT_PAGE_LINKS = PAGE_LINKS.filter(
-  (item) => item.page !== 'track',
+  (item) => item.page === 'profile' || item.page === 'advanced',
 );
 
 export type ShellPage =

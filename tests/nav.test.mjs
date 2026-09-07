@@ -34,7 +34,7 @@ void test('page links expose applications, facts, outcomes and advanced', () => 
   );
   assert.deepEqual(
     PORTFOLIO_PAGE_LINKS.map((item) => item.page),
-    ['track'],
+    ['applications', 'track'],
   );
   assert.deepEqual(
     CONTEXT_PAGE_LINKS.map((item) => item.page),

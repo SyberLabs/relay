@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classify, jobKey, validateRows } from '../lib/domain.ts';
+import { classify, jobKey, sourceJobKey, validateRows } from '../lib/domain.ts';
 import { loadEditor } from '../lib/editor.ts';
 import {
   existingJobForUrl,
@@ -30,7 +30,7 @@ void test('valid fields become a Held import row with stable source identity', (
   assert.equal(row.Job, posting);
   assert.equal(row.Notes, 'Fictional posting notes.');
   assert.equal(row.url, 'first-job:' + jobKey(posting, ''));
-  assert.equal(jobKey(row.Job, row.url), jobKey(posting, ''));
+  assert.equal(sourceJobKey(row), jobKey(posting, ''));
 });
 
 void test('optional notes may be empty and are not trimmed or truncated', () => {
@@ -80,7 +80,7 @@ void test('tracking-parameter URL variants join the same job without a second so
   const a = firstJobRow(input());
   const b = firstJobRow(input({ url: tracked }));
   assert.equal(a.url, b.url);
-  assert.equal(jobKey(a.Job, a.url), jobKey(b.Job, b.url));
+  assert.equal(sourceJobKey(a), sourceJobKey(b));
   const jobs = [
     {
       id: 'existing',

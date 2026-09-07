@@ -8,6 +8,7 @@ import {
   changeApplicationPolicy,
   proposeApplication,
   loadOperation,
+  loadApplicationPolicy,
   validateManifest,
   digest,
   inspectApplication,
@@ -1206,6 +1207,33 @@ void test('stale job, revoked or expired policy, wrong owner and reused IDs refu
   await assert.rejects(
     actOnApplication(db, 'alice', action(fresh, 'begin'), now),
   );
+  db.sqlite.close();
+});
+
+void test('disabling policy cannot send more than 100 job ids', async () => {
+  const db = database();
+  await changeApplicationPolicy(db, 'alice', config(), now);
+  await assert.rejects(
+    changeApplicationPolicy(
+      db,
+      'alice',
+      config({
+        version: 1,
+        enabled: false,
+        jobs: Array.from({ length: 101 }, (_, i) => 'overflow-' + i),
+      }),
+      now,
+    ),
+    /at most 100 saved jobs/,
+  );
+  assert.equal((await loadApplicationPolicy(db, 'alice'))?.enabled, 1);
+  await changeApplicationPolicy(
+    db,
+    'alice',
+    config({ version: 1, enabled: false, jobs: [] }),
+    now,
+  );
+  assert.equal((await loadApplicationPolicy(db, 'alice'))?.enabled, 0);
   db.sqlite.close();
 });
 

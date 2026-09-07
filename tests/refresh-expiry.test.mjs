@@ -30,7 +30,9 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       defaultDraftingPreference,
       sessionRef: { current: session },
       selectedRef: { current: '' },
+      policyRef: { current: null },
       loadJobHistory: async () => {},
+      loadRuntimeContext: async () => {},
       fetch: async (_url, init) =>
         init?.method === 'POST' ? post.promise : get.promise,
     };
@@ -51,6 +53,10 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       'loaded',
       'message',
       'historyNext',
+      'policy',
+      'autopilot',
+      'styleCount',
+      'modal',
     ]) {
       deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) => {
         state[key] = typeof value === 'function' ? value(state[key]) : value;

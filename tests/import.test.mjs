@@ -17,6 +17,8 @@ import {
   importedJobStatus,
   jobKey,
   mergeJobStatus,
+  sourceJobKey,
+  sourcePostingUrl,
   validateEdit,
 } from '../lib/domain.ts';
 import {
@@ -96,13 +98,13 @@ function source(
   };
 }
 function importRow(db, owner, r, now = '2026-01-01T00:00:00.000Z') {
-  const key = jobKey(r.Job, r.url);
+  const key = sourceJobKey(r);
   db.prepare(jobImportSql).run(
     crypto.randomUUID(),
     owner,
     key,
     displayName(r.Name),
-    r.Job,
+    sourcePostingUrl(r),
     importedJobStatus(r.Status),
     importedBlocker(r.Notes) || '',
     '',
@@ -142,6 +144,75 @@ function observationsOf(db, owner) {
     )
     .all(owner);
 }
+
+for (const state of ['proposed', 'authorized', 'executing', 'uncertain']) {
+  void test(`scouting appends evidence without changing ${state} application work`, () => {
+    const db = open();
+    try {
+      const row = source('Held', 'https://employer.example/jobs/active');
+      importRow(db, 'alice', row);
+      db.prepare(
+        "UPDATE jobs SET draft='Exact reviewed draft',accepted_draft='Exact reviewed draft',status='Ready' WHERE owner='alice'",
+      ).run();
+      const before = jobOf(db, 'alice', row.Job);
+      db.prepare(`INSERT INTO application_operations
+        (id,owner,job_id,job_version,policy_version,policy_snapshot,actor,manifest,digest,state,authority,created,receipt)
+        VALUES ('active','alice',?,1,1,'{}','ChatGPT','{}','checksum',?,'explicit-review','2026-09-07','')`).run(
+        before.id,
+        state,
+      );
+      const revised = {
+        ...row,
+        Status: 'Submitted',
+        Notes: 'Source-reported outcome; not authority',
+        company: 'Changed company',
+        location: 'Changed location',
+      };
+      importRow(db, 'alice', revised);
+      assert.deepEqual(jobOf(db, 'alice', row.Job), before);
+      assert.equal(observationsOf(db, 'alice').length, 2);
+      assert.equal(observationsOf(db, 'alice')[1].notes, revised.Notes);
+      assert.equal(
+        db.prepare('SELECT state FROM application_operations').get().state,
+        state,
+      );
+
+      // A different job and another owner continue scouting independently.
+      const next = source('Held', 'https://employer.example/jobs/next');
+      importRow(db, 'alice', next);
+      assert.equal(jobOf(db, 'alice', next.Job).status, 'Held');
+      importRow(db, 'bob', row);
+      importRow(db, 'bob', { ...row, company: 'New evidence' });
+      assert.equal(jobOf(db, 'bob', row.Job).company, 'New evidence');
+
+      db.prepare(
+        "UPDATE application_operations SET state=? WHERE id='active'",
+      ).run(['executing', 'uncertain'].includes(state) ? 'not-submitted' : 'cancelled');
+      importRow(db, 'alice', { ...row, company: 'After release' });
+      assert.equal(jobOf(db, 'alice', row.Job).company, 'After release');
+    } finally {
+      db.close();
+    }
+  });
+}
+
+void test('import fails closed without the application lock dependency', () => {
+  const db = open();
+  try {
+    const row = source('Held', 'https://employer.example/jobs/dependency');
+    importRow(db, 'alice', row);
+    const before = jobOf(db, 'alice', row.Job);
+    db.exec('DROP TABLE application_operations');
+    assert.throws(
+      () => importRow(db, 'alice', { ...row, company: 'Must not save' }),
+      /no such table/,
+    );
+    assert.deepEqual(jobOf(db, 'alice', row.Job), before);
+    assert.equal(observationsOf(db, 'alice').length, 1);
+  } finally {
+    db.close();
+  }
+});
 
 void test('tracker research preserves all local states and acceptance, deduplicates repeats and retains revisions', () => {
   const db = open();
@@ -192,6 +263,29 @@ void test('import upsert SQL and observation insert are the workspace statements
     observationImportSql.startsWith('INSERT OR IGNORE INTO observations'),
     true,
   );
+});
+void test('colon-title grok row stores the Greenhouse posting identity', () => {
+  const db = open();
+  try {
+    const posting = 'https://boards.greenhouse.io/acme/jobs/1';
+    for (const title of ['Engineer: Backend', 'SRE: Platform']) {
+      const owner = 'colon-' + title;
+      const r = {
+        url: posting,
+        Name: 'Acme',
+        Job: title,
+        Status: 'Held',
+        Notes: '',
+      };
+      importRow(db, owner, r);
+      const stored = jobOf(db, owner, posting);
+      assert.equal(stored.job_key, jobKey(posting, ''));
+      assert.equal(stored.url, posting);
+      assert.equal(stored.name, 'Acme');
+    }
+  } finally {
+    db.close();
+  }
 });
 void test('exact-repeat import keeps version, updated, and effort', () => {
   const db = open();

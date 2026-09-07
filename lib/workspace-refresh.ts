@@ -219,3 +219,32 @@ export async function processMutation(
   if (saved) session.lastAck = saved;
   return { type: 'ok', body: reply.body };
 }
+
+export async function processAuthorizedGet<
+  T extends { error?: string; viewer?: string } = WorkspaceReply,
+>(
+  session: WorkspaceSession,
+  started: MutationStart,
+  response: ResponseLike,
+): Promise<
+  | { type: 'expire' }
+  | { type: 'ignore' }
+  | { type: 'error'; error: string; status: number }
+  | { type: 'ok'; body: T; switched: boolean }
+> {
+  if (response.status === 401) {
+    expireSession(session);
+    return { type: 'expire' };
+  }
+  if (!mutationIsLive(session.gate, started)) return { type: 'ignore' };
+  const body = (await response.json()) as T;
+  if (!mutationIsLive(session.gate, started)) return { type: 'ignore' };
+  if (!response.ok)
+    return {
+      type: 'error',
+      error: typeof body?.error === 'string' ? body.error : 'Unable to load.',
+      status: response.status,
+    };
+  const switched = bindViewer(session, body.viewer);
+  return { type: 'ok', body, switched };
+}

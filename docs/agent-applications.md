@@ -1,8 +1,11 @@
 # Applications coordinated by Relay
 
-Owner: Seth. Implementation: #112, #128, #135; authenticated assistant verification: #111.
+Owner: Seth. Implementation: #112, #128, #135, #144; authenticated assistant verification: #111.
 
 Relay coordinates an external operative filling an employer form while the human authorizes send from Inspect. Relay owns durable evidence and authorization. It does not POST the employer form. The existing peer merge review and production environment approval remain required.
+
+For the exact existing requests and interruption rules without WebMCP or file
+transfer, use the [direct browser handoff](../integrations/BROWSER-API.md) (#144).
 
 ## Handshake
 

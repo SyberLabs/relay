@@ -11,6 +11,7 @@ import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
 import { AppShell } from './shell';
 import {
+  isQueueFilter,
   queueFromSearch,
   queueHref,
   queueTitle,
@@ -462,7 +463,9 @@ export default function Workspace() {
         setFilter((currentFilter) =>
           currentFilter === 'All' || currentFilter === savedJob.status
             ? currentFilter
-            : savedJob.status,
+            : isQueueFilter(savedJob.status)
+              ? savedJob.status
+              : currentFilter,
         );
         setEditor(loadEditor(savedJob));
         void loadJobHistory(savedJob.id);
@@ -684,7 +687,7 @@ export default function Workspace() {
                   mutationIsLive(sessionRef.current.gate, {
                     epoch: workspaceEpoch,
                   })
-                    ? refresh()
+                    ? refresh().then(() => undefined)
                     : Promise.resolve()
                 }
                 onUnauthorized={() => {

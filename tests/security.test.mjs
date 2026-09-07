@@ -301,6 +301,7 @@ void test('CAPTCHA fails closed on missing secrets, token failure/replay, wrong 
     TURNSTILE_SITE_KEY: 'fictional',
   });
   assert.equal(page.status, 200);
+  assert.equal(page.headers.get('referrer-policy'), 'same-origin');
   assert.match(
     page.headers.get('content-security-policy'),
     /style-src 'unsafe-inline'/,
@@ -439,6 +440,7 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
   ]) {
     const response = await handleRequest(req(path), env, {}, app, publicKey);
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('referrer-policy'), 'same-origin');
     assert.match(await response.text(), /cf-turnstile/);
   }
   assert.equal(
@@ -720,6 +722,36 @@ void test('encoded and trailing-slash planner routes share the same expensive th
       429,
     );
   }
+  db.sqlite.close();
+});
+
+void test('CAPTCHA Continue refuses null, missing, and foreign origins without storing clearance', async () => {
+  const db = database();
+  const env = {
+    DB: db,
+    TURNSTILE_SITE_KEY: 'fictional',
+    TURNSTILE_SECRET_KEY: 'fictional',
+    TURNSTILE_HOSTNAME: 'relay.example',
+  };
+  for (const origin of [undefined, 'null', 'https://untrusted.example']) {
+    const response = await captchaPage(
+      new Request('https://relay.example/security/check', {
+        method: 'POST',
+        headers: {
+          'oai-authenticated-user-id': 'cloudflare:alice',
+          ...(origin === undefined ? {} : { origin }),
+        },
+        body: new URLSearchParams({ 'cf-turnstile-response': 'token' }),
+      }),
+      env,
+    );
+    assert.equal(response.status, 403);
+    assert.equal((await response.json()).code, 'invalid_origin');
+  }
+  assert.equal(
+    db.sqlite.prepare('SELECT COUNT(*) AS n FROM security_clearances').get().n,
+    0,
+  );
   db.sqlite.close();
 });
 

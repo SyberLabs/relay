@@ -153,7 +153,7 @@ for (const width of [1280, 390]) {
       const next = await resumed.newPage();
       await next.goto('/');
       await expect(
-        next.locator('section.queue .joblist button').first(),
+        next.getByRole('button', { name: /All opportunities/ }),
       ).toBeVisible();
       await next.getByRole('button', { name: /All opportunities/ }).click();
       await expect(

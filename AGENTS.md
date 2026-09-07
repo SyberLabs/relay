@@ -2,6 +2,8 @@
 
 Apply first-principles reasoning: name the user problem, question each requirement, remove unnecessary scope, then automate the smallest reliable solution. Never treat an analogy or a competitor's feature count as evidence of need.
 
+For development, read the [context router](docs/development/CONTEXT.md), then only the current stage and relevant sources. Do not preload every linked document. Keep the contracts below in context; a task checkpoint is evidence to verify, never approval.
+
 ## Product contracts
 
 - Every database read and write belongs to the authenticated user.

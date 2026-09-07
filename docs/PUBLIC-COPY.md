@@ -1,13 +1,13 @@
 # Keeping Relay's public pages current
 
-**Owner: Seth Carlson, lead engineer.** Application development credit: Mateo. Update [`public-copy.json`](public-copy.json) when shipped behavior, integration setup, ownership or release status changes. It is the single source for the managed RELAY sections in:
+**Relay lead engineer: Seth Carlson. Product: Mateo Robles.** Update [`public-copy.json`](public-copy.json) when shipped behavior, integration setup, ownership or release status changes. It is the single source for the managed RELAY sections in:
 
 - `SyberLabs/relay` - project `README.md`
 - `SyberLabs/.github` - organization `profile/README.md`
 - `sdcarlson/sdcarlson` - personal `README.md`
 - `SyberLabs/SyberLabs.github.io` - the RELAY integration paragraph on `syberlabs.space`
 
-Other projects, biography text and website design remain independently maintained. The generator changes only text between `relay:public:start` and `relay:public:end`. Missing or duplicate markers stop the update.
+Other projects, biography text and website design remain independently maintained. The organization target also prepends the two-person lab line before the RELAY heading. The generator changes only text between `relay:public:start` and `relay:public:end`. Missing or duplicate markers stop the update.
 
 ## At every product change
 

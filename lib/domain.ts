@@ -61,7 +61,8 @@ export function sourcePostingUrl(
     if (
       r.Job.includes('://') ||
       parsed.protocol === 'javascript:' ||
-      parsed.protocol === 'data:'
+      parsed.protocol === 'data:' ||
+      parsed.protocol === 'vbscript:'
     )
       return r.Job;
   } catch {

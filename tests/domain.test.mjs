@@ -105,6 +105,17 @@ void test('rejects script URLs and invalid records', () => {
   assert.throws(() =>
     validateRows([
       {
+        url: 'https://boards.greenhouse.io/acme/jobs/1',
+        Name: 'Acme',
+        Job: 'vbscript:alert(1)',
+        Status: 'Held',
+        Notes: '',
+      },
+    ]),
+  );
+  assert.throws(() =>
+    validateRows([
+      {
         url: 'javascript:alert(1)',
         Name: 'Acme',
         Job: 'Software Engineer',

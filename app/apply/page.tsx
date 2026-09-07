@@ -31,6 +31,7 @@ export default function ApplyOverlay() {
   const [jobId, setJobId] = useState<string | undefined>();
   const [lastVerb, setLastVerb] = useState('');
   useEffect(() => {
+    // Sites search is only available after mount; setState is deferred one tick.
     void Promise.resolve().then(() => setJobId(jobFromSearch()));
   }, []);
   const inspect = useInspectSnapshot(jobId);

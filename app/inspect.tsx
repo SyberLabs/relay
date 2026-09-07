@@ -122,11 +122,16 @@ export function useInspectSnapshot(jobId: string | undefined) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [signedOut, setSignedOut] = useState(false);
-  const [selectedJobId, setSelectedJobId] = useState(jobId);
   const gateRef = useRef(createInspectPollGate());
   const inflightRef = useRef<AbortController | null>(null);
-  if (jobId !== selectedJobId) {
-    setSelectedJobId(jobId);
+  const selectedRef = useRef(jobId);
+  // Invalidate in-flight polls during render so Accept cannot keep the previous job.
+  // oxlint-disable-next-line react/react-compiler
+  if (selectedRef.current !== jobId) {
+    // oxlint-disable-next-line react/react-compiler
+    selectedRef.current = jobId;
+    // oxlint-disable-next-line react/react-compiler
+    selectInspectJob(gateRef.current, jobId);
     setView(null);
     setBusy(false);
     setError('');
@@ -134,7 +139,7 @@ export function useInspectSnapshot(jobId: string | undefined) {
   }
 
   const load = useCallback(async () => {
-    const job = jobId;
+    const job = gateRef.current.jobId;
     if (!job) return;
     inflightRef.current?.abort();
     const controller = new AbortController();
@@ -185,13 +190,15 @@ export function useInspectSnapshot(jobId: string | undefined) {
       const outcome = applyInspectPoll(gateRef.current, started, { ok: false });
       if (outcome.type === 'clear') setView(null);
     }
-  }, [jobId]);
+  }, []);
 
   useEffect(() => {
     if (gateRef.current.jobId !== jobId)
       selectInspectJob(gateRef.current, jobId);
     if (!jobId) return;
-    void Promise.resolve().then(() => load());
+    // Fetch now; setState runs after the GET, not synchronously in this effect.
+    // oxlint-disable-next-line react/react-compiler
+    void load();
     const timer = window.setInterval(() => {
       void load();
     }, 1000);

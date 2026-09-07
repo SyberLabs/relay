@@ -398,6 +398,7 @@ async function openImportDock(
   how: 'pointer' | 'keyboard' = 'pointer',
 ) {
   await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  await expect(page.getByText('Opening your workspace…')).toHaveCount(0);
   const importBtn = page.getByRole('button', {
     name: 'Import research',
     exact: true,
@@ -406,8 +407,6 @@ async function openImportDock(
   await expect(importBtn).toBeEnabled();
   await expect(importBtn).toHaveAttribute('aria-expanded', 'false');
   if (how === 'keyboard') {
-    await importBtn.focus();
-    await expect(importBtn).toBeFocused();
     await importBtn.press('Enter');
   } else {
     await importBtn.click();

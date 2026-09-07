@@ -15,7 +15,8 @@ and revocable per-agent access remain open.
 | Route | Required host/session | What success establishes |
 | --- | --- | --- |
 | Browser WebMCP | A signed-in deployed Relay tab in a browser that exposes `document.modelContext.registerTool`, plus an assistant that can discover and call its tools | Read/stage/reread in that authenticated workspace; staging is not acceptance |
-| Same-origin browser API | An assistant runtime permitted to execute requests inside its signed-in Relay tab | Grok GET returned 200 JSON; direct write/reread remains unverified in this evidence |
+| `window.relay` eval | A signed-in deployed Relay tab where the assistant can evaluate JavaScript; WebMCP may be missing | Same owner-session tools as WebMCP via `window.relay`; still not acceptance, cookie export, or a hosted MCP connection |
+| Same-origin browser API | An assistant runtime permitted to execute requests inside its signed-in Relay tab | Grok GET returned 200 JSON; historical GET 200 is not mutation proof; prefer `window.relay` over ad-hoc `fetch` when it is present |
 | Local `login` / `context` / `stage` | Bot and private development Relay server share the same host/network namespace | Local persistence only; not staging or production evidence |
 | `grok-research` / `grok-draft` file handoff | Node 24 and this checkout in the Bot's VM; user transfers the packet/result | A validated handoff file; Relay changes only after the user loads and saves/imports it |
 | Remote authenticated CLI | Not implemented | No supported remote CLI result |
@@ -29,10 +30,13 @@ The local sign-in is a development mock and must remain private.
 Prefer the deployed browser-tool route when it is actually callable. The
 [post-login Grok probe](https://github.com/SyberLabs/relay/issues/117#issuecomment-5569219632)
 found `document.modelContext` absent in Chrome 151.0.7922.169, so that session
-does not establish WebMCP support. Use the explicit file fallback when neither
-browser tools nor same-host local commands are available. Track the deployed
-agent route in [#117](https://github.com/SyberLabs/relay/issues/117); a local CLI
-demonstration cannot close it. A later [same-tab API probe](https://github.com/SyberLabs/relay/issues/117#issuecomment-5569272881)
+does not establish WebMCP support. In that signed-in tab, prefer
+`window.relay` (`relay_read_workspace`, `relay_stage_draft`, and the other
+owner-session names) over file paste; do not export cookies, copy credentials,
+or add a hosted MCP connection. Use the explicit file fallback when neither
+`window.relay`, WebMCP, nor same-host local commands are available. Track the
+deployed agent route in [#117](https://github.com/SyberLabs/relay/issues/117);
+a local CLI demonstration cannot close it. A later [same-tab API probe](https://github.com/SyberLabs/relay/issues/117#issuecomment-5569272881)
 returned 200 JSON from `/api/workspace` without exporting cookies or response
 bodies. That proves authenticated reads without WebMCP, not a completed draft
 write or a remote CLI. Any browser API operation must retain the gateway,
@@ -51,6 +55,8 @@ For direct browser work without user file transfer, use [saved progress and reco
 ## Writing against the fact ledger
 
 If the browser exposes Relay's WebMCP tools, prefer them over files for drafting.
+If WebMCP is missing, prefer `window.relay` in the signed-in tab for the same
+tools; do not steal cookies or impersonate the session.
 
 1. Read `relay_read_profile` first. It returns the fact ids you may cite and the style rules in force for that role cluster. Treat it as the only source of claims about the applicant; do not reuse facts remembered from an earlier session.
 2. Write the draft, then log it with `relay_log_draft`, citing the fact ids used. Every sentence asserting something checkable needs a citation, and every number must come from a cited fact. A draft breaking either rule is refused and nothing is stored; fix the claim rather than rephrasing to slip past the check.

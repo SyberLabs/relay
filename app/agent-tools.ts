@@ -15,6 +15,14 @@ type Tool = {
   schema: Json;
   run: (input: Json) => Promise<unknown>;
 };
+type RelayWindowTools = {
+  [name: string]: (input: Json) => Promise<unknown>;
+};
+declare global {
+  interface Window {
+    relay?: RelayWindowTools;
+  }
+}
 const object = (properties: Json, required: string[] = []) => ({
   type: 'object',
   properties,
@@ -70,12 +78,6 @@ export function useRelayTools(
         };
       }
     ).modelContext;
-    if (typeof context?.registerTool !== 'function') {
-      void Promise.resolve().then(() => {
-        if (!lifecycle.signal.aborted) setStatus('unavailable');
-      });
-      return () => lifecycle.abort();
-    }
     const tools: Tool[] = [
       {
         name: 'relay_read_application',
@@ -393,6 +395,19 @@ export function useRelayTools(
         },
       },
     ];
+    const relay: RelayWindowTools = Object.fromEntries(
+      tools.map((tool) => [tool.name, (input: Json) => tool.run(input)]),
+    );
+    window.relay = relay;
+    lifecycle.signal.addEventListener('abort', () => {
+      if (window.relay === relay) delete window.relay;
+    });
+    if (typeof context?.registerTool !== 'function') {
+      void Promise.resolve().then(() => {
+        if (!lifecycle.signal.aborted) setStatus('unavailable');
+      });
+      return () => lifecycle.abort();
+    }
     Promise.all(
       tools.map(async (tool) =>
         context.registerTool(

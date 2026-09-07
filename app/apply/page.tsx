@@ -7,7 +7,7 @@ import { inspectOperativeStatus } from '../../lib/inspect-view';
 const TOOL_STATUS_COPY = {
   checking: 'Checking browser assistant tools…',
   unavailable:
-    'This browser does not provide WebMCP tools. Use a compatible assistant browser.',
+    'This browser does not provide WebMCP tools. Same-origin tools are on window.relay in this signed-in tab. File handoff remains.',
   registered: 'Relay tools registered in this tab.',
   failed: 'Relay tools could not register in this tab. Reload to try again.',
 } as const;

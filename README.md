@@ -21,7 +21,7 @@ Relay helps job seekers manage applications across their preferred AI tools. Kee
 - Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.
 - Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.
 - An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.
-- Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. Exact acceptance remains in the signed-in workspace.
+- Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. When WebMCP is missing, the same owner-session tools are available as window.relay for JavaScript evaluation in the signed-in tab. Exact acceptance remains in the signed-in workspace. This is not a hosted MCP connection.
 - A human Inspect Accept on a complete armed payload authorizes the waiting operative to send once. Relay does not POST the employer form.
 - Explore fictional example records; no real applicant data is included.
 
@@ -32,12 +32,12 @@ Relay helps job seekers manage applications across their preferred AI tools. Kee
 - **[Obsidian](integrations/OBSIDIAN.md)**: Selected research notes, version-bound draft edits, and job-context exports from your vault.
 - **[Notion](integrations/README.md)**: Read-only research import through a local command you run with your own credentials.
 - **[Claude](integrations/README.md)**: Draft preparation from facts you supply through the Claude API, using your own key. The local relay CLI can log drafts against saved, user-confirmed facts with heuristic citation checks.
-- **[Grok Bot](integrations/GROK_BOT.md)**: Validated research and draft file exchange inside the Bot's VM.
+- **[Grok Bot](integrations/GROK_BOT.md)**: Validated research and draft file exchange inside the Bot's VM. In a signed-in Relay tab without WebMCP, prefer window.relay; do not export cookies.
 - **[Tracker CSV](integrations/README.md)**: Map columns, preview rows, and import a local tracker file as research.
 - **[Greenhouse](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
 - **[Lever](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
 
-Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs or browser tools where WebMCP is supported; Relay does not POST the employer form or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.
+Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs, browser tools where WebMCP is supported, or window.relay in the signed-in tab; Relay does not POST the employer form, host an MCP connection, or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.
 
 ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection.
 

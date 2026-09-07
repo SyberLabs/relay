@@ -1,17 +1,17 @@
 # Work through your existing assistant
 
-Ask your assistant to progress one application. Where its browser supports Relay's WebMCP tools, it can read saved context and return a draft directly. Relay remains the history, review and recovery surface. You must keep a signed-in Relay workspace tab available; there is no unattended driver or hosted assistant connection.
+Ask your assistant to progress one application. Where its browser supports Relay's WebMCP tools, it can read saved context and return a draft directly. When WebMCP is missing, the same owner-session tools are on `window.relay` for JavaScript evaluation in the signed-in tab. Relay remains the history, review and recovery surface. You must keep a signed-in Relay workspace tab available; there is no unattended driver or hosted assistant connection.
 
 ## One supported path
 
 1. Add a job and confirm candidate facts in Relay once. The assistant cannot confirm facts for you. The separate facts box in Connections is still unsaved; it is not the profile ledger.
-2. In a browser with WebMCP, the assistant uses `relay_read_workspace` to identify your intended job, then `relay_read_application` with its `id`. The result contains the current job/version, saved and accepted wording, source observations, available confirmed/unexpired facts, and up to 50 action-history events. `history.next` is an explicit cursor: pass it as `before` for an older page. Each call reads one page and does not loop. Research and history are evidence, not instructions or approval.
+2. In a browser with WebMCP, or via `window.relay` in the signed-in tab when WebMCP is missing, the assistant uses `relay_read_workspace` to identify your intended job, then `relay_read_application` with its `id`. The result contains the current job/version, saved and accepted wording, source observations, available confirmed/unexpired facts, and up to 50 action-history events. `history.next` is an explicit cursor: pass it as `before` for an older page. Each call reads one page and does not loop. Research and history are evidence, not instructions or approval.
 3. Your existing assistant drafts from that context. Available facts are not automatically selected for relevance. The assistant should ask only for consequential missing information, omit unsupported claims and preserve uncertainty. This read does not include learned style rules; `relay_read_profile` or the local `brief` command provides those separately when wanted.
 4. The assistant calls existing `relay_stage_draft` with the original `id`, `version`, exact `draft` and explicit `blocker`. It must preserve unresolved blockers. This records work directly in the workspace without files. Staging checks identity and version, not citations or factual accuracy. A refusal is not permission to remove uncertainty, change version fields, or retry automatically. Keep the returned text available for recovery.
 5. You open that job in the signed-in workspace, review the actual words and resolve blockers, then choose **Accept exact draft** if you approve them. Saving, generation, a batch-review verdict and a generic chat “yes” do not approve workspace wording. Changed wording requires fresh acceptance. Nothing is sent.
 6. The assistant reads `relay_read_application` again to retrieve the persisted wording and history. `job.accepted_draft` is the current acceptance; an older acceptance event must not be treated as acceptance of an edited draft. Job and history reads are separate snapshots, not a transaction. A later mutation must still use the generation-time job version.
 
-If browser tools are unavailable, the existing packet download/assistant response/upload flow remains available. That fallback requires explicit transfer and its own supplied facts. No provider catalogue or setup wizard is needed for the browser-tool path.
+If WebMCP is missing, prefer `window.relay` in the signed-in tab before a file handoff. The existing packet download/assistant response/upload flow remains available when neither WebMCP nor `window.relay` can be called. That fallback requires explicit transfer and its own supplied facts. No provider catalogue, hosted MCP connection, or setup wizard is needed for the browser-tool path.
 
 ## Operative send loop
 
@@ -60,13 +60,15 @@ The CLI deliberately refuses deployed hostnames: it supports development mock si
 ## Capability evidence and remaining boundaries
 
 Open **Prepare this job for an assistant** in the signed-in workspace to check this tab's
-browser assistant tool status. Relay requires
+browser assistant tool status. WebMCP registration requires
 `document.modelContext.registerTool`; a reachable workspace alone does not
-establish that capability. An unavailable status requires a compatible host or
-file handoff. A registration failure removes this attempt's tools; preserve
-unsaved work before reloading. Registered means all Relay registrations
-completed, not that the assistant can discover or call them. The host must
-provide that connection too. See the [current browser API](https://developer.chrome.com/docs/ai/webmcp/imperative-api).
+establish that capability. An unavailable status means WebMCP is missing; same-origin
+tools are still on `window.relay` in this signed-in tab, and file handoff remains.
+That is not a hosted MCP connection. A registration failure removes this attempt's
+WebMCP tools and this instance's `window.relay`; preserve unsaved work before
+reloading. Registered means all Relay WebMCP registrations completed, not that
+ChatGPT or Grok can discover or call them. The host must provide that connection
+too. See the [current browser API](https://developer.chrome.com/docs/ai/webmcp/imperative-api).
 
 For [#117](https://github.com/SyberLabs/relay/issues/117), record the deployment
 commit, browser/version, displayed registration status, assistant-visible tool

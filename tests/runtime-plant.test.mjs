@@ -24,6 +24,17 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.doesNotMatch(modals, /match percentage|ATS score/i);
 });
 
+void test('stuck cards select the job without opening a dialog', () => {
+  const start = workspace.indexOf('Stuck, needs your answer');
+  const end = workspace.indexOf('<RuntimeModals');
+  assert.notEqual(start, -1);
+  assert.notEqual(end, -1);
+  const stuck = workspace.slice(start, end);
+  assert.match(stuck, /onClick=\{\(\) => chooseJob\(job\)\}/);
+  assert.doesNotMatch(stuck, /setModal\('blocked'\)/);
+  assert.match(modals, /Fit is a heuristic word and number match/);
+});
+
 void test('tools name Relay connectors instead of job-board OAuth', () => {
   assert.match(modals, /Simplify/);
   assert.match(modals, /Notion/);

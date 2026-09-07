@@ -787,10 +787,13 @@ export default function Workspace() {
       lead={stageLead(stageView)}
       live={busy}
       logLine={
-        message ||
-        (signedOut
+        signedOut
           ? 'Sign in to load your runtime.'
-          : 'Runtime ready. Load an application to begin.')
+          : busy
+            ? 'Working…'
+            : current
+              ? `${current.name} in core.`
+              : 'Runtime ready. Load an application to begin.'
       }
       logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
       onAddJob={openAddJob}
@@ -1149,6 +1152,15 @@ export default function Workspace() {
                       <button className="btn" onClick={holdJob} type="button">
                         Hold
                       </button>
+                      {!protectedState && current.blocker.trim() ? (
+                        <button
+                          className="btn btn-signal"
+                          onClick={() => setModal('blocked')}
+                          type="button"
+                        >
+                          Answer the open question
+                        </button>
+                      ) : null}
                       {!protectedState ? (
                         <button
                           className="btn btn-stop"
@@ -1588,10 +1600,7 @@ export default function Workspace() {
                           aria-label={job.name}
                           className="card blocked job"
                           key={job.id}
-                          onClick={() => {
-                            chooseJob(job);
-                            setModal('blocked');
-                          }}
+                          onClick={() => chooseJob(job)}
                           type="button"
                         >
                           <span className="pip hold" />

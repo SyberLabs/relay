@@ -55,6 +55,9 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
     .getByRole('button', { name: 'Inspect what the agent wrote' })
     .click();
   await expect(
+    page.getByRole('heading', { name: 'Why this job is in core' }),
+  ).toBeVisible();
+  await expect(
     page.getByText(
       /heuristic word and number match, not a qualification score/i,
     ),
@@ -77,6 +80,10 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   await page
     .getByRole('button', { name: /Runtime Plant — Stuck Engineer/ })
     .click();
+  await expect(
+    page.getByRole('heading', { name: 'Runtime Plant — Stuck Engineer' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Answer the open question' }).click();
   await expect(
     page.getByRole('heading', { name: 'The agent needs an answer' }),
   ).toBeVisible();

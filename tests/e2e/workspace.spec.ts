@@ -339,7 +339,7 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
   ).toBe(true);
   await sidebar.getByRole('button', { name: /All opportunities/ }).click();
   await expect(page.locator('#workspace-queue h2')).toHaveText(
-    'All opportunities',
+    'Queued opportunities',
   );
   await expect(page).toHaveURL(/\?queue=All/);
 

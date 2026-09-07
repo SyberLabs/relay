@@ -1668,9 +1668,18 @@ export default function Workspace() {
                     ref={queueRef}
                   >
                     <div className="plate-head queuehead">
-                      <h2 tabIndex={-1}>{queueTitle(filter)}</h2>
+                      <h2 tabIndex={-1}>
+                        {filter === 'All'
+                          ? 'Queued opportunities'
+                          : queueTitle(filter)}
+                      </h2>
                       <span className="tally">{queued.length}</span>
                     </div>
+                    {filter === 'All' && (
+                      <p className="hint">
+                        Other saved jobs appear under Stuck and Sent.
+                      </p>
+                    )}
                     <label className="search">
                       <Search size={17} />
                       <input

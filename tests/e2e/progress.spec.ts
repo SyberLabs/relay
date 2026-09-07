@@ -153,11 +153,11 @@ for (const width of [1280, 390]) {
       const next = await resumed.newPage();
       await next.goto('/');
       await expect(
-        next.locator('section.queue .joblist button').first(),
+        next.getByRole('button', { name: /All opportunities/ }),
       ).toBeVisible();
       await next.getByRole('button', { name: /All opportunities/ }).click();
       await expect(
-        next.getByRole('heading', { name: 'All opportunities', exact: true }),
+        next.getByRole('heading', { name: 'Queued opportunities', exact: true }),
       ).toBeVisible();
       for (const original of jobs) {
         const persisted = saved.jobs.find((job) => job.id === original.id)!;

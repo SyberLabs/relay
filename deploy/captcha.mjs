@@ -90,7 +90,8 @@ export async function captchaPage(request, env) {
         'cache-control': 'no-store',
         'content-security-policy':
           "default-src 'none'; script-src https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src https://challenges.cloudflare.com; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
-        'referrer-policy': 'no-referrer',
+        // Ordinary form Continue is a non-CORS navigation; no-referrer sends Origin: null.
+        'referrer-policy': 'same-origin',
         'x-content-type-options': 'nosniff',
       },
     },

@@ -118,8 +118,17 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('link', { name: 'Workspace', exact: true }).click();
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await expect(page).toHaveURL(/\/(\?.*)?$/);
+  await expect(
+    page.locator('aside.bar-nav').getByRole('link', { name: 'Track jobs' }),
+  ).toBeVisible();
+  await page
+    .locator('aside.bar-nav')
+    .getByRole('link', { name: 'Track jobs' })
+    .click();
+  await expect(page).toHaveURL(/\/track/);
   await sidebar.getByRole('link', { name: 'Advanced', exact: true }).click();
+  await expect(page).toHaveURL(/\/advanced/);
   await expect(
     page.getByRole('heading', { name: 'Advanced', exact: true }),
   ).toBeVisible();

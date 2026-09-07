@@ -200,9 +200,10 @@ export async function POST(request: Request) {
       const result = await db.batch([
         db
           .prepare(
-            "UPDATE jobs SET drafting_direction='',draft=?,blocker=?,status=?,accepted_draft=?,version=version+1,updated=? WHERE id=? AND owner=? AND version=?",
+            "UPDATE jobs SET drafting_direction=CASE WHEN blocker=? THEN drafting_direction ELSE '' END,draft=?,blocker=?,status=?,accepted_draft=?,version=version+1,updated=? WHERE id=? AND owner=? AND version=?",
           )
           .bind(
+            b.blocker,
             b.draft,
             b.blocker,
             b.status,

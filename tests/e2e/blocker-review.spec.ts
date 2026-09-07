@@ -287,4 +287,54 @@ test('short user answer is job-specific and cannot confirm a personal fact or ac
   );
   expect(after.facts).toEqual(before.facts);
   expect(after.draftingPreference).toEqual(before.draftingPreference);
+  await page
+    .getByRole('textbox', { name: 'Application answer or outreach draft' })
+    .fill('A partial draft, with the original question still unresolved.');
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+  await expect(
+    page.getByText('Saved. Your review is preserved.'),
+  ).toBeVisible();
+  let current = (await state(page)).jobs.find(
+    (j: { id: string }) => j.id === job.id,
+  );
+  expect(current.drafting_direction).toBe('Use the existing project example.');
+  await page.reload();
+  await page
+    .getByRole('button', { name: /Cedar answer — Review Engineer/ })
+    .click();
+  await expect(
+    page.getByRole('heading', { name: 'Ready for your assistant' }),
+  ).toBeVisible();
+  const partial = await page.request.post('/api/workspace', {
+    data: {
+      action: 'save',
+      id: job.id,
+      version: current.version,
+      status: 'Held',
+      draft:
+        'A second partial draft saved through the assistant staging endpoint.',
+      blocker: current.blocker,
+    },
+  });
+  expect(partial.ok()).toBe(true);
+  current = (await state(page)).jobs.find(
+    (j: { id: string }) => j.id === job.id,
+  );
+  expect(current.drafting_direction).toBe('Use the existing project example.');
+  const resolved = await page.request.post('/api/workspace', {
+    data: {
+      action: 'save',
+      id: job.id,
+      version: current.version,
+      status: 'Held',
+      draft: 'Resolved draft.',
+      blocker: '',
+    },
+  });
+  expect(resolved.ok()).toBe(true);
+  current = (await state(page)).jobs.find(
+    (j: { id: string }) => j.id === job.id,
+  );
+  expect(current.drafting_direction).toBe('');
+  expect(current.accepted_draft).toBeNull();
 });

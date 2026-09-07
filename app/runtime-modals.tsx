@@ -10,6 +10,7 @@ import {
   emptyRuntimeModalPrivate,
   postRuntimeModalProfile,
   readRuntimeModalProfile,
+  settleRuntimeModalProfileRead,
   type RuntimeModalProfile,
 } from '../lib/runtime-modal-session';
 
@@ -322,30 +323,23 @@ function RuntimeModalDialog({
     if (which === 'inspect' || which === 'blocked' || which === 'tools') return;
     let cancelled = false;
     void readRuntimeModalProfile(sessionRef.current).then((outcome) => {
-      if (cancelled) return;
-      if (outcome.type === 'skip') return;
-      if (outcome.type === 'expire') {
-        setProfile(null);
+      const next = settleRuntimeModalProfileRead(
+        outcome,
+        cancelled,
+        onUnauthorized,
+      );
+      if (next.type === 'stop') return;
+      if (next.type === 'error') {
+        setNote(next.error);
+        return;
+      }
+      if (next.switched) {
         setResume('');
         setCandidates([]);
         setRule('');
         setNote('');
-        onUnauthorized();
-        return;
       }
-      if (outcome.type === 'ok' && outcome.switched) {
-        setResume('');
-        setCandidates([]);
-        setRule('');
-        setNote('');
-        setProfile(outcome.body);
-        return;
-      }
-      if (outcome.type !== 'ok') {
-        if (outcome.type === 'error') setNote(outcome.error);
-        return;
-      }
-      setProfile(outcome.body);
+      setProfile(next.body);
     });
     return () => {
       cancelled = true;

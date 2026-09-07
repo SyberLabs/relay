@@ -338,6 +338,7 @@ export default function Workspace() {
         outcome.draftingPreference ?? defaultDraftingPreference,
       );
       if (outcome.switched) {
+        setModal(null);
         setShowAddJob(false);
         setShowImport(false);
         setImportText('');

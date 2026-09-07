@@ -765,6 +765,7 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
     showAddJob: true,
     signedOut: false,
     loaded: true,
+    modal: 'resume',
   };
   let gets = 0;
   const deps = {
@@ -838,6 +839,7 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
   assert.equal(session.viewer, 'owner-b');
   assert.equal(state.jobs[0].id, ownerB.id);
   assert.equal(state.showAddJob, false);
+  assert.equal(state.modal, null);
   const typed = {
     ...loadEditor(ownerB),
     draft: 'Unsaved owner-B draft.',

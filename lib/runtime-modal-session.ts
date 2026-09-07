@@ -13,6 +13,13 @@ export type RuntimeModalProfile = {
   viewer?: string;
 };
 
+export type RuntimeModalReadOutcome =
+  | { type: 'skip' }
+  | { type: 'expire' }
+  | { type: 'ignore' }
+  | { type: 'error'; error: string; status: number }
+  | { type: 'ok'; body: RuntimeModalProfile; switched: boolean };
+
 export function emptyRuntimeModalPrivate() {
   return {
     profile: null as RuntimeModalProfile | null,
@@ -21,6 +28,23 @@ export function emptyRuntimeModalPrivate() {
     rule: '',
     note: '',
   };
+}
+
+export function settleRuntimeModalProfileRead(
+  outcome: RuntimeModalReadOutcome,
+  cancelled: boolean,
+  onUnauthorized: () => void,
+):
+  | { type: 'stop' }
+  | { type: 'error'; error: string; status: number }
+  | { type: 'ok'; body: RuntimeModalProfile; switched: boolean } {
+  if (outcome.type === 'expire') {
+    onUnauthorized();
+    return { type: 'stop' };
+  }
+  if (cancelled || outcome.type === 'skip' || outcome.type === 'ignore')
+    return { type: 'stop' };
+  return outcome;
 }
 
 export async function readRuntimeModalProfile(

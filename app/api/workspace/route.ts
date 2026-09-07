@@ -19,6 +19,10 @@ import { refuseUntrustedOrigin } from '../../../lib/request-origin';
 import { usableFact } from '../../../lib/profile';
 import { loadFacts } from '../../../lib/store';
 import {
+  saveProgress,
+  validateProgress,
+} from '../../../lib/application-progress';
+import {
   beginOwnerImportWrite,
   completeOwnerImportWrite,
   ownerImportWritePending,
@@ -155,6 +159,16 @@ export async function POST(request: Request) {
       } finally {
         if (write) completeOwnerImportWrite(user, write);
       }
+    }
+    if (b.action === 'progress') {
+      const progress = validateProgress(b);
+      if (progress.viewer !== undefined && progress.viewer !== user)
+        return reply(
+          { error: 'This progress belongs to a different account.' },
+          409,
+        );
+      const result = await saveProgress(db, user, progress, now);
+      return reply(result.data, result.status);
     }
     if (b.action === 'save') {
       const job = await db

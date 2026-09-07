@@ -300,6 +300,8 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
   await expect(importBtn).toHaveAttribute('aria-expanded', 'false');
   await importBtn.click();
   await expect(importBtn).toHaveAttribute('aria-expanded', 'true');
+  await importBtn.click();
+  await expect(importBtn).toHaveAttribute('aria-expanded', 'true');
   const dock = page.locator('#import-dock');
   await expect(
     dock.getByRole('heading', { name: 'Import research' }),
@@ -381,22 +383,33 @@ test('tracker import actions stay inside the window after a long preview', async
   expect(narrow!.y + narrow!.height).toBeLessThanOrEqual(720);
 });
 
-async function openImportDock(page: import('@playwright/test').Page) {
+async function openImportDock(
+  page: import('@playwright/test').Page,
+  how: 'pointer' | 'keyboard' = 'pointer',
+) {
   await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
   await expect(page.locator('#workspace-queue')).toBeVisible();
   const importBtn = page.getByRole('button', {
     name: 'Import research',
     exact: true,
   });
+  await expect(importBtn).toBeVisible();
+  await expect(importBtn).toBeEnabled();
   await expect(importBtn).toHaveAttribute('aria-expanded', 'false');
-  await importBtn.evaluate((button) => (button as HTMLButtonElement).click());
+  if (how === 'keyboard') {
+    await importBtn.focus();
+    await expect(importBtn).toBeFocused();
+    await page.keyboard.press('Enter');
+  } else {
+    await importBtn.click();
+  }
   await expect(importBtn).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#import-dock')).toBeVisible();
 }
 
 test('keyboard users can reach and use both import modes', async ({ page }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await openImportDock(page);
+  await openImportDock(page, 'keyboard');
   const jsonTab = page.getByRole('tab', { name: 'Research JSON' });
   const csvTab = page.getByRole('tab', { name: 'Tracker CSV' });
   await jsonTab.focus();

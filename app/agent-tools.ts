@@ -26,8 +26,21 @@ async function call(url: string, body?: Json) {
         }
       : {},
   );
-  const result = (await r.json()) as { error?: string };
-  if (!r.ok) throw Error(result.error);
+  const result = (await r.json()) as {
+    error?: string;
+    code?: string;
+    verification_url?: string;
+  };
+  if (!r.ok)
+    throw Error(
+      JSON.stringify({
+        error: result.error || 'Relay refused the request.',
+        status: r.status,
+        code: result.code,
+        verification_url: result.verification_url,
+        retry_after: r.headers.get('Retry-After'),
+      }),
+    );
   return result;
 }
 export function useRelayTools(refresh: () => Promise<unknown>) {
@@ -87,9 +100,7 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
         ]),
         run: (input) => call('/api/workspace', { ...input, action: 'preview' }),
       },
-      // Logging is the autonomous path: unlimited volume, no human gate, but
-      // every factual claim must trace to a verified fact or the write is
-      // refused outright.
+      // Draft logging remains subject to gateway quotas and human review.
       {
         name: 'relay_log_draft',
         description:
@@ -107,6 +118,35 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
         run: async (input) => {
           const result = await call('/api/drafts', { ...input, action: 'log' });
           await refresh();
+          return result;
+        },
+      },
+      {
+        name: 'relay_save_progress',
+        description:
+          'Save a completed step and actionable blocker for one application. Preserves saved draft, exact acceptance and application status. Requires the current version and a unique operation_id; reuse the same id and exact input only to reconcile an uncertain result. Never retry a refusal automatically. Empty blocker clears the previous blocker. Read workspace/history again to resume; this does not send or approve anything.',
+        readOnly: false,
+        schema: object(
+          {
+            id: { type: 'string', minLength: 1, maxLength: 128 },
+            version: { type: 'integer', minimum: 1 },
+            operation_id: { type: 'string', minLength: 1, maxLength: 128 },
+            note: { type: 'string', minLength: 1, maxLength: 4000 },
+            blocker: { type: 'string', maxLength: 4000 },
+          },
+          ['id', 'version', 'operation_id', 'note', 'blocker'],
+        ),
+        run: async (input) => {
+          const result = await call('/api/workspace', {
+            ...input,
+            action: 'progress',
+          });
+          try {
+            await refresh();
+          } catch {
+            // The write succeeded. A failed display refresh cannot undo it.
+            return { ...result, refresh_required: true };
+          }
           return result;
         },
       },

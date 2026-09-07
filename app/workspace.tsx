@@ -166,6 +166,9 @@ export default function Workspace() {
   const selectedRef = useRef('');
   const editorRef = useRef<Editor | null>(null);
   const addJobViewerRef = useRef<string | undefined>(undefined);
+  const progressAttempt = useRef<{ key: string; operationId: string } | null>(
+    null,
+  );
   useEffect(() => {
     editorRef.current = editor;
   }, [editor]);
@@ -296,12 +299,15 @@ export default function Workspace() {
       setMessage(
         body.action === 'save'
           ? 'Saved. Your review is preserved.'
-          : body.action === 'replay'
-            ? 'Replay complete. No records changed.'
-            : body.action === 'preview'
-              ? 'Preview complete. No records were imported.'
-              : 'Workspace updated.',
+          : body.action === 'progress'
+            ? 'Progress saved. Saved wording and application status are unchanged.'
+            : body.action === 'replay'
+              ? 'Replay complete. No records changed.'
+              : body.action === 'preview'
+                ? 'Preview complete. No records were imported.'
+                : 'Workspace updated.',
       );
+      return true;
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Unable to save.');
     } finally {
@@ -386,6 +392,31 @@ export default function Workspace() {
       },
       saved,
     );
+  }
+  async function saveProgress() {
+    if (busy || !editor || !current || !canSave(editor)) return;
+    const saved: SaveSnapshot = {
+      jobId: editor.jobId,
+      session: editor.session,
+      version: editor.version,
+      draft: current.draft,
+      blocker: editor.blocker,
+    };
+    const body = {
+      action: 'progress',
+      id: saved.jobId,
+      version: saved.version,
+      note: 'Next action updated',
+      blocker: saved.blocker,
+      viewer: sessionRef.current.viewer,
+    };
+    const key = JSON.stringify(body);
+    if (progressAttempt.current?.key !== key)
+      progressAttempt.current = { key, operationId: crypto.randomUUID() };
+    const attempt = progressAttempt.current;
+    const ok = await run({ ...body, operation_id: attempt.operationId }, saved);
+    if (ok && progressAttempt.current === attempt)
+      progressAttempt.current = null;
   }
   function openAddJob() {
     addJobViewerRef.current = sessionRef.current.viewer;
@@ -538,9 +569,13 @@ export default function Workspace() {
                 aria-controls="import-dock"
                 aria-expanded={showImport}
                 className="secondary"
-                onClick={() =>
-                  showImport ? setShowImport(false) : openImport(importTab)
-                }
+                onClick={() => {
+                  if (showImport) {
+                    document.getElementById('import-dock-title')?.focus();
+                    return;
+                  }
+                  openImport(importTab);
+                }}
                 type="button"
               >
                 <Upload size={16} />
@@ -894,6 +929,19 @@ export default function Workspace() {
                         }
                       />
                     </label>
+                    <div className="actions">
+                      <button
+                        className="secondary"
+                        disabled={blocked || blocker === editor?.baseBlocker}
+                        onClick={() => void saveProgress()}
+                      >
+                        Save progress only
+                      </button>
+                    </div>
+                    <p className="muted">
+                      Save the next action without changing saved wording or
+                      application status. Draft edits below remain unsaved.
+                    </p>
                     <label className="field">
                       Application answer or outreach draft
                       <textarea

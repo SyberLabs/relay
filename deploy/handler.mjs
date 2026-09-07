@@ -12,7 +12,7 @@ export async function handleRequest(request, env, context, app, keyResolver) {
     return response;
   };
   try { accessConfig(env); } catch {
-    return new Response('Service unavailable', { status: 503 });
+    return deny(new Response('Service unavailable', { status: 503 }));
   }
   const edgeDenied = await edgeGuard(request, env);
   if (edgeDenied) return deny(edgeDenied);
@@ -42,13 +42,13 @@ export async function handleRequest(request, env, context, app, keyResolver) {
   try {
     request = await authenticatedRequest(request, env, keyResolver);
   } catch {
-    return new Response('Unauthorized', { status: 401, headers: { 'cache-control': 'no-store' } });
+    return deny(new Response('Unauthorized', { status: 401, headers: { 'cache-control': 'no-store' } }));
   }
   if (url.pathname === '/signout-with-chatgpt') {
-    return Response.redirect(`${url.origin}/cdn-cgi/access/logout`, 302);
+    return deny(Response.redirect(`${url.origin}/cdn-cgi/access/logout`, 302));
   }
   if (url.pathname === '/signin-with-chatgpt' || url.pathname === '/callback') {
-    return Response.redirect(`${url.origin}/`, 302);
+    return deny(Response.redirect(`${url.origin}/`, 302));
   }
   // Only known static paths bypass durable usage accounting. An asset miss
   // still passes through the same guard as every page/API, including new routes.
@@ -60,7 +60,7 @@ export async function handleRequest(request, env, context, app, keyResolver) {
   try {
     const denied = await usageGuard(request, env);
     if (denied) return deny(denied);
-    if (routePath(request) === '/security/check') return captchaPage(request, env);
+    if (routePath(request) === '/security/check') return deny(await captchaPage(request, env));
     const bounded = await bodyGuard(request, env);
     if (bounded instanceof Response) return deny(bounded);
     request = bounded;

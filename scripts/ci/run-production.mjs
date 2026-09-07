@@ -418,6 +418,25 @@ try {
   });
   await expectStatus(afterRefusal, 200, 'Read after oversized mutation refusal');
   assert.deepEqual((await afterRefusal.json()).jobs, []);
+  for (const { label, path, headers, status } of [
+    { label: 'missing CAPTCHA origin', path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': limitedUser }, status: 403 },
+    { label: 'mismatched CAPTCHA origin', path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': limitedUser, Origin: 'https://untrusted.example' }, status: 403 },
+    { label: 'unauthenticated upload', path: '/api/workspace', headers: {}, status: 401 },
+  ]) {
+    console.log(`Checking request after ${label} refusal.`);
+    const refused = await fetch(`${base}${path}`, {
+      method: 'POST', headers, body: 'x'.repeat(2_000_001),
+      signal: AbortSignal.timeout(20_000),
+    });
+    await expectStatus(refused, status, label);
+    await refused.text();
+    const next = await fetch(`${base}/api/workspace`, {
+      headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
+      signal: AbortSignal.timeout(20_000),
+    });
+    await expectStatus(next, 200, `Read after ${label} refusal`);
+    assert.deepEqual((await next.json()).jobs, []);
+  }
   console.log(
     'PASS: built app rendering/assets, signed identity, persistence, tenant isolation, import isolation, expired and service identities, forged headers, request origin, exact acceptance and stale-write integrity, two-session browser isolation, concurrent D1 throttling and oversized request refusal.',
   );

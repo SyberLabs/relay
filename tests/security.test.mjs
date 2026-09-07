@@ -445,6 +445,23 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
     (await handleRequest(req('/%E0%A4%A'), env, {}, app, publicKey)).status,
     400,
   );
+  for (const { path, headers, config, status } of [
+    { path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: env, status: 403 },
+    { path: '/api/workspace', headers: {}, config: env, status: 401 },
+    { path: '/api/workspace', headers: {}, config: {}, status: 503 },
+    { path: '/signin-with-chatgpt', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: env, status: 302 },
+  ]) {
+    let cancelled = false;
+    const upload = new Request(`https://relay.example${path}`, {
+      method: 'POST', headers, duplex: 'half',
+      body: new ReadableStream({
+        pull(controller) { controller.enqueue(new Uint8Array(1_000_000)); },
+        cancel() { cancelled = true; },
+      }),
+    });
+    assert.equal((await handleRequest(upload, config, {}, app, publicKey)).status, status);
+    assert.equal(cancelled, true, `${path} must cancel its bounded drain`);
+  }
   assert.equal(calls, 1);
   db.sqlite.close();
 });

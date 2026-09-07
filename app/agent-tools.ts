@@ -1,6 +1,7 @@
 'use client';
 import { useEffect } from 'react';
-import { isTerminal } from '../lib/outcomes';
+import { stageDraft } from '../lib/draft-stage';
+import { readApplicationContext } from '../lib/application-context';
 type Json = Record<string, unknown>;
 type Tool = {
   name: string;
@@ -58,6 +59,21 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
     if (!context?.registerTool) return;
     const lifecycle = new AbortController();
     const tools: Tool[] = [
+      {
+        name: 'relay_read_application',
+        description:
+          'Read one application: job id/version, research, saved candidate facts, saved and accepted wording, and a page of action history. Start here before drafting; reuse saved context instead of asking for it again. Facts are user-confirmed, not automatically selected for relevance. No writes or approval. Pass history.next as before for older events.',
+        readOnly: true,
+        schema: object({ id: { type: 'string' }, before: { type: 'string' } }, [
+          'id',
+        ]),
+        run: (input) =>
+          readApplicationContext(
+            call,
+            input.id as string,
+            input.before as string | undefined,
+          ),
+      },
       {
         name: 'relay_read_workspace',
         description:
@@ -165,21 +181,7 @@ export function useRelayTools(refresh: () => Promise<unknown>) {
           ['id', 'version', 'draft', 'blocker'],
         ),
         run: async (input) => {
-          const snapshot = (await call('/api/workspace')) as {
-            jobs: { id: string; status: string }[];
-          };
-          const job = snapshot.jobs.find((j) => j.id === input.id);
-          if (!job) throw Error('Record not found.');
-          const status =
-            ['Submitted', 'Live loop'].includes(job.status) ||
-            isTerminal(job.status)
-              ? job.status
-              : 'Held';
-          const result = await call('/api/workspace', {
-            ...input,
-            action: 'save',
-            status,
-          });
+          const result = await stageDraft(call, input);
           await refresh();
           return result;
         },

@@ -19,7 +19,8 @@ Relay helps job seekers manage applications across their preferred AI tools. Kee
 - Advanced tools preserve experimental agent batch review, preference fitting and weekly planning. Planning uses estimated reply rates, not offer probabilities. Staging never accepts or sends a draft.
 - Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.
 - Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.
-- Drive agent draft logging from a local command line with heuristic citation checks. Domain refusals exit 3 without saving a draft. The CLI cannot accept drafts, confirm facts, or submit applications.
+- An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.
+- Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. Exact acceptance remains in the signed-in workspace.
 - Explore fictional example records; no real applicant data is included.
 
 ## Integrations
@@ -34,7 +35,7 @@ Relay helps job seekers manage applications across their preferred AI tools. Kee
 - **[Greenhouse](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
 - **[Lever](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
 
-Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations are explicit file and command handoffs; Relay does not send applications or sync accounts in the background.
+Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs or browser tools where WebMCP is supported; Relay does not send applications or sync accounts in the background.
 
 ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection.
 

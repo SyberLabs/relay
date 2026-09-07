@@ -220,3 +220,5 @@ Early release: no hiring outcomes, reliability targets, or throughput improvemen
 ## License
 
 Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). Third-party dependencies retain their respective licenses.
+
+When redistributing Relay or derivative works, include the license, mark modified files, retain applicable notices in distributed source, and reproduce the attribution in [NOTICE](NOTICE) as required by Section 4 of the license. Commercial use and forks are permitted under those terms. The license does not require a prominent product badge or grant ownership of the underlying idea.

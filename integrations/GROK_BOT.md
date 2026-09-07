@@ -6,6 +6,12 @@ to a Relay process on the user's computer.
 
 ## Choose a route that exists on this host
 
+For scouting directly into Relay and handing work to ChatGPT through saved state,
+follow the [same-origin application sequence](BROWSER-API.md). It documents import,
+discovery, exact proposals, authorization, one permit and receipt recovery through
+existing APIs. It requires a supported signed-in browser; host write/resume proof
+and revocable per-agent access remain open.
+
 | Route | Required host/session | What success establishes |
 | --- | --- | --- |
 | Browser WebMCP | A signed-in deployed Relay tab in a browser that exposes `document.modelContext.registerTool`, plus an assistant that can discover and call its tools | Read/stage/reread in that authenticated workspace; staging is not acceptance |

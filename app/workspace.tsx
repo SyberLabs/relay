@@ -19,7 +19,6 @@ import {
   boundedPolicyMaximum,
   ctxTally,
   draftProgress,
-  evidenceFitPercent,
   formatLocation,
   formatPay,
   policyExpiryIso,
@@ -208,7 +207,6 @@ export default function Workspace() {
   );
   const named = current ? splitJobName(current.name) : null;
   const progress = current ? draftProgress(current) : null;
-  const fitPct = fit ? evidenceFitPercent(fit.gates) : null;
   const stageView = {
     page: 'workspace' as const,
     signedOut,
@@ -1209,8 +1207,12 @@ export default function Workspace() {
                       </div>
                       <dl className="facts">
                         <div className="fact">
-                          <dt>fit</dt>
-                          <dd>{fitPct == null ? 'n/a' : `${fitPct}%`}</dd>
+                          <dt>evidence</dt>
+                          <dd>
+                            {fit
+                              ? `${fit.gates.filter((gate) => gate.status === 'hit').length} hit · ${fit.gates.filter((gate) => gate.status === 'miss').length} miss`
+                              : 'not compared'}
+                          </dd>
                         </div>
                         <div className="fact">
                           <dt>location</dt>

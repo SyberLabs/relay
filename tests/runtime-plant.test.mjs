@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 const workspace = readFileSync('app/workspace.tsx', 'utf8');
 const modals = readFileSync('app/runtime-modals.tsx', 'utf8');
 const shell = readFileSync('app/runtime-shell.tsx', 'utf8');
+const globals = readFileSync('app/globals.css', 'utf8');
+const plantCss = readFileSync('app/runtime.css', 'utf8');
 
 void test('the home plant keeps existing acceptance and import contracts', () => {
   assert.match(workspace, /What the agent knows about you/);
@@ -27,6 +29,9 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.doesNotMatch(modals, /Stop and ask instead of guessing/);
   assert.match(workspace, /No jobs yet/);
   assert.match(workspace, /id="workspace-queue"/);
+  assert.match(shell, /import '\.\/runtime\.css'/);
+  assert.match(plantCss, /application runtime plant/);
+  assert.doesNotMatch(globals, /application runtime plant/);
   assert.match(shell, /aria-label="Import research"/);
   assert.match(workspace, /id="import-dock"/);
   assert.match(
@@ -34,6 +39,11 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
     /disabled=\{blocked\}\s+onClick=\{\(\) => save\('Skip'\)\}/,
   );
   assert.match(workspace, /Heuristic word and number matches/);
+  assert.match(
+    workspace,
+    /hit · \$\{fit\.gates\.filter\(\(gate\) => gate\.status === 'miss'\)\.length\} miss/,
+  );
+  assert.doesNotMatch(workspace, /evidenceFitPercent|fitPct/);
   assert.doesNotMatch(workspace, /match percentage|ATS score/i);
   assert.doesNotMatch(modals, /match percentage|ATS score/i);
 });

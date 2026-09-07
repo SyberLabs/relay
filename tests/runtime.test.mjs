@@ -5,7 +5,6 @@ import {
   policyJobIds,
   ctxTally,
   draftProgress,
-  evidenceFitPercent,
   formatLocation,
   formatPay,
   isBlockedJob,
@@ -48,25 +47,6 @@ void test('sourceLabel prefers stored source then hostname', () => {
     'boards.greenhouse.io',
   );
   assert.equal(sourceLabel('', null), 'saved job');
-});
-
-void test('evidence fit is hits over compared gates and never an ATS claim', () => {
-  assert.equal(evidenceFitPercent([]), null);
-  assert.equal(
-    evidenceFitPercent([
-      { text: 'a', status: 'unknown', factId: null },
-      { text: 'b', status: 'unknown', factId: null },
-    ]),
-    null,
-  );
-  assert.equal(
-    evidenceFitPercent([
-      { text: 'a', status: 'hit', factId: 'f1' },
-      { text: 'b', status: 'miss', factId: null },
-      { text: 'c', status: 'unknown', factId: null },
-    ]),
-    50,
-  );
 });
 
 void test('draft progress does not call an unaccepted Held job sent', () => {

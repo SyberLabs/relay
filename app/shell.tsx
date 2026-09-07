@@ -45,15 +45,13 @@ const pageIcons = {
   '/advanced': Settings2,
 } as const;
 
-export function AppShell({
-  children,
+export function ShellNav({
   current,
   filter,
   counts,
   onFilter,
   onNavigate,
 }: {
-  children: ReactNode;
   current: ShellPage;
   filter?: string;
   counts?: { total: number; byStatus: Record<string, number> };
@@ -63,7 +61,9 @@ export function AppShell({
   const onWorkspace = current === 'workspace';
   const showJobList = !onWorkspace || (counts?.total ?? 0) > 0;
   const pageLink = (
-    item: (typeof PORTFOLIO_PAGE_LINKS)[number] | (typeof CONTEXT_PAGE_LINKS)[number],
+    item:
+      | (typeof PORTFOLIO_PAGE_LINKS)[number]
+      | (typeof CONTEXT_PAGE_LINKS)[number],
   ) => {
     const Icon = pageIcons[item.href];
     const active = pageIsCurrent(current, item.page);
@@ -82,82 +82,110 @@ export function AppShell({
     );
   };
   return (
+    <>
+      {showJobList ? (
+        <fieldset aria-describedby="nav-queue-hint" className="navset">
+          <legend className="navlabel" id="nav-queue-label">
+            Job list
+          </legend>
+          <p className="navhint" id="nav-queue-hint">
+            {onWorkspace
+              ? 'Choose which job to continue. Review and accept happen on the selected job.'
+              : 'Opens the workspace and shows that job list.'}
+          </p>
+          {QUEUE_FILTERS.map((item) => {
+            const Icon = queueIcons[item.value];
+            const count =
+              item.value === 'All'
+                ? (counts?.total ?? 0)
+                : (counts?.byStatus[item.value] ?? 0);
+            const className =
+              'nav nav-filter' +
+              (onWorkspace && filter === item.value ? ' active' : '');
+            if (onWorkspace && onFilter)
+              return (
+                <button
+                  aria-controls="workspace-queue"
+                  aria-pressed={filter === item.value}
+                  className={className}
+                  key={item.value}
+                  onClick={() => onFilter(item.value)}
+                  type="button"
+                >
+                  <Icon size={18} />
+                  {item.label}
+                  <span className="nav-end">{count}</span>
+                </button>
+              );
+            return (
+              <Link
+                className={className}
+                href={queueHref(item.value)}
+                key={item.value}
+                onClick={onNavigate}
+              >
+                <Icon size={18} />
+                {item.label}
+                <ChevronRight className="nav-end" size={14} />
+              </Link>
+            );
+          })}
+        </fieldset>
+      ) : null}
+      <fieldset aria-describedby="nav-outcomes-hint" className="navset">
+        <legend className="navlabel" id="nav-outcomes-label">
+          Outcomes
+        </legend>
+        <p className="navhint" id="nav-outcomes-hint">
+          Record what happened after you submitted. This is not the draft review
+          step.
+        </p>
+        {PORTFOLIO_PAGE_LINKS.map(pageLink)}
+      </fieldset>
+      <fieldset aria-describedby="nav-context-hint" className="navset">
+        <legend className="navlabel" id="nav-context-label">
+          Reusable context
+        </legend>
+        <p className="navhint" id="nav-context-hint">
+          Optional facts and experimental tools. Not required to add a job.
+        </p>
+        {CONTEXT_PAGE_LINKS.map(pageLink)}
+      </fieldset>
+    </>
+  );
+}
+
+export function AppShell({
+  children,
+  current,
+  filter,
+  counts,
+  onFilter,
+  onNavigate,
+}: {
+  children: ReactNode;
+  current: ShellPage;
+  filter?: string;
+  counts?: { total: number; byStatus: Record<string, number> };
+  onFilter?: (value: QueueFilter) => void;
+  onNavigate?: (event: { preventDefault: () => void }) => void;
+}) {
+  return (
     <div className="shell">
       <a className="skip" href="#workspace-main">
         Skip to main content
       </a>
       <aside className="sidebar">
         <Link className="brand" href="/" onClick={onNavigate}>
-          <span className="mark">r</span>relay<span className="beta">01</span>
+          Relay <span>workspace</span>
         </Link>
-        {showJobList ? (
-          <fieldset aria-describedby="nav-queue-hint" className="navset">
-            <legend className="navlabel" id="nav-queue-label">
-              Job list
-            </legend>
-            <p className="navhint" id="nav-queue-hint">
-              {onWorkspace
-                ? 'Choose which job to continue. Review and accept happen on the selected job.'
-                : 'Opens the workspace and shows that job list.'}
-            </p>
-            {QUEUE_FILTERS.map((item) => {
-              const Icon = queueIcons[item.value];
-              const count =
-                item.value === 'All'
-                  ? (counts?.total ?? 0)
-                  : (counts?.byStatus[item.value] ?? 0);
-              const className =
-                'nav nav-filter' +
-                (onWorkspace && filter === item.value ? ' active' : '');
-              if (onWorkspace && onFilter)
-                return (
-                  <button
-                    aria-controls="workspace-queue"
-                    aria-pressed={filter === item.value}
-                    className={className}
-                    key={item.value}
-                    onClick={() => onFilter(item.value)}
-                    type="button"
-                  >
-                    <Icon size={18} />
-                    {item.label}
-                    <span className="nav-end">{count}</span>
-                  </button>
-                );
-              return (
-                <Link
-                  className={className}
-                  href={queueHref(item.value)}
-                  key={item.value}
-                  onClick={onNavigate}
-                >
-                  <Icon size={18} />
-                  {item.label}
-                  <ChevronRight className="nav-end" size={14} />
-                </Link>
-              );
-            })}
-          </fieldset>
-        ) : null}
-        <fieldset aria-describedby="nav-outcomes-hint" className="navset">
-          <legend className="navlabel" id="nav-outcomes-label">
-            Outcomes
-          </legend>
-          <p className="navhint" id="nav-outcomes-hint">
-            Record what happened after you submitted. This is not the draft
-            review step.
-          </p>
-          {PORTFOLIO_PAGE_LINKS.map(pageLink)}
-        </fieldset>
-        <fieldset aria-describedby="nav-context-hint" className="navset">
-          <legend className="navlabel" id="nav-context-label">
-            Reusable context
-          </legend>
-          <p className="navhint" id="nav-context-hint">
-            Optional facts and experimental tools. Not required to add a job.
-          </p>
-          {CONTEXT_PAGE_LINKS.map(pageLink)}
-        </fieldset>
+        <ShellNav
+          counts={counts}
+          current={current}
+          filter={filter}
+          onFilter={onFilter}
+          onNavigate={onNavigate}
+        />
         <div className="sidebottom">
           <p>External agents apply under your permissions.</p>
         </div>

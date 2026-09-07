@@ -127,7 +127,9 @@ for (const width of [1280, 390]) {
     await saveProgress(page);
     await expect(
       page.getByRole('button', { name: new RegExp(essay.name) }),
-    ).toContainText('Needs attention');
+    ).toContainText(
+      'Need a reviewed example of resolving a production incident',
+    );
     await select(page, interrupted);
     await draftField(page).fill(
       'Saved essay opening before the worker stopped.',

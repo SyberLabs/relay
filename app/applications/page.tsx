@@ -9,6 +9,7 @@ import type {
 import { digest } from '../../lib/application-automation';
 import { ApplicationPermissions } from './permissions';
 import { ApplicationEvidence } from './evidence';
+import { ProductShell } from '../shell';
 
 type Job = {
   id: string;
@@ -136,14 +137,7 @@ export default function Applications() {
     });
   }
   return (
-    <main
-      style={{
-        maxWidth: 1000,
-        margin: '0 auto',
-        padding: '32px 24px',
-        fontSize: '1rem',
-      }}
-    >
+    <ProductShell current="applications">
       <Link href="/">← Workspace</Link>
       <h1>Applications</h1>
       <p>
@@ -481,6 +475,6 @@ export default function Applications() {
           </details>
         </>
       )}
-    </main>
+    </ProductShell>
   );
 }

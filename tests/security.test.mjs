@@ -446,26 +446,161 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
     400,
   );
   for (const { path, headers, config, status } of [
-    { path: '/security/check', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: env, status: 403 },
+    {
+      path: '/security/check',
+      headers: { 'Cf-Access-Jwt-Assertion': jwt },
+      config: env,
+      status: 403,
+    },
     { path: '/api/workspace', headers: {}, config: env, status: 401 },
     { path: '/api/workspace', headers: {}, config: {}, status: 503 },
     { path: '/api/applications', headers: {}, config: env, status: 401 },
-    { path: '/api/applications', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: { ...env, RELAY_PAUSE: 'writes' }, status: 503 },
-    { path: '/api/applications', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: { ...env, DB: null }, status: 503 },
-    { path: '/signin-with-chatgpt', headers: { 'Cf-Access-Jwt-Assertion': jwt }, config: env, status: 302 },
+    {
+      path: '/api/applications',
+      headers: { 'Cf-Access-Jwt-Assertion': jwt },
+      config: { ...env, RELAY_PAUSE: 'writes' },
+      status: 503,
+    },
+    {
+      path: '/api/applications',
+      headers: { 'Cf-Access-Jwt-Assertion': jwt },
+      config: { ...env, DB: null },
+      status: 503,
+    },
+    {
+      path: '/signin-with-chatgpt',
+      headers: { 'Cf-Access-Jwt-Assertion': jwt },
+      config: env,
+      status: 302,
+    },
   ]) {
     let cancelled = false;
     const upload = new Request(`https://relay.example${path}`, {
-      method: 'POST', headers, duplex: 'half',
+      method: 'POST',
+      headers,
+      duplex: 'half',
       body: new ReadableStream({
-        pull(controller) { controller.enqueue(new Uint8Array(1_000_000)); },
-        cancel() { cancelled = true; },
+        pull(controller) {
+          controller.enqueue(new Uint8Array(1_000_000));
+        },
+        cancel() {
+          cancelled = true;
+        },
       }),
     });
-    assert.equal((await handleRequest(upload, config, {}, app, publicKey)).status, status);
+    assert.equal(
+      (await handleRequest(upload, config, {}, app, publicKey)).status,
+      status,
+    );
     assert.equal(cancelled, true, `${path} must cancel its bounded drain`);
   }
   assert.equal(calls, 1);
+  db.sqlite.close();
+});
+
+void test(
+  'arm classification bounds actual bytes and stalled bodies before application work',
+  { timeout: 15000 },
+  async () => {
+    const { privateKey, publicKey } = await generateKeyPair('RS256');
+    const db = database();
+    const env = {
+      DB: db,
+      ACCESS_ISSUER: 'https://relay.cloudflareaccess.com',
+      ACCESS_AUD: 'a'.repeat(64),
+      EDGE_RATE_LIMITER: {
+        async limit() {
+          return { success: true };
+        },
+      },
+    };
+    const jwt = await new SignJWT({ sub: 'alice', email: 'alice@example.com' })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuedAt()
+      .setIssuer(env.ACCESS_ISSUER)
+      .setAudience(env.ACCESS_AUD)
+      .setExpirationTime('5m')
+      .sign(privateKey);
+    let calls = 0;
+    const app = {
+      async fetch() {
+        calls++;
+        return new Response('unexpected');
+      },
+    };
+    for (const [size, status] of [
+      [256001, 413],
+      [1, 408],
+    ]) {
+      let cancelled = false;
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(size));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      const request = new Request('https://relay.example/api/applications', {
+        method: 'POST',
+        duplex: 'half',
+        body: stream,
+        headers: { 'Cf-Access-Jwt-Assertion': jwt, 'content-length': '16' },
+      });
+      const result = await handleRequest(request, env, {}, app, publicKey);
+      assert.equal(result.status, status);
+      assert.equal((await result.json()).code, 'invalid_body');
+      assert.equal(cancelled, true);
+      assert.equal(calls, 0);
+      assert.equal(
+        db.sqlite
+          .prepare('SELECT COUNT(*) AS count FROM security_counters')
+          .get().count,
+        0,
+      );
+      assert.equal(
+        db.sqlite
+          .prepare('SELECT COUNT(*) AS count FROM application_operations')
+          .get().count,
+        0,
+      );
+    }
+    db.sqlite.close();
+  },
+);
+
+void test('application arm is presence weight 1 and six per minute, not a mutation of 10', async () => {
+  const db = database(),
+    env = { DB: db };
+  const user = await principalKey(request());
+  await reserve(
+    db,
+    `${user}:day`,
+    String(Math.floor(now / 86_400_000)),
+    2991,
+    3000,
+  );
+  const armBody = '{"action":"arm"}';
+  const prepareBody = '{"action":"prepare"}';
+  const post = (path, body) =>
+    new Request(`https://relay.example${path}`, {
+      method: 'POST',
+      headers: {
+        'oai-authenticated-user-id': 'cloudflare:alice',
+        'content-length': String(Buffer.byteLength(body)),
+      },
+      body,
+    });
+  assert.equal(
+    (await usageGuard(post('/api/applications', prepareBody), env, now)).status,
+    429,
+  );
+  const arm = () => post('/api/applications', armBody);
+  assert.equal(await usageGuard(arm(), env, now), null);
+  for (let i = 0; i < 5; i++)
+    assert.equal(await usageGuard(arm(), env, now), null);
+  assert.equal((await usageGuard(arm(), env, now)).status, 429);
+  assert.equal(await usageGuard(arm(), env, now + 60_000), null);
   db.sqlite.close();
 });
 
@@ -540,11 +675,18 @@ void test('successful CAPTCHA grants only the authenticated owner a bounded clea
 void test('oversized declared bodies are consumed to the byte boundary and cancelled before refusal', async () => {
   let cancelled = false;
   const body = new ReadableStream({
-    pull(controller) { controller.enqueue(new Uint8Array([1, 2])); },
-    cancel() { cancelled = true; },
+    pull(controller) {
+      controller.enqueue(new Uint8Array([1, 2]));
+    },
+    cancel() {
+      cancelled = true;
+    },
   });
   const req = new Request('https://relay.example/api/workspace', {
-    method: 'POST', headers: { 'content-length': '2' }, body, duplex: 'half',
+    method: 'POST',
+    headers: { 'content-length': '2' },
+    body,
+    duplex: 'half',
   });
   await assert.rejects(boundedBody(req, 1), RangeError);
   assert.equal(cancelled, true);

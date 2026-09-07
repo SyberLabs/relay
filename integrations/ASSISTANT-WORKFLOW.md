@@ -13,6 +13,18 @@ Ask your assistant to progress one application. Where its browser supports Relay
 
 If browser tools are unavailable, the existing packet download/assistant response/upload flow remains available. That fallback requires explicit transfer and its own supplied facts. No provider catalogue or setup wizard is needed for the browser-tool path.
 
+## Operative send loop
+
+**Accept exact draft** still only approves wording. Sending uses Inspect **Accept and send** after the operative has filled the employer form. There is no `relay_approve_application`; the assistant must not click Accept.
+
+1. `relay_prepare_application` streams the exact field/file snapshot for the job. Unknown answers use `unknown: true` and must never be invented. Batch the snapshot.
+2. `relay_arm_application` freezes a complete snapshot and keeps presence live. Incomplete or unknown fields are refused. Do not submit.
+3. Wait for the human to click **Accept and send** on the signed-in workspace. Poll `relay_inspect_application` at least every 2 seconds (prefer 3) until `state` is `authorized`, or cancelled/timeout. Chat “yes” and draft Ready are not send permission.
+4. `relay_begin_application` consumes the one permit. If `execute` is not true, do not click the employer submit control.
+5. Click the employer Submit **once**. Do not retry: a lost `begin` response is inspected on GET; `executing` is not permission to submit again.
+6. `relay_finish_application` records `complete`, `uncertain`, or `not-submitted` with a receipt. Only `complete` may set the job to Submitted. Never invent a receipt.
+7. If the human closes the attempt or the form cannot be sent, `relay_cancel_application` (`r.close`) cancels only while pre-`begin`. If already `executing`, do not cancel and do not submit. There is no `relay_approve_application`.
+
 ### Resolve a question without rewriting the agent's notes
 
 The selected application's decision card offers **Use your judgment** and **I'll add context**. The first delegates wording, structure and optional examples using confirmed facts. The second saves a short answer or direction for this job. Neither confirms a reusable candidate fact, accepts wording, clears an explicit submission hold or sends anything.

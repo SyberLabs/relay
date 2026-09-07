@@ -64,6 +64,20 @@
       "when": 1788779780009,
       "tag": "0008_orange_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788783138217,
+      "tag": "0009_new_radioactive_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1788784000000,
+      "tag": "0010_application_preparations_capacity",
+      "breakpoints": true
     }
   ]
 }

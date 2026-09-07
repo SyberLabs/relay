@@ -72,6 +72,27 @@ export function routePath(request) {
   );
 }
 
+async function applicationsArm(request, path) {
+  if (path !== '/api/applications' || request.method !== 'POST') return false;
+  const length = Number(request.headers.get('content-length'));
+  if (!Number.isFinite(length) || length <= 0 || length > 4096) return false;
+  let body;
+  try {
+    body = await boundedBody(request.clone(), 256_000);
+  } catch (error) {
+    return refusal(
+      error instanceof RangeError ? 413 : 408,
+      'invalid_body',
+      'Request is too large or took too long.',
+    );
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(body))?.action === 'arm';
+  } catch {
+    return false;
+  }
+}
+
 export async function usageGuard(request, env, now = Date.now()) {
   const user = await principalKey(request);
   const path = routePath(request);
@@ -84,6 +105,9 @@ export async function usageGuard(request, env, now = Date.now()) {
       300,
     );
   }
+  const arm = await applicationsArm(request, path);
+  if (arm instanceof Response) return arm;
+  const mutation = write && !arm;
   const minute = Math.floor(now / 60_000);
   const day = Math.floor(now / 86_400_000);
   const date = new Date(now);
@@ -91,15 +115,16 @@ export async function usageGuard(request, env, now = Date.now()) {
   const monthRetry = Math.ceil(
     (Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1) - now) / 1000,
   );
-  const work = write || path === '/api/plan' ? 10 : 1;
+  const work = arm ? 1 : write || path === '/api/plan' ? 10 : 1;
   // Reserve before work. Failed/denied requests are deliberately not refunded.
   // Separate scopes may be conservatively charged when a later scope refuses.
   const budgets = [
     [`${user}:minute`, minute, 1, 120, 60],
-    ...(write ? [[`${user}:write-minute`, minute, 1, 20, 60]] : []),
+    ...(mutation ? [[`${user}:write-minute`, minute, 1, 20, 60]] : []),
     ...(path === '/api/plan'
       ? [[`${user}:plan-minute`, minute, 1, 6, 60]]
       : []),
+    ...(arm ? [[`${user}:arm-minute`, minute, 1, 6, 60]] : []),
     [
       `${user}:day`,
       day,
@@ -127,7 +152,7 @@ export async function usageGuard(request, env, now = Date.now()) {
     }
   }
   // Human verification is a step-up for sustained writes, not a quota bypass.
-  if (write && path !== '/security/check') {
+  if (mutation && path !== '/security/check') {
     const count = await reserve(
       env.DB,
       `${user}:challenge-hour`,

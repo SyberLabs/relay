@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { refuseUntrustedOrigin } from '../lib/request-origin.ts';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  jsonCharsTooLarge,
+  refuseUntrustedOrigin,
+} from '../lib/request-origin.ts';
 
 const hung = { hung: true };
 
@@ -132,4 +138,32 @@ void test('untrusted origin 403s when body cancel never settles', async () => {
   const response = await within(750, refuseUntrustedOrigin(request));
   assert.notEqual(response, hung);
   assert.equal(response.status, 403);
+});
+
+void test('json character cap matches drafts: header or body over 2000000', () => {
+  assert.equal(jsonCharsTooLarge('2000001', 0), true);
+  assert.equal(jsonCharsTooLarge(null, 2000001), true);
+  assert.equal(jsonCharsTooLarge('2000000', 2000000), false);
+  assert.equal(jsonCharsTooLarge('', 12), false);
+});
+
+void test('outcomes and preferences apply the json character cap', () => {
+  const outcomes = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      'app/api/outcomes/route.ts',
+    ),
+    'utf8',
+  );
+  const preferences = readFileSync(
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      '..',
+      'app/api/preferences/route.ts',
+    ),
+    'utf8',
+  );
+  assert.match(outcomes, /jsonCharsTooLarge/);
+  assert.match(preferences, /jsonCharsTooLarge/);
 });

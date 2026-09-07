@@ -64,6 +64,13 @@
       "when": 1788779780009,
       "tag": "0008_orange_victor_mancha",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1788800000000,
+      "tag": "0009_owner_read_indexes",
+      "breakpoints": true
     }
   ]
 }

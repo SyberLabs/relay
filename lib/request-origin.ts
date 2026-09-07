@@ -67,3 +67,15 @@ export async function refuseUntrustedOrigin(
     { status: 403, headers: { 'Cache-Control': 'no-store' } },
   );
 }
+
+export const JSON_CHAR_LIMIT = 2_000_000;
+
+export function jsonCharsTooLarge(
+  contentLengthHeader: string | null,
+  rawLength: number,
+) {
+  return (
+    Number(contentLengthHeader || 0) > JSON_CHAR_LIMIT ||
+    rawLength > JSON_CHAR_LIMIT
+  );
+}

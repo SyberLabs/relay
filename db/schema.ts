@@ -76,7 +76,10 @@ export const jobs = sqliteTable(
     effort: integer('effort').notNull().default(20),
     receipt: text('receipt'),
   },
-  (t) => [uniqueIndex('jobs_owner_key').on(t.owner, t.job_key)],
+  (t) => [
+    uniqueIndex('jobs_owner_key').on(t.owner, t.job_key),
+    index('jobs_owner_updated').on(t.owner, t.updated),
+  ],
 );
 export const observations = sqliteTable(
   'observations',
@@ -99,6 +102,7 @@ export const observations = sqliteTable(
       t.status,
       t.notes,
     ),
+    index('observations_owner_created').on(t.owner, t.created),
   ],
 );
 export const events = sqliteTable(
@@ -111,7 +115,11 @@ export const events = sqliteTable(
     detail: text('detail').notNull(),
     created: text('created').notNull(),
   },
-  (t) => [index('security_events_owner').on(t.owner)],
+  (t) => [
+    index('security_events_owner').on(t.owner),
+    index('events_owner_created').on(t.owner, t.created),
+    index('events_owner_job_created').on(t.owner, t.job_id, t.created),
+  ],
 );
 export const profileFacts = sqliteTable(
   'profile_facts',

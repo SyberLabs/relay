@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   boundedPolicyMaximum,
+  policyJobIds,
   ctxTally,
   draftProgress,
   evidenceFitPercent,
@@ -190,4 +191,20 @@ void test('enabling autopilot refreshes an expired policy window', () => {
   assert.equal(boundedPolicyMaximum(8.9), 8);
   assert.equal(boundedPolicyMaximum(0), 1);
   assert.equal(boundedPolicyMaximum(400), 100);
+});
+
+void test('policy job ids stay at the saved bounded scope', () => {
+  assert.deepEqual(policyJobIds(null), []);
+  assert.deepEqual(policyJobIds({ jobs: 'not-json' }), []);
+  assert.deepEqual(policyJobIds({ jobs: '{"id":"x"}' }), []);
+  assert.deepEqual(policyJobIds({ jobs: '["job-a","job-b"]' }), [
+    'job-a',
+    'job-b',
+  ]);
+  assert.equal(
+    policyJobIds({
+      jobs: JSON.stringify(Array.from({ length: 101 }, (_, i) => 'job-' + i)),
+    }).length,
+    100,
+  );
 });

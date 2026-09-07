@@ -2,10 +2,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ApplicationPolicy } from '../lib/application-automation';
-import type { Fact } from '../lib/profile';
 import type { Gate } from '../lib/fit';
 import { whyPicked } from '../lib/runtime';
 import type { RelayToolStatus } from './agent-tools';
+import type { WorkspaceSession } from '../lib/workspace-refresh';
+import {
+  emptyRuntimeModalPrivate,
+  postRuntimeModalProfile,
+  readRuntimeModalProfile,
+  type RuntimeModalProfile,
+} from '../lib/runtime-modal-session';
 
 export type RuntimeModal =
   | 'profile'
@@ -15,12 +21,6 @@ export type RuntimeModal =
   | 'inspect'
   | 'blocked'
   | null;
-
-type ProfileSnap = {
-  facts: Fact[];
-  rules: { id: string; rule: string; scope: string }[];
-  usable: number;
-};
 
 function ToolsPanel({
   toolStatus,
@@ -90,7 +90,9 @@ function ToolsPanel({
         <h4>Application limits</h4>
         <p className="hint">
           Autopilot uses this policy. It never sends an employer form from
-          Relay. Agents still need a one-time permit.
+          Relay. Agents still need a one-time permit. Review every application
+          requires a human approval before begin. Automatic standard-field
+          permission can authorize ordinary contact fields without that review.
         </p>
         <label className="field">
           Applications per policy
@@ -103,14 +105,18 @@ function ToolsPanel({
             onChange={(e) => setMaximum(Number(e.target.value))}
           />
         </label>
-        <label className="check">
-          <input
-            checked={review === 'all'}
-            onChange={(e) => setReview(e.target.checked ? 'all' : 'sensitive')}
-            type="checkbox"
-          />
-          Stop and ask instead of guessing on any question with no answer on
-          file
+        <label className="field">
+          Approval setting
+          <select
+            aria-label="Approval setting"
+            value={review}
+            onChange={(e) => setReview(e.target.value)}
+          >
+            <option value="all">Review every application</option>
+            <option value="sensitive">
+              Automatic for standard contact fields; review other questions
+            </option>
+          </select>
         </label>
         <label className="check">
           <input
@@ -164,6 +170,9 @@ export function RuntimeModals({
   onSaveLimits,
   busy,
   acceptDisabled,
+  sessionRef,
+  onUnauthorized,
+  onNavigate,
 }: {
   which: RuntimeModal;
   onClose: () => void;
@@ -192,14 +201,10 @@ export function RuntimeModals({
   }) => boolean | void | Promise<boolean | void>;
   busy: boolean;
   acceptDisabled?: boolean;
+  sessionRef: { current: WorkspaceSession };
+  onUnauthorized: () => void;
+  onNavigate: (event: { preventDefault: () => void }) => void;
 }) {
-  const [profile, setProfile] = useState<ProfileSnap | null>(null);
-  const [resume, setResume] = useState('');
-  const [candidates, setCandidates] = useState<
-    { claim: string; evidence: string; tag: string }[]
-  >([]);
-  const [rule, setRule] = useState('');
-  const [note, setNote] = useState('');
   useEffect(() => {
     if (!which) return;
     function onKey(event: KeyboardEvent) {
@@ -212,47 +217,190 @@ export function RuntimeModals({
     node?.focus();
     return () => window.removeEventListener('keydown', onKey);
   }, [which, onClose]);
-  useEffect(() => {
-    if (!which || which === 'inspect' || which === 'blocked') return;
-    void fetch('/api/profile')
-      .then((r) => r.json() as Promise<ProfileSnap & { error?: string }>)
-      .then((body) => {
-        if (!body.error) setProfile(body);
-      })
-      .catch(() => setNote('Unable to load profile.'));
-  }, [which]);
   if (!which) return null;
-  const verified = profile?.facts.filter((f) => f.status === 'Verified') ?? [];
-  const proposed = profile?.facts.filter((f) => f.status === 'Proposed') ?? [];
+  return (
+    <RuntimeModalDialog
+      {...{
+        which,
+        onClose,
+        job,
+        sources,
+        fit,
+        draft,
+        onAccept,
+        onSkip,
+        onEdit,
+        blockedQuestion,
+        blockedNote,
+        blockedAnswer,
+        onBlockedAnswer,
+        onBlockedSubmit,
+        onBlockedDrop,
+        remember,
+        onRemember,
+        toolStatus,
+        policy,
+        jobs,
+        onSaveLimits,
+        busy,
+        acceptDisabled,
+        sessionRef,
+        onUnauthorized,
+        onNavigate,
+      }}
+    />
+  );
+}
+
+function RuntimeModalDialog({
+  which,
+  onClose,
+  job,
+  sources,
+  fit,
+  draft,
+  onAccept,
+  onSkip,
+  onEdit,
+  blockedQuestion,
+  blockedNote,
+  blockedAnswer,
+  onBlockedAnswer,
+  onBlockedSubmit,
+  onBlockedDrop,
+  remember,
+  onRemember,
+  toolStatus,
+  policy,
+  jobs,
+  onSaveLimits,
+  busy,
+  acceptDisabled,
+  sessionRef,
+  onUnauthorized,
+  onNavigate,
+}: {
+  which: Exclude<RuntimeModal, null>;
+  onClose: () => void;
+  job?: { name: string; status: string } | null;
+  sources: { notes: string }[];
+  fit: { gates: Gate[]; reason: string } | null;
+  draft: string;
+  onAccept: () => void;
+  onSkip: () => void;
+  onEdit: () => void;
+  blockedQuestion: string;
+  blockedNote: string;
+  blockedAnswer: string;
+  onBlockedAnswer: (value: string) => void;
+  onBlockedSubmit: () => void;
+  onBlockedDrop: () => void;
+  remember: boolean;
+  onRemember: (value: boolean) => void;
+  toolStatus: RelayToolStatus;
+  policy: ApplicationPolicy | null;
+  jobs: { id: string; name: string; status: string }[];
+  onSaveLimits: (input: {
+    maximum: number;
+    review: string;
+    enabled: boolean;
+  }) => boolean | void | Promise<boolean | void>;
+  busy: boolean;
+  acceptDisabled?: boolean;
+  sessionRef: { current: WorkspaceSession };
+  onUnauthorized: () => void;
+  onNavigate: (event: { preventDefault: () => void }) => void;
+}) {
+  const [profile, setProfile] = useState<RuntimeModalProfile | null>(null);
+  const [resume, setResume] = useState('');
+  const [candidates, setCandidates] = useState<
+    { claim: string; evidence: string; tag: string }[]
+  >([]);
+  const [rule, setRule] = useState('');
+  const [note, setNote] = useState('');
+  useEffect(() => {
+    if (which === 'inspect' || which === 'blocked' || which === 'tools') return;
+    let cancelled = false;
+    void readRuntimeModalProfile(sessionRef.current).then((outcome) => {
+      if (cancelled) return;
+      if (outcome.type === 'skip') return;
+      if (outcome.type === 'expire') {
+        setProfile(null);
+        setResume('');
+        setCandidates([]);
+        setRule('');
+        setNote('');
+        onUnauthorized();
+        return;
+      }
+      if (outcome.type === 'ok' && outcome.switched) {
+        setResume('');
+        setCandidates([]);
+        setRule('');
+        setNote('');
+        setProfile(outcome.body);
+        return;
+      }
+      if (outcome.type !== 'ok') {
+        if (outcome.type === 'error') setNote(outcome.error);
+        return;
+      }
+      setProfile(outcome.body);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [which, onUnauthorized, sessionRef]);
+  const verified = profile?.facts?.filter((f) => f.status === 'Verified') ?? [];
+  const proposed = profile?.facts?.filter((f) => f.status === 'Proposed') ?? [];
+  function clearPrivate() {
+    const empty = emptyRuntimeModalPrivate();
+    setProfile(empty.profile);
+    setResume(empty.resume);
+    setCandidates(empty.candidates);
+    setRule(empty.rule);
+    setNote(empty.note);
+  }
   async function extract() {
     setNote('');
-    const r = await fetch('/api/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'extract', text: resume }),
-    });
-    const body = (await r.json()) as {
+    const outcome = await postRuntimeModalProfile<{
       candidates?: { claim: string; evidence: string; tag: string }[];
       error?: string;
-    };
-    if (!r.ok) {
-      setNote(body.error || 'Unable to read resume.');
+    }>(sessionRef.current, { action: 'extract', text: resume });
+    if (outcome.type === 'expire') {
+      clearPrivate();
+      onUnauthorized();
       return;
     }
-    setCandidates(body.candidates || []);
+    if (outcome.type === 'skip' || outcome.type === 'ignore') return;
+    if (outcome.type === 'error') {
+      setNote(outcome.error || 'Unable to read resume.');
+      return;
+    }
+    if (outcome.switched) {
+      setResume('');
+      setCandidates([]);
+      setRule('');
+      setNote('');
+    }
+    setCandidates(outcome.body.candidates || []);
     setNote(
-      `${body.candidates?.length ?? 0} candidate facts found. Confirm them on Your facts before agents can cite them.`,
+      `${outcome.body.candidates?.length ?? 0} candidate facts found. Confirm them on Your facts before agents can cite them.`,
     );
   }
   async function propose() {
-    const r = await fetch('/api/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'propose', facts: candidates }),
-    });
-    const body = (await r.json()) as { error?: string };
-    if (!r.ok) {
-      setNote(body.error || 'Unable to add facts.');
+    const outcome = await postRuntimeModalProfile<{ error?: string }>(
+      sessionRef.current,
+      { action: 'propose', facts: candidates },
+    );
+    if (outcome.type === 'expire') {
+      clearPrivate();
+      onUnauthorized();
+      return;
+    }
+    if (outcome.type === 'skip' || outcome.type === 'ignore') return;
+    if (outcome.type === 'error') {
+      setNote(outcome.error || 'Unable to add facts.');
       return;
     }
     setCandidates([]);
@@ -262,14 +410,18 @@ export function RuntimeModals({
   async function addRule() {
     const text = rule.trim();
     if (!text) return;
-    const r = await fetch('/api/profile', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'rule-add', rule: text, scope: 'global' }),
-    });
-    const body = (await r.json()) as { error?: string };
-    if (!r.ok) {
-      setNote(body.error || 'Unable to save style rule.');
+    const outcome = await postRuntimeModalProfile<{ error?: string }>(
+      sessionRef.current,
+      { action: 'rule-add', rule: text, scope: 'global' },
+    );
+    if (outcome.type === 'expire') {
+      clearPrivate();
+      onUnauthorized();
+      return;
+    }
+    if (outcome.type === 'skip' || outcome.type === 'ignore') return;
+    if (outcome.type === 'error') {
+      setNote(outcome.error || 'Unable to save style rule.');
       return;
     }
     setRule('');
@@ -277,7 +429,10 @@ export function RuntimeModals({
       p
         ? {
             ...p,
-            rules: [...p.rules, { id: 'local', rule: text, scope: 'global' }],
+            rules: [
+              ...(p.rules || []),
+              { id: 'local', rule: text, scope: 'global' },
+            ],
           }
         : p,
     );
@@ -358,7 +513,9 @@ export function RuntimeModals({
                     ? `${proposed.length} proposed line(s). Confirm accuracy yourself; Relay does not independently verify facts.`
                     : 'Nothing waiting.'}
                 </p>
-                <Link href="/profile">Open Your facts</Link>
+                <Link href="/profile" onClick={onNavigate}>
+                  Open Your facts
+                </Link>
               </div>
             </>
           )}
@@ -368,7 +525,7 @@ export function RuntimeModals({
                 <h4>Base ledger</h4>
                 <p className="hint">
                   {profile
-                    ? `${profile.usable} confirmed, unexpired fact(s) available for citations.`
+                    ? `${profile.usable ?? 0} confirmed, unexpired fact(s) available for citations.`
                     : 'Loading…'}
                 </p>
               </div>
@@ -428,7 +585,7 @@ export function RuntimeModals({
                       {item.rule}
                     </span>
                   ))}
-                  {!profile?.rules.length && (
+                  {!profile?.rules?.length && (
                     <p className="hint">
                       No style rules yet. Add a phrase the agent must not use.
                     </p>

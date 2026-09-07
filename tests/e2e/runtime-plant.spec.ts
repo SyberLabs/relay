@@ -110,3 +110,49 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
     accepted_draft: null,
   });
 });
+
+test('dirty editor asks before Approve and send and modal Your facts', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  const imported = await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          url: 'https://example.com/research/runtime-dirty-nav',
+          Name: 'Runtime Dirty — Nav Engineer',
+          Job: 'https://example.com/jobs/runtime-dirty-nav',
+          Status: 'Held',
+          Notes: 'Fictional dirty-navigation role.',
+        },
+      ],
+    },
+  });
+  expect(imported.ok()).toBe(true);
+  await page.reload();
+  await page
+    .getByRole('button', { name: /Runtime Dirty — Nav Engineer/ })
+    .click();
+  const draft = page.getByRole('textbox', {
+    name: 'Application answer or outreach draft',
+  });
+  await draft.fill('Unsaved plant draft before Your facts.');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('button', { name: /^Profile/ }).click();
+  await page.getByRole('link', { name: 'Open Your facts' }).click();
+  await expect(page).not.toHaveURL(/\/profile/);
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(draft).toHaveValue('Unsaved plant draft before Your facts.');
+
+  await page.getByRole('button', { name: 'Accept exact draft' }).click();
+  await expect(
+    page.getByRole('link', { name: 'Approve and send' }),
+  ).toBeVisible();
+  await draft.fill('Unsaved plant draft before Applications.');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('link', { name: 'Approve and send' }).click();
+  await expect(page).not.toHaveURL(/\/applications/);
+  await expect(draft).toHaveValue('Unsaved plant draft before Applications.');
+});

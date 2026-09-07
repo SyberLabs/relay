@@ -11,6 +11,17 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.match(workspace, /Stuck, needs your answer/);
   assert.match(workspace, /Inspect what the agent wrote/);
   assert.match(workspace, /Approve and send/);
+  assert.match(
+    workspace,
+    /href="\/applications"[\s\S]{0,80}onClick=\{confirmLeave\}/,
+  );
+  assert.match(modals, /Open Your facts/);
+  assert.match(modals, /onClick=\{onNavigate\}/);
+  assert.match(modals, /Review every application/);
+  assert.match(modals, /readRuntimeModalProfile/);
+  assert.match(modals, /if \(!which\) return null/);
+  assert.match(modals, /function RuntimeModalDialog/);
+  assert.doesNotMatch(modals, /Stop and ask instead of guessing/);
   assert.match(workspace, /No jobs yet/);
   assert.match(workspace, /id="workspace-queue"/);
   assert.match(shell, /aria-label="Import research"/);

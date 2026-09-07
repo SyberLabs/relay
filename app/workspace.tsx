@@ -5,11 +5,23 @@ import { firstJobShouldSelectSaved } from '../lib/first-job';
 import { isTerminal } from '../lib/outcomes';
 import { type Fact } from '../lib/profile';
 import { assessJob } from '../lib/fit';
-import Link from 'next/link';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
 import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
+import { AppShell } from './shell';
+import {
+  isQueueFilter,
+  queueFromSearch,
+  queueHref,
+  queueTitle,
+  type QueueFilter,
+} from '../lib/nav';
+import {
+  importTabButtonId,
+  importTabFromKey,
+  type ImportTab,
+} from '../lib/import-tabs';
 import {
   acknowledgeSave,
   applyLoadedDraft,
@@ -40,19 +52,10 @@ import {
   Search,
   Check,
   GitMerge,
-  Inbox,
-  ShieldCheck,
   ArrowRight,
-  History,
   BriefcaseBusiness,
   Upload,
   ChevronRight,
-  FileText,
-  Settings2,
-  Activity,
-  Award,
-  BadgeCheck,
-  CircleOff,
 } from 'lucide-react';
 type Job = {
   id: string;
@@ -92,19 +95,26 @@ export default function Workspace() {
     [events, setEvents] = useState<ReviewEvent[]>([]),
     [facts, setFacts] = useState<Fact[]>([]),
     [editor, setEditor] = useState<Editor | null>(null),
-    [filter, setFilter] = useState('Held'),
+    [filter, setFilter] = useState<QueueFilter>(() =>
+      typeof window === 'undefined'
+        ? 'Held'
+        : queueFromSearch(window.location.search),
+    ),
     [search, setSearch] = useState(''),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [signedOut, setSignedOut] = useState(false),
     [loaded, setLoaded] = useState(false),
     [report, setReport] = useState<Report | null>(null),
+    [importTab, setImportTab] = useState<ImportTab>('json'),
     [importText, setImportText] = useState(''),
     [previewedImport, setPreviewedImport] = useState(''),
     [showImport, setShowImport] = useState(false),
     [showAddJob, setShowAddJob] = useState(false),
     [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
   const sessionRef = useRef(createWorkspaceSession());
+  const importRef = useRef<HTMLElement>(null);
+  const queueRef = useRef<HTMLElement>(null);
   const workspaceEpoch = sessionRef.current.gate.epoch;
   const applyExpired = useCallback(() => {
     const next = expiredPrivateWorkspace();
@@ -147,6 +157,12 @@ export default function Workspace() {
           new Date().toISOString(),
         )
       : null;
+  const counts = useMemo(() => {
+    const byStatus: Record<string, number> = {};
+    for (const job of jobs)
+      byStatus[job.status] = (byStatus[job.status] || 0) + 1;
+    return { total: jobs.length, byStatus };
+  }, [jobs]);
   const selectedRef = useRef('');
   const editorRef = useRef<Editor | null>(null);
   const addJobViewerRef = useRef<string | undefined>(undefined);
@@ -235,6 +251,17 @@ export default function Workspace() {
         setLoaded(true);
       });
   }, [refresh]);
+  useEffect(() => {
+    if (!showImport) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setShowImport(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showImport]);
+  useEffect(() => {
+    if (showImport) importRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [showImport]);
   async function run(body: Record<string, unknown>, saved?: SaveSnapshot) {
     const started = beginMutation(sessionRef.current.gate);
     setBusy(true);
@@ -307,12 +334,43 @@ export default function Workspace() {
     setEditor(loadEditor(job));
     void loadJobHistory(job.id);
   }
-  function chooseFilter(value: string) {
-    if (value === filter) return;
+  function chooseFilter(value: QueueFilter) {
+    if (signedOut) {
+      document
+        .getElementById('workspace-signin')
+        ?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (value === filter) {
+      queueRef.current?.scrollIntoView({ block: 'nearest' });
+      queueRef.current?.querySelector('h2')?.focus();
+      return;
+    }
     if (editorIsDirty(editor) && !discardUnsaved()) return;
     selectedRef.current = '';
     setFilter(value);
     setEditor(null);
+    window.history.replaceState(null, '', queueHref(value));
+    requestAnimationFrame(() => {
+      queueRef.current?.scrollIntoView({ block: 'nearest' });
+      queueRef.current?.querySelector('h2')?.focus();
+    });
+  }
+  function openImport(tab: ImportTab = 'json') {
+    setImportTab(tab);
+    setShowImport(true);
+  }
+  function chooseImportTab(next: ImportTab) {
+    setImportTab(next);
+    requestAnimationFrame(() => {
+      document.getElementById(importTabButtonId(next))?.focus();
+    });
+  }
+  function onImportTabKey(event: { key: string; preventDefault: () => void }) {
+    const next = importTabFromKey(importTab, event.key);
+    if (!next) return;
+    event.preventDefault();
+    chooseImportTab(next);
   }
   function save(status: string) {
     if (!editor || !canSave(editor)) return;
@@ -436,7 +494,9 @@ export default function Workspace() {
         setFilter((currentFilter) =>
           currentFilter === 'All' || currentFilter === savedJob.status
             ? currentFilter
-            : savedJob.status,
+            : isQueueFilter(savedJob.status)
+              ? savedJob.status
+              : currentFilter,
         );
         setEditor(loadEditor(savedJob));
         void loadJobHistory(savedJob.id);
@@ -456,56 +516,41 @@ export default function Workspace() {
       setBusy(false);
     }
   }
+  const connections = !signedOut ? (
+    <Connections
+      key={current?.id ?? 'no-job'}
+      current={
+        current && editor
+          ? {
+              ...current,
+              version: editor.version,
+              session: editor.session,
+            }
+          : current
+      }
+      draft={draft}
+      notes={blocker}
+      sources={sources.filter((s) => s.job_key === current?.job_key)}
+      onDraft={(value, started) => {
+        setEditor((e) => applyLoadedDraft(e, value, started));
+      }}
+      onImport={(value) => {
+        setImportText(value);
+        setPreviewedImport('');
+        setReport(null);
+      }}
+      openImport={() => openImport('json')}
+    />
+  ) : null;
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <Link className="brand" href="/">
-          <span className="mark">r</span>relay<span className="beta">01</span>
-        </Link>
-        <div className="navlabel">WORKSPACE</div>
-        {(
-          [
-            ['Held', 'Review queue', Inbox],
-            ['Ready', 'Accepted drafts', Check],
-            ['Submitted', 'Submitted', ShieldCheck],
-            ['Live loop', 'In conversation', BriefcaseBusiness],
-            ['Skip', 'Set aside', ArrowRight],
-            ['Offer', 'Offers', Award],
-            ['Accepted', 'Accepted', BadgeCheck],
-            ['Closed', 'Closed', CircleOff],
-            ['All', 'All opportunities', History],
-          ] as const
-        ).map(([v, label, Icon]) => (
-          <button
-            className={'nav ' + (filter === v ? 'active' : '')}
-            key={v}
-            onClick={() => chooseFilter(v)}
-          >
-            <Icon size={18} />
-            {label}
-            <span>
-              {v === 'All'
-                ? jobs.length
-                : jobs.filter((j) => j.status === v).length}
-            </span>
-          </button>
-        ))}
-        <Link className="nav" href="/profile" onClick={confirmLeave}>
-          <FileText size={18} />
-          Your facts
-        </Link>
-        <Link className="nav" href="/track" onClick={confirmLeave}>
-          <Activity size={18} />
-          Track outcomes
-        </Link>
-        <Link className="nav" href="/advanced" onClick={confirmLeave}>
-          <Settings2 size={18} /> Advanced
-        </Link>
-        <div className="sidebottom">
-          <p>Does not send applications.</p>
-        </div>
-      </aside>
-      <main>
+    <AppShell
+      counts={counts}
+      current="workspace"
+      filter={filter}
+      onFilter={chooseFilter}
+      onNavigate={confirmLeave}
+    >
+      <main id="workspace-main">
         <header>
           <div>
             <h1>Workspace</h1>
@@ -519,16 +564,199 @@ export default function Workspace() {
                 Add job
               </button>
             )}
-            <button
-              className="secondary"
-              onClick={() => setShowImport(!showImport)}
-              type="button"
-            >
-              <Upload size={16} />
-              Import research
-            </button>
+            {!signedOut && (
+              <button
+                aria-controls="import-dock"
+                aria-expanded={showImport}
+                className="secondary"
+                onClick={() => {
+                  if (showImport) {
+                    document.getElementById('import-dock-title')?.focus();
+                    return;
+                  }
+                  openImport(importTab);
+                }}
+                type="button"
+              >
+                <Upload size={16} />
+                Import research
+              </button>
+            )}
           </div>
         </header>
+        {message && (
+          <div className="notice" aria-live="polite">
+            {message}
+          </div>
+        )}
+        {showAddJob && !signedOut && (
+          <FirstJob
+            busy={busy}
+            jobs={jobs}
+            onCancel={() => setShowAddJob(false)}
+            onSave={saveFirstJob}
+          />
+        )}
+        {!signedOut && (
+          <section
+            aria-labelledby="import-dock-title"
+            className="import import-dock"
+            hidden={!showImport}
+            id="import-dock"
+            ref={importRef}
+          >
+            <div className="import-dock-head">
+              <h2 id="import-dock-title" tabIndex={-1}>
+                Import research
+              </h2>
+              <button
+                className="textbutton"
+                onClick={() => setShowImport(false)}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+            <p>
+              Review the selected research below, then preview its matches
+              before saving. Importing adds these notes to your Relay workspace.
+            </p>
+            <div
+              aria-label="How to import"
+              aria-orientation="horizontal"
+              className="import-tabs"
+              role="tablist"
+            >
+              <button
+                aria-controls="import-panel-json"
+                aria-selected={importTab === 'json'}
+                className="secondary"
+                id="import-tab-json"
+                onClick={() => setImportTab('json')}
+                onKeyDown={onImportTabKey}
+                role="tab"
+                tabIndex={importTab === 'json' ? 0 : -1}
+                type="button"
+              >
+                Research JSON
+              </button>
+              <button
+                aria-controls="import-panel-csv"
+                aria-selected={importTab === 'csv'}
+                className="secondary"
+                id="import-tab-csv"
+                onClick={() => setImportTab('csv')}
+                onKeyDown={onImportTabKey}
+                role="tab"
+                tabIndex={importTab === 'csv' ? 0 : -1}
+                type="button"
+              >
+                Tracker CSV
+              </button>
+            </div>
+            <div
+              aria-labelledby="import-tab-json"
+              hidden={importTab !== 'json'}
+              id="import-panel-json"
+              role="tabpanel"
+            >
+              {researchRows.map((row, index) => (
+                <details key={index} className="source">
+                  <summary>{row.Name}</summary>
+                  <p>{row.Job}</p>
+                  <pre
+                    style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
+                  >
+                    {row.Notes || 'No source notes recorded.'}
+                  </pre>
+                </details>
+              ))}
+              <details open={!researchRows.length}>
+                <summary>Paste or edit import data</summary>
+                <textarea
+                  aria-label="Research JSON"
+                  value={importText}
+                  onChange={(e) => {
+                    setImportText(e.target.value);
+                    setPreviewedImport('');
+                    setReport(null);
+                  }}
+                  placeholder='[{"url":"source-record-id","Name":"Company — Role","Job":"https://…","Status":"Held","Notes":"…"}]'
+                />
+              </details>
+              <div className="import-dock-actions">
+                {['preview', 'import'].map((action) => (
+                  <button
+                    className={action === 'import' ? 'primary' : 'secondary'}
+                    disabled={
+                      busy ||
+                      !researchRows.length ||
+                      (action === 'import' &&
+                        previewedImport !== JSON.stringify(researchRows))
+                    }
+                    key={action}
+                    onClick={() => {
+                      try {
+                        void run({ action, rows: JSON.parse(importText) });
+                      } catch {
+                        setMessage('Enter a valid JSON array.');
+                      }
+                    }}
+                    type="button"
+                  >
+                    {action === 'import'
+                      ? 'Import into workspace'
+                      : 'Preview matches'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div
+              aria-labelledby="import-tab-csv"
+              hidden={importTab !== 'csv'}
+              id="import-panel-csv"
+              role="tabpanel"
+            >
+              <TrackerImport
+                onImported={() =>
+                  mutationIsLive(sessionRef.current.gate, {
+                    epoch: workspaceEpoch,
+                  })
+                    ? refresh().then(() => undefined)
+                    : Promise.resolve()
+                }
+                onUnauthorized={() => {
+                  expireSession(sessionRef.current);
+                  applyExpired();
+                }}
+              />
+            </div>
+          </section>
+        )}
+        {report && !signedOut && (
+          <section className="report">
+            <div>
+              <b>Research check</b>
+              <button className="textbutton" onClick={() => setReport(null)}>
+                Dismiss
+              </button>
+            </div>
+            <p>
+              <strong>{report.new}</strong> new to this workspace ·{' '}
+              <strong>{report.known}</strong> already known ·{' '}
+              <strong>{report.submitted}</strong> already submitted
+            </p>
+            <details>
+              <summary>See {report.items.length} results</summary>
+              {report.items.map((i, n: number) => (
+                <p key={n}>
+                  {i.name}
+                  <span className={'badge ' + i.kind}>{i.kind}</span>
+                </p>
+              ))}
+            </details>
+          </section>
+        )}
         <section className="stats">
           <div>
             <span>Opportunities</span>
@@ -553,13 +781,8 @@ export default function Workspace() {
             <small>Joined to an existing job</small>
           </div>
         </section>
-        {message && (
-          <div className="notice" aria-live="polite">
-            {message}
-          </div>
-        )}
         {signedOut ? (
-          <section className="welcome">
+          <section className="welcome" id="workspace-signin">
             <h2>Your private workspace</h2>
             <p>Sign in to load and save your application history.</p>
             {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
@@ -596,166 +819,32 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : null}
-        {showAddJob && !signedOut && (
-          <FirstJob
-            busy={busy}
-            jobs={jobs}
-            onCancel={() => setShowAddJob(false)}
-            onSave={saveFirstJob}
-          />
-        )}
         {!signedOut && loaded && (
-          <TrackerImport
-            onImported={() =>
-              mutationIsLive(sessionRef.current.gate, { epoch: workspaceEpoch })
-                ? refresh().then(() => undefined)
-                : Promise.resolve()
-            }
-            onUnauthorized={() => {
-              expireSession(sessionRef.current);
-              applyExpired();
-            }}
-          />
-        )}
-        {!signedOut && (
-          <Connections
-            key={current?.id ?? 'no-job'}
-            current={
-              current && editor
-                ? {
-                    ...current,
-                    version: editor.version,
-                    session: editor.session,
-                  }
-                : current
-            }
-            draft={draft}
-            notes={blocker}
-            sources={sources.filter((s) => s.job_key === current?.job_key)}
-            onDraft={(value, started) => {
-              setEditor((e) => applyLoadedDraft(e, value, started));
-            }}
-            onImport={(value) => {
-              setImportText(value);
-              setPreviewedImport('');
-              setReport(null);
-            }}
-            openImport={() => setShowImport(true)}
-          />
-        )}
-        {showImport && !signedOut && (
-          <section className="import">
-            <h2>Import research</h2>
-            <p>
-              Review the selected research below, then preview its matches
-              before saving. Importing adds these notes to your Relay workspace.
-            </p>
-            {researchRows.map((row, index) => (
-              <details key={index} className="source">
-                <summary>{row.Name}</summary>
-                <p>{row.Job}</p>
-                <pre
-                  style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}
-                >
-                  {row.Notes || 'No source notes recorded.'}
-                </pre>
-              </details>
-            ))}
-            <details open={!researchRows.length}>
-              <summary>Paste or edit import data</summary>
-              <textarea
-                aria-label="Research JSON"
-                value={importText}
-                onChange={(e) => {
-                  setImportText(e.target.value);
-                  setPreviewedImport('');
-                  setReport(null);
-                }}
-                placeholder='[{"url":"source-record-id","Name":"Company — Role","Job":"https://…","Status":"Held","Notes":"…"}]'
-              />
-            </details>
-            <div className="actions">
-              {['preview', 'import'].map((action) => (
-                <button
-                  className={action === 'import' ? 'primary' : 'secondary'}
-                  disabled={
-                    busy ||
-                    !researchRows.length ||
-                    (action === 'import' &&
-                      previewedImport !== JSON.stringify(researchRows))
-                  }
-                  key={action}
-                  onClick={() => {
-                    try {
-                      void run({ action, rows: JSON.parse(importText) });
-                    } catch {
-                      setMessage('Enter a valid JSON array.');
-                    }
-                  }}
-                >
-                  {action === 'import'
-                    ? 'Import into workspace'
-                    : 'Preview matches'}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-        {report && !signedOut && (
-          <section className="report">
-            <div>
-              <b>Research check</b>
-              <button className="textbutton" onClick={() => setReport(null)}>
-                Dismiss
-              </button>
-            </div>
-            <p>
-              <strong>{report.new}</strong> new to this workspace ·{' '}
-              <strong>{report.known}</strong> already known ·{' '}
-              <strong>{report.submitted}</strong> already submitted
-            </p>
-            <details>
-              <summary>See {report.items.length} results</summary>
-              {report.items.map((i, n: number) => (
-                <p key={n}>
-                  {i.name}
-                  <span className={'badge ' + i.kind}>{i.kind}</span>
-                </p>
-              ))}
-            </details>
-          </section>
-        )}
-        {jobs.length > 0 && !signedOut && (
           <>
-            <section className="replay">
-              <GitMerge size={20} />
-              <div>
-                <b>Check example research</b>
-                <p>
-                  Compare the example records with this workspace to see which
-                  jobs are already here.
-                </p>
-              </div>
-              <button
-                disabled={busy}
-                className="secondary"
-                onClick={() => run({ action: 'replay' })}
-              >
-                Check examples <ArrowRight size={16} />
-              </button>
-            </section>
+            {jobs.length > 0 && (
+              <section className="replay">
+                <GitMerge size={20} />
+                <div>
+                  <b>Check example research</b>
+                  <p>
+                    Compare the example records with this workspace to see which
+                    jobs are already here.
+                  </p>
+                </div>
+                <button
+                  disabled={busy}
+                  className="secondary"
+                  onClick={() => run({ action: 'replay' })}
+                  type="button"
+                >
+                  Check examples <ArrowRight size={16} />
+                </button>
+              </section>
+            )}
             <div className="workgrid">
-              <section className="queue">
+              <section className="queue" id="workspace-queue" ref={queueRef}>
                 <div className="queuehead">
-                  <h2>
-                    {filter === 'Held'
-                      ? 'Review queue'
-                      : filter === 'Ready'
-                        ? 'Accepted drafts'
-                        : filter === 'All'
-                          ? 'All opportunities'
-                          : filter}
-                  </h2>
+                  <h2 tabIndex={-1}>{queueTitle(filter)}</h2>
                   <span>{visible.length} roles</span>
                 </div>
                 <label className="search">
@@ -801,6 +890,7 @@ export default function Workspace() {
                         </a>
                       )}
                     </div>
+                    {connections}
                     {showsExactAcceptance(current, editor) && (
                       <div className="notice">
                         This exact draft is accepted.
@@ -874,7 +964,7 @@ export default function Workspace() {
                       not run the agent citation check.
                     </p>
                     {protectedState && (
-                      <div className="actions">
+                      <div className="actions sticky-actions">
                         <button
                           className="primary"
                           disabled={blocked}
@@ -885,7 +975,7 @@ export default function Workspace() {
                       </div>
                     )}
                     {!protectedState && (
-                      <div className="actions">
+                      <div className="actions sticky-actions">
                         <button
                           className="secondary"
                           disabled={blocked || acceptedExact}
@@ -1034,6 +1124,7 @@ export default function Workspace() {
                       Open a job to see its research, resolve a blocker, and
                       prepare the exact text you want to use.
                     </p>
+                    {connections}
                   </div>
                 )}
               </section>
@@ -1042,6 +1133,6 @@ export default function Workspace() {
         )}
         <footer>Relay / SyberLabs</footer>
       </main>
-    </div>
+    </AppShell>
   );
 }

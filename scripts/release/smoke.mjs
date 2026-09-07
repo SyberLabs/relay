@@ -15,22 +15,24 @@ function accessHeaders(env) {
   };
 }
 
+function isRetryableMiss(response, body, expectedSha) {
+  if (response.status === 404) return true;
+  return response.ok && typeof body?.release === 'string' && body.release !== expectedSha;
+}
+
 async function readProtectedRelease(path, expectedStatus, { origin, headers, env, fetchImpl, sleep, now, retryWindowMs, retryDelayMs }) {
   const started = now();
   for (;;) {
     const response = await fetchImpl(new URL(path, origin), {
       headers,
+      cache: 'no-store',
       redirect: 'error',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-    if (response.ok) {
-      const body = await response.json();
-      if (body.release !== env.RELEASE_SHA || body.status !== expectedStatus) {
-        throw new Error(`${path} did not return the expected release`);
-      }
-      return;
-    }
-    if (response.status !== 404 || now() - started >= retryWindowMs) {
+    const body = response.ok ? await response.json() : null;
+    if (body?.release === env.RELEASE_SHA && body.status === expectedStatus) return;
+    if (!isRetryableMiss(response, body, env.RELEASE_SHA) || now() - started >= retryWindowMs) {
+      if (response.ok) throw new Error(`${path} did not return the expected release (${body.status}, ${body.release})`);
       throw new Error(`${path} returned ${response.status}`);
     }
     await sleep(retryDelayMs);
@@ -53,6 +55,7 @@ export async function smokeRelease({
   // Service credentials must never be promoted to a human workspace identity.
   const denied = await fetchImpl(new URL('/api/workspace', origin), {
     headers,
+    cache: 'no-store',
     redirect: 'manual',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });

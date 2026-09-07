@@ -1,8 +1,8 @@
 # Relay by SyberLabs
 
-Your job search should remember what you've done.
+Keep your application work moving.
 
-Relay is SyberLabs' job-search product: a private review workspace that remembers the roles you researched, the drafts you accepted, and the interviews you started. Assistants help you write; Relay keeps the record.
+Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.
 
 Import research from Notion or a tracker CSV, exchange packets with ChatGPT, Codex, Grok Bot, or Claude, and review the actual words before using them. Keep interview notes without resetting your application status.
 

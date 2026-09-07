@@ -1,7 +1,7 @@
 {
   "name": "RELAY",
-  "tagline": "Your job search should remember what you've done.",
-  "summary": "SyberLabs' invited-pilot workspace for one job at a time: keep candidate facts for reuse, hand context to your assistant, review returned wording, and accept exact text. Relay preserves research and review history for later use.",
+  "tagline": "Keep your application work moving.",
+  "summary": "Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.",
   "repository": "https://github.com/SyberLabs/relay",
   "leadEngineer": "Seth Carlson",
   "leadProfile": "https://github.com/sdcarlson",
@@ -10,7 +10,7 @@
   "stage": "Invited pilot",
   "capabilities": [
     "One history per job: matching posting URLs join the same record, and earlier research stays visible.",
-    "Add one job from a role title, HTTP(S) posting URL, and optional notes. Matching URLs join that existing record without resetting status or accepted drafts.",
+    "Add a job from a role title, HTTP(S) posting URL, and optional notes. Matching URLs join that existing record without resetting status or accepted drafts.",
     "Exact draft acceptance: you approve specific wording; changing it requires review again.",
     "Interview notes and follow-ups that do not reset a submitted or live-loop application.",
     "Import a tracker CSV through column mapping and a record preview. Imported statuses stay research; existing Relay status and accepted drafts are preserved.",

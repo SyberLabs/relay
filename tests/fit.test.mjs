@@ -56,6 +56,27 @@ void test('must and required cues are extracted outside a section', () => {
   assert.match(lines[0], /Terraform/);
 });
 
+void test('About You qualifications stop at preferred and benefits sections', () => {
+  for (const next of ['Preferred qualifications', 'Benefits']) {
+    assert.deepEqual(
+      extractRequirements(
+        [
+          '## About You:',
+          '- Practical Node.js service development',
+          '- SQL database experience',
+          next,
+          '- GraphQL experience',
+        ].join('\n'),
+      ),
+      ['Practical Node.js service development', 'SQL database experience'],
+    );
+  }
+  assert.deepEqual(
+    extractRequirements('We want to learn about you. Node.js is our backend.'),
+    [],
+  );
+});
+
 void test('preferred headings are not required sections', () => {
   const lines = extractRequirements(
     ['Nice to have', 'GraphQL federated gateway experience'].join('\n'),

@@ -15,7 +15,7 @@ export type FitReason = 'notes' | 'facts' | 'compared';
 const limit = 20;
 const cue = /\b(must|required|minimum|need to|at least)\b/i;
 const requiredHead =
-  /^(requirements?|qualifications?|must haves?|required skills?|basic qualifications|minimum qualifications|what you.?ll need)$/i;
+  /^(requirements?|qualifications?|must haves?|required skills?|basic qualifications|minimum qualifications|what you.?ll need|about you)$/i;
 const otherHead =
   /^(benefits?|about the (?:role|team|company|us)|about us|responsibilities|what you.?ll do|nice to haves?|preferred(?: qualifications| skills)?|perks)$/i;
 const filler = new Set([

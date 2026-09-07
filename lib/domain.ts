@@ -61,7 +61,7 @@ export function displayName(n: string) {
 }
 export function importedBlocker(n: string | null) {
   return n &&
-    /do not (?:double-submit|retry|resubmit)|captcha|name.lock|doubled|invalid|clicked, never confirmed/i.test(
+    /do not (?:double-submit|retry|resubmit|submit|apply)\b|captcha|name.lock|doubled|invalid|clicked, never confirmed/i.test(
       n,
     )
     ? 'Prior attempt or restriction recorded. Read source history before continuing.'

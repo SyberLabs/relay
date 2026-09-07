@@ -249,6 +249,42 @@ void test('import that fills an empty blocker still advances version', () => {
   assert.equal(after.version, 5);
   db.close();
 });
+void test('explicit submission holds become blockers without overwriting reviewed or active work', () => {
+  const db = open();
+  try {
+    for (const note of [
+      'Do not submit until the compensation question is resolved.',
+      'Do not apply before checking the location requirement.',
+    ]) {
+      const owner = 'hold-' + note;
+      const job = 'https://example.com/jobs/source-hold';
+      const row = source('Held', job, note);
+      importRow(db, owner, row);
+      assert.match(jobOf(db, owner, job).blocker, /restriction recorded/);
+      assert.equal(observationsOf(db, owner)[0].notes, note);
+      for (const status of ['Held', 'Ready', 'Submitted', 'Live loop']) {
+        db.prepare(
+          'UPDATE jobs SET status=?,blocker=?,draft=?,accepted_draft=?,version=7 WHERE owner=?',
+        ).run(
+          status,
+          status === 'Held' ? 'A specific human question' : '',
+          'Exact wording',
+          status === 'Ready' ? 'Exact wording' : null,
+          owner,
+        );
+        const before = jobOf(db, owner, job);
+        importRow(db, owner, row);
+        assert.deepEqual(jobOf(db, owner, job), before);
+      }
+    }
+    assert.equal(
+      importedBlocker('You do not need to submit a cover letter.'),
+      '',
+    );
+  } finally {
+    db.close();
+  }
+});
 void test('import that writes a posting field still advances version', () => {
   const db = open();
   const owner = 'company-bump';

@@ -181,7 +181,7 @@ test('same-tab API handoff survives independent sessions without WebMCP or conte
     await owner.goto('/applications');
     await owner
       .getByRole('button', {
-        name: 'Cedar Fictional — API Handoff · proposed · ChatGPT',
+        name: 'View record for Cedar Fictional — API Handoff',
         exact: true,
       })
       .click();

@@ -1,5 +1,137 @@
 import { expect, test } from '@playwright/test';
 
+for (const width of [1280, 390]) {
+  test(`application cards, inspection and refused preparation stay usable at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+    const name =
+      'Juniper Example — Ledger Engineer, Infrastructure and Distributed Systems';
+    const operation = {
+      id: 'fictional-operation',
+      job_id: 'fictional-job',
+      job_version: 1,
+      policy_version: 1,
+      actor: 'ChatGPT · fictional staging QA',
+      state: 'submitted',
+      authority: 'explicit-review',
+      created: '2026-09-07T12:00:00.000Z',
+      digest: 'a'.repeat(64),
+      manifest: JSON.stringify({
+        destination: 'https://employer.example/apply',
+        fields: [
+          { label: 'Full name', value: 'Avery Example\nExact second line' },
+        ],
+        files: [],
+      }),
+      receipt: 'Fictional employer confirmation ABC-123',
+    };
+    const snapshot = {
+      viewer: 'fictional-viewer',
+      policy: null,
+      jobs: [
+        {
+          id: 'fictional-job',
+          name,
+          status: 'Submitted',
+          version: 1,
+          url: 'https://employer.example/apply',
+        },
+        {
+          id: 'fictional-preparation-job',
+          name: 'Cedar Example — Application Pilot Engineer',
+          status: 'Held',
+          version: 1,
+          url: 'https://employer.example/apply',
+        },
+      ],
+      operations: [operation],
+      next: null,
+    };
+    let writes = 0;
+    await page.route('**/api/applications**', async (route) => {
+      if (route.request().method() === 'POST') {
+        writes++;
+        await route.fulfill({
+          status: 429,
+          json: { error: 'Daily application limit reached. Try again later.' },
+        });
+      } else {
+        await route.fulfill({
+          json: new URL(route.request().url()).searchParams.has('id')
+            ? { operation }
+            : snapshot,
+        });
+      }
+    });
+    await page.goto('/applications');
+    const record = page.getByRole('button', {
+      name: `View record for ${name}`,
+      exact: true,
+    });
+    await expect(record).toBeVisible();
+    await expect(page.getByText('Disabled', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name, exact: true }),
+    ).toBeVisible();
+    const fits = async () =>
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBe(true);
+    await fits();
+    await page.screenshot({
+      path: `outputs/156-applications-${width}.png`,
+      fullPage: true,
+    });
+    await record.click();
+    const evidence = page.getByRole('article', { name: 'Application record' });
+    await expect(evidence).toBeFocused();
+    await expect(evidence).toContainText('Avery Example\nExact second line');
+    await expect(evidence).toContainText(
+      'Fictional employer confirmation ABC-123',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Begin this application once' }),
+    ).toHaveCount(0);
+    await fits();
+    await page.getByText('Application permissions', { exact: true }).click();
+    await expect(
+      page.getByRole('button', { name: 'Save permissions' }),
+    ).toBeVisible();
+    await fits();
+    await page
+      .getByRole('button', { name: 'Prepare application', exact: true })
+      .click();
+    await expect(
+      page.getByText('Prepare an application', { exact: true }),
+    ).toBeFocused();
+    await page
+      .getByRole('combobox', { name: 'Job', exact: true })
+      .selectOption('fictional-preparation-job');
+    await page.getByLabel('Agent name').fill('FictionalAgent'.repeat(7));
+    await page
+      .getByLabel('Exact answer')
+      .fill('Preserve this fictional answer after refusal.');
+    await page.getByRole('button', { name: 'Save exact proposal' }).click();
+    await expect(page.getByRole('status')).toContainText(
+      'Daily application limit reached',
+    );
+    await expect(page.getByLabel('Exact answer')).toHaveValue(
+      'Preserve this fictional answer after refusal.',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Approve this exact application' }),
+    ).toHaveCount(0);
+    await expect(page.getByText('Exact proposal saved.')).toHaveCount(0);
+    expect(writes).toBe(1);
+    await fits();
+  });
+}
+
 test('scout research becomes an exact reviewed application with one execution and persistent evidence', async ({
   page,
 }) => {
@@ -22,7 +154,7 @@ test('scout research becomes an exact reviewed application with one execution an
   });
   expect(response.ok()).toBe(true);
   await page.goto('/applications');
-  await page.getByText('Application permissions · disabled').click();
+  await page.getByText('Application permissions', { exact: true }).click();
   await page.getByLabel('Enable application execution').check();
   await page
     .getByLabel('Cedar Example — Application Pilot Engineer · Held')
@@ -66,7 +198,7 @@ test('scout research becomes an exact reviewed application with one execution an
   await page.reload();
   await page
     .getByRole('button', {
-      name: 'Cedar Example — Application Pilot Engineer · executing · ChatGPT',
+      name: 'View record for Cedar Example — Application Pilot Engineer',
     })
     .click();
   await expect(page.getByRole('article')).toContainText(
@@ -90,7 +222,7 @@ test('scout research becomes an exact reviewed application with one execution an
   await page.reload();
   await page
     .getByRole('button', {
-      name: 'Cedar Example — Application Pilot Engineer · submitted · ChatGPT',
+      name: 'View record for Cedar Example — Application Pilot Engineer',
     })
     .click();
   await expect(page.getByRole('article')).toContainText('ABC-123');
@@ -172,20 +304,16 @@ for (const first of ['older', 'newer']) {
     await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
     await page.goto('/applications');
     await page.getByText('Prepare an application', { exact: true }).click();
-    await page
-      .getByLabel('Exact files')
-      .setInputFiles({
-        name: 'older.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('AAAA'),
-      });
-    await page
-      .getByLabel('Exact files')
-      .setInputFiles({
-        name: 'newer.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('BBBB'),
-      });
+    await page.getByLabel('Exact files').setInputFiles({
+      name: 'older.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('AAAA'),
+    });
+    await page.getByLabel('Exact files').setInputFiles({
+      name: 'newer.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('BBBB'),
+    });
     const finish = async (name: string) =>
       page.evaluate(async (name) => {
         const control = window as unknown as {

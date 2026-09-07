@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronRight, Shield } from 'lucide-react';
 import type { ApplicationPolicy } from '../../lib/application-automation';
 export function ApplicationPermissions({
   policy,
@@ -26,11 +27,21 @@ export function ApplicationPermissions({
     ).slice(0, 16),
   );
   return (
-    <details>
+    <details className="application-permissions">
       <summary>
-        Application permissions · {policy?.enabled ? 'enabled' : 'disabled'}
+        <Shield size={17} aria-hidden="true" />
+        <span>Application permissions</span>
+        <span className="application-policy-state">
+          {policy?.enabled ? 'Enabled' : 'Disabled'}
+        </span>
+        <ChevronRight
+          className="application-chevron"
+          size={16}
+          aria-hidden="true"
+        />
       </summary>
       <form
+        className="application-form-body"
         onSubmit={(e) => {
           e.preventDefault();
           void run(async () => {
@@ -116,7 +127,9 @@ export function ApplicationPermissions({
           Disabling permissions prevents new starts; it cannot recall
           information already sent.
         </p>
-        <button disabled={busy}>Save permissions</button>
+        <button className="application-primary" disabled={busy}>
+          Save permissions
+        </button>
       </form>
     </details>
   );

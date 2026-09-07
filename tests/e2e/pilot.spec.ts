@@ -205,7 +205,10 @@ test('advanced navigation preserves planning, preferences and logged batch revie
   await expect(
     page.getByText('Session closed. 0 rules now apply to new drafts.'),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'Advanced', exact: true }).click();
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: 'Advanced', exact: true })
+    .click();
   const preferencesLoaded = page.waitForResponse(
     (response) =>
       response.url().endsWith('/api/preferences') &&
@@ -225,7 +228,10 @@ test('advanced navigation preserves planning, preferences and logged batch revie
   expect(
     (await (await page.request.get('/api/preferences')).json()).minutes,
   ).toBe(90);
-  await page.getByRole('link', { name: 'Advanced', exact: true }).click();
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: 'Advanced', exact: true })
+    .click();
   await page.getByRole('link', { name: 'This week', exact: true }).click();
   await expect(
     page.getByText('Experimental plan score', { exact: true }),

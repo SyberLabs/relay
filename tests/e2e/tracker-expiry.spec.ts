@@ -38,7 +38,10 @@ for (const contentType of ['text/plain', 'application/json']) {
     });
     await page.goto('/');
     await expect(page.locator('.job').first()).toBeVisible();
-    await page.getByText('Import a tracker CSV', { exact: true }).click();
+    await page
+      .getByRole('button', { name: 'Import research', exact: true })
+      .click();
+    await page.getByRole('tab', { name: 'Tracker CSV' }).click();
     await page.getByLabel('Choose tracker CSV').setInputFiles({
       name: 'expiry.csv',
       mimeType: 'text/csv',

@@ -15,6 +15,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
+import { ProductShell } from '../shell';
 type Fact = {
   id: string;
   claim: string;
@@ -163,7 +164,7 @@ export default function Profile() {
     verified = facts.filter((f) => f.status === 'Verified');
   if (signedOut)
     return (
-      <main className="productpage">
+      <ProductShell current="profile">
         <h1>Your profile</h1>
         <p className="lead">Sign in to load your fact ledger and style card.</p>
         {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
@@ -174,10 +175,10 @@ export default function Profile() {
         >
           Sign in with ChatGPT
         </a>
-      </main>
+      </ProductShell>
     );
   return (
-    <main className="productpage">
+    <ProductShell current="profile">
       <Link className="backlink" href="/">
         <ArrowLeft size={15} /> Workspace
       </Link>
@@ -423,6 +424,6 @@ export default function Profile() {
         </div>
       </section>
       <footer>Relay / SyberLabs</footer>
-    </main>
+    </ProductShell>
   );
 }

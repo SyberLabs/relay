@@ -17,6 +17,8 @@ import {
   importedJobStatus,
   jobKey,
   mergeJobStatus,
+  sourceJobKey,
+  sourcePostingUrl,
   validateEdit,
 } from '../lib/domain.ts';
 import {
@@ -96,13 +98,13 @@ function source(
   };
 }
 function importRow(db, owner, r, now = '2026-01-01T00:00:00.000Z') {
-  const key = jobKey(r.Job, r.url);
+  const key = sourceJobKey(r);
   db.prepare(jobImportSql).run(
     crypto.randomUUID(),
     owner,
     key,
     displayName(r.Name),
-    r.Job,
+    sourcePostingUrl(r),
     importedJobStatus(r.Status),
     importedBlocker(r.Notes) || '',
     '',

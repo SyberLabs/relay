@@ -50,11 +50,37 @@ void test('Greenhouse aliases match; employer identity remains distinct', () => 
     jobKey('https://boards.greenhouse.io/b/jobs/123', ''),
   );
 });
+void test('role-title Job with posting url validates and keys as Greenhouse identity', () => {
+  const posting = 'https://boards.greenhouse.io/acme/jobs/1';
+  const r = {
+    url: posting,
+    Name: 'Acme',
+    Job: 'Software Engineer',
+    Status: 'Held',
+    Notes: '',
+  };
+  assert.deepEqual(validateRows([r]), [r]);
+  const report = classify([r], []);
+  assert.equal(report.items[0].key, jobKey(posting, ''));
+  assert.equal(report.new, 1);
+});
 void test('rejects script URLs and invalid records', () => {
   assert.throws(() => jobKey('javascript:alert(1)', ''));
+  assert.throws(() => jobKey('Software Engineer', ''), /HTTP or HTTPS job URL/);
   assert.throws(() =>
     validateRows([
       { url: 'x', Name: 'A', Job: 'https://a.com', Status: 'bogus' },
+    ]),
+  );
+  assert.throws(() =>
+    validateRows([
+      {
+        url: 'https://boards.greenhouse.io/acme/jobs/1',
+        Name: 'Acme',
+        Job: 'javascript:alert(1)',
+        Status: 'Held',
+        Notes: '',
+      },
     ]),
   );
 });

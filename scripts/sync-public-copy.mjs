@@ -37,7 +37,7 @@ export function render(copy, target) {
   }
   const guide = `${copy.repository}/blob/main/integrations/OPENAI.md`;
   const integrations = copy.integrations.map((item) => item.name).join(', ');
-  const credit = `**Lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).** Application development: [${copy.peerEngineer}](${copy.peerProfile}).`;
+  const credit = `**Relay lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).** **Product: [${copy.peerEngineer}](${copy.peerProfile}).**`;
   if (target === 'project')
     return `**${copy.tagline}**
 
@@ -60,7 +60,9 @@ ${copy.openaiBoundary}
 
 [Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)`;
   if (target === 'organization')
-    return `## RELAY - our flagship project
+    return `A two-person lab. **[${copy.peerEngineer}](${copy.peerProfile})** · SyberLabs / RISE. **[${copy.leadEngineer}](${copy.leadProfile})** · Relay lead engineer; systems on RISE and OSAHR.
+
+## RELAY - our flagship project
 
 **[${copy.name}](${copy.repository}) is SyberLabs' current product focus.**
 

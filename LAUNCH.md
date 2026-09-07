@@ -10,6 +10,6 @@ Available now: the application workspace and local command integrations. Account
 
 Explore the code and setup guide: https://github.com/SyberLabs/relay
 
-Lead engineer: Seth Carlson. Application development: Mateo.
+Relay lead engineer: Seth Carlson. Product: Mateo Robles.
 
 No customer counts, hiring outcomes, or throughput improvements have been claimed. This copy is suitable for the repository; no social post has been sent.

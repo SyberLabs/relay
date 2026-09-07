@@ -389,6 +389,10 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     'busy',
     'message',
     'historyNext',
+    'policy',
+    'autopilot',
+    'styleCount',
+    'modal',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -468,6 +472,10 @@ void test('delayed history JSON cannot restore events after session expiry', asy
     'loaded',
     'message',
     'historyNext',
+    'policy',
+    'autopilot',
+    'styleCount',
+    'modal',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -564,6 +572,10 @@ void test('history JSON that expires during parse cannot restore events', async 
     'loaded',
     'message',
     'historyNext',
+    'policy',
+    'autopilot',
+    'styleCount',
+    'modal',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -790,6 +802,10 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
     'busy',
     'message',
     'historyNext',
+    'policy',
+    'autopilot',
+    'styleCount',
+    'modal',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -853,4 +869,40 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
     state.jobs.some((row) => row.name === 'Owner A private title'),
     false,
   );
+});
+
+void test('authorized gets expire on 401 before parsing JSON', async () => {
+  const session = helper.createWorkspaceSession();
+  session.viewer = 'owner-a';
+  const started = helper.beginMutation(session.gate);
+  const response = http(401, 'Unauthorized');
+  const outcome = await helper.processAuthorizedGet(session, started, response);
+  assert.equal(outcome.type, 'expire');
+  assert.equal(response.jsonCalls, 0);
+  assert.equal(session.viewer, undefined);
+});
+
+void test('authorized gets ignore delayed JSON after expiry or a viewer switch', async () => {
+  for (const mode of ['expire', 'switch']) {
+    const session = helper.createWorkspaceSession();
+    helper.bindViewer(session, 'owner-a');
+    const started = helper.beginMutation(session.gate);
+    const pending = deferred();
+    const response = {
+      status: 200,
+      ok: true,
+      async json() {
+        await pending.promise;
+        return { viewer: 'owner-a', policy: { version: 9, enabled: 1 } };
+      },
+    };
+    const done = helper.processAuthorizedGet(session, started, response);
+    if (mode === 'expire') helper.expireSession(session);
+    else helper.bindViewer(session, 'owner-b');
+    pending.resolve();
+    const outcome = await done;
+    assert.equal(outcome.type, 'ignore', mode);
+    if (mode === 'expire') assert.equal(session.viewer, undefined);
+    else assert.equal(session.viewer, 'owner-b');
+  }
 });

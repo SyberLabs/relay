@@ -60,6 +60,7 @@ import {
   expiredPrivateWorkspace,
   expireSession,
   mutationIsLive,
+  processAuthorizedGet,
   processMutation,
   processRefresh,
   refreshIsLive,
@@ -144,6 +145,8 @@ export default function Workspace() {
   const [rememberAnswer, setRememberAnswer] = useState(true);
   const [styleCount, setStyleCount] = useState(0);
   const sessionRef = useRef(createWorkspaceSession());
+  const policyRef = useRef<ApplicationPolicy | null>(null);
+  const busyRef = useRef(false);
   const importRef = useRef<HTMLElement>(null);
   const queueRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -166,6 +169,10 @@ export default function Workspace() {
     setLoaded(next.loaded);
     setHistoryNext({});
     setMessage('');
+    setPolicy(null);
+    setAutopilot(false);
+    setStyleCount(0);
+    setModal(null);
   }, []);
   const researchRows = useMemo(() => {
     try {
@@ -294,6 +301,49 @@ export default function Workspace() {
     },
     [applyExpired, loadJobHistory],
   );
+  const loadRuntimeContext = useCallback(async () => {
+    const started = beginMutation(sessionRef.current.gate);
+    const apply = async (
+      response: Response,
+      write: (body: {
+        policy?: ApplicationPolicy | null;
+        rules?: { id: string }[];
+      }) => void,
+    ) => {
+      const outcome = await processAuthorizedGet<{
+        error?: string;
+        viewer?: string;
+        policy?: ApplicationPolicy | null;
+        rules?: { id: string }[];
+      }>(sessionRef.current, started, response);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
+      }
+      if (outcome.type !== 'ok') return;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      write(outcome.body);
+    };
+    try {
+      const [apps, profile] = await Promise.all([
+        fetch('/api/applications'),
+        fetch('/api/profile'),
+      ]);
+      await apply(apps, (body) => {
+        setPolicy(body.policy || null);
+        setAutopilot(Boolean(body.policy?.enabled));
+      });
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
+      await apply(profile, (body) => {
+        setStyleCount(Array.isArray(body.rules) ? body.rules.length : 0);
+      });
+    } catch {
+      /* Context tiles keep their last known values. */
+    }
+  }, [applyExpired]);
+  useEffect(() => {
+    policyRef.current = policy;
+  }, [policy]);
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
@@ -304,20 +354,8 @@ export default function Workspace() {
   }, [refresh]);
   useEffect(() => {
     if (signedOut || !loaded) return;
-    void Promise.all([
-      fetch('/api/applications').then(async (r) => {
-        if (!r.ok) return;
-        const body = (await r.json()) as { policy?: ApplicationPolicy | null };
-        setPolicy(body.policy || null);
-        setAutopilot(Boolean(body.policy?.enabled));
-      }),
-      fetch('/api/profile').then(async (r) => {
-        if (!r.ok) return;
-        const body = (await r.json()) as { rules?: { id: string }[] };
-        setStyleCount(Array.isArray(body.rules) ? body.rules.length : 0);
-      }),
-    ]).catch(() => undefined);
-  }, [signedOut, loaded]);
+    void loadRuntimeContext();
+  }, [signedOut, loaded, workspaceEpoch, loadRuntimeContext]);
   useEffect(() => {
     if (!showImport) return;
     function onKey(event: KeyboardEvent) {
@@ -699,12 +737,13 @@ export default function Workspace() {
     maximum: number;
     review: string;
     enabled: boolean;
-  }) {
+  }): Promise<boolean | 'busy'> {
     const viewer = sessionRef.current.viewer;
     if (!viewer) {
       setMessage('Sign in to save application limits.');
       return false;
     }
+    if (busyRef.current) return 'busy';
     const allowed = jobs
       .filter((job) => job.status !== 'Skip' && !isTerminal(job.status))
       .map((job) => job.id);
@@ -714,41 +753,61 @@ export default function Workspace() {
     }
     const maximum = boundedPolicyMaximum(input.maximum);
     const review = input.review === 'sensitive' ? 'sensitive' : 'all';
-    const r = await fetch('/api/applications', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'policy',
-        viewer,
-        version: policy?.version || 0,
-        enabled: input.enabled,
-        review,
-        jobs: allowed,
-        maximum,
-        expires: policyExpiryIso(policy?.expires, input.enabled),
-      }),
-    });
-    const body = (await r.json()) as {
-      policy?: ApplicationPolicy;
-      error?: string;
-    };
-    if (!r.ok) {
-      setMessage(body.error || 'Unable to save limits.');
+    const started = beginMutation(sessionRef.current.gate);
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      const r = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'policy',
+          viewer,
+          version: policyRef.current?.version || 0,
+          enabled: input.enabled,
+          review,
+          jobs: allowed,
+          maximum,
+          expires: policyExpiryIso(policyRef.current?.expires, input.enabled),
+        }),
+      });
+      const outcome = await processAuthorizedGet<{
+        error?: string;
+        viewer?: string;
+        policy?: ApplicationPolicy | null;
+      }>(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return false;
+      }
+      if (outcome.type === 'ignore') return false;
+      if (!mutationIsLive(sessionRef.current.gate, started)) return false;
+      if (outcome.type === 'error') {
+        setMessage(outcome.error);
+        return false;
+      }
+      const next = outcome.body.policy || null;
+      policyRef.current = next;
+      setPolicy(next);
+      setAutopilot(Boolean(next?.enabled));
+      return true;
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Unable to save limits.');
       return false;
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
-    setPolicy(body.policy || null);
-    setAutopilot(Boolean(body.policy?.enabled));
-    return true;
   }
   async function toggleAutopilot() {
-    if (busy || signedOut) return;
+    if (busyRef.current || signedOut) return;
     if (autopilot) {
       const ok = await saveLimits({
         maximum: policy?.maximum || 8,
         review: policy?.review || 'all',
         enabled: false,
       });
-      if (ok)
+      if (ok === true)
         setMessage(
           'Autopilot off. Nothing is sent without your approval and a permit.',
         );
@@ -767,7 +826,9 @@ export default function Workspace() {
       review: 'all',
       enabled: true,
     });
-    if (!ok) {
+    if (ok === 'busy') return;
+    if (ok !== true) {
+      if (!sessionRef.current.viewer) return;
       setModal('tools');
       return;
     }
@@ -1669,8 +1730,8 @@ export default function Workspace() {
           onRemember={setRememberAnswer}
           onSaveLimits={async (input) => {
             const ok = await saveLimits(input);
-            if (ok) setMessage('Limits saved.');
-            return ok;
+            if (ok === true) setMessage('Limits saved.');
+            return ok === true;
           }}
           onSkip={() => {
             setModal(null);

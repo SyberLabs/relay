@@ -51,6 +51,10 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       'loaded',
       'message',
       'historyNext',
+      'policy',
+      'autopilot',
+      'styleCount',
+      'modal',
     ]) {
       deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) => {
         state[key] = typeof value === 'function' ? value(state[key]) : value;

@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { enableInspectJob } from './enable-inspect-job';
+
+async function preparationRevision(page: Page, jobId: string) {
+  const response = await page.request.get(
+    `/api/applications?job=${encodeURIComponent(jobId)}`,
+  );
+  expect(response.ok()).toBe(true);
+  return (await response.json()).preparation_revision;
+}
 
 test('inspect accept stays off until armed then authorizes send without beginning', async ({
   page,
@@ -34,6 +42,7 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   const prepared = await page.request.post('/api/applications', {
     data: {
       action: 'prepare',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       actor: 'Fictional applying agent',
@@ -46,6 +55,7 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   const armed = await page.request.post('/api/applications', {
     data: {
       action: 'arm',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       id: 'op-inspect-1',
@@ -76,6 +86,18 @@ test('inspect accept stays off until armed then authorizes send without beginnin
   });
   expect(begun.ok()).toBe(true);
   expect((await begun.json()).execute).toBe(true);
+  // This test owns this operation and did not visit an employer form.
+  const finished = await page.request.post('/api/applications', {
+    data: {
+      action: 'not-submitted',
+      viewer: ws.viewer,
+      id: op.id,
+      digest: op.digest,
+      receipt:
+        'Fictional inspect-send fixture stopped before employer interaction.',
+    },
+  });
+  expect(finished.ok()).toBe(true);
 });
 
 test('set aside cancels a pre-begin freeze so send cannot begin', async ({
@@ -107,6 +129,7 @@ test('set aside cancels a pre-begin freeze so send cannot begin', async ({
   const prepared = await page.request.post('/api/applications', {
     data: {
       action: 'prepare',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       actor: 'Fictional applying agent',
@@ -119,6 +142,7 @@ test('set aside cancels a pre-begin freeze so send cannot begin', async ({
   const armed = await page.request.post('/api/applications', {
     data: {
       action: 'arm',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       id: 'op-inspect-skip',
@@ -169,6 +193,7 @@ test('human can answer a Blocked inspect field then arm to enable Accept', async
   const prepared = await page.request.post('/api/applications', {
     data: {
       action: 'prepare',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       actor: 'Fictional applying agent',
@@ -195,6 +220,7 @@ test('human can answer a Blocked inspect field then arm to enable Accept', async
   const armed = await page.request.post('/api/applications', {
     data: {
       action: 'arm',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       id: 'op-inspect-blocked',
@@ -232,6 +258,13 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
           Status: 'Held',
           Notes: 'Fictional inspect-handshake fixture.',
         },
+        {
+          Name: 'Cedar Example — Independent Executing Fixture',
+          Job: 'https://employer.example/jobs/independent-execution',
+          url: 'https://scout.example/observations/independent-execution',
+          Status: 'Held',
+          Notes: 'Owned by this test; protects against owner-wide cleanup.',
+        },
       ],
     },
   });
@@ -239,10 +272,54 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   const job = ws.jobs.find((j: { name: string }) =>
     j.name.includes('Inspect Handshake'),
   );
+  const unrelated = ws.jobs.find((j: { name: string }) =>
+    j.name.includes('Independent Executing Fixture'),
+  );
+  await enableInspectJob(page, ws.viewer, unrelated.id);
   await enableInspectJob(page, ws.viewer, job.id);
+  const unrelatedPrepared = await page.request.post('/api/applications', {
+    data: {
+      action: 'prepare',
+      viewer: ws.viewer,
+      job: unrelated.id,
+      preparation_revision: await preparationRevision(page, unrelated.id),
+      actor: 'Fictional independent fixture',
+      destination: unrelated.url,
+      fields: [{ label: 'Full name', value: 'Robin Example', unknown: false }],
+      files: [],
+    },
+  });
+  expect(unrelatedPrepared.ok()).toBe(true);
+  const unrelatedArmed = await page.request.post('/api/applications', {
+    data: {
+      action: 'arm',
+      viewer: ws.viewer,
+      job: unrelated.id,
+      preparation_revision: await preparationRevision(page, unrelated.id),
+      actor: 'Fictional independent fixture',
+      id: 'op-inspect-independent',
+    },
+  });
+  expect(unrelatedArmed.ok()).toBe(true);
+  const unrelatedView = await unrelatedArmed.json();
+  for (const action of ['approve', 'begin']) {
+    const result = await page.request.post('/api/applications', {
+      data: {
+        action,
+        viewer: ws.viewer,
+        id: unrelatedView.operation_id,
+        digest: unrelatedView.digest,
+      },
+    });
+    expect(result.ok()).toBe(true);
+  }
+  const unrelatedBefore = await (
+    await page.request.get(`/api/applications?id=${unrelatedView.operation_id}`)
+  ).json();
   const prepared = await page.request.post('/api/applications', {
     data: {
       action: 'prepare',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       actor: 'Fictional applying agent',
@@ -279,6 +356,7 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   const armed = await page.request.post('/api/applications', {
     data: {
       action: 'arm',
+      preparation_revision: await preparationRevision(page, job.id),
       viewer: ws.viewer,
       job: job.id,
       id: 'op-inspect-handshake',
@@ -293,23 +371,31 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   await expect(
     page.getByText(/waiting for the operative to send/i),
   ).toBeVisible();
-  const ledger = await (await page.request.get('/api/applications')).json();
-  for (const leftover of ledger.operations.filter(
-    (o: { state: string }) => o.state === 'executing',
-  )) {
-    const cleared = await page.request.post('/api/applications', {
-      data: {
-        action: 'not-submitted',
-        viewer: ws.viewer,
-        id: leftover.id,
-        digest: leftover.digest,
-        receipt:
-          'Fictional e2e isolation: prior fixture did not submit at the employer.',
-      },
-    });
-    expect(cleared.ok()).toBe(true);
-  }
   const armedView = await armed.json();
+  const refused = await page.request.post('/api/applications', {
+    data: {
+      action: 'begin',
+      viewer: ws.viewer,
+      id: 'op-inspect-handshake',
+      digest: armedView.digest,
+    },
+  });
+  expect(refused.status()).toBe(409);
+  const unrelatedAfter = await (
+    await page.request.get(`/api/applications?id=${unrelatedView.operation_id}`)
+  ).json();
+  expect(unrelatedAfter.operation).toEqual(unrelatedBefore.operation);
+  // Only now end the explicitly test-owned sentinel. No employer was visited.
+  const ended = await page.request.post('/api/applications', {
+    data: {
+      action: 'not-submitted',
+      viewer: ws.viewer,
+      id: unrelatedView.operation_id,
+      digest: unrelatedView.digest,
+      receipt: 'Owned fictional sentinel stopped before employer interaction.',
+    },
+  });
+  expect(ended.ok()).toBe(true);
   const begun = await page.request.post('/api/applications', {
     data: {
       action: 'begin',

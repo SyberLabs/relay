@@ -84,12 +84,14 @@ export function inspectMarkup({
   error,
   onAccept,
   onAnswer,
+  onAnswerChange,
 }: {
   view: InspectSnapshot | null;
   busy: boolean;
   error: string;
   onAccept: () => void;
   onAnswer: (label: string, value: string) => void;
+  onAnswerChange: (label: string) => void;
 }): ReactNode {
   const blocked = view?.fields.filter((field) => field.unknown) ?? [];
   return (
@@ -117,6 +119,7 @@ export function inspectMarkup({
               maxLength={20000}
               autoComplete="off"
               disabled={busy}
+              onChange={() => onAnswerChange(field.label)}
             />
           </label>
           <button type="submit" disabled={busy}>
@@ -143,7 +146,16 @@ export function inspectMarkup({
   );
 }
 
-export function useInspectSnapshot(jobId: string | undefined) {
+type InspectSession = {
+  epoch: number;
+  viewer: string | undefined;
+  onUnauthorized: () => void;
+};
+
+export function useInspectSnapshot(
+  jobId: string | undefined,
+  session?: InspectSession,
+) {
   const [view, setView] = useState<InspectSnapshot | null>(null);
   const [viewer, setViewer] = useState('');
   const [busy, setBusy] = useState(false);
@@ -151,23 +163,63 @@ export function useInspectSnapshot(jobId: string | undefined) {
   const [signedOut, setSignedOut] = useState(false);
   const gateRef = useRef(createInspectPollGate());
   const inflightRef = useRef<AbortController | null>(null);
-  const selectedRef = useRef(jobId);
-  // Invalidate in-flight polls during render so Accept cannot keep the previous job.
-  // oxlint-disable-next-line react/react-compiler
-  if (selectedRef.current !== jobId) {
-    // oxlint-disable-next-line react/react-compiler
-    selectedRef.current = jobId;
-    // oxlint-disable-next-line react/react-compiler
+  // Poll generations change every refresh. Mutation generations change only
+  // when the selected job or authenticated session changes.
+  const contextRef = useRef({
+    jobId,
+    session,
+    generation: 0,
+    viewer: '',
+    expired: false,
+    pending: false,
+    answerRevisions: new Map<string, string | null>(),
+  });
+  // This ref is a cancellation gate, not rendered data. Invalidate it before
+  // any callback from a previously selected job/session can run.
+  /* oxlint-disable react/react-compiler */
+  const context = contextRef.current;
+  if (
+    context.jobId !== jobId ||
+    context.session?.epoch !== session?.epoch ||
+    context.session?.viewer !== session?.viewer
+  ) {
+    context.jobId = jobId;
+    context.generation += 1;
+    context.viewer = '';
+    context.expired = false;
+    context.pending = false;
+    context.answerRevisions.clear();
     selectInspectJob(gateRef.current, jobId);
     setView(null);
+    setViewer('');
     setBusy(false);
     setError('');
     setSignedOut(false);
   }
+  context.session = session;
+  /* oxlint-enable react/react-compiler */
+
+  const expire = useCallback(() => {
+    const current = contextRef.current;
+    current.generation += 1;
+    current.viewer = '';
+    current.expired = true;
+    current.pending = false;
+    current.answerRevisions.clear();
+    selectInspectJob(gateRef.current, current.jobId);
+    inflightRef.current?.abort();
+    setView(null);
+    setViewer('');
+    setBusy(false);
+    setError('');
+    setSignedOut(true);
+    current.session?.onUnauthorized();
+  }, []);
 
   const load = useCallback(async () => {
-    const job = gateRef.current.jobId;
-    if (!job) return;
+    const context = contextRef.current;
+    const job = context.jobId;
+    if (!job || context.expired) return;
     inflightRef.current?.abort();
     const controller = new AbortController();
     inflightRef.current = controller;
@@ -175,70 +227,142 @@ export function useInspectSnapshot(jobId: string | undefined) {
       jobId: job,
       generation: beginInspectPoll(gateRef.current),
     };
+    const generation = context.generation;
+    const live = () =>
+      generation === contextRef.current.generation &&
+      started.generation === gateRef.current.generation &&
+      job === contextRef.current.jobId;
+    const clear = () => {
+      setView(null);
+      setViewer('');
+      contextRef.current.viewer = '';
+      contextRef.current.generation += 1;
+      contextRef.current.pending = false;
+      setBusy(false);
+    };
     try {
       const r = await fetch(
         `/api/applications?job=${encodeURIComponent(job)}`,
         { signal: controller.signal },
       );
+      if (!live()) return;
       if (r.status === 401) {
-        if (
-          started.generation !== gateRef.current.generation ||
-          started.jobId !== gateRef.current.jobId
-        )
-          return;
-        setSignedOut(true);
-        setView(null);
+        expire();
         return;
       }
       let data: unknown;
       try {
         data = await r.json();
       } catch {
-        const outcome = applyInspectPoll(gateRef.current, started, {
-          ok: false,
-        });
-        if (outcome.type === 'clear') setView(null);
+        if (live()) clear();
         return;
       }
+      if (!live()) return;
       const outcome = applyInspectPoll(gateRef.current, started, {
         ok: r.ok,
         data,
       });
       if (outcome.type === 'ignore') return;
-      if (outcome.type === 'clear') {
-        setView(null);
+      if (outcome.type === 'clear' || !outcome.viewer) {
+        clear();
         return;
       }
+      const expectedViewer = contextRef.current.session?.viewer;
+      if (expectedViewer && outcome.viewer !== expectedViewer) {
+        expire();
+        return;
+      }
+      if (
+        contextRef.current.viewer &&
+        contextRef.current.viewer !== outcome.viewer
+      ) {
+        contextRef.current.generation += 1;
+        contextRef.current.pending = false;
+        contextRef.current.answerRevisions.clear();
+        setBusy(false);
+        setError('');
+      }
+      contextRef.current.viewer = outcome.viewer;
       setSignedOut(false);
-      if (outcome.viewer) setViewer(outcome.viewer);
+      setViewer(outcome.viewer);
       setView(outcome.view);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      const outcome = applyInspectPoll(gateRef.current, started, { ok: false });
-      if (outcome.type === 'clear') setView(null);
+      if (live()) clear();
     }
-  }, []);
+  }, [expire]);
 
   useEffect(() => {
-    if (gateRef.current.jobId !== jobId)
-      selectInspectJob(gateRef.current, jobId);
+    selectInspectJob(gateRef.current, jobId);
     if (!jobId) return;
-    // Fetch now; setState runs after the GET, not synchronously in this effect.
+    // load only sets state after the asynchronous GET.
     // oxlint-disable-next-line react/react-compiler
     void load();
-    const timer = window.setInterval(() => {
-      void load();
-    }, 3000);
+    const context = contextRef.current;
+    const timer = window.setInterval(() => void load(), 3000);
     function onVisibility() {
       if (document.visibilityState === 'visible') void load();
     }
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
+      context.generation += 1;
       inflightRef.current?.abort();
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [jobId, load]);
+  }, [jobId, session?.epoch, session?.viewer, load]);
+
+  async function mutate(body: Record<string, unknown>, failure: string) {
+    const current = contextRef.current;
+    if (
+      !jobId ||
+      current.jobId !== jobId ||
+      current.viewer !== viewer ||
+      !viewer ||
+      current.expired ||
+      current.pending
+    )
+      return;
+    const generation = current.generation;
+    const live = () =>
+      generation === contextRef.current.generation &&
+      jobId === contextRef.current.jobId &&
+      viewer === contextRef.current.viewer &&
+      !contextRef.current.expired;
+    current.pending = true;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, viewer }),
+      });
+      if (!live()) return;
+      if (r.status === 401) {
+        expire();
+        return;
+      }
+      const data = (await r.json()) as { error?: string; viewer?: string };
+      if (!live()) return;
+      if (data.viewer && data.viewer !== viewer) {
+        expire();
+        return;
+      }
+      if (!r.ok) throw Error(data.error || failure);
+      await load();
+      if (live() && body.action === 'answer' && typeof body.label === 'string')
+        contextRef.current.answerRevisions.delete(body.label);
+    } catch (e) {
+      if (!live()) return;
+      setError(e instanceof Error ? e.message : failure);
+    } finally {
+      if (live()) {
+        contextRef.current.pending = false;
+        setBusy(false);
+      }
+    }
+  }
 
   return {
     view: view?.job_id === jobId ? view : null,
@@ -246,79 +370,61 @@ export function useInspectSnapshot(jobId: string | undefined) {
     busy,
     error,
     signedOut,
-    setBusy,
-    setError,
     load,
+    mutate,
+    rememberAnswerRevision: (label: string, revision: string | null) => {
+      const revisions = contextRef.current.answerRevisions;
+      if (!revisions.has(label)) revisions.set(label, revision);
+    },
+    answerRevision: (label: string, revision: string | null) => {
+      const revisions = contextRef.current.answerRevisions;
+      return revisions.has(label) ? revisions.get(label) : revision;
+    },
   };
 }
 
-export function useInspect(jobId: string | undefined) {
-  const inspect = useInspectSnapshot(jobId);
+export function useInspect(
+  jobId: string | undefined,
+  session?: InspectSession,
+) {
+  const inspect = useInspectSnapshot(jobId, session);
   const shown = inspect.view;
-
-  async function approve() {
-    if (!shown?.operation_id || !shown.digest || !inspect.viewer) return;
-    inspect.setBusy(true);
-    inspect.setError('');
-    try {
-      const r = await fetch('/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'approve',
-          viewer: inspect.viewer,
-          id: shown.operation_id,
-          digest: shown.digest,
-        }),
-      });
-      const data = (await r.json()) as { error?: string };
-      if (!r.ok)
-        throw Error(data.error || 'Unable to accept this application.');
-      await inspect.load();
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-      inspect.setError(
-        e instanceof Error ? e.message : 'Unable to accept this application.',
-      );
-    } finally {
-      inspect.setBusy(false);
-    }
-  }
-
-  async function answer(label: string, value: string) {
-    if (!jobId || !inspect.viewer) return;
-    inspect.setBusy(true);
-    inspect.setError('');
-    try {
-      const r = await fetch('/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'answer',
-          viewer: inspect.viewer,
-          job: jobId,
-          label,
-          value,
-        }),
-      });
-      const data = (await r.json()) as { error?: string };
-      if (!r.ok) throw Error(data.error || 'Unable to save this answer.');
-      await inspect.load();
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-      inspect.setError(
-        e instanceof Error ? e.message : 'Unable to save this answer.',
-      );
-    } finally {
-      inspect.setBusy(false);
-    }
-  }
 
   return inspectMarkup({
     view: shown,
     busy: inspect.busy,
     error: inspect.error,
-    onAccept: () => void approve(),
-    onAnswer: (label, value) => void answer(label, value),
+    onAccept: () => {
+      if (!shown?.operation_id || !shown.digest || !shown.accept_enabled)
+        return;
+      void inspect.mutate(
+        {
+          action: 'approve',
+          id: shown.operation_id,
+          digest: shown.digest,
+        },
+        'Unable to accept this application.',
+      );
+    },
+    onAnswerChange: (label) => {
+      if (shown)
+        inspect.rememberAnswerRevision(label, shown.preparation_revision);
+    },
+    onAnswer: (label, value) => {
+      if (!shown || shown.job_id !== jobId) return;
+      void inspect.mutate(
+        {
+          action: 'answer',
+          job: jobId,
+          preparation_revision: inspect.answerRevision(
+            label,
+            shown.preparation_revision,
+          ),
+          label,
+          value,
+        },
+        'Unable to save this answer.',
+      );
+    },
   });
 }

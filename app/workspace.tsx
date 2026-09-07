@@ -197,7 +197,17 @@ export default function Workspace() {
           new Date().toISOString(),
         )
       : null;
-  const inspect = useInspect(current?.id);
+  // Session identity is a synchronous cancellation gate, not display state.
+  /* oxlint-disable react/react-compiler */
+  const inspect = useInspect(current?.id, {
+    epoch: workspaceEpoch,
+    viewer: sessionRef.current.viewer,
+    onUnauthorized: () => {
+      expireSession(sessionRef.current);
+      applyExpired();
+    },
+  });
+  /* oxlint-enable react/react-compiler */
   const counts = useMemo(() => {
     const byStatus: Record<string, number> = {};
     for (const job of jobs)

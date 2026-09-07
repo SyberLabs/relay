@@ -157,6 +157,9 @@ test('two independently signed-in accounts cannot read, edit, import into, or en
     expect(bGet.status()).toBe(200);
     const ownerA = await aGet.json();
     const ownerB = await bGet.json();
+    expect(typeof ownerA.viewer).toBe('string');
+    expect(typeof ownerB.viewer).toBe('string');
+    expect(ownerA.viewer).not.toBe(ownerB.viewer);
     const jobA = ownerA.jobs.find(
       (job: {
         id: string;

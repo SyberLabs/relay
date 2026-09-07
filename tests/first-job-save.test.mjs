@@ -16,7 +16,7 @@ function deferred() {
 }
 
 function compileSaveFirstJob(deps) {
-  const src = readFileSync('app/workspace.tsx', 'utf8');
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
   const compile = (s) =>
     stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
   const expiry = src.match(

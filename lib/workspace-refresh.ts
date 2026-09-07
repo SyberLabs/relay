@@ -182,9 +182,8 @@ export async function processRefresh(
     if (!refreshIsLive(session.gate, started)) return { type: 'ignore' };
     return { type: 'error', error: reply.error };
   }
+  if (!refreshIsLive(session.gate, started)) return { type: 'ignore' };
   const switched = bindViewer(session, reply.body.viewer);
-  if (!switched && !refreshIsLive(session.gate, started))
-    return { type: 'ignore' };
   return {
     type: 'records',
     switched,

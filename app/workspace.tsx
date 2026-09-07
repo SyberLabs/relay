@@ -150,7 +150,6 @@ export default function Workspace() {
   const importRef = useRef<HTMLElement>(null);
   const queueRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-  const workspaceEpoch = sessionRef.current.gate.epoch;
   const applyExpired = useCallback(() => {
     const next = expiredPrivateWorkspace();
     setJobs(next.jobs);
@@ -257,50 +256,6 @@ export default function Workspace() {
     },
     [applyExpired],
   );
-  const refresh = useCallback(
-    async (saved?: SaveSnapshot) => {
-      if (saved) sessionRef.current.lastAck = saved;
-      const started = beginRefresh(sessionRef.current.gate);
-      const r = await fetch('/api/workspace');
-      const outcome = await processRefresh(sessionRef.current, started, r);
-      if (outcome.type === 'expire') {
-        applyExpired();
-        return;
-      }
-      if (outcome.type === 'ignore') return;
-      if (outcome.type === 'error') throw Error(outcome.error);
-      if (!outcome.switched && !refreshIsLive(sessionRef.current.gate, started))
-        return;
-      const nextJobs = outcome.jobs as Job[];
-      setJobs(nextJobs);
-      setSources(outcome.sources as Source[]);
-      setEvents(outcome.events as ReviewEvent[]);
-      setFacts(outcome.facts as Fact[]);
-      setDraftingPreference(
-        outcome.draftingPreference ?? defaultDraftingPreference,
-      );
-      if (outcome.switched) {
-        setShowAddJob(false);
-        setShowImport(false);
-        setImportText('');
-        setPreviewedImport('');
-        setReport(null);
-        if (!nextJobs.some((job) => job.id === selectedRef.current)) {
-          selectedRef.current = '';
-          setEditor(null);
-        } else {
-          setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
-        }
-      } else {
-        setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
-      }
-      setSignedOut(false);
-      setLoaded(true);
-      if (selectedRef.current) void loadJobHistory(selectedRef.current);
-      return nextJobs;
-    },
-    [applyExpired, loadJobHistory],
-  );
   const loadRuntimeContext = useCallback(async () => {
     if (!sessionRef.current.viewer) return;
     const started = beginMutation(sessionRef.current.gate);
@@ -342,6 +297,51 @@ export default function Workspace() {
       /* Context tiles keep their last known values. */
     }
   }, [applyExpired]);
+  const refresh = useCallback(
+    async (saved?: SaveSnapshot) => {
+      if (saved) sessionRef.current.lastAck = saved;
+      const started = beginRefresh(sessionRef.current.gate);
+      const r = await fetch('/api/workspace');
+      const outcome = await processRefresh(sessionRef.current, started, r);
+      if (outcome.type === 'expire') {
+        applyExpired();
+        return;
+      }
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') throw Error(outcome.error);
+      if (!outcome.switched && !refreshIsLive(sessionRef.current.gate, started))
+        return;
+      const nextJobs = outcome.jobs as Job[];
+      setJobs(nextJobs);
+      setSources(outcome.sources as Source[]);
+      setEvents(outcome.events as ReviewEvent[]);
+      setFacts(outcome.facts as Fact[]);
+      setDraftingPreference(
+        outcome.draftingPreference ?? defaultDraftingPreference,
+      );
+      if (outcome.switched) {
+        setShowAddJob(false);
+        setShowImport(false);
+        setImportText('');
+        setPreviewedImport('');
+        setReport(null);
+        if (!nextJobs.some((job) => job.id === selectedRef.current)) {
+          selectedRef.current = '';
+          setEditor(null);
+        } else {
+          setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+        }
+      } else {
+        setEditor((e) => editorForJobs(sessionRef.current, e, outcome.jobs));
+      }
+      setSignedOut(false);
+      setLoaded(true);
+      if (selectedRef.current) void loadJobHistory(selectedRef.current);
+      void loadRuntimeContext();
+      return nextJobs;
+    },
+    [applyExpired, loadJobHistory, loadRuntimeContext],
+  );
   useEffect(() => {
     policyRef.current = policy;
   }, [policy]);
@@ -353,10 +353,6 @@ export default function Workspace() {
         setLoaded(true);
       });
   }, [refresh]);
-  useEffect(() => {
-    if (signedOut || !loaded) return;
-    void loadRuntimeContext();
-  }, [signedOut, loaded, workspaceEpoch, loadRuntimeContext]);
   useEffect(() => {
     if (!showImport) return;
     function onKey(event: KeyboardEvent) {
@@ -1003,13 +999,10 @@ export default function Workspace() {
               role="tabpanel"
             >
               <TrackerImport
-                onImported={() =>
-                  mutationIsLive(sessionRef.current.gate, {
-                    epoch: workspaceEpoch,
-                  })
-                    ? refresh().then(() => undefined)
-                    : Promise.resolve()
-                }
+                onImported={() => {
+                  if (!sessionRef.current.viewer) return Promise.resolve();
+                  return refresh().then(() => undefined);
+                }}
                 onUnauthorized={() => {
                   expireSession(sessionRef.current);
                   applyExpired();

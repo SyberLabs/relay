@@ -30,7 +30,7 @@ The stage folders organize instructions. The existing issue, diff, tests, and re
 
 Read [CONTEXT.md](CONTEXT.md) and the matching stage. Codex receives root repository instructions automatically; other agents should read `AGENTS.md` explicitly. A `CONTEXT.md` file has no special runtime behavior, so the router explicitly tells the agent to open it. Codex discovers an instruction chain at session start; see [official instruction discovery](https://developers.openai.com/codex/guides/agents-md). Do not assume changing directories discards earlier context or loads every nested instruction.
 
-From the repository root, using Node 24:
+From the repository root, using Node 24 and Git with locally available objects:
 
 ```sh
 node scripts/agent-context.mjs build
@@ -38,11 +38,11 @@ node scripts/agent-context.mjs build --print
 node scripts/agent-context.mjs --check
 ```
 
-The first command returns paths, SHA-256 hashes, and sizes. Use the second only for a fresh consumer that needs a portable packet; printing already-loaded policies increases tokens. The third validates every stage and compares it to the union of routed documents. The fixed manifest in `scripts/agent-context.mjs` is the packet's source list; adding a mandatory reference requires updating it as well as the human route.
+The first command returns the pinned commit, paths, SHA-256 hashes, and sizes. Use the second only for a fresh consumer that needs a portable packet; printing already-loaded policies increases tokens. The third validates every stage and compares it to the union of routed documents. The fixed manifest in `scripts/agent-context.mjs` is the packet's source list; adding a mandatory reference requires updating it as well as the human route.
 
 All stages include root instructions, router, abuse controls, contributing, and delivery. Review adds the threat model; release adds hosting. The issue, source code, skill body, task checkpoint, tool definitions, inherited instructions, and conversation history are additional context and are **excluded** from this measurement. Treat the packet as a starting selection, not everything necessary to complete a task.
 
-The tool reads at most seven fixed files per stage, each at most 24 KiB; root/router files are capped at 4 KiB and stage instructions at 2 KiB. Complete packets are capped at 48 KiB. It rejects missing, empty, invalid UTF-8, symlinked, and oversized inputs without partial output. It writes no files and makes no network calls. These are local resource limits, not a security sandbox against concurrent hostile filesystem changes. Reduce duplication or select narrower optional references if a budget fails; never truncate required security contracts.
+The tool selects at most seven regular Git blobs from one commit per stage, each at most 24 KiB; root/router files are capped at 4 KiB and stage instructions at 2 KiB. Complete packets are capped at 48 KiB. It rejects missing, empty, invalid UTF-8, non-regular Git entries (including symlinks), and oversized inputs without partial output. Uncommitted changes to selected documents also refuse a packet; read those files directly until the intended edits are committed. Content comes from immutable object IDs using [Git tree entries](https://git-scm.com/docs/git-ls-tree) and [Git object reads](https://git-scm.com/docs/git-cat-file), so replacing a working-tree path cannot redirect packet content. Each Git subprocess has a five-second deadline and bounded output; lazy fetching and interactive credential prompts are disabled. It writes no files. This assumes a trusted Git installation/object database, not a sandbox against a compromised machine. Reduce duplication or select narrower optional references if a budget fails; never truncate required security contracts.
 
 Use the [checkpoint template](checkpoint.md) on a real handoff. Keep it in the existing ignored private-data directory. GitHub remains the source for assignment, review, and release status; source files remain the source for implementation facts.
 
@@ -58,7 +58,7 @@ To remove the local installation, remove only the installed `syberlabs-developme
 
 The `--check` output is a static comparison against loading all routed documents, not a historical baseline. `roughTextTokens` is UTF-8 bytes divided by four, rounded up; it is neither an exact tokenizer count nor a model-context limit. Provider usage and caching can change cost independently of this estimate.
 
-Initial local measurement (September 6, 2026; rerun the command after changes): the union of all routed source documents is 43,661 bytes. Plan selects 24,244 bytes, build 24,254, review 27,831, and release 36,071. The assembled build packet, including source labels and hashes, is 25,076 bytes. These numbers exclude source code and session overhead; no matched agent runs have been completed yet.
+Initial local measurement at commit `a31fbb26` (September 6, 2026; rerun the command for current values): the union of all routed source documents is 43,661 bytes. Plan selects 24,244 bytes, build 24,254, review 27,831, and release 36,071. The assembled build packet, including source labels and hashes, is 25,076 bytes. These numbers exclude source code and session overhead; no matched agent runs have been completed yet.
 
 For the first evaluation, Seth owns five matched task pairs spanning implementation, a bug fix, review, and a resumed task. Use fictional data and the same starting commit, task, model, settings, tool access, and acceptance tests in isolated worktrees and fresh sessions. Compare the existing workflow against scoped routing; vary run order. Record model/tool versions, actual input/cached/output tokens where exposed, wall time, tool reads, retries, test outcomes, missed constraints, and reviewer rework. Mark unavailable usage unknown; do not infer billing from file size.
 

@@ -9,7 +9,7 @@ Owner: Seth. Read this router once, then the current stage. These are developmen
 | Review a diff or prepare a pull request | [03-review](03-review/CONTEXT.md) |
 | Stage, release, or recover a version | [04-release](04-release/CONTEXT.md) |
 
-Read [AGENTS.md](../../AGENTS.md), [abuse controls](../abuse-controls.md), and [delivery](../delivery.md) for every change. A fresh session must read current files. Within a session, reuse unchanged context; re-read after an edit, checkout change, compaction loss, or conflicting evidence. `node scripts/agent-context.mjs build` lists the selected documents, sizes, and content hashes; `--print` emits a portable packet only when those documents are not already loaded. Neither mode includes the issue, code, tools, or conversation history.
+Read [AGENTS.md](../../AGENTS.md), [abuse controls](../abuse-controls.md), and [delivery](../delivery.md) for every change. A fresh session must read current files. Within a session, reuse unchanged context; re-read after an edit, checkout change, compaction loss, or conflicting evidence. `node scripts/agent-context.mjs build` lists the selected committed documents, commit, sizes, and content hashes; `--print` emits a portable packet only when those documents are not already loaded. Packets use one fixed Git commit and refuse uncommitted changes to selected documents; read those files directly while editing. Neither mode includes the issue, code, tools, or conversation history.
 
 Find the affected symbol with `rg` in the relevant area, then read its callers, contract, and tests. Expand when evidence crosses that boundary.
 

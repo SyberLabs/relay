@@ -1,7 +1,8 @@
-import { constants, realpathSync } from 'node:fs';
-import { lstat, open } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // This explicit manifest is the only content the tool reads. No recursive
@@ -22,68 +23,106 @@ export const stages = {
 export const MAX_FILE_BYTES = 24 * 1024;
 export const MAX_PACKET_BYTES = 48 * 1024;
 
-async function readDocument(root, path) {
-  let location = root;
-  for (const part of path.split('/')) {
-    location = join(location, part);
-    if ((await lstat(location)).isSymbolicLink()) {
-      throw Error(`Symlink refused: ${path}`);
-    }
-  }
-  if (!(await lstat(location)).isFile())
-    throw Error(`Not a regular file: ${path}`);
-  const file = await open(
-    location,
-    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+const exec = promisify(execFile);
+async function git(root, args) {
+  const { stdout } = await exec(
+    'git',
+    [
+      '--no-replace-objects',
+      '--no-optional-locks',
+      '-c',
+      'core.fsmonitor=false',
+      '-C',
+      root,
+      ...args,
+    ],
+    {
+      encoding: 'buffer',
+      maxBuffer: MAX_FILE_BYTES + 1,
+      timeout: 5000,
+      windowsHide: true,
+      env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_TERMINAL_PROMPT: '0' },
+    },
   );
-  try {
-    if (!(await file.stat()).isFile())
-      throw Error(`Not a regular file: ${path}`);
-    // Bound actual reads, even if a file grows after it is opened.
-    const buffer = Buffer.alloc(MAX_FILE_BYTES + 1);
-    let size = 0;
-    while (size < buffer.length) {
-      const { bytesRead } = await file.read(
-        buffer,
-        size,
-        buffer.length - size,
-        size,
-      );
-      if (!bytesRead) break;
-      size += bytesRead;
-    }
-    const limit =
-      path === 'AGENTS.md' || path === 'docs/development/CONTEXT.md'
-        ? 4096
-        : path.startsWith('docs/development/')
-          ? 2048
-          : MAX_FILE_BYTES;
-    if (size > limit)
-      throw Error(`Context size exceeds ${limit} bytes: ${path}`);
-    if (!size) throw Error(`Empty required document: ${path}`);
-    const bytes = buffer.subarray(0, size);
-    const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    return {
-      path,
-      bytes: size,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
-      content,
-    };
-  } finally {
-    await file.close();
-  }
+  return stdout;
+}
+
+async function readDocument(root, path, object) {
+  const limit =
+    path === 'AGENTS.md' || path === 'docs/development/CONTEXT.md'
+      ? 4096
+      : path.startsWith('docs/development/')
+        ? 2048
+        : MAX_FILE_BYTES;
+  const size = Number((await git(root, ['cat-file', '-s', object])).toString());
+  if (size > limit) throw Error(`Context size exceeds ${limit} bytes: ${path}`);
+  if (!size) throw Error(`Empty required document: ${path}`);
+  // Read the immutable blob, never reopen a checked working-tree path.
+  const bytes = await git(root, ['cat-file', 'blob', object]);
+  const content = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  return {
+    path,
+    bytes: bytes.length,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    content,
+  };
 }
 
 export async function buildContext(root, stage) {
   if (!Object.hasOwn(stages, stage))
     throw Error('Stage must be plan, build, review, or release.');
-  const documents = [];
-  for (const path of [...common, ...stages[stage]]) {
-    documents.push(await readDocument(root, path));
+  const paths = [...common, ...stages[stage]];
+  const commit = (await git(root, ['rev-parse', '--verify', 'HEAD^{commit}']))
+    .toString()
+    .trim();
+  const tree = (
+    await git(root, ['ls-tree', '-z', '--full-tree', commit, '--', ...paths])
+  ).toString();
+  const objects = new Map(
+    tree
+      .split('\0')
+      .filter(Boolean)
+      .map((entry) => {
+        const [metadata, path] = entry.split('\t');
+        const [mode, type, object] = metadata.split(' ');
+        return [path, { mode, type, object }];
+      }),
+  );
+  for (const path of paths) {
+    const entry = objects.get(path);
+    if (
+      !entry ||
+      entry.type !== 'blob' ||
+      !['100644', '100755'].includes(entry.mode)
+    ) {
+      throw Error(
+        `Required regular committed file missing or invalid: ${path}`,
+      );
+    }
   }
+  try {
+    await git(root, [
+      'diff',
+      '--quiet',
+      '--no-ext-diff',
+      '--no-textconv',
+      commit,
+      '--',
+      ...paths,
+    ]);
+  } catch (error) {
+    if (error.code === 1)
+      throw Error(
+        'Selected documents have uncommitted changes; read them directly or commit the intended changes before generating a packet.',
+      );
+    throw error;
+  }
+  const documents = [];
+  for (const path of paths)
+    documents.push(await readDocument(root, path, objects.get(path).object));
   const packet = [
     `# Relay development: ${stage}`,
-    'Current repository documents only. Add the issue and relevant code separately. Verify source hashes on reuse. A packet is not approval.',
+    `Committed documents at ${commit}. Add the issue and relevant code separately. Verify current source state on reuse. A packet is not approval.`,
     ...documents.map(
       ({ path, sha256, content }) =>
         `## Source: ${path}\nSHA-256: ${sha256}\n\n${content}`,
@@ -98,6 +137,7 @@ export async function buildContext(root, stage) {
     packet,
     report: {
       stage,
+      commit,
       sourceBytes: documents.reduce((sum, doc) => sum + doc.bytes, 0),
       packetBytes,
       roughTextTokens: Math.ceil(packetBytes / 4),

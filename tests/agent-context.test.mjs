@@ -6,7 +6,6 @@ import {
   writeFile,
   readFile,
   rm,
-  symlink,
   copyFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -22,6 +21,32 @@ import {
 
 const repository = fileURLToPath(new URL('../', import.meta.url));
 
+function git(root, args, input) {
+  const result = spawnSync(
+    'git',
+    [
+      '-c',
+      'user.name=Fictional Tester',
+      '-c',
+      'user.email=fictional@example.invalid',
+      '-c',
+      'commit.gpgsign=false',
+      '-c',
+      `core.hooksPath=${join(root, 'no-hooks')}`,
+      '-C',
+      root,
+      ...args,
+    ],
+    { encoding: 'utf8', input, timeout: 5000 },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  return result.stdout.trim();
+}
+function commit(root, stage = true) {
+  if (stage) git(root, ['add', '-A']);
+  git(root, ['commit', '-qm', 'Fictional context fixture']);
+}
+
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'relay-context-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -29,6 +54,9 @@ async function fixture(t) {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await writeFile(join(root, path), `# Fictional ${path}\n`);
   }
+  git(root, ['init', '-q']);
+  git(root, ['config', 'core.autocrlf', 'false']);
+  commit(root);
   return root;
 }
 
@@ -37,6 +65,7 @@ await test('build selects required contracts without leaking unrelated stages or
   await writeFile(join(root, 'docs/hosting.md'), 'UNRELATED_RELEASE_SENTINEL');
   await mkdir(join(root, 'private-data'));
   await writeFile(join(root, 'private-data/fictional.md'), 'PRIVATE_SENTINEL');
+  commit(root);
   const { packet, report } = await buildContext(root, 'build');
   assert.ok(packet.includes('docs/abuse-controls.md'));
   assert.ok(packet.includes('docs/delivery.md'));
@@ -48,7 +77,11 @@ await test('build selects required contracts without leaking unrelated stages or
     (doc) => doc.path === 'AGENTS.md',
   ).sha256;
   await writeFile(join(root, 'AGENTS.md'), '# Changed contract\n');
-  const after = (await buildContext(root, 'build')).report.documents.find(
+  await assert.rejects(buildContext(root, 'build'), /uncommitted changes/);
+  commit(root);
+  const updated = await buildContext(root, 'build');
+  assert.notEqual(updated.report.commit, report.commit);
+  const after = updated.report.documents.find(
     (doc) => doc.path === 'AGENTS.md',
   ).sha256;
   assert.notEqual(
@@ -62,18 +95,25 @@ await test('missing, empty, invalid UTF-8 and oversized required documents refus
   const root = await fixture(t);
   const path = join(root, 'docs/abuse-controls.md');
   await rm(path);
-  await assert.rejects(buildContext(root, 'build'), /ENOENT/);
+  commit(root);
+  await assert.rejects(buildContext(root, 'build'), /regular committed file/);
   await mkdir(path);
-  await assert.rejects(buildContext(root, 'build'), /Not a regular file/);
+  await writeFile(join(path, 'child.md'), 'Fictional child');
+  commit(root);
+  await assert.rejects(buildContext(root, 'build'), /regular committed file/);
   await rm(path, { recursive: true });
   await writeFile(path, '');
+  commit(root);
   await assert.rejects(buildContext(root, 'build'), /Empty required/);
   await writeFile(path, Buffer.from([0xff]));
+  commit(root);
   await assert.rejects(buildContext(root, 'build'), /encoded data/);
   await writeFile(path, 'x'.repeat(MAX_FILE_BYTES + 1));
+  commit(root);
   await assert.rejects(buildContext(root, 'build'), /Context size exceeds/);
   await writeFile(path, 'Valid again');
   await writeFile(join(root, 'AGENTS.md'), '界'.repeat(1400));
+  commit(root);
   await assert.rejects(
     buildContext(root, 'build'),
     /4096 bytes/,
@@ -88,19 +128,38 @@ await test('total packet limit refuses a selection even when individual document
     'a'.repeat(MAX_FILE_BYTES),
   );
   await writeFile(join(root, 'docs/delivery.md'), 'b'.repeat(MAX_FILE_BYTES));
+  commit(root);
   await assert.rejects(buildContext(root, 'build'), /Packet exceeds/);
 });
 
-await test('symlinked documents and directories are not traversed', async (t) => {
+await test('committed symlink files and directory links refuse without OS symlink privileges', async (t) => {
   const root = await fixture(t);
-  const path = join(root, 'docs/abuse-controls.md');
-  await rm(path);
-  await symlink(join(root, 'AGENTS.md'), path);
-  await assert.rejects(buildContext(root, 'build'), /Symlink refused/);
-  await rm(join(root, 'docs'), { recursive: true });
-  const external = await fixture(t);
-  await symlink(join(external, 'docs'), join(root, 'docs'));
-  await assert.rejects(buildContext(root, 'build'), /Symlink refused/);
+  const blob = git(root, ['hash-object', '-w', '--stdin'], 'AGENTS.md');
+  git(root, [
+    'update-index',
+    '--cacheinfo',
+    `120000,${blob},docs/abuse-controls.md`,
+  ]);
+  commit(root, false);
+  await assert.rejects(buildContext(root, 'build'), /regular committed file/);
+  const directory = await fixture(t);
+  const outside = git(
+    directory,
+    ['hash-object', '-w', '--stdin'],
+    '../fictional-outside',
+  );
+  git(directory, ['rm', '-r', '--cached', 'docs']);
+  git(directory, [
+    'update-index',
+    '--add',
+    '--cacheinfo',
+    `120000,${outside},docs`,
+  ]);
+  commit(directory, false);
+  await assert.rejects(
+    buildContext(directory, 'build'),
+    /regular committed file/,
+  );
 });
 
 await test('unknown stages refuse without reading files', async () => {
@@ -128,6 +187,7 @@ await test('CLI emits no partial context when a late required document is missin
   assert.equal(invalid.status, 1);
   assert.equal(invalid.stdout, '');
   await rm(join(root, 'docs/hosting.md'));
+  commit(root);
   const result = spawnSync(process.execPath, [script, 'release', '--print'], {
     encoding: 'utf8',
   });

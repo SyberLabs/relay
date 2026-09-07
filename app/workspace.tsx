@@ -1343,9 +1343,9 @@ export default function Workspace() {
                       {connections}
                       <h3>Evidence matches</h3>
                       <small className="muted">
-                        Heuristic word and number matches against your
-                        confirmed, unexpired facts. These do not assess your
-                        qualifications or change this job’s status.
+                        {
+                          'Heuristic word and number matches against your confirmed, unexpired facts. These do not assess your qualifications or change this job’s status.'
+                        }
                       </small>
                       {fit?.reason === 'notes' && (
                         <p className="muted">

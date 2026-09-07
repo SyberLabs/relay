@@ -100,6 +100,21 @@ assert.ok(
 );
 assert.ok(brief.rules_of_use.length >= 3, 'the rules of use travel with it');
 
+r = relay('context', job.id, '--json');
+assert.equal(r.code, EXIT.ok, r.err);
+const context = JSON.parse(r.out);
+assert.equal(context.job.id, job.id);
+assert.equal(context.job.version, job.version);
+assert.equal(context.job.accepted_draft, null);
+assert.ok(
+  context.research.some(
+    (s) => s.notes === 'Fictional posting used for CLI checks.',
+  ),
+);
+assert.ok(context.facts.some((f) => f.id === verified.id));
+assert.ok(!context.facts.some((f) => f.id === unverified.id));
+assert.deepEqual(context.history, { events: [], next: null });
+
 r = relay('brief', 'no-such-job');
 assert.equal(r.code, EXIT.refused, 'an unknown id is a refusal, not a crash');
 

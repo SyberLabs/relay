@@ -2,6 +2,10 @@ import { access, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { EXIT, RelayError, login, request } from './client.mjs';
 import { clusterOf, profileBrief } from '../lib/profile.ts';
+import {
+  ApplicationContextError,
+  readApplicationContext,
+} from '../lib/application-context.ts';
 
 let io = { fetchImpl: fetch, claudeFetch: fetch, session: undefined };
 function api(path, body) {
@@ -79,6 +83,15 @@ async function buildBrief(jobId) {
 // without the server ever seeing it, so those refusals went uncounted and the
 // refusal rate — a readiness gate — was measured from a biased sample.
 const commands = {
+  async context([id], flags) {
+    try {
+      json(await readApplicationContext(api, id, flags.before));
+    } catch (error) {
+      if (error instanceof ApplicationContextError)
+        throw new RelayError(error.message, EXIT.refused);
+      throw error;
+    }
+  },
   async login() {
     await login(io.fetchImpl);
     const profile = await api('/api/profile');
@@ -404,7 +417,11 @@ async function invoke(argv) {
   } catch (error) {
     if (error instanceof RelayError) {
       if (error.code === EXIT.refused) {
-        note('refused — no draft stored, no text kept');
+        note(
+          name === 'context'
+            ? 'context unavailable — no changes made'
+            : 'refused — no draft stored, no text kept',
+        );
         note(`  ${error.message}`);
         if (error.detail?.unsupported)
           note('  Cite a verified fact, or remove the claim.');

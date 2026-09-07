@@ -19,6 +19,7 @@ const [command, input, output] = process.argv.slice(2);
 const apiCommands = new Set([
   'login',
   'brief',
+  'context',
   'log',
   'draft',
   'plan',

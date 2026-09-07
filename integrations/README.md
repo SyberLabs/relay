@@ -1,6 +1,6 @@
 # Relay integrations
 
-Relay uses local commands and explicit file handoffs. You choose which data leaves your workspace. The command tool works in a Grok Bot VM, Claude Code terminal, or a normal shell. It needs Node 24; it does not require a hosted Relay API token.
+Relay supports browser assistants through WebMCP where available, alongside local commands and explicit file handoffs. You choose which data leaves your workspace. Start with the [existing-assistant workflow](ASSISTANT-WORKFLOW.md) to reuse saved context and return work for human review without files. The command tool works in a Grok Bot VM, Claude Code terminal, or a normal shell. It needs Node 24; it does not require a hosted Relay API token.
 
 ## Tracker CSV → Relay
 
@@ -88,6 +88,7 @@ The connectors above produce files. These commands talk to a running local Relay
 node integrations/relay.mjs login                 # cache a local session
 node integrations/relay.mjs plan                  # this week, with ids and reasons
 node integrations/relay.mjs brief <job_id> --json # facts you may cite + style rules
+node integrations/relay.mjs context <job_id> --json # job, research, saved facts and history
 node integrations/relay.mjs log <job_id> draft.txt --cite f1,f2
 node integrations/relay.mjs draft <job_id> [--out file] [--force]
 node integrations/relay.mjs status                # cluster trust, review due
@@ -106,12 +107,14 @@ An unattended agent relies on these. The distinction that matters is 3 against 4
 | 1    | Usage or configuration error | Stop; a human misconfigured it            |
 | 2    | Not signed in                | Run `login`, once                         |
 | 3    | Refused by a domain rule     | **Fix the input. Never retry unchanged.** |
-| 4    | Server or network failure    | Retry with backoff                        |
+| 4    | Server or network failure    | Preserve input; inspect state before deliberately retrying |
 | 5    | Nothing to do                | Stop cleanly                              |
 
 A refused draft prints the offending sentence and writes nothing, including `--out`. `relay draft --out` writes that file only after the draft is logged. An existing file is left untouched unless `--force` is passed.
 
 `--json` prints one object on stdout and sends every diagnostic to stderr.
+
+Never automatically retry a mutation, including after exit 4: a lost response may follow a successful write. HTTP 429 is a refusal (exit 3), never success. Resolve verification or quota refusals before a deliberate retry. Read-only retries must also remain bounded.
 
 Recording an outcome sends the current job `version`. A stale version is a refusal (exit 3), not a retryable server failure.
 

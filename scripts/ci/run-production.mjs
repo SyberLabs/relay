@@ -310,10 +310,9 @@ try {
   const stageAs = (identity) => async (_path, body) => {
     stageCalls++;
     const response = await call(identity, body);
-    const data = await response.json();
     if (!response.ok)
-      throw Object.assign(Error(data.error), { status: response.status });
-    return data;
+      throw Object.assign(Error(await response.text()), { status: response.status });
+    return response.json();
   };
   const stageInput = {
     id: foreign.id,

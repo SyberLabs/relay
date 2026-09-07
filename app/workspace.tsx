@@ -146,7 +146,10 @@ export default function Workspace() {
   const [styleCount, setStyleCount] = useState(0);
   const sessionRef = useRef(createWorkspaceSession());
   const policyRef = useRef<ApplicationPolicy | null>(null);
-  const busyRef = useRef(false);
+  const busyRef = useRef<false | number>(false);
+  const refreshRef = useRef<
+    (saved?: SaveSnapshot) => Promise<Job[] | undefined>
+  >(async () => undefined);
   const importRef = useRef<HTMLElement>(null);
   const queueRef = useRef<HTMLElement>(null);
   const detailRef = useRef<HTMLDivElement>(null);
@@ -277,25 +280,39 @@ export default function Workspace() {
         return;
       }
       if (outcome.type !== 'ok') return;
+      if (outcome.switched) {
+        applyExpired();
+        selectedRef.current = '';
+        setSignedOut(false);
+        setLoaded(true);
+        write(outcome.body);
+        void refreshRef.current();
+        return;
+      }
       if (!mutationIsLive(sessionRef.current.gate, started)) return;
       write(outcome.body);
     };
-    try {
-      const [apps, profile] = await Promise.all([
-        fetch('/api/applications'),
-        fetch('/api/profile'),
-      ]);
-      await apply(apps, (body) => {
+    const consume = (
+      url: string,
+      write: (body: {
+        policy?: ApplicationPolicy | null;
+        rules?: { id: string }[];
+      }) => void,
+    ) =>
+      fetch(url)
+        .then((response) => apply(response, write))
+        .catch(() => {
+          /* Context tiles keep their last known values. */
+        });
+    await Promise.all([
+      consume('/api/applications', (body) => {
         setPolicy(body.policy || null);
         setAutopilot(Boolean(body.policy?.enabled));
-      });
-      if (!mutationIsLive(sessionRef.current.gate, started)) return;
-      await apply(profile, (body) => {
+      }),
+      consume('/api/profile', (body) => {
         setStyleCount(Array.isArray(body.rules) ? body.rules.length : 0);
-      });
-    } catch {
-      /* Context tiles keep their last known values. */
-    }
+      }),
+    ]);
   }, [applyExpired]);
   const refresh = useCallback(
     async (saved?: SaveSnapshot) => {
@@ -342,6 +359,9 @@ export default function Workspace() {
     },
     [applyExpired, loadJobHistory, loadRuntimeContext],
   );
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
   useEffect(() => {
     policyRef.current = policy;
   }, [policy]);
@@ -740,7 +760,7 @@ export default function Workspace() {
       setMessage('Sign in to save application limits.');
       return false;
     }
-    if (busyRef.current) return 'busy';
+    if (busyRef.current !== false) return 'busy';
     const allowed = jobs
       .filter((job) => job.status !== 'Skip' && !isTerminal(job.status))
       .map((job) => job.id);
@@ -751,7 +771,7 @@ export default function Workspace() {
     const maximum = boundedPolicyMaximum(input.maximum);
     const review = input.review === 'sensitive' ? 'sensitive' : 'all';
     const started = beginMutation(sessionRef.current.gate);
-    busyRef.current = true;
+    busyRef.current = started.epoch;
     setBusy(true);
     try {
       const r = await fetch('/api/applications', {
@@ -778,6 +798,18 @@ export default function Workspace() {
         return false;
       }
       if (outcome.type === 'ignore') return false;
+      if (outcome.type === 'ok' && outcome.switched) {
+        applyExpired();
+        selectedRef.current = '';
+        setSignedOut(false);
+        setLoaded(true);
+        const next = outcome.body.policy || null;
+        policyRef.current = next;
+        setPolicy(next);
+        setAutopilot(Boolean(next?.enabled));
+        void refresh();
+        return false;
+      }
       if (!mutationIsLive(sessionRef.current.gate, started)) return false;
       if (outcome.type === 'error') {
         setMessage(outcome.error);
@@ -789,21 +821,26 @@ export default function Workspace() {
       setAutopilot(Boolean(next?.enabled));
       return true;
     } catch (e) {
+      if (!mutationIsLive(sessionRef.current.gate, started)) return false;
       setMessage(e instanceof Error ? e.message : 'Unable to save limits.');
       return false;
     } finally {
-      busyRef.current = false;
-      setBusy(false);
+      if (busyRef.current === started.epoch) {
+        busyRef.current = false;
+        setBusy(false);
+      }
     }
   }
   async function toggleAutopilot() {
-    if (busyRef.current || signedOut) return;
+    if (busyRef.current !== false || signedOut) return;
+    const started = { epoch: sessionRef.current.gate.epoch };
     if (autopilot) {
       const ok = await saveLimits({
         maximum: policy?.maximum || 8,
         review: policy?.review || 'all',
         enabled: false,
       });
+      if (!mutationIsLive(sessionRef.current.gate, started)) return;
       if (ok === true)
         setMessage(
           'Autopilot off. Nothing is sent without your approval and a permit.',
@@ -823,6 +860,7 @@ export default function Workspace() {
       review: 'all',
       enabled: true,
     });
+    if (!mutationIsLive(sessionRef.current.gate, started)) return;
     if (ok === 'busy') return;
     if (ok !== true) {
       if (!sessionRef.current.viewer) return;
@@ -1723,7 +1761,9 @@ export default function Workspace() {
           onEdit={() => setModal(null)}
           onRemember={setRememberAnswer}
           onSaveLimits={async (input) => {
+            const started = { epoch: sessionRef.current.gate.epoch };
             const ok = await saveLimits(input);
+            if (!mutationIsLive(sessionRef.current.gate, started)) return false;
             if (ok === true) setMessage('Limits saved.');
             return ok === true;
           }}

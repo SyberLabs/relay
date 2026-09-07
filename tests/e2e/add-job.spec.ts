@@ -18,7 +18,7 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
     page.getByRole('heading', { name: 'No jobs yet' }),
   ).toBeVisible();
   await expect(
-    page.getByText(/Your facts and Advanced tools are optional/),
+    page.locator('header').getByText(/Your facts and Advanced tools are optional/),
   ).toBeVisible();
   await expect(
     page.locator('aside').getByRole('group', { name: 'Job list' }),
@@ -42,7 +42,7 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
     page.getByText(
       'Review research and accept the exact wording for this job.',
     ),
-  ).toBeVisible();
+  ).toHaveCount(2);
   await expect(
     page.locator('aside').getByRole('group', { name: 'Job list' }),
   ).toBeVisible();
@@ -109,7 +109,26 @@ test('cancel creates nothing and keeps unsaved editor work', async ({
   page,
 }) => {
   await signIn(page);
-  const before = await (await page.request.get('/api/workspace')).json();
+  let before = await (await page.request.get('/api/workspace')).json();
+  if (before.jobs.length === 0) {
+    const imported = await page.request.post('/api/workspace', {
+      data: {
+        action: 'import',
+        rows: [
+          {
+            url: 'https://example.com/research/first-job-cancel-host',
+            Name: 'Cedar Example — Cancel Host',
+            Job: 'https://example.com/jobs/first-job-cancel-host',
+            Status: 'Held',
+            Notes: 'Fictional host for cancel coverage.',
+          },
+        ],
+      },
+    });
+    expect(imported.ok()).toBe(true);
+    await page.reload();
+    before = await (await page.request.get('/api/workspace')).json();
+  }
   await page.getByRole('button', { name: /All opportunities/ }).click();
   await page.locator('section.queue .joblist button').first().click();
   const draft = page.getByRole('textbox', {

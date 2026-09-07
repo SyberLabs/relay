@@ -36,7 +36,7 @@ test('held job primary control is accept, not Advanced or add job', async ({
     page.getByText(
       'Review research and accept the exact wording for this job.',
     ),
-  ).toBeVisible();
+  ).toHaveCount(2);
   await expect(
     page.getByRole('heading', { name: 'Advanced', exact: true }),
   ).toHaveCount(0);

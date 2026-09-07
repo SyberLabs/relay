@@ -408,7 +408,7 @@ async function openImportDock(
   if (how === 'keyboard') {
     await importBtn.focus();
     await expect(importBtn).toBeFocused();
-    await page.keyboard.press('Enter');
+    await importBtn.press('Enter');
   } else {
     await importBtn.click();
   }

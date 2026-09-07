@@ -819,7 +819,7 @@ export default function Workspace() {
             <h2>No jobs yet</h2>
             <p>
               Add a posting with its role title and URL. Optional notes are
-              saved as research. Your facts and Advanced tools are optional.
+              saved as research.
             </p>
             <div className="actions">
               <button

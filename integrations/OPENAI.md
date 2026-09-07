@@ -6,7 +6,7 @@ ChatGPT/Codex computer use can also work directly in a signed-in Relay tab. See 
 
 ## ChatGPT or Codex: prompt and file handoff
 
-1. Select a job in Relay and open **Connect your tools**.
+1. Select a job in Relay and open **Prepare this job for an assistant**.
 2. Enter facts you have confirmed in **Facts to share for this draft**. This separate, unsaved text box does not select from your saved ledger. Choose **Prepare for ChatGPT** or **Prepare for Codex**.
 3. Review the downloaded prompt, then paste its contents or attach it to your chosen assistant. It contains only the selected job, visible draft and supplied facts.
 4. Save the assistant's JSON response as `relay-result.json` (without Markdown fences), then choose **Load research or draft** in Relay.

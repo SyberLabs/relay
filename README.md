@@ -80,13 +80,13 @@ Use your preferred discovery and application tools alongside Relay. [Simplify](h
 
 ### Obsidian
 
-Select a job, open **Connect your tools**, choose the note purpose, and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay and preview matches before importing. Use **Edit draft in Obsidian** for a version-bound draft, and **Download job context** for a source-history snapshot. No plugin, vault scanning, or background sync.
+Select a job, open **Prepare this job for an assistant**, choose the note purpose, and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay and preview matches before importing. Use **Edit draft in Obsidian** for a version-bound draft, and **Download job context** for a source-history snapshot. No plugin, vault scanning, or background sync.
 
 [Complete Obsidian guide](integrations/OBSIDIAN.md)
 
 ### ChatGPT and Codex
 
-Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Connect your tools**, share the selected prompt, and return the JSON result for review. Codex can also prepare drafts through its signed-in CLI.
+Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Prepare this job for an assistant**, share the selected prompt, and return the JSON result for review. Codex can also prepare drafts through its signed-in CLI.
 
 [Complete setup and boundaries](integrations/OPENAI.md)
 

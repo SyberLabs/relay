@@ -36,7 +36,7 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
   await page
     .getByRole('button', { name: /Assistant Example — Engineer/ })
     .click();
-  await page.getByText('Connect your tools', { exact: true }).click();
+  await page.getByText('Prepare this job for an assistant', { exact: true }).click();
   await expect(
     page.getByText(
       'This separate text box is not saved or linked to your ledger.',
@@ -136,7 +136,7 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
       expect(saved.status).toBe('Held');
       expect(saved.accepted_draft).toBeNull();
       expect(saved.version).toBeGreaterThan(result.job.version);
-      await page.getByText('Connect your tools', { exact: true }).click();
+      await page.getByText('Prepare this job for an assistant', { exact: true }).click();
       await page.getByLabel('Load integration result').setInputFiles({
         name: 'stale-result.json',
         mimeType: 'application/json',
@@ -165,7 +165,7 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
     .fill('Continue the first job only.');
   await research.fill('Research for the first job only.');
   await page.getByRole('button', { name: /Other Context Job/ }).click();
-  await page.getByText('Connect your tools', { exact: true }).click();
+  await page.getByText('Prepare this job for an assistant', { exact: true }).click();
   await expect(
     page.getByRole('textbox', { name: 'Facts to share for this draft' }),
   ).toHaveValue('');

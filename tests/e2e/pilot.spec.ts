@@ -6,15 +6,11 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
   const sidebar = page.locator('aside');
-  await expect(
-    sidebar.getByRole('button', { name: /Review queue/ }),
-  ).toBeVisible();
-  await expect(
-    sidebar.getByRole('button', { name: /Accepted drafts/ }),
-  ).toBeVisible();
-  await expect(
-    sidebar.getByRole('button', { name: /All opportunities/ }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No jobs yet' })).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: /Review queue/ })).toHaveCount(
+    0,
+  );
+  await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
   await expect(
     sidebar.getByRole('link', { name: 'Track outcomes' }),
   ).toBeVisible();

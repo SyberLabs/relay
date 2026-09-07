@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PAGE_LINKS,
+  PORTFOLIO_PAGE_LINKS,
+  CONTEXT_PAGE_LINKS,
   isAdvancedSection,
   pageIsCurrent,
   queueFromSearch,
@@ -29,6 +31,14 @@ void test('pilot page links stay facts, outcomes and advanced', () => {
   assert.deepEqual(
     PAGE_LINKS.map((item) => item.href),
     ['/profile', '/track', '/advanced'],
+  );
+  assert.deepEqual(
+    PORTFOLIO_PAGE_LINKS.map((item) => item.page),
+    ['track'],
+  );
+  assert.deepEqual(
+    CONTEXT_PAGE_LINKS.map((item) => item.page),
+    ['profile', 'advanced'],
   );
   assert.equal(pageIsCurrent('profile', 'profile'), true);
   assert.equal(pageIsCurrent('workspace', 'profile'), false);

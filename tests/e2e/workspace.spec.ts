@@ -281,13 +281,12 @@ test('a dirty editor asks before opening the saved facts screen', async ({
 test('controls act on the adjacent panel they name', async ({ page }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
   await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
-  await expect(page.locator('#workspace-queue')).toBeVisible();
   const sidebar = page.locator('aside');
-  await expect(sidebar.getByRole('group', { name: 'Job list' })).toBeVisible();
-  await expect(sidebar.getByRole('group', { name: 'Pages' })).toBeVisible();
+  await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
+  await expect(sidebar.getByRole('group', { name: 'Outcomes' })).toBeVisible();
   await expect(
-    sidebar.getByRole('button', { name: /Review queue/ }),
-  ).toHaveAttribute('aria-pressed', 'true');
+    sidebar.getByRole('group', { name: 'Reusable context' }),
+  ).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
   await expect(
     sidebar.getByRole('link', { name: 'Your facts' }),
@@ -306,6 +305,26 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
   await expect(
     dock.getByRole('heading', { name: 'Import research' }),
   ).toBeVisible();
+  await page.getByRole('tab', { name: 'Tracker CSV' }).click();
+  await expect(
+    dock.getByRole('heading', { name: 'Import a tracker CSV' }),
+  ).toBeVisible();
+  await page.getByRole('tab', { name: 'Research JSON' }).click();
+  await page.getByRole('textbox', { name: 'Research JSON' }).fill(
+    JSON.stringify([
+      {
+        url: 'https://example.com/research/mapping-chrome',
+        Name: 'Mapping Example — Engineer',
+        Job: 'https://example.com/jobs/mapping-chrome',
+        Status: 'Held',
+        Notes: 'Fictional mapping record.',
+      },
+    ]),
+  );
+  await page.getByRole('button', { name: 'Preview matches' }).click();
+  await page.getByRole('button', { name: 'Import into workspace' }).click();
+  await expect(page.locator('#workspace-queue')).toBeVisible();
+  await expect(sidebar.getByRole('group', { name: 'Job list' })).toBeVisible();
   expect(
     await page.evaluate(() => {
       const panel = document.getElementById('import-dock');
@@ -317,11 +336,6 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
       );
     }),
   ).toBe(true);
-  await page.getByRole('tab', { name: 'Tracker CSV' }).click();
-  await expect(
-    dock.getByRole('heading', { name: 'Import a tracker CSV' }),
-  ).toBeVisible();
-
   await sidebar.getByRole('button', { name: /All opportunities/ }).click();
   await expect(page.locator('#workspace-queue h2')).toHaveText(
     'All opportunities',
@@ -348,7 +362,6 @@ test('tracker import actions stay inside the window after a long preview', async
 }) => {
   await page.setViewportSize({ width: 1280, height: 640 });
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await expect(page.locator('#workspace-queue')).toBeVisible();
   await page
     .getByRole('button', { name: 'Import research', exact: true })
     .click();
@@ -388,7 +401,6 @@ async function openImportDock(
   how: 'pointer' | 'keyboard' = 'pointer',
 ) {
   await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
-  await expect(page.locator('#workspace-queue')).toBeVisible();
   const importBtn = page.getByRole('button', {
     name: 'Import research',
     exact: true,

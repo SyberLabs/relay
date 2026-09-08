@@ -395,8 +395,13 @@ export function useRelayTools(
         },
       },
     ];
+    const execute = async (tool: Tool, input: Json) => {
+      const result = await tool.run(input);
+      onVerb?.(tool.name, result);
+      return result;
+    };
     const relay: RelayWindowTools = Object.fromEntries(
-      tools.map((tool) => [tool.name, (input: Json) => tool.run(input)]),
+      tools.map((tool) => [tool.name, (input: Json) => execute(tool, input)]),
     );
     const webmcp = new AbortController();
     window.relay = relay;
@@ -421,11 +426,7 @@ export function useRelayTools(
               readOnlyHint: tool.readOnly,
               untrustedContentHint: true,
             },
-            execute: async (input: Json) => {
-              const result = await tool.run(input);
-              onVerb?.(tool.name, result);
-              return result;
-            },
+            execute: (input: Json) => execute(tool, input),
           },
           { signal: webmcp.signal },
         ),

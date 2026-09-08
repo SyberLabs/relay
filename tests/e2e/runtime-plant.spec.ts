@@ -174,6 +174,28 @@ test('plant blocked answer continues without the remember preference flag', asyn
 }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  const seedClaim = 'Fictional verified plant seed for ledger isolation.';
+  expect(
+    (
+      await page.request.post('/api/profile', {
+        data: {
+          action: 'propose',
+          facts: [{ claim: seedClaim, tag: 'detail' }],
+        },
+      })
+    ).ok(),
+  ).toBe(true);
+  const seeded = await (await page.request.get('/api/profile')).json();
+  const seedFact = seeded.facts.find(
+    (row: { claim: string }) => row.claim === seedClaim,
+  );
+  expect(
+    (
+      await page.request.post('/api/profile', {
+        data: { action: 'verify', id: seedFact.id },
+      })
+    ).ok(),
+  ).toBe(true);
   const imported = await page.request.post('/api/workspace', {
     data: {
       action: 'import',
@@ -195,6 +217,9 @@ test('plant blocked answer continues without the remember preference flag', asyn
     .click();
   const before = await (await page.request.get('/api/workspace')).json();
   expect(before.draftingPreference.routine).toBe(false);
+  expect(
+    before.facts.some((row: { claim: string }) => row.claim === seedClaim),
+  ).toBe(true);
   await page.getByRole('button', { name: 'Answer the open question' }).click();
   await expect(
     page.getByRole('heading', { name: 'The agent needs an answer' }),
@@ -204,9 +229,8 @@ test('plant blocked answer continues without the remember preference flag', asyn
     name: /Save this to your profile/,
   });
   await expect(saveBox).toBeChecked();
-  await page
-    .getByRole('textbox', { name: 'Your answer' })
-    .fill('Start date is 12 June 2027; omit optional anecdotes.');
+  const answerClaim = 'Start date is 12 June 2027; omit optional anecdotes.';
+  await page.getByRole('textbox', { name: 'Your answer' }).fill(answerClaim);
   const posted = page.waitForResponse(
     (r) =>
       r.url().endsWith('/api/workspace') &&
@@ -221,14 +245,19 @@ test('plant blocked answer continues without the remember preference flag', asyn
     choice: 'answer',
     remember: false,
     save_profile: true,
-    answer: 'Start date is 12 June 2027; omit optional anecdotes.',
+    answer: answerClaim,
   });
   await expect(
     page.getByRole('heading', { name: 'The agent needs an answer' }),
   ).toHaveCount(0);
   const after = await (await page.request.get('/api/workspace')).json();
   expect(after.draftingPreference.routine).toBe(false);
-  expect(after.facts).toHaveLength(0);
+  expect(
+    after.facts.some((row: { claim: string }) => row.claim === answerClaim),
+  ).toBe(false);
+  expect(new Set(after.facts.map((row: { id: string }) => row.id))).toEqual(
+    new Set(before.facts.map((row: { id: string }) => row.id)),
+  );
   const job = after.jobs.find(
     (row: { name: string }) =>
       row.name === 'Runtime Plant — Blocked Answer Engineer',
@@ -239,12 +268,11 @@ test('plant blocked answer continues without the remember preference flag', asyn
   const profile = await (await page.request.get('/api/profile')).json();
   const proposed = profile.facts.find(
     (row: { claim: string; status: string }) =>
-      row.claim === 'Start date is 12 June 2027; omit optional anecdotes.' &&
-      row.status === 'Proposed',
+      row.claim === answerClaim && row.status === 'Proposed',
   );
   expect(proposed.field_key).toMatch(/^[\w.:-]{1,128}$/);
   expect(proposed).toMatchObject({
-    claim: 'Start date is 12 June 2027; omit optional anecdotes.',
+    claim: answerClaim,
     status: 'Proposed',
   });
   const verified = await page.request.post('/api/profile', {

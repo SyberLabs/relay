@@ -7,6 +7,7 @@ import { readApplicationContext } from '../lib/application-context.ts';
 
 const source = stripTypeScriptTypes(
   readFileSync(new URL('../app/agent-tools.ts', import.meta.url), 'utf8')
+    .replaceAll('\r\n', '\n')
     .replace(/^import[\s\S]*?from '[^']+';\n/gm, '')
     .replace(/export /g, ''),
 );

@@ -112,7 +112,7 @@ for (const width of [1280, 390])
     await expect(
       page.getByRole('button', { name: 'Accept exact draft' }),
     ).toBeDisabled();
-    await page.reload();
+    await page.goto('/');
     await page
       .getByRole('button', {
         name: new RegExp(`Cedar ${width} — Next Engineer`),
@@ -146,7 +146,7 @@ for (const width of [1280, 390])
       },
     });
     expect(staged.ok()).toBe(true);
-    await page.reload();
+    await page.goto('/');
     await page
       .getByRole('button', {
         name: new RegExp(`Cedar ${width} — Review Engineer`),

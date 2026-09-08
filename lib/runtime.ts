@@ -152,6 +152,31 @@ export function runtimeLanes<
   return { queue, sent, blocked, core };
 }
 
+export function jobsMatchingQueue<T extends { status: string }>(
+  jobs: T[],
+  filter: string,
+): T[] {
+  if (filter === 'All') return jobs;
+  return jobs.filter((job) => job.status === filter);
+}
+
+export type SheetJob = { id: string; name: string; status: string };
+
+export function asSheetJobs(jobs: unknown): SheetJob[] {
+  if (!Array.isArray(jobs)) return [];
+  const rows: SheetJob[] = [];
+  for (const item of jobs) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as { id?: unknown; name?: unknown; status?: unknown };
+    if (typeof row.id !== 'string' || !row.id.trim() || row.id.length > 200)
+      continue;
+    if (typeof row.name !== 'string' || typeof row.status !== 'string')
+      continue;
+    rows.push({ id: row.id, name: row.name, status: row.status });
+  }
+  return rows;
+}
+
 export function whyPicked(
   sources: { notes: string }[],
   fit: { gates: Gate[] } | null,

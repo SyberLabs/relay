@@ -14,6 +14,9 @@ import {
   readAuthorizedJson,
 } from '../../lib/page-session';
 import { ProductShell } from '../shell';
+import { queueFromSearch, queueHref, type QueueFilter } from '../../lib/nav';
+import { asSheetJobs, type SheetJob } from '../../lib/runtime';
+import { TrackJobSheet } from './jobs';
 type Outcome = {
   id: string;
   job_id: string;
@@ -55,6 +58,12 @@ const laterKinds = [
 ];
 export default function Track() {
   const [data, setData] = useState<Data | null>(null),
+    [jobs, setJobs] = useState<SheetJob[]>([]),
+    [filter, setFilter] = useState<QueueFilter>(() =>
+      typeof window === 'undefined'
+        ? 'All'
+        : queueFromSearch(window.location.search, 'All'),
+    ),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [receipts, setReceipts] = useState<Record<string, string>>({}),
@@ -62,6 +71,7 @@ export default function Track() {
   const sessionRef = useRef(createPageSession());
   const applyExpired = useCallback(() => {
     setData(null);
+    setJobs([]);
     setReceipts({});
     setBusy(false);
     setMessage('');
@@ -70,22 +80,46 @@ export default function Track() {
   const refresh = useCallback(async () => {
     if (sessionRef.current.expired) return;
     const started = beginPageWork(sessionRef.current);
-    const r = await fetch('/api/outcomes');
-    const reply = await readAuthorizedJson<Data>(
-      sessionRef.current,
-      started,
-      r,
-      'Unable to load outcomes.',
-    );
-    if (reply.kind === 'expired') {
-      applyExpired();
+    // A sibling fetch or JSON body must never delay clearing an expired session.
+    const read = async <T extends { error?: string }>(
+      url: string,
+      fallback: string,
+    ) => {
+      const response = await fetch(url);
+      const reply = await readAuthorizedJson<T>(
+        sessionRef.current,
+        started,
+        response,
+        fallback,
+      );
+      if (reply.kind === 'expired') applyExpired();
+      return reply;
+    };
+    const [outcomesReply, workspaceReply] = await Promise.all([
+      read<Data>('/api/outcomes', 'Unable to load outcomes.'),
+      read<{ jobs?: unknown; error?: string }>(
+        '/api/workspace',
+        'Unable to load jobs.',
+      ),
+    ]);
+    if (
+      outcomesReply.kind === 'expired' ||
+      outcomesReply.kind === 'ignore' ||
+      workspaceReply.kind === 'expired' ||
+      workspaceReply.kind === 'ignore'
+    )
       return;
-    }
-    if (reply.kind === 'ignore') return;
-    if (reply.kind === 'error') throw Error(reply.error);
+    if (outcomesReply.kind === 'error') throw Error(outcomesReply.error);
+    if (workspaceReply.kind === 'error') throw Error(workspaceReply.error);
     if (!pageWorkIsLive(sessionRef.current, started)) return;
-    setData(reply.body);
+    setData(outcomesReply.body);
+    setJobs(asSheetJobs(workspaceReply.body.jobs));
   }, [applyExpired]);
+  function chooseSheetFilter(value: QueueFilter) {
+    const next = value === filter && value !== 'All' ? 'All' : value;
+    setFilter(next);
+    window.history.replaceState(null, '', queueHref(next));
+  }
   useEffect(() => {
     void Promise.resolve()
       .then(() => refresh())
@@ -151,14 +185,20 @@ export default function Track() {
       </Link>
       <h1>Track</h1>
       <p className="lead">
-        Record what happened after you applied, and the claims that submission
-        committed you to.
+        Scan every saved job, then record what happened after you applied and
+        the claims that submission committed you to.
       </p>
       {message && (
         <div className="notice" aria-live="polite">
           {message}
         </div>
       )}
+      <TrackJobSheet
+        filter={filter}
+        jobs={jobs}
+        loaded={data !== null}
+        onFilter={chooseSheetFilter}
+      />
 
       {data && Object.keys(data.rates).length > 0 && (
         <section className="import">

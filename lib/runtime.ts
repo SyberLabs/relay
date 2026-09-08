@@ -78,6 +78,7 @@ export type ApplicationReviewKind =
   | 'draft_only'
   | 'ready_for_approval'
   | 'disconnected'
+  | 'authorized'
   | 'sending'
   | 'submitted'
   | 'uncertain'
@@ -126,8 +127,8 @@ export function applicationReviewKind(
   )
     return 'submitted';
   if (outcome === 'not-submitted') return 'not_sent';
-  if (inspect?.state === 'authorized' || inspect?.state === 'executing')
-    return 'sending';
+  if (inspect?.state === 'executing') return 'sending';
+  if (inspect?.state === 'authorized') return 'authorized';
   if (isTerminal(job.status)) return 'ended';
   const unknownField = inspect?.fields?.some((field) => field.unknown);
   if (unknownField || (job.blocker.trim() && job.status !== 'Skip'))
@@ -170,6 +171,11 @@ export function applicationReviewCopy(kind: ApplicationReviewKind): {
     return {
       title: 'Agent disconnected',
       detail: 'Reconnect your agent to continue',
+    };
+  if (kind === 'authorized')
+    return {
+      title: 'Approved, waiting for your agent to send',
+      detail: 'Your agent has not started sending yet.',
     };
   if (kind === 'sending')
     return {

@@ -113,11 +113,26 @@ export function usableFact(fact: Fact, now: string): boolean {
   return fact.status === 'Verified' && (!fact.expires || fact.expires > now);
 }
 
+export const PROFILE_FACT_CLAIM_MAX = 500;
+
+const authorizationQuestion =
+  /\b(work authori[sz]|authori[sz]ed to work|eligible to work|citizenship)\b/i;
+const sponsorshipQuestion = /\b(sponsor(?:ship)?|visa)\b/i;
+
+function workJurisdiction(text: string): string | null {
+  if (
+    /\b(united states|u\.s\.a\.?|usa)\b/i.test(text) ||
+    /\bin(?:\s+the)?\s+u\.?s\.?\b/i.test(text)
+  )
+    return 'us';
+  if (/\b(canada|canadian)\b/i.test(text)) return 'ca';
+  if (/\b(united kingdom|\bu\.k\.\b|britain|british|\buk\b)\b/i.test(text))
+    return 'uk';
+  if (/\b(european union|\beu\b)\b/i.test(text)) return 'eu';
+  return null;
+}
+
 const questionFields: [RegExp, string][] = [
-  [
-    /\b(work authori[sz]|authori[sz]ed to work|sponsor(?:ship)?|visa|citizenship|eligible to work)\b/i,
-    'work_authorization',
-  ],
   [
     /\b(start date|earliest start|notice period|available to start)\b/i,
     'earliest_start',
@@ -132,6 +147,13 @@ const questionFields: [RegExp, string][] = [
 
 export function factFieldKey(question: string): string {
   const text = question.trim();
+  if (authorizationQuestion.test(text)) {
+    const place = workJurisdiction(text);
+    if (place) return `work_authorization.${place}`;
+  } else if (sponsorshipQuestion.test(text)) {
+    const place = workJurisdiction(text);
+    return place ? `visa_sponsorship.${place}` : 'visa_sponsorship';
+  }
   for (const [pattern, key] of questionFields)
     if (pattern.test(text)) return key;
   const slug = text
@@ -141,6 +163,16 @@ export function factFieldKey(question: string): string {
     .slice(0, 80)
     .replace(/_+$/g, '');
   return `question.${slug || 'unspecified'}`.slice(0, 128);
+}
+
+export function factClaimFromAnswer(question: string, answer: string): string {
+  const asked = question.trim();
+  const wording = answer.trim();
+  if (!wording) return asked.slice(0, PROFILE_FACT_CLAIM_MAX);
+  if (!asked) return wording.slice(0, PROFILE_FACT_CLAIM_MAX);
+  const composed = `${asked}: ${wording}`;
+  if (composed.length <= PROFILE_FACT_CLAIM_MAX) return composed;
+  return wording.slice(0, PROFILE_FACT_CLAIM_MAX);
 }
 function supports(sentence: string, fact: Fact, pool: Set<string>): boolean {
   const sentenceNumbers = numbersIn(sentence);
@@ -361,6 +393,7 @@ export function profileBrief(
       .map((f) => ({
         id: f.id,
         claim: f.claim,
+        evidence: f.evidence,
         tag: f.tag,
         field_key: f.field_key || null,
       })),
@@ -385,7 +418,9 @@ function parseFactExpiry(value: unknown) {
 }
 
 function exactDisplayedClaim(value: unknown) {
-  return typeof value === 'string' && value.length > 0 && value.length <= 500
+  return typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= PROFILE_FACT_CLAIM_MAX
     ? value
     : null;
 }
@@ -499,7 +534,7 @@ export function validateFact(v: unknown): {
   if (
     typeof f?.claim !== 'string' ||
     !f.claim.trim() ||
-    f.claim.length > 500 ||
+    f.claim.length > PROFILE_FACT_CLAIM_MAX ||
     (f.evidence != null && typeof f.evidence !== 'string') ||
     ((f.evidence as string)?.length || 0) > 2000
   )

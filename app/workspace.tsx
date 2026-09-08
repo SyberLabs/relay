@@ -675,7 +675,11 @@ export default function Workspace() {
       choice,
       remember,
       answer,
-      ...(choice === 'answer' ? { save_profile: saveProfileFact } : {}),
+      ...(choice === 'answer'
+        ? {
+            save_profile: saveProfileFact && answer.trim().length <= 500,
+          }
+        : {}),
     };
     const key = JSON.stringify(body);
     if (decisionAttempt.current?.key !== key)

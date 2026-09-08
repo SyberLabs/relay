@@ -166,6 +166,9 @@ void test('plant blocked answers can propose a profile fact without the routine-
   );
   assert.match(modals, /Save this to your profile/);
   assert.match(modals, /Your facts/);
+  assert.match(modals, /Profile facts are 500 characters/);
+  assert.match(modals, /Job answers can be 2,000/);
+  assert.match(modals, /this job only/);
   assert.doesNotMatch(modals, /onRemember/);
 });
 

@@ -1,4 +1,8 @@
-import { factFieldKey } from './profile.ts';
+import {
+  factClaimFromAnswer,
+  factFieldKey,
+  PROFILE_FACT_CLAIM_MAX,
+} from './profile.ts';
 
 export type DraftingPreference = { routine: boolean; version: number };
 export const defaultDraftingPreference: DraftingPreference = {
@@ -72,7 +76,6 @@ export function validateDraftingDecision(
     (value.save_profile === true && value.choice !== 'answer') ||
     typeof value.answer !== 'string' ||
     value.answer.length > 2000 ||
-    (value.save_profile === true && value.answer.trim().length > 500) ||
     (value.choice === 'answer' ? !value.answer.trim() : value.answer !== '')
   )
     throw Error(
@@ -114,12 +117,17 @@ export async function saveDraftingDecision(
     Array.from(new Uint8Array(digest), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join('');
+  const saveProfile =
+    !!b.save_profile &&
+    b.choice === 'answer' &&
+    b.answer.trim().length <= PROFILE_FACT_CLAIM_MAX;
+  const claim = factClaimFromAnswer(job.blocker, b.answer);
   const detail = JSON.stringify({
     version: b.version,
     preference_version: b.preference_version,
     choice: b.choice,
     remember: b.remember,
-    save_profile: !!b.save_profile,
+    save_profile: saveProfile,
     answer: b.answer,
   });
   const receipt = () =>
@@ -206,7 +214,7 @@ export async function saveDraftingDecision(
           b.preference_version,
         ),
     );
-  if (b.save_profile && b.choice === 'answer')
+  if (saveProfile)
     statements.push(
       db
         .prepare(`INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,field_key,created)
@@ -220,7 +228,7 @@ export async function saveDraftingDecision(
         .bind(
           crypto.randomUUID(),
           owner,
-          b.answer.trim(),
+          claim,
           `Blocked question on job ${b.id}: ${job.blocker}`.slice(0, 2000),
           factFieldKey(job.blocker),
           now,
@@ -232,7 +240,7 @@ export async function saveDraftingDecision(
           owner,
           b.version + 1,
           owner,
-          b.answer.trim(),
+          claim,
         ),
     );
   const result = await db.batch(statements);

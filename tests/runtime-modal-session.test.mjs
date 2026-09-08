@@ -510,6 +510,63 @@ void test('compiled plant blocked submit posts an answer without remember', asyn
   assert.ok(posted[0].operation_id);
 });
 
+void test('compiled plant blocked submit posts job-only save_profile for a long answer', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const saveSrc = src.slice(
+    src.indexOf('async function saveDecision'),
+    src.indexOf('\n  function openAddJob'),
+  );
+  const token = 'onBlockedSubmit={() => {';
+  const start = src.indexOf(token);
+  const submitSrc = src.slice(
+    start + token.length,
+    src.indexOf('\n          }}', start),
+  );
+  const posted = [];
+  const answer = 'a'.repeat(501);
+  const deps = {
+    busy: false,
+    editor: {
+      jobId: 'job',
+      session: 's1',
+      version: 1,
+      draft: 'Saved wording',
+      baseDraft: 'Saved wording',
+      blocker: 'Required personal answer; keep submission on hold',
+      baseBlocker: 'Required personal answer; keep submission on hold',
+      progressNote: answer,
+    },
+    current: {
+      id: 'job',
+      draft: 'Saved wording',
+      blocker: 'Required personal answer; keep submission on hold',
+    },
+    canSave: () => true,
+    sessionRef: { current: { viewer: 'alice' } },
+    draftingPreference: defaultDraftingPreference,
+    decisionAttempt: { current: null },
+    async run(body) {
+      posted.push(body);
+      return true;
+    },
+    setModal() {},
+    saveProfile: true,
+  };
+  // oxlint-disable-next-line typescript/no-implied-eval -- compile actual plant blocked submit
+  const submit = new Function(
+    ...Object.keys(deps),
+    compile(saveSrc) +
+      ';\nreturn async () => {\n' +
+      compile(submitSrc) +
+      '\n};',
+  )(...Object.values(deps));
+  await submit();
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].save_profile, false);
+  assert.equal(posted[0].answer, answer);
+  assert.equal(posted[0].remember, false);
+});
+
 void test('modal profile GET json reject after expiry is ignored', async () => {
   const session = helper.createWorkspaceSession();
   helper.bindViewer(session, 'owner-a');

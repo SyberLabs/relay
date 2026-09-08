@@ -10,6 +10,7 @@ import {
 import { readApplicationContext } from '../lib/application-context.ts';
 import {
   confirmProfileFact,
+  factClaimFromAnswer,
   retireProfileFact,
   usableFact,
 } from '../lib/profile.ts';
@@ -69,6 +70,9 @@ const save = (db, changes = {}, owner = 'alice') =>
     validateDraftingDecision(input(changes)),
     'after',
   );
+const startDateQuestion = 'do not submit until the start date is confirmed.';
+const startDateClaim = (answer) =>
+  factClaimFromAnswer(startDateQuestion, answer);
 
 void test('delegation remembers a bounded preference without resolving facts, holds or exact acceptance; replay is idempotent', async () => {
   const db = database();
@@ -245,12 +249,6 @@ void test('decision validation refuses excessive input and permission-changing f
     { viewer: undefined },
     { remember: 'yes' },
     {
-      choice: 'answer',
-      remember: false,
-      save_profile: true,
-      answer: 'a'.repeat(501),
-    },
-    {
       choice: 'delegate',
       remember: false,
       save_profile: true,
@@ -259,6 +257,43 @@ void test('decision validation refuses excessive input and permission-changing f
     { save_profile: 'yes' },
   ])
     assert.throws(() => validateDraftingDecision(input(change)));
+  const longJobAnswer = validateDraftingDecision(
+    input({
+      choice: 'answer',
+      remember: false,
+      save_profile: true,
+      answer: 'a'.repeat(501),
+    }),
+  );
+  assert.equal(longJobAnswer.save_profile, true);
+  assert.equal(longJobAnswer.answer.length, 501);
+});
+
+void test('a profile-too-long answer still saves on the job and writes no fact', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    const answer = 'a'.repeat(501);
+    const result = await save(db, {
+      choice: 'answer',
+      remember: false,
+      save_profile: true,
+      answer,
+    });
+    assert.equal(result.status, 200);
+    const job = db.sqlite.prepare('SELECT * FROM jobs WHERE id=?').get('job');
+    assert.equal(job.drafting_direction, answer);
+    assert.equal(
+      db.sqlite.prepare('SELECT COUNT(*) AS n FROM profile_facts').get().n,
+      0,
+    );
+    const event = db.sqlite.prepare('SELECT detail FROM events').get();
+    assert.equal(JSON.parse(event.detail).save_profile, false);
+  } finally {
+    db.sqlite.close();
+  }
 });
 
 void test('a reusable blocked answer proposes an owner-scoped fact without verifying or preferring routine drafting', async () => {
@@ -287,7 +322,10 @@ void test('a reusable blocked answer proposes an owner-scoped fact without verif
       .all();
     assert.equal(facts.length, 1);
     assert.equal(facts[0].owner, 'alice');
-    assert.equal(facts[0].claim, 'Two weeks from a signed offer.');
+    assert.equal(
+      facts[0].claim,
+      startDateClaim('Two weeks from a signed offer.'),
+    );
     assert.equal(facts[0].field_key, 'earliest_start');
     assert.equal(facts[0].status, 'Proposed');
     assert.equal(facts[0].tag, 'detail');
@@ -371,7 +409,7 @@ void test('job-only answers and unverified proposed facts stay out of drafting c
     const ready = await readApplicationContext(call, 'job');
     assert.equal(ready.facts.length, 1);
     assert.equal(ready.facts[0].field_key, 'earliest_start');
-    assert.equal(ready.facts[0].claim, '12 June 2027.');
+    assert.equal(ready.facts[0].claim, startDateClaim('12 June 2027.'));
     assert.match(ready.guidance.join(' '), /may propose a profile fact/);
   } finally {
     db.sqlite.close();
@@ -396,7 +434,7 @@ void test('a stale confirmation of a replaced Proposed claim does not verify the
       200,
     );
     const displayed = db.sqlite.prepare('SELECT * FROM profile_facts').get();
-    assert.equal(displayed.claim, '1 June 2027');
+    assert.equal(displayed.claim, startDateClaim('1 June 2027'));
     assert.equal(displayed.status, 'Proposed');
     assert.equal(
       (
@@ -420,7 +458,7 @@ void test('a stale confirmation of a replaced Proposed claim does not verify the
     assert.equal(stale.status, 409);
     const row = db.sqlite.prepare('SELECT * FROM profile_facts').get();
     assert.equal(row.id, displayed.id);
-    assert.equal(row.claim, '1 July 2027');
+    assert.equal(row.claim, startDateClaim('1 July 2027'));
     assert.equal(row.status, 'Proposed');
     assert.equal(row.verified, null);
     assert.equal(
@@ -443,12 +481,12 @@ void test('a stale confirmation of a replaced Proposed claim does not verify the
     const current = await confirmProfileFact(
       db,
       'alice',
-      { id: displayed.id, claim: '1 July 2027' },
+      { id: displayed.id, claim: startDateClaim('1 July 2027') },
       'confirm',
     );
     assert.equal(current.status, 200);
     const verified = db.sqlite.prepare('SELECT * FROM profile_facts').get();
-    assert.equal(verified.claim, '1 July 2027');
+    assert.equal(verified.claim, startDateClaim('1 July 2027'));
     assert.equal(verified.status, 'Verified');
     assert.equal(verified.verified, 'confirm');
     assert.equal(
@@ -507,7 +545,7 @@ void test('a stale discard of a replaced Proposed claim does not retire the unse
     );
     assert.equal(stale.status, 409);
     const row = db.sqlite.prepare('SELECT * FROM profile_facts').get();
-    assert.equal(row.claim, '1 July 2027');
+    assert.equal(row.claim, startDateClaim('1 July 2027'));
     assert.equal(row.status, 'Proposed');
   } finally {
     db.sqlite.close();
@@ -549,7 +587,7 @@ void test('a later proposed answer updates the same field_key without adding a r
       .all();
     assert.equal(facts.length, 1);
     assert.equal(facts[0].field_key, 'earliest_start');
-    assert.equal(facts[0].claim, '12 June 2027.');
+    assert.equal(facts[0].claim, startDateClaim('12 June 2027.'));
     assert.equal(facts[0].status, 'Proposed');
     assert.equal((await loadDraftingPreference(db, 'alice')).routine, false);
   } finally {
@@ -564,7 +602,9 @@ void test('an existing claim does not abort the decision or duplicate the ledger
       "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
     );
     db.sqlite.exec(
-      "INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,created) VALUES ('fact-claim','alice','Two weeks from a signed offer.','resume','detail','Proposed','before')",
+      "INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,created) VALUES ('fact-claim','alice','" +
+        startDateClaim('Two weeks from a signed offer.').replaceAll("'", "''") +
+        "','resume','detail','Proposed','before')",
     );
     assert.equal(
       (
@@ -620,6 +660,84 @@ void test('a full fact ledger refuses save_profile without writing the decision'
       500,
     );
     assert.equal((await loadDraftingPreference(db, 'alice')).routine, false);
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('authorization questions in different jurisdictions keep separate proposed facts', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='Are you authorized to work in the United States?' WHERE id='job'",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Yes',
+        })
+      ).status,
+      200,
+    );
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='Do you require visa sponsorship?' WHERE id='job'",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'sponsorship',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Yes',
+        })
+      ).status,
+      200,
+    );
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='Are you authorized to work in Canada?' WHERE id='job'",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          version: 3,
+          operation_id: 'canada',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Yes',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY field_key')
+      .all();
+    assert.equal(facts.length, 3);
+    assert.deepEqual(
+      facts.map((row) => row.field_key),
+      ['visa_sponsorship', 'work_authorization.ca', 'work_authorization.us'],
+    );
+    assert.equal(
+      facts.find((row) => row.field_key === 'work_authorization.us').claim,
+      factClaimFromAnswer(
+        'Are you authorized to work in the United States?',
+        'Yes',
+      ),
+    );
+    assert.equal(
+      facts.find((row) => row.field_key === 'work_authorization.ca').claim,
+      factClaimFromAnswer('Are you authorized to work in Canada?', 'Yes'),
+    );
+    assert.equal(
+      facts.find((row) => row.field_key === 'visa_sponsorship').claim,
+      factClaimFromAnswer('Do you require visa sponsorship?', 'Yes'),
+    );
+    assert.ok(facts.every((row) => row.status === 'Proposed'));
   } finally {
     db.sqlite.close();
   }

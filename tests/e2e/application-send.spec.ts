@@ -461,7 +461,9 @@ test('disconnecting the waiting operative does not submit after Accept', async (
     expect(employer.writes()).toBe(0);
     if (op.operation.state === 'authorized') {
       await expect(
-        human.getByText('Approved, waiting for your agent to send'),
+        human.getByRole('paragraph').filter({
+          hasText: /^Approved, waiting for your agent to send$/,
+        }),
       ).toBeVisible();
       await expect(
         human.getByText(
@@ -507,7 +509,9 @@ test('authorized without begin shows waiting, not active submitting', async ({
       state: 'authorized',
     });
     await expect(
-      human.getByText('Approved, waiting for your agent to send'),
+      human.getByRole('paragraph').filter({
+        hasText: /^Approved, waiting for your agent to send$/,
+      }),
     ).toBeVisible();
     await expect(
       human.getByText('Your agent is submitting the application you approved'),
@@ -518,7 +522,9 @@ test('authorized without begin shows waiting, not active submitting', async ({
     expect(employer.writes()).toBe(0);
     await operative.context().close();
     await expect(
-      human.getByText('Approved, waiting for your agent to send'),
+      human.getByRole('paragraph').filter({
+        hasText: /^Approved, waiting for your agent to send$/,
+      }),
     ).toBeVisible();
     await expect(
       human.getByText('Your agent is submitting the application you approved'),

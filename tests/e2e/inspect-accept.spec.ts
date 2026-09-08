@@ -179,7 +179,9 @@ test('workspace draft saves can re-arm unchanged content before explicit send ap
   expect(accepted.ok()).toBe(true);
   expect((await accepted.json()).operation.id).toBe(operationId);
   await expect(
-    page.getByText(/Approved, waiting for your agent to send/i),
+    page.getByRole('paragraph').filter({
+      hasText: /^Approved, waiting for your agent to send$/,
+    }),
   ).toBeVisible();
   await expect(
     page.getByText(/Your agent is submitting the application you approved/i),
@@ -516,7 +518,9 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
     ).toBeEnabled();
     await page.getByRole('button', { name: 'Approve & send' }).click();
     await expect(
-      page.getByText(/Approved, waiting for your agent to send/i),
+      page.getByRole('paragraph').filter({
+        hasText: /^Approved, waiting for your agent to send$/,
+      }),
     ).toBeVisible();
     await expect(
       page.getByText(/Your agent is submitting the application you approved/i),
@@ -634,7 +638,9 @@ test('inspect shows employer-uncertain separately from waiting to send', async (
   ).toBeEnabled();
   await page.getByRole('button', { name: 'Approve & send' }).click();
   await expect(
-    page.getByText(/Approved, waiting for your agent to send/i),
+    page.getByRole('paragraph').filter({
+      hasText: /^Approved, waiting for your agent to send$/,
+    }),
   ).toBeVisible();
   await expect(
     page.getByText(/Your agent is submitting the application you approved/i),

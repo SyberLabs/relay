@@ -217,7 +217,7 @@ test('same-tab API handoff survives independent sessions without WebMCP or conte
       .getByRole('button', { name: 'Approve & send', exact: true })
       .click();
     await expect(inspect).toContainText(
-      'Your agent is submitting the application you approved',
+      'Approved, waiting for your agent to send',
     );
 
     // New evidence and a different job do not rewrite the approved payload,

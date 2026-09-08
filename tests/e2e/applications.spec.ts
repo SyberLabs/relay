@@ -255,7 +255,9 @@ test('scout research becomes an exact reviewed application with one execution an
   ).toBeEnabled();
   await page.getByRole('button', { name: 'Approve & send' }).click();
   await expect(
-    page.getByText('Your agent is submitting the application you approved'),
+    page.getByRole('paragraph').filter({
+      hasText: /^Approved, waiting for your agent to send$/,
+    }),
   ).toBeVisible();
   await page.goto('/applications');
   await page

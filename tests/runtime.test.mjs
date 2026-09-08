@@ -161,7 +161,7 @@ void test('review kinds stay truthful through send and receipt', () => {
       accept_enabled: false,
       state: 'authorized',
     }),
-    'sending',
+    'authorized',
   );
   assert.equal(
     applicationReviewKind(held, {
@@ -211,6 +211,62 @@ void test('review kinds stay truthful through send and receipt', () => {
   assert.doesNotMatch(
     applicationReviewCopy('sending').detail,
     /retry automatically/i,
+  );
+});
+
+void test('authorized without begin is waiting, not active submitting', () => {
+  const held = {
+    status: 'Held',
+    draft: '',
+    accepted_draft: null,
+    blocker: '',
+  };
+  const authorizedDisconnected = {
+    ready: true,
+    armed: false,
+    accept_enabled: false,
+    state: 'authorized',
+  };
+  assert.equal(
+    applicationReviewKind(held, authorizedDisconnected),
+    'authorized',
+  );
+  assert.notEqual(
+    applicationReviewKind(held, authorizedDisconnected),
+    'sending',
+  );
+  assert.notEqual(
+    applicationReviewKind(held, authorizedDisconnected),
+    'disconnected',
+  );
+  assert.equal(
+    applicationReviewCopy('authorized').title,
+    'Approved, waiting for your agent to send',
+  );
+  assert.doesNotMatch(
+    applicationReviewCopy('authorized').title,
+    /Sending application|submitting/i,
+  );
+  assert.doesNotMatch(
+    applicationReviewCopy('authorized').detail,
+    /submitting/i,
+  );
+  assert.equal(
+    applicationReviewKind(held, {
+      ready: true,
+      armed: true,
+      accept_enabled: false,
+      state: 'executing',
+    }),
+    'sending',
+  );
+  assert.equal(
+    applicationReviewCopy('sending').title,
+    'Sending application',
+  );
+  assert.equal(
+    applicationReviewCopy('sending').detail,
+    'Your agent is submitting the application you approved',
   );
 });
 

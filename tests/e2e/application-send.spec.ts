@@ -459,6 +459,18 @@ test('disconnecting the waiting operative does not submit after Accept', async (
     ).json();
     expect(['proposed', 'authorized']).toContain(op.operation.state);
     expect(employer.writes()).toBe(0);
+    if (op.operation.state === 'authorized') {
+      await expect(
+        human.getByRole('paragraph').filter({
+          hasText: /^Approved, waiting for your agent to send$/,
+        }),
+      ).toBeVisible();
+      await expect(
+        human.getByText(
+          'Your agent is submitting the application you approved',
+        ),
+      ).toHaveCount(0);
+    }
   } finally {
     await Promise.all(
       pages.map((page) =>
@@ -468,6 +480,126 @@ test('disconnecting the waiting operative does not submit after Accept', async (
           .catch(() => undefined),
       ),
     );
+  }
+});
+
+test('authorized without begin shows waiting, not active submitting', async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(90_000);
+  const pages: Page[] = [];
+  let human: Page | undefined;
+  let finish: { viewer: string; id: string; digest: string } | null = null;
+  try {
+    human = await signedIn(browser, baseURL!);
+    const operative = await signedIn(browser, baseURL!);
+    pages.push(human, operative);
+    const name = 'Cedar Fictional — Authorized Wait Engineer';
+    const { pin } = await prepareArmed(operative, human, name);
+    const employer = await mockEmployer(
+      operative.context(),
+      'Avery Example',
+      'confirm',
+    );
+    const authorized = await startWaitThenApprove(operative, human, pin, name);
+    expect(authorized).toMatchObject({
+      authorized: true,
+      job: pin.job,
+      id: pin.id,
+      digest: pin.digest,
+      state: 'authorized',
+    });
+    await expect(
+      human.getByRole('paragraph').filter({
+        hasText: /^Approved, waiting for your agent to send$/,
+      }),
+    ).toBeVisible();
+    await expect(
+      human.getByText('Your agent is submitting the application you approved'),
+    ).toHaveCount(0);
+    await expect(
+      human.getByRole('paragraph').filter({ hasText: /^Sending application$/ }),
+    ).toHaveCount(0);
+    expect(employer.writes()).toBe(0);
+    await operative.context().close();
+    await expect(
+      human.getByRole('paragraph').filter({
+        hasText: /^Approved, waiting for your agent to send$/,
+      }),
+    ).toBeVisible();
+    await expect(
+      human.getByText('Your agent is submitting the application you approved'),
+    ).toHaveCount(0);
+    const op = await (
+      await human.request.get(
+        `/api/applications?id=${encodeURIComponent(pin.id)}`,
+      )
+    ).json();
+    expect(op.operation.state).toBe('authorized');
+    expect(employer.writes()).toBe(0);
+    const begun = await human.request.post('/api/applications', {
+      data: {
+        action: 'begin',
+        viewer: authorized.viewer,
+        id: pin.id,
+        digest: pin.digest,
+      },
+    });
+    expect(begun.ok()).toBe(true);
+    expect((await begun.json()).execute).toBe(true);
+    finish = { viewer: authorized.viewer, id: pin.id, digest: pin.digest };
+    await expect(
+      human.getByRole('paragraph').filter({ hasText: /^Sending application$/ }),
+    ).toBeVisible();
+    await expect(
+      human.getByText('Your agent is submitting the application you approved'),
+    ).toBeVisible();
+    expect(employer.writes()).toBe(0);
+    const finished = await human.request.post('/api/applications', {
+      data: {
+        action: 'not-submitted',
+        viewer: authorized.viewer,
+        id: pin.id,
+        digest: pin.digest,
+        receipt:
+          'Fictional authorized-wait fixture stopped before employer interaction.',
+      },
+    });
+    expect(finished.ok()).toBe(true);
+    finish = null;
+    const closed = await (
+      await human.request.get(
+        `/api/applications?id=${encodeURIComponent(pin.id)}`,
+      )
+    ).json();
+    expect(closed.operation.state).toBe('not-submitted');
+    expect(employer.writes()).toBe(0);
+  } finally {
+    try {
+      if (finish && human) {
+        const ended = await human.request.post('/api/applications', {
+          data: {
+            action: 'not-submitted',
+            viewer: finish.viewer,
+            id: finish.id,
+            digest: finish.digest,
+            receipt:
+              'Fictional authorized-wait fixture stopped before employer interaction.',
+          },
+        });
+        expect(ended.ok()).toBe(true);
+      }
+    } finally {
+      await Promise.all(
+        pages.map((page) =>
+          page
+            .context()
+            .close()
+            .catch(() => undefined),
+        ),
+      );
+    }
   }
 });
 

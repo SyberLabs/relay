@@ -34,6 +34,7 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.match(plantCss, /application runtime plant/);
   assert.doesNotMatch(globals, /application runtime plant/);
   assert.match(shell, /aria-label="Import research"/);
+  assert.match(shell, /href="\/privacy"[\s\S]{0,40}onClick=\{onNavigate\}/);
   assert.match(workspace, /id="import-dock"/);
   assert.match(
     workspace,

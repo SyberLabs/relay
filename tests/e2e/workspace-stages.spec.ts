@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 test('held job primary control is accept, not Advanced or add job', async ({
   page,
@@ -23,9 +24,11 @@ test('held job primary control is accept, not Advanced or add job', async ({
   const addJob = page.getByRole('button', { name: 'Add job', exact: true });
   await expect(addJob).toHaveClass(/primary/);
   await expect(
-    page.getByText(
-      'Select a job to continue its review. Adding or importing is between jobs.',
-    ),
+    page
+      .locator('header.bar')
+      .getByText(
+        'Select a job to continue its review. Adding or importing is between jobs.',
+      ),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'Select a role' }),
@@ -46,13 +49,14 @@ test('held job primary control is accept, not Advanced or add job', async ({
   await page.getByRole('button', { name: /Stage Held — Engineer/ }).click();
   await expect(addJob).toHaveClass(/secondary/);
   await expect(addJob).not.toHaveClass(/primary/);
+  await openDraftTools(page);
   const accept = page.getByRole('button', { name: 'Accept exact draft' });
   await expect(accept).toHaveClass(/primary/);
   await expect(
     page.getByText(
-      'Review research and accept the exact wording for this job.',
+      'Review this application. Approve & send when the answers and files are complete.',
     ),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
   await expect(
     page.getByRole('heading', { name: 'Advanced', exact: true }),
   ).toHaveCount(0);

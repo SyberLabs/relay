@@ -251,11 +251,13 @@ test('scout research becomes an exact reviewed application with one execution an
   await page.goto('/');
   await page.getByRole('button', { name: /Pilot Engineer/ }).click();
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeEnabled();
-  await page.getByRole('button', { name: 'Accept and send' }).click();
+  await page.getByRole('button', { name: 'Approve & send' }).click();
   await expect(
-    page.getByText('Accepted — waiting for the operative to send.'),
+    page.getByRole('paragraph').filter({
+      hasText: /^Approved, waiting for your agent to send$/,
+    }),
   ).toBeVisible();
   await page.goto('/applications');
   await page

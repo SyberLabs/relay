@@ -133,12 +133,15 @@ void test('context is not required before adding a job', () => {
   );
 });
 
-void test('loop copy names the legal next work without sending applications', () => {
-  assert.match(loopStepLead('Held'), /accept/i);
-  assert.match(loopStepLead('Ready'), /receipt/i);
+void test('loop copy names the next review work', () => {
+  assert.match(loopStepLead('Held'), /review this application/i);
+  assert.match(loopStepLead('Ready'), /Approve & send/i);
   assert.match(loopStepLead('Submitted'), /status/i);
   assert.match(loopStepLead('Closed'), /cannot reopen/i);
-  assert.doesNotMatch(loopStepLead('Held'), /send/i);
+  assert.doesNotMatch(
+    loopStepLead('Held'),
+    /review research and accept the exact wording/i,
+  );
 });
 
 void test('Ready lead does not claim visible wording is accepted', () => {
@@ -171,7 +174,7 @@ void test('Ready lead does not claim visible wording is accepted', () => {
   });
   for (const text of [lead, dirtyHeader]) {
     assert.doesNotMatch(text, /this wording is accepted/i);
-    assert.match(text, /receipt/i);
+    assert.match(text, /Approve & send/i);
     assert.doesNotMatch(text, /review research and accept/i);
   }
 });

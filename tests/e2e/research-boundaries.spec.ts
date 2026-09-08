@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftNested, openDraftTools } from './open-draft-tools';
 
 test('imported holds refuse acceptance and About You qualifications remain visible after reload', async ({
   page,
@@ -48,6 +49,7 @@ test('imported holds refuse acceptance and About You qualifications remain visib
   expect(history.events).toHaveLength(0);
   await page.reload();
   await page.getByRole('button', { name: new RegExp(name) }).click();
+  await openDraftTools(page);
   await page.locator('details.review-notes > summary').click();
   await expect(
     page.getByRole('textbox', { name: 'Blocker or missing fact' }),
@@ -55,6 +57,7 @@ test('imported holds refuse acceptance and About You qualifications remain visib
   await expect(
     page.getByRole('button', { name: 'Accept exact draft' }),
   ).toBeDisabled();
+  await openDraftNested(page, 'Evidence matches');
   const evidence = page
     .getByRole('list')
     .filter({ hasText: 'Practical Node.js service development' });

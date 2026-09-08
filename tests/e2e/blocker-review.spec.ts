@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 async function state(page: Page) {
   const r = await page.request.get('/api/workspace');
@@ -44,6 +45,12 @@ async function setup(page: Page, suffix: string) {
       name: new RegExp(`Cedar ${suffix} — Review Engineer`),
     })
     .click();
+  await expect(
+    page.getByRole('heading', {
+      name: `Cedar ${suffix} — Review Engineer`,
+    }),
+  ).toBeVisible();
+  await openDraftTools(page);
   return (await state(page)).jobs.find(
     (j: { name: string }) => j.name === `Cedar ${suffix} — Review Engineer`,
   );
@@ -119,6 +126,12 @@ for (const width of [1280, 390])
       })
       .click();
     await expect(
+      page.getByRole('heading', {
+        name: `Cedar ${width} — Next Engineer`,
+      }),
+    ).toBeVisible();
+    await openDraftTools(page);
+    await expect(
       page.getByText('Routine writing choices are delegated'),
     ).toBeVisible();
     await page
@@ -126,6 +139,12 @@ for (const width of [1280, 390])
         name: new RegExp(`Cedar ${width} — Review Engineer`),
       })
       .click();
+    await expect(
+      page.getByRole('heading', {
+        name: `Cedar ${width} — Review Engineer`,
+      }),
+    ).toBeVisible();
+    await openDraftTools(page);
     // The existing assistant resumes, chooses grounded wording, and stages it.
     // This exercises persistence and review boundaries, not model quality.
     const current = (await state(page)).jobs.find(
@@ -152,6 +171,12 @@ for (const width of [1280, 390])
         name: new RegExp(`Cedar ${width} — Review Engineer`),
       })
       .click();
+    await expect(
+      page.getByRole('heading', {
+        name: `Cedar ${width} — Review Engineer`,
+      }),
+    ).toBeVisible();
+    await openDraftTools(page);
     await expect(
       page.getByRole('heading', { name: 'Choose how to continue' }),
     ).toHaveCount(0);
@@ -248,11 +273,22 @@ test('a required answer remains saved on refusals, stale conflict and account ex
     'Use my confirmed project. I have not supplied the required location answer.',
   );
   expect(await state(page)).toEqual(before);
-  await page.route('**/api/workspace', (route) =>
-    route.fulfill({ status: 401, json: { error: 'Sign in first.' } }),
-  );
+  let attempts = 0;
+  await page.route('**/api/workspace', async (route) => {
+    if (
+      route.request().method() === 'POST' &&
+      route.request().postDataJSON().action === 'drafting-decision'
+    ) {
+      attempts++;
+      await route.fulfill({ status: 401, json: { error: 'Sign in first.' } });
+    } else await route.continue();
+  });
   await page.getByRole('button', { name: 'Reload this record' }).click();
-  await page.getByRole('button', { name: 'Use your judgment' }).click();
+  const expired = await decisionResponse(page, () =>
+    page.getByRole('button', { name: 'Use your judgment' }).click(),
+  );
+  expect(expired.status()).toBe(401);
+  expect(attempts).toBe(1);
   await expect(
     page.getByRole('textbox', { name: 'Your answer or direction' }),
   ).toHaveCount(0);
@@ -287,6 +323,7 @@ test('short user answer is job-specific and cannot confirm a personal fact or ac
   );
   expect(after.facts).toEqual(before.facts);
   expect(after.draftingPreference).toEqual(before.draftingPreference);
+  await openDraftTools(page);
   await page
     .getByRole('textbox', { name: 'Application answer or outreach draft' })
     .fill('A partial draft, with the original question still unresolved.');
@@ -302,6 +339,10 @@ test('short user answer is job-specific and cannot confirm a personal fact or ac
   await page
     .getByRole('button', { name: /Cedar answer — Review Engineer/ })
     .click();
+  await expect(
+    page.getByRole('heading', { name: 'Cedar answer — Review Engineer' }),
+  ).toBeVisible();
+  await openDraftTools(page);
   await expect(
     page.getByRole('heading', { name: 'Ready for your assistant' }),
   ).toBeVisible();

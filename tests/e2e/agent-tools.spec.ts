@@ -1,9 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 declare global {
   interface Window {
     relayTestActiveTools: Set<string>;
-    relay?: Record<string, (input: Record<string, unknown>) => Promise<unknown>>;
+    relay?: Record<
+      string,
+      (input: Record<string, unknown>) => Promise<unknown>
+    >;
   }
 }
 
@@ -19,6 +23,7 @@ const TOOL_NAMES = [
   'relay_prepare_application',
   'relay_arm_application',
   'relay_inspect_application',
+  'relay_wait_for_application',
   'relay_begin_application',
   'relay_finish_application',
   'relay_cancel_application',
@@ -75,6 +80,7 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
     await expect(
       page.getByRole('heading', { name: `Tool QA ${mode}`, exact: true }),
     ).toBeVisible();
+    await openDraftTools(page);
     await page
       .getByText('Prepare this job for an assistant', { exact: true })
       .click();

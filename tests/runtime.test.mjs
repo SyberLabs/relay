@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applicationReviewCopy,
+  applicationReviewKind,
   boundedPolicyMaximum,
   policyJobIds,
   ctxTally,
-  draftProgress,
   formatLocation,
   formatPay,
   isBlockedJob,
   isSentJob,
   policyExpiryIso,
+  queueRowHint,
   runtimeLanes,
   asSheetJobs,
   jobsMatchingQueue,
@@ -17,6 +19,7 @@ import {
   sourceLabel,
   splitJobName,
   whyPicked,
+  workbenchQueue,
 } from '../lib/runtime.ts';
 
 void test('splitJobName reads company em-dash role titles', () => {
@@ -51,42 +54,219 @@ void test('sourceLabel prefers stored source then hostname', () => {
   assert.equal(sourceLabel('', null), 'saved job');
 });
 
-void test('draft progress does not call an unaccepted Held job sent', () => {
+void test('an accepted prose draft is not ready for approval', () => {
+  const readyJob = {
+    status: 'Ready',
+    draft: 'words',
+    accepted_draft: 'words',
+    blocker: '',
+  };
+  assert.equal(applicationReviewKind(readyJob, null), 'preparing');
   assert.equal(
-    draftProgress({
-      status: 'Held',
-      draft: '',
-      accepted_draft: null,
-      blocker: '',
-    }).pct,
-    15,
+    applicationReviewKind(readyJob, {
+      ready: false,
+      armed: false,
+      accept_enabled: false,
+      state: null,
+    }),
+    'draft_only',
   );
   assert.equal(
-    draftProgress({
-      status: 'Held',
-      draft: 'words',
-      accepted_draft: null,
-      blocker: 'Need a date',
-    }).label,
-    'blocked',
+    applicationReviewKind(readyJob, {
+      ready: true,
+      armed: true,
+      accept_enabled: true,
+      state: 'proposed',
+    }),
+    'ready_for_approval',
+  );
+  assert.doesNotMatch(applicationReviewCopy('draft_only').title, /100|%/);
+  assert.match(applicationReviewCopy('draft_only').detail, /not ready/i);
+});
+
+void test('review kinds stay truthful through send and receipt', () => {
+  const held = {
+    status: 'Held',
+    draft: '',
+    accepted_draft: null,
+    blocker: '',
+  };
+  assert.equal(applicationReviewKind(held, null), 'preparing');
+  assert.equal(applicationReviewCopy('preparing').title, 'Not prepared yet');
+  assert.match(
+    applicationReviewCopy('preparing').detail,
+    /Ask your agent to prepare the destination, answers, and files/i,
+  );
+  assert.doesNotMatch(applicationReviewCopy('preparing').detail, /gathering/i);
+  assert.equal(
+    applicationReviewKind({ ...held, blocker: 'Need a start date' }, null),
+    'needs_answer',
   );
   assert.equal(
-    draftProgress({
-      status: 'Ready',
-      draft: 'words',
-      accepted_draft: 'words',
-      blocker: '',
-    }).step,
-    'Exact draft accepted. Nothing has been sent.',
+    applicationReviewKind(held, {
+      ready: false,
+      armed: false,
+      accept_enabled: false,
+      state: null,
+      fields: [{ unknown: true }],
+    }),
+    'needs_answer',
   );
   assert.equal(
-    draftProgress({
-      status: 'Submitted',
-      draft: 'words',
-      accepted_draft: 'words',
-      blocker: '',
-    }).label,
-    'recorded',
+    applicationReviewKind(held, {
+      ready: true,
+      armed: false,
+      accept_enabled: false,
+      state: 'proposed',
+    }),
+    'disconnected',
+  );
+  assert.match(
+    applicationReviewCopy('disconnected').detail,
+    /Reconnect your agent/i,
+  );
+  assert.equal(
+    applicationReviewKind({ ...held, status: 'Closed' }, null),
+    'ended',
+  );
+  assert.notEqual(
+    applicationReviewKind({ ...held, status: 'Closed' }, null),
+    'submitted',
+  );
+  assert.equal(
+    applicationReviewKind(held, {
+      ready: false,
+      armed: false,
+      accept_enabled: false,
+      state: 'cancelled',
+      recorded_result: 'not-submitted',
+      recorded_receipt: 'Form closed before submit',
+    }),
+    'not_sent',
+  );
+  assert.equal(
+    applicationReviewKind(held, {
+      ready: false,
+      armed: false,
+      accept_enabled: false,
+      state: 'cancelled',
+    }),
+    'not_sent',
+  );
+  assert.match(applicationReviewCopy('not_sent').title, /Not sent/);
+  assert.equal(
+    applicationReviewKind(held, {
+      ready: true,
+      armed: true,
+      accept_enabled: false,
+      state: 'authorized',
+    }),
+    'authorized',
+  );
+  assert.equal(
+    applicationReviewKind(held, {
+      ready: true,
+      armed: true,
+      accept_enabled: false,
+      state: 'executing',
+    }),
+    'sending',
+  );
+  assert.equal(
+    applicationReviewKind(
+      { ...held, status: 'Submitted' },
+      {
+        ready: true,
+        armed: false,
+        accept_enabled: false,
+        state: 'submitted',
+        recorded_result: 'submitted',
+        recorded_receipt: 'NW-88421',
+      },
+    ),
+    'submitted',
+  );
+  assert.equal(
+    applicationReviewKind(held, {
+      ready: true,
+      armed: false,
+      accept_enabled: false,
+      state: 'uncertain',
+      recorded_result: 'uncertain',
+    }),
+    'uncertain',
+  );
+  assert.match(
+    applicationReviewCopy('submitted').detail,
+    /recorded by your agent/i,
+  );
+  assert.doesNotMatch(
+    applicationReviewCopy('submitted').detail,
+    /independently verified/i,
+  );
+  assert.doesNotMatch(
+    applicationReviewCopy('ready_for_approval').detail,
+    /POST|frozen|operative|Permit/i,
+  );
+  assert.doesNotMatch(
+    applicationReviewCopy('sending').detail,
+    /retry automatically/i,
+  );
+});
+
+void test('authorized without begin is waiting, not active submitting', () => {
+  const held = {
+    status: 'Held',
+    draft: '',
+    accepted_draft: null,
+    blocker: '',
+  };
+  const authorizedDisconnected = {
+    ready: true,
+    armed: false,
+    accept_enabled: false,
+    state: 'authorized',
+  };
+  assert.equal(
+    applicationReviewKind(held, authorizedDisconnected),
+    'authorized',
+  );
+  assert.notEqual(
+    applicationReviewKind(held, authorizedDisconnected),
+    'sending',
+  );
+  assert.notEqual(
+    applicationReviewKind(held, authorizedDisconnected),
+    'disconnected',
+  );
+  assert.equal(
+    applicationReviewCopy('authorized').title,
+    'Approved, waiting for your agent to send',
+  );
+  assert.doesNotMatch(
+    applicationReviewCopy('authorized').title,
+    /Sending application|submitting/i,
+  );
+  assert.doesNotMatch(
+    applicationReviewCopy('authorized').detail,
+    /submitting/i,
+  );
+  assert.equal(
+    applicationReviewKind(held, {
+      ready: true,
+      armed: true,
+      accept_enabled: false,
+      state: 'executing',
+    }),
+    'sending',
+  );
+  assert.equal(
+    applicationReviewCopy('sending').title,
+    'Sending application',
+  );
+  assert.equal(
+    applicationReviewCopy('sending').detail,
+    'Your agent is submitting the application you approved',
   );
 });
 
@@ -154,6 +334,41 @@ void test('lanes put blockers south, outcomes west, and Held east', () => {
   assert.equal(isSentJob(jobs[3]), true);
   assert.equal(sentPip('Skip'), 'no');
   assert.equal(sentPip('Submitted'), 'ok');
+});
+
+void test('workbench queue keeps Ready jobs as draft-only waiting rows', () => {
+  const jobs = [
+    { id: 'a', name: 'Northwind — Platform', status: 'Held', blocker: '' },
+    {
+      id: 'b',
+      name: 'Harborline — Backend',
+      status: 'Held',
+      blocker: 'Need work authorization',
+    },
+    { id: 'c', name: 'Ready Co — Draft', status: 'Ready', blocker: '' },
+    { id: 'd', name: 'Copperleaf — ML', status: 'Submitted', blocker: '' },
+    { id: 'e', name: 'Skip Co — Old', status: 'Skip', blocker: 'old' },
+  ];
+  const lanes = workbenchQueue(jobs, '');
+  assert.deepEqual(
+    lanes.waiting.map((job) => job.id),
+    ['a', 'b', 'c'],
+  );
+  assert.deepEqual(
+    lanes.ledger.map((job) => job.id),
+    ['d', 'e'],
+  );
+  assert.equal(queueRowHint(jobs[2]), 'In review');
+  assert.match(queueRowHint(jobs[1]), /needs an answer/i);
+  const filtered = workbenchQueue(jobs, 'copper');
+  assert.deepEqual(
+    filtered.waiting.map((job) => job.id),
+    [],
+  );
+  assert.deepEqual(
+    filtered.ledger.map((job) => job.id),
+    ['d'],
+  );
 });
 
 void test('whyPicked prefers evidence overlap then notes', () => {

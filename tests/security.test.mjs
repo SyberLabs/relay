@@ -503,7 +503,7 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
 void test(
   'arm classification bounds actual bytes and stalled bodies before application work',
   { timeout: 15000 },
-  async () => {
+  async (t) => {
     const { privateKey, publicKey } = await generateKeyPair('RS256');
     const db = database();
     const env = {
@@ -523,6 +523,8 @@ void test(
       .setAudience(env.ACCESS_AUD)
       .setExpirationTime('5m')
       .sign(privateKey);
+    const fixedAdmissionTime = Date.now();
+    t.mock.method(Date, 'now', () => fixedAdmissionTime);
     let calls = 0;
     const app = {
       async fetch() {

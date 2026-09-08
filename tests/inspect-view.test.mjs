@@ -8,7 +8,9 @@ import {
   inspectShowsAuthorizedWaiting,
   inspectShowsExecuting,
   inspectShowsReadyNotArmed,
+  inspectShowsSubmitted,
   inspectShowsUncertain,
+  inspectRecordedReceipt,
   selectInspectJob,
 } from '../lib/inspect-view.ts';
 
@@ -248,9 +250,36 @@ void test('overlay operative status distinguishes armed waiting executing uncert
         armed: false,
         state: 'submitted',
         accept_enabled: false,
+        recorded_result: 'submitted',
+        recorded_receipt: 'Fictional employer confirmation ABC',
+      }),
+    ),
+    'submitted',
+  );
+  assert.equal(inspectOperativeStatus(null), null);
+});
+
+void test('submitted snapshot exposes agent-observed receipt only', () => {
+  const view = snapshot('job-a', {
+    ready: true,
+    armed: false,
+    state: 'submitted',
+    accept_enabled: false,
+    recorded_result: 'submitted',
+    recorded_receipt: 'Fictional employer confirmation ABC',
+  });
+  assert.equal(inspectShowsSubmitted(view), true);
+  assert.equal(
+    inspectRecordedReceipt(view),
+    'Fictional employer confirmation ABC',
+  );
+  assert.equal(
+    inspectRecordedReceipt(
+      snapshot('job-a', {
+        state: 'authorized',
+        recorded_receipt: 'Should not leak before a recorded outcome',
       }),
     ),
     null,
   );
-  assert.equal(inspectOperativeStatus(null), null);
 });

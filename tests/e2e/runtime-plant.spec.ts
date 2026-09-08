@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
-test('the workspace plant shows lanes, Relay tools, and autopilot without sending', async ({
+test('the workspace workbench shows a full-width queue and review without sending', async ({
   page,
 }) => {
   await page.goto('/');
@@ -10,19 +11,17 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   ).toBeVisible();
   await expect(page.locator('#workspace-queue')).toBeVisible();
   await expect(
-    page.getByRole('heading', { name: 'What the agent knows about you' }),
-  ).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Sent' })).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Stuck, needs your answer' }),
-  ).toBeVisible();
-  await expect(
     page.getByRole('heading', { name: 'Review queue' }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'What the agent knows about you' }),
+  ).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Autopilot' })).toBeVisible();
   await expect(
     page.getByRole('link', { name: 'Track jobs', exact: true }),
   ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Profile' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'History' })).toBeVisible();
   await expect(
     page.getByRole('button', { name: /All opportunities/ }),
   ).toHaveCount(0);
@@ -51,15 +50,11 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   await page.reload();
 
   const saved = await (await page.request.get('/api/workspace')).json();
-  const reviewJobs = saved.jobs.filter(
-    (job: { status: string; blocker: string }) =>
-      job.status === 'Held' && !job.blocker.trim(),
-  );
   await expect(page.locator('#workspace-queue .tally')).toHaveText(
-    String(reviewJobs.length),
+    String(saved.jobs.length),
   );
   await expect(page.locator('#workspace-queue button.job')).toHaveCount(
-    reviewJobs.length,
+    saved.jobs.length,
   );
   await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
   const allOpportunities = page.getByRole('button', {
@@ -96,11 +91,13 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   await expect(
     page.getByRole('heading', { name: 'Runtime Plant — Held Engineer' }),
   ).toBeVisible();
-  const evidenceFact = page
-    .locator('.facts .fact')
-    .filter({ hasText: 'evidence' });
-  await expect(evidenceFact).toContainText(/\d+ hit · \d+ miss|not compared/);
-  await expect(evidenceFact).not.toContainText('%');
+  await expect(page.locator('.workbench')).not.toContainText(/\d+%/);
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
+  ).toBeDisabled();
   await page
     .getByRole('button', { name: 'Inspect what the agent wrote' })
     .click();
@@ -169,6 +166,65 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   });
 });
 
+test('workbench keeps Approve & send in view without horizontal overflow', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  const imported = await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          url: 'https://example.com/research/runtime-workbench-viewport',
+          Name: 'Runtime Workbench — Viewport Engineer',
+          Job: 'https://example.com/jobs/runtime-workbench-viewport',
+          Status: 'Held',
+          Notes: 'Fictional viewport role.',
+        },
+      ],
+    },
+  });
+  expect(imported.ok()).toBe(true);
+  await page.reload();
+  await page
+    .getByRole('button', { name: /Runtime Workbench — Viewport Engineer/ })
+    .click();
+
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 1920, height: 1080 },
+    { width: 390, height: 844 },
+    { width: 720, height: 450 },
+  ]) {
+    await page.setViewportSize(size);
+    const overflowX = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth + 1,
+    );
+    expect(overflowX, `${size.width}x${size.height} overflow`).toBe(false);
+    const approve = page.getByRole('button', { name: 'Approve & send' });
+    await expect(approve).toBeVisible();
+    const box = await approve.boundingBox();
+    expect(box, `${size.width}x${size.height} approve box`).toBeTruthy();
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
+      size.height + 1,
+    );
+  }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const overflows = await page.evaluate(() => {
+    const queue = document.querySelector('.q-list');
+    const col = document.querySelector('.review-col');
+    const style = (el: Element | null) =>
+      el ? getComputedStyle(el).overflowY : '';
+    return { queue: style(queue), col: style(col) };
+  });
+  expect(overflows.queue).toMatch(/auto|scroll/);
+  expect(overflows.col).toMatch(/auto|scroll/);
+});
+
 test('plant blocked answer continues without the remember preference flag', async ({
   page,
 }) => {
@@ -232,9 +288,7 @@ test('plant blocked answer continues without the remember preference flag', asyn
   expect(job.accepted_draft).toBeNull();
 });
 
-test('dirty editor asks before Review prepared application and modal Your facts', async ({
-  page,
-}) => {
+test('dirty editor asks before leaving to Your facts', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
   const imported = await page.request.post('/api/workspace', {
@@ -256,6 +310,7 @@ test('dirty editor asks before Review prepared application and modal Your facts'
   await page
     .getByRole('button', { name: /Runtime Dirty — Nav Engineer/ })
     .click();
+  await openDraftTools(page);
   const draft = page.getByRole('textbox', {
     name: 'Application answer or outreach draft',
   });
@@ -269,17 +324,14 @@ test('dirty editor asks before Review prepared application and modal Your facts'
 
   await page.getByRole('button', { name: 'Accept exact draft' }).click();
   await expect(
-    page.getByRole('link', { name: 'Review prepared application' }),
-  ).toBeVisible();
-  await draft.fill('Unsaved plant draft before Applications.');
-  page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('link', { name: 'Review prepared application' }).click();
-  await expect(page).not.toHaveURL(/#application-inspect$/);
-  await expect(draft).toHaveValue('Unsaved plant draft before Applications.');
-  await draft.fill('Unsaved plant draft before Your facts.');
-  await page.getByRole('link', { name: 'Review prepared application' }).click();
-  await expect(page).toHaveURL(/#application-inspect$/);
-  await expect(
     page.getByRole('region', { name: 'Prepared application' }),
   ).toBeVisible();
+  await draft.fill('Unsaved plant draft before Track.');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await expect(page).not.toHaveURL(/\/track/);
+  await expect(draft).toHaveValue('Unsaved plant draft before Track.');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await expect(page).toHaveURL(/\/track/);
 });

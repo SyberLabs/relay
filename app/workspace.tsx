@@ -8,33 +8,29 @@ import { type Fact } from '../lib/profile';
 import { assessJob } from '../lib/fit';
 import { useRelayTools } from './agent-tools';
 import { Connections } from './connections';
-import { useInspect } from './inspect';
+import { inspectSendControl, useInspect } from './inspect';
 import { FirstJob } from './first-job';
 import { TrackerImport } from './tracker-import';
 import { BlockerReview } from './blocker-review';
 import { defaultDraftingPreference } from '../lib/drafting-decision';
 import { RuntimeShell } from './runtime-shell';
 import { RuntimeModals, type RuntimeModal } from './runtime-modals';
+import { WorkbenchQueue } from './workbench-queue';
 import type { ApplicationPolicy } from '../lib/application-automation';
 import {
+  applicationReviewCopy,
+  applicationReviewKind,
   boundedPolicyMaximum,
   ctxTally,
-  draftProgress,
   formatLocation,
   formatPay,
   policyExpiryIso,
   policyJobIds,
-  runtimeLanes,
-  sentPip,
   sourceLabel,
   splitJobName,
+  workbenchQueue,
 } from '../lib/runtime';
-import {
-  isQueueFilter,
-  plantSearchAction,
-  queueHref,
-  workspaceHref,
-} from '../lib/nav';
+import { plantSearchAction, workspaceHref } from '../lib/nav';
 import {
   importTabButtonId,
   importTabFromKey,
@@ -45,7 +41,6 @@ import {
   applyLoadedDraft,
   canSave,
   editorIsDirty,
-  jobQueueHint,
   keepEditorOnReselect,
   loadEditor,
   showsExactAcceptance,
@@ -68,11 +63,10 @@ import {
 import { mergeReviewEvents } from '../lib/workspace-events';
 import {
   headerAddJobIsPrimary,
-  loopStepLead,
   primaryAction,
   stageLead,
 } from '../lib/workspace-stage';
-import { ArrowUpRight, Search, Check, ArrowRight } from 'lucide-react';
+import { ArrowUpRight, Check, ArrowRight } from 'lucide-react';
 type Job = {
   id: string;
   job_key: string;
@@ -135,6 +129,8 @@ export default function Workspace() {
     [handoffOpen, setHandoffOpen] = useState(false),
     [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
   const [modal, setModal] = useState<RuntimeModal>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyReturnRef = useRef<HTMLElement | null>(null);
   const [autopilot, setAutopilot] = useState(false);
   const [policy, setPolicy] = useState<ApplicationPolicy | null>(null);
   const [styleCount, setStyleCount] = useState(0);
@@ -146,8 +142,7 @@ export default function Workspace() {
     (saved?: SaveSnapshot) => Promise<Job[] | undefined>
   >(async () => undefined);
   const importRef = useRef<HTMLElement>(null);
-  const queueRef = useRef<HTMLElement>(null);
-  const detailRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
   const applyExpired = useCallback(() => {
     const next = expiredPrivateWorkspace();
     setJobs(next.jobs);
@@ -198,12 +193,34 @@ export default function Workspace() {
       applyExpired();
     },
   });
-  const lanes = runtimeLanes(jobs, selected, 'Held');
-  const queued = lanes.queue.filter((job) =>
-    job.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  const outcomeSeenRef = useRef('');
+  const inspectJobId = inspect.view?.job_id;
+  const inspectOperationId = inspect.view?.operation_id;
+  const inspectRecorded = inspect.view?.recorded_result;
+  const inspectState = inspect.view?.state;
+  useEffect(() => {
+    if (!inspectJobId) return;
+    const terminal =
+      inspectRecorded === 'submitted' ||
+      inspectRecorded === 'uncertain' ||
+      inspectRecorded === 'not-submitted' ||
+      inspectState === 'submitted' ||
+      inspectState === 'uncertain' ||
+      inspectState === 'cancelled' ||
+      inspectState === 'not-submitted';
+    if (!terminal) return;
+    const key = `${inspectJobId}:${inspectOperationId || ''}:${inspectRecorded || inspectState}`;
+    if (outcomeSeenRef.current === key) return;
+    outcomeSeenRef.current = key;
+    void refreshRef.current();
+  }, [inspectJobId, inspectOperationId, inspectRecorded, inspectState]);
+  const lanes = workbenchQueue(jobs, search);
+  const queued = lanes.waiting;
   const named = current ? splitJobName(current.name) : null;
-  const progress = current ? draftProgress(current) : null;
+  const reviewKind = current
+    ? applicationReviewKind(current, inspect.view)
+    : null;
+  const reviewCopy = reviewKind ? applicationReviewCopy(reviewKind) : null;
   const stageView = {
     page: 'workspace' as const,
     signedOut,
@@ -405,6 +422,14 @@ export default function Workspace() {
   useEffect(() => {
     if (showImport) importRef.current?.scrollIntoView({ block: 'nearest' });
   }, [showImport]);
+  useEffect(() => {
+    if (!historyOpen) return;
+    historyReturnRef.current = document.activeElement as HTMLElement | null;
+    document.getElementById('history-title')?.focus();
+    return () => {
+      historyReturnRef.current?.focus?.();
+    };
+  }, [historyOpen]);
   async function run(body: Record<string, unknown>, saved?: SaveSnapshot) {
     const started = beginMutation(sessionRef.current.gate);
     setBusy(true);
@@ -706,7 +731,7 @@ export default function Workspace() {
   }
   const connections = !signedOut ? (
     <Connections
-      key={current?.id ?? 'no-job'}
+      key={`connections-${current?.id ?? 'no-job'}`}
       toolStatus={toolStatus}
       open={handoffOpen}
       onOpenChange={setHandoffOpen}
@@ -737,16 +762,8 @@ export default function Workspace() {
       openImport={() => openImport('json')}
     />
   ) : null;
-  function holdJob() {
-    if (!current) return;
-    if (editorIsDirty(editor) && !discardUnsaved()) return;
-    selectedRef.current = '';
-    setEditor(null);
-    window.history.replaceState(null, '', '/');
-    setMessage('Held. Moved back to the queue.');
-  }
   function loadNext() {
-    const next = queued[0] ?? lanes.queue[0];
+    const next = queued[0] ?? lanes.waiting[0];
     if (!next) return;
     chooseJob(next);
   }
@@ -885,6 +902,7 @@ export default function Workspace() {
     <RuntimeShell
       addJobPrimary={addJobPrimary}
       autopilot={autopilot}
+      historyOpen={historyOpen}
       importOpen={showImport}
       importDisabled={signedOut || !loaded}
       lead={stageLead(stageView)}
@@ -895,17 +913,46 @@ export default function Workspace() {
           : busy
             ? 'Working…'
             : current
-              ? `${current.name} in core.`
-              : 'Runtime ready. Load an application to begin.'
+              ? `${current.name}.`
+              : 'Workbench ready. Select an application.'
       }
       logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
       onAddJob={openAddJob}
       onAutopilot={() => void toggleAutopilot()}
+      onHistory={() => setHistoryOpen((open) => !open)}
       onImport={findMoreJobs}
       onNavigate={confirmLeave}
+      onProfile={() => setModal('profile')}
+      onResearch={findMoreJobs}
+      onTools={() => setModal('tools')}
       showAddJob={loaded && !signedOut && jobs.length > 0}
+      stateKind={
+        busy || reviewKind === 'sending' || reviewKind === 'ready_for_approval'
+          ? 'live'
+          : reviewKind === 'disconnected' || reviewKind === 'uncertain'
+            ? 'off'
+            : 'idle'
+      }
       stateText={
-        busy ? 'Working' : signedOut ? 'Signed out' : 'Waiting for you'
+        busy
+          ? 'Working'
+          : signedOut
+            ? 'Signed out'
+            : reviewKind === 'ready_for_approval'
+              ? 'Your agent is connected'
+              : reviewKind === 'sending'
+                ? 'Sending'
+                : reviewKind === 'disconnected'
+                  ? 'Agent disconnected'
+                  : reviewKind === 'submitted'
+                    ? 'Submission recorded'
+                    : reviewKind === 'uncertain'
+                      ? 'Submission needs checking'
+                      : reviewKind === 'not_sent'
+                        ? 'Not sent'
+                        : reviewKind === 'ended'
+                          ? 'Application ended'
+                          : 'Waiting for you'
       }
     >
       <main id="workspace-main">
@@ -1095,263 +1142,137 @@ export default function Workspace() {
         ) : !loaded ? (
           <p aria-live="polite">Opening your workspace…</p>
         ) : (
-          <div className="stage">
-            <div className="cross">
-              <div className="arm n">
-                <div className="plate">
-                  <div className="plate-head">
-                    <h2>What the agent knows about you</h2>
-                    <span className="tally">
-                      {ctxTally(facts.length, styleCount)}
-                    </span>
-                  </div>
-                  <div className="context">
-                    <button
-                      className="ctx"
-                      onClick={() => setModal('profile')}
-                      type="button"
-                    >
-                      <b>Profile</b>
-                      <span>identity, work history, answers</span>
-                    </button>
-                    <button
-                      className="ctx"
-                      onClick={() => setModal('resume')}
-                      type="button"
-                    >
-                      <b>Resume</b>
-                      <span>extract facts from a base</span>
-                    </button>
-                    <button
-                      className="ctx"
-                      onClick={() => setModal('style')}
-                      type="button"
-                    >
-                      <b>Style kit</b>
-                      <span>voice, phrasing, limits</span>
-                    </button>
-                    <button
-                      className="ctx"
-                      onClick={() => setModal('tools')}
-                      type="button"
-                    >
-                      <b>Tools</b>
-                      <span>Simplify, Notion, Obsidian</span>
-                    </button>
-                  </div>
-                  <div className="rail" />
-                </div>
-              </div>
-              <div className="arm w">
-                <div className="plate">
-                  <div className="plate-head">
-                    <h2>Sent</h2>
-                    <span className="tally">{lanes.sent.length}</span>
-                  </div>
-                  <div className="plate-body">
-                    {lanes.sent.length ? (
-                      lanes.sent.map((job) => (
-                        <button
-                          aria-label={job.name}
-                          className={
-                            'card job' +
-                            (selected === job.id ? ' selected' : '')
-                          }
-                          key={job.id}
-                          onClick={() => chooseJob(job)}
-                          type="button"
-                        >
-                          <span className={'pip ' + sentPip(job.status)} />
-                          <span className="txt">
-                            <b>{job.name}</b>
-                            <small>
-                              {job.status} / {jobQueueHint(job, editor)}
-                            </small>
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="hint">
-                        Applications you approve land here with a confirmation
-                        receipt.
-                      </p>
-                    )}
-                  </div>
-                  <div className="rail" />
-                  <div className="pulse" />
-                </div>
-              </div>
-              <div className="arm core-cell">
-                <div className="core" ref={detailRef}>
-                  <div className="core-head">
-                    <span>core</span>
-                    <span>
-                      {current
-                        ? `application ${current.id.slice(0, 8)}`
-                        : 'no application loaded'}
-                    </span>
-                  </div>
-                  {current && named && progress ? (
-                    <div className="core-body">
-                      <div>
-                        <h2 className="role" tabIndex={-1}>
-                          {current.name}
-                        </h2>
-                        <div className="org">
-                          {current.company ||
-                            named.org ||
-                            sourceLabel(current.source, current.url)}{' '}
-                          / found on {sourceLabel(current.source, current.url)}
-                        </div>
-                      </div>
-                      <dl className="facts">
-                        <div className="fact">
-                          <dt>evidence</dt>
-                          <dd>
-                            {fit
-                              ? `${fit.gates.filter((gate) => gate.status === 'hit').length} hit · ${fit.gates.filter((gate) => gate.status === 'miss').length} miss`
-                              : 'not compared'}
-                          </dd>
-                        </div>
-                        <div className="fact">
-                          <dt>location</dt>
-                          <dd>
-                            {formatLocation(current.location, current.remote)}
-                          </dd>
-                        </div>
-                        <div className="fact">
-                          <dt>listed pay</dt>
-                          <dd>
-                            {formatPay(current.comp_min, current.comp_max)}
-                          </dd>
-                        </div>
-                      </dl>
-                      <div className="progress">
-                        <div className="prow">
-                          <span>{progress.label}</span>
-                          <span>{progress.pct}%</span>
-                        </div>
-                        <div className="track2">
-                          <div
-                            className="fill"
-                            style={{ width: `${progress.pct}%` }}
-                          />
-                        </div>
-                        <div className="stepline">{progress.step}</div>
+          <div className="workbench">
+            <WorkbenchQueue
+              findDisabled={signedOut || !loaded}
+              ledger={lanes.ledger}
+              onChoose={chooseJob}
+              onFindMore={findMoreJobs}
+              onSearch={setSearch}
+              search={search}
+              selected={selected}
+              waiting={queued}
+            />
+            <section
+              className="review core"
+              id="application-inspect"
+              aria-label="Prepared application"
+              ref={detailRef}
+            >
+              {current && named && reviewKind && reviewCopy ? (
+                <>
+                  <div className="job-head">
+                    <div>
+                      <h2 className="role" tabIndex={-1}>
+                        {current.name}
+                      </h2>
+                      <div className="meta">
+                        {current.company ||
+                          named.org ||
+                          sourceLabel(current.source, current.url)}
+                        {' · '}
+                        {formatLocation(current.location, current.remote)}
+                        {' · '}
+                        {formatPay(current.comp_min, current.comp_max)}
                       </div>
                     </div>
-                  ) : null}
-                  {current ? (
-                    <div className="core-actions">
+                    <span
+                      className={
+                        'badge' +
+                        (reviewKind === 'ready_for_approval' ||
+                        reviewKind === 'submitted'
+                          ? ' ok'
+                          : reviewKind === 'uncertain'
+                            ? ' bad'
+                            : ' warn')
+                      }
+                    >
+                      {reviewCopy.title}
+                    </span>
+                    {current.url && (
+                      <a href={current.url} target="_blank" rel="noreferrer">
+                        Open employer posting <ArrowUpRight size={15} />
+                      </a>
+                    )}
+                    <button
+                      className="textbtn"
+                      onClick={() => setModal('inspect')}
+                      type="button"
+                    >
+                      Inspect what the agent wrote
+                    </button>
+                    {!protectedState && current.blocker.trim() ? (
                       <button
-                        className="btn btn-wide"
-                        onClick={() => setModal('inspect')}
+                        className="textbtn"
+                        onClick={() => setModal('blocked')}
                         type="button"
                       >
-                        Inspect what the agent wrote
+                        Answer the open question
                       </button>
-                      {current.status === 'Ready' ? (
-                        <Link
-                          className="btn btn-clear"
-                          href="#application-inspect"
-                          onClick={confirmLeave}
-                        >
-                          Review prepared application
-                        </Link>
-                      ) : null}
-                      <button className="btn" onClick={holdJob} type="button">
-                        Hold
-                      </button>
-                      {!protectedState && current.blocker.trim() ? (
+                    ) : null}
+                  </div>
+                  <div className="review-scroll">
+                    {editor?.conflict && (
+                      <div className="notice">
+                        This record changed. Reload before saving.
                         <button
-                          className="btn btn-signal"
-                          onClick={() => setModal('blocked')}
-                          type="button"
+                          className="textbutton"
+                          onClick={() => setEditor(loadEditor(current))}
                         >
-                          Answer the open question
+                          Reload this record
                         </button>
-                      ) : null}
-                      {!protectedState ? (
-                        <button
-                          className="btn btn-stop"
-                          disabled={blocked}
-                          onClick={() => save('Skip')}
-                          type="button"
-                        >
-                          Skip
-                        </button>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {current ? (
-                    <section className="detail core-review">
-                      <div className="detailhead">
-                        <Link
-                          className="textbutton back-to-jobs"
-                          href={
-                            isQueueFilter(current.status)
-                              ? queueHref(current.status)
-                              : '/track'
-                          }
-                          onClick={confirmLeave}
-                        >
-                          Back to jobs
-                        </Link>
-                        <span className="badge">
-                          Relay status: {current.status}
-                        </span>
-                        <p className="muted">{loopStepLead(current.status)}</p>
-                        {current.url && (
-                          <a
-                            href={current.url}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Open employer posting <ArrowUpRight size={15} />
-                          </a>
-                        )}
                       </div>
-                      <BlockerReview
-                        key={current.id}
-                        blocker={current.blocker}
-                        direction={current.drafting_direction}
-                        preference={draftingPreference}
-                        disabled={blocked}
-                        dirty={
-                          !!editor &&
-                          (editor.draft !== editor.baseDraft ||
-                            editor.blocker !== editor.baseBlocker)
-                        }
-                        answer={editor?.progressNote ?? ''}
-                        onAnswer={(value) =>
-                          setEditor((ed) =>
-                            ed ? { ...ed, progressNote: value } : ed,
-                          )
-                        }
-                        onDecision={saveDecision}
-                      />
-                      {showsExactAcceptance(current, editor) && (
-                        <div className="notice">
-                          This exact draft is accepted.
-                        </div>
-                      )}
-                      {protectedState && (
-                        <div className="notice">
-                          You can edit notes and follow-up drafts. Saving keeps
-                          this job’s {current.status} status.
-                        </div>
-                      )}
-                      {editor?.conflict && (
-                        <div className="notice">
-                          This record changed. Reload before saving.
-                          <button
-                            className="textbutton"
-                            onClick={() => setEditor(loadEditor(current))}
-                          >
-                            Reload this record
-                          </button>
-                        </div>
-                      )}
+                    )}
+                    {inspect.review}
+                  </div>
+                  <footer className="foot">
+                    <div className="foot-copy">
+                      <p>{reviewCopy.title}</p>
+                      <p className="why">{reviewCopy.detail}</p>
+                    </div>
+                    {inspectSendControl({
+                      busy: busy || inspect.busy,
+                      enabled: Boolean(inspect.view?.accept_enabled),
+                      onAccept: inspect.onAccept,
+                    })}
+                  </footer>
+                  <details className="draft-tools">
+                    <summary>Draft and notes</summary>
+                    <BlockerReview
+                      key={`blocker-${current.id}`}
+                      blocker={current.blocker}
+                      direction={current.drafting_direction}
+                      preference={draftingPreference}
+                      disabled={blocked}
+                      dirty={
+                        !!editor &&
+                        (editor.draft !== editor.baseDraft ||
+                          editor.blocker !== editor.baseBlocker)
+                      }
+                      answer={editor?.progressNote ?? ''}
+                      onAnswer={(value) =>
+                        setEditor((ed) =>
+                          ed ? { ...ed, progressNote: value } : ed,
+                        )
+                      }
+                      onDecision={saveDecision}
+                    />
+                    {showsExactAcceptance(current, editor) && (
+                      <div className="notice">
+                        This exact draft is accepted. It is not send permission.
+                      </div>
+                    )}
+                    {protectedState && (
+                      <div className="notice">
+                        You can edit notes and follow-up drafts. Saving keeps
+                        this job’s {current.status} status.
+                      </div>
+                    )}
+                    <section className="draft-editor">
+                      <h3>Saved draft</h3>
+                      <p className="muted">
+                        Accepting exact wording is not send permission.
+                      </p>
                       <details className="review-notes">
                         <summary>Edit blocker or save a progress note</summary>
                         <label className="field">
@@ -1467,14 +1388,10 @@ export default function Workspace() {
                         Acceptance records your approval of these exact words.
                         Changed wording needs fresh acceptance. Nothing is sent.
                       </small>
-                      <section
-                        id="application-inspect"
-                        aria-label="Prepared application"
-                      >
-                        {inspect}
-                      </section>
-                      {connections}
-                      <h3>Evidence matches</h3>
+                    </section>
+                    {connections}
+                    <details>
+                      <summary>Evidence matches</summary>
                       <small className="muted">
                         {
                           'Heuristic word and number matches against your confirmed, unexpired facts. These do not assess your qualifications or change this job’s status.'
@@ -1519,7 +1436,9 @@ export default function Workspace() {
                           before deciding.
                         </small>
                       )}
-                      <h3>Source history</h3>
+                    </details>
+                    <details>
+                      <summary>Source history</summary>
                       <small className="muted">
                         Imported source status is research evidence. Exact draft
                         acceptance is a local Relay decision.
@@ -1550,206 +1469,154 @@ export default function Workspace() {
                             )}
                           </article>
                         ))}
-                      {events.filter((e) => e.job_id === current.id).length >
-                        0 && (
-                        <>
-                          <h3>Your review history</h3>
-                          {events
-                            .filter((e) => e.job_id === current.id)
-                            .map((e) => (
-                              <details className="source" key={e.id}>
-                                <summary>
-                                  {e.kind} ·{' '}
-                                  {new Date(e.created).toLocaleString()}
-                                </summary>
-                                <pre>
-                                  {JSON.stringify(
-                                    JSON.parse(e.detail),
-                                    null,
-                                    2,
-                                  )}
-                                </pre>
-                              </details>
-                            ))}
-                          {historyNext[current.id] && (
-                            <button
-                              className="textbutton"
-                              onClick={() =>
-                                void loadJobHistory(
-                                  current.id,
-                                  historyNext[current.id],
-                                )
-                              }
-                            >
-                              Load earlier review history
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </section>
-                  ) : (
-                    <div className="empty">
-                      {jobs.length === 0 ? (
-                        <>
-                          <h2>No jobs yet</h2>
-                          <p>
-                            Add a posting with its role title and URL. Optional
-                            notes are saved as research.
-                          </p>
-                          <div className="actions">
-                            <button
-                              className={
-                                action === 'add_job' ? 'primary' : 'secondary'
-                              }
-                              onClick={openAddJob}
-                              type="button"
-                            >
-                              Add job <ArrowRight size={16} />
-                            </button>
-                            <button
-                              className="secondary"
-                              disabled={busy}
-                              onClick={() => run({ action: 'bootstrap' })}
-                              type="button"
-                            >
-                              Explore example jobs
-                            </button>
-                          </div>
-                          <small>
-                            Example companies and records are fictional.
-                          </small>
-                        </>
-                      ) : (
-                        <>
-                          <h2>Select a role</h2>
-                          <p>
-                            The core handles one application at a time. Load the
-                            next one from the queue, or unblock something below.
-                          </p>
+                    </details>
+                    {events.filter((e) => e.job_id === current.id).length >
+                      0 && (
+                      <details>
+                        <summary>Your review history</summary>
+                        {events
+                          .filter((e) => e.job_id === current.id)
+                          .map((e) => (
+                            <details className="source" key={e.id}>
+                              <summary>
+                                {e.kind} ·{' '}
+                                {new Date(e.created).toLocaleString()}
+                              </summary>
+                              <pre>
+                                {JSON.stringify(JSON.parse(e.detail), null, 2)}
+                              </pre>
+                            </details>
+                          ))}
+                        {historyNext[current.id] && (
                           <button
-                            className="btn btn-signal btn-sm"
-                            disabled={!queued.length && !lanes.queue.length}
-                            onClick={loadNext}
-                            type="button"
+                            className="textbutton"
+                            onClick={() =>
+                              void loadJobHistory(
+                                current.id,
+                                historyNext[current.id],
+                              )
+                            }
                           >
-                            Load next application
+                            Load earlier review history
                           </button>
-                          <button
-                            className="secondary"
-                            disabled={busy}
-                            onClick={() => run({ action: 'replay' })}
-                            type="button"
-                          >
-                            Check examples
-                          </button>
-                        </>
-                      )}
-                      {connections}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="arm e">
-                <div className="plate">
-                  <section
-                    className="queue"
-                    id="workspace-queue"
-                    ref={queueRef}
-                  >
-                    <div className="plate-head queuehead">
-                      <h2 tabIndex={-1}>Review queue</h2>
-                      <span className="tally">{queued.length}</span>
-                    </div>
-                    <label className="search">
-                      <Search size={17} />
-                      <input
-                        aria-label="Find a company or role"
-                        placeholder="Find a company or role"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                      />
-                    </label>
-                    <div className="joblist plate-body">
-                      {queued.map((j) => (
-                        <button
-                          aria-label={j.name}
-                          key={j.id}
-                          className={
-                            'card job ' + (selected === j.id ? 'selected' : '')
-                          }
-                          onClick={() => chooseJob(j)}
-                          type="button"
-                        >
-                          <span className="pip q" />
-                          <span className="txt">
-                            <b>{j.name}</b>
-                            <small>{jobQueueHint(j, editor)}</small>
-                          </span>
-                        </button>
-                      ))}
-                      {!queued.length && (
-                        <p className="hint">
-                          Nothing waiting. Send the agent out for more.
-                        </p>
-                      )}
-                    </div>
-                  </section>
-                  <div className="plate-foot">
-                    <button
-                      className="btn btn-signal"
-                      disabled={signedOut || !loaded}
-                      onClick={findMoreJobs}
-                      type="button"
-                    >
-                      Find more jobs
-                    </button>
-                  </div>
-                  <div className="rail" />
-                  <div className="pulse" />
-                </div>
-              </div>
-              <div className="arm s">
-                <div className="plate">
-                  <div className="plate-head">
-                    <h2>Stuck, needs your answer</h2>
-                    <span className="tally">{lanes.blocked.length}</span>
-                  </div>
-                  <div className="plate-body">
-                    {lanes.blocked.length ? (
-                      lanes.blocked.map((job) => (
-                        <button
-                          aria-label={job.name}
-                          className={
-                            'card blocked job' +
-                            (selected === job.id ? ' selected' : '')
-                          }
-                          key={job.id}
-                          onClick={() => chooseJob(job)}
-                          type="button"
-                        >
-                          <span className="pip hold" />
-                          <span className="txt">
-                            <b>{job.name}</b>
-                            <span className="ask">
-                              {job.blocker.split(/(?<=[.!?])\s+|\n/)[0]}
-                            </span>
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <p className="hint">
-                        When a form asks something the agent cannot answer, it
-                        parks the application here instead of guessing.
-                      </p>
+                        )}
+                      </details>
                     )}
-                  </div>
-                  <div className="rail" />
-                  <div className="pulse" />
+                  </details>
+                </>
+              ) : (
+                <div className="empty">
+                  {jobs.length === 0 ? (
+                    <>
+                      <h2>No jobs yet</h2>
+                      <p>
+                        Add a posting with its role title and URL. Optional
+                        notes are saved as research.
+                      </p>
+                      <div className="actions">
+                        <button
+                          className={
+                            action === 'add_job' ? 'primary' : 'secondary'
+                          }
+                          onClick={openAddJob}
+                          type="button"
+                        >
+                          Add job <ArrowRight size={16} />
+                        </button>
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => run({ action: 'bootstrap' })}
+                          type="button"
+                        >
+                          Explore example jobs
+                        </button>
+                      </div>
+                      <small>
+                        Example companies and records are fictional.
+                      </small>
+                    </>
+                  ) : (
+                    <>
+                      <h2>Select a role</h2>
+                      <p>
+                        Select a job to continue its review. Adding or importing
+                        is between jobs.
+                      </p>
+                      <button
+                        className="btn btn-signal btn-sm"
+                        disabled={!queued.length && !lanes.waiting.length}
+                        onClick={loadNext}
+                        type="button"
+                      >
+                        Load next application
+                      </button>
+                      <button
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() => run({ action: 'replay' })}
+                        type="button"
+                      >
+                        Check examples
+                      </button>
+                    </>
+                  )}
+                  {connections}
                 </div>
-              </div>
-            </div>
+              )}
+            </section>
           </div>
         )}
+        {historyOpen && current ? (
+          <dialog
+            aria-labelledby="history-title"
+            className="veil on"
+            onCancel={(event) => {
+              event.preventDefault();
+              setHistoryOpen(false);
+            }}
+            open
+          >
+            <div className="modal">
+              <header>
+                <h2 id="history-title" tabIndex={-1}>
+                  History
+                </h2>
+                <button
+                  aria-label="Close"
+                  className="x"
+                  onClick={() => setHistoryOpen(false)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="scroll">
+                <p className="hint">{ctxTally(facts.length, styleCount)}</p>
+                {events.filter((e) => e.job_id === current.id).length ? (
+                  events
+                    .filter((e) => e.job_id === current.id)
+                    .map((e) => (
+                      <p key={e.id}>
+                        {e.kind} · {new Date(e.created).toLocaleString()}
+                      </p>
+                    ))
+                ) : (
+                  <p className="hint">No review history for this job yet.</p>
+                )}
+              </div>
+              <footer>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setHistoryOpen(false)}
+                  type="button"
+                >
+                  Done
+                </button>
+              </footer>
+            </div>
+          </dialog>
+        ) : null}
         <RuntimeModals
           acceptDisabled={
             blocked || acceptedExact || !draft.trim() || !!blocker.trim()

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 test('pilot navigation keeps facts, exact review and history visible with advanced tools secondary', async ({
   page,
@@ -60,6 +61,8 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await page
     .getByRole('button', { name: /Larch Example — Pilot Engineer/ })
     .click();
+  await openDraftTools(page);
+  await page.getByText('Evidence matches', { exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Evidence matches' }),
   ).toBeVisible();

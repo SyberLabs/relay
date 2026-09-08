@@ -214,10 +214,10 @@ test('same-tab API handoff survives independent sessions without WebMCP or conte
     const inspect = owner.getByRole('region', { name: 'Prepared application' });
     await expect(inspect).toContainText(candidate.claim);
     await inspect
-      .getByRole('button', { name: 'Accept and send', exact: true })
+      .getByRole('button', { name: 'Approve & send', exact: true })
       .click();
     await expect(inspect).toContainText(
-      'Accepted — waiting for the operative to send.',
+      'Your agent is submitting the application you approved',
     );
 
     // New evidence and a different job do not rewrite the approved payload,

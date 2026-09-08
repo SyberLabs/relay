@@ -62,51 +62,175 @@ export function sourceLabel(
   }
 }
 
-export function draftProgress(job: {
-  status: string;
-  draft: string;
-  accepted_draft: string | null;
-  blocker: string;
-}): { pct: number; label: string; step: string } {
+export type InspectReadiness = {
+  ready: boolean;
+  armed: boolean;
+  accept_enabled: boolean;
+  state: string | null;
+  fields?: { unknown: boolean }[];
+  recorded_result?: 'submitted' | 'uncertain' | 'not-submitted' | null;
+  recorded_receipt?: string | null;
+} | null;
+
+export type ApplicationReviewKind =
+  | 'preparing'
+  | 'needs_answer'
+  | 'draft_only'
+  | 'ready_for_approval'
+  | 'disconnected'
+  | 'sending'
+  | 'submitted'
+  | 'uncertain'
+  | 'not_sent'
+  | 'ended';
+
+function inspectOutcome(
+  inspect: InspectReadiness,
+): 'submitted' | 'uncertain' | 'not-submitted' | null {
+  const recorded = inspect?.recorded_result;
   if (
-    job.status === 'Submitted' ||
-    job.status === 'Live loop' ||
-    isTerminal(job.status)
+    recorded === 'submitted' ||
+    recorded === 'uncertain' ||
+    recorded === 'not-submitted'
   )
+    return recorded;
+  if (inspect?.state === 'submitted') return 'submitted';
+  if (inspect?.state === 'uncertain') return 'uncertain';
+  if (inspect?.state === 'cancelled') return 'not-submitted';
+  return null;
+}
+
+function inspectHasPayload(inspect: InspectReadiness): boolean {
+  if (!inspect) return false;
+  return Boolean(
+    inspect.ready || inspect.accept_enabled || inspect.fields?.length,
+  );
+}
+
+export function applicationReviewKind(
+  job: {
+    status: string;
+    blocker: string;
+    draft: string;
+    accepted_draft: string | null;
+  },
+  inspect: InspectReadiness,
+): ApplicationReviewKind {
+  const outcome = inspectOutcome(inspect);
+  if (outcome === 'uncertain' || inspect?.state === 'uncertain')
+    return 'uncertain';
+  if (
+    outcome === 'submitted' ||
+    job.status === 'Submitted' ||
+    job.status === 'Live loop'
+  )
+    return 'submitted';
+  if (outcome === 'not-submitted') return 'not_sent';
+  if (inspect?.state === 'authorized' || inspect?.state === 'executing')
+    return 'sending';
+  if (isTerminal(job.status)) return 'ended';
+  const unknownField = inspect?.fields?.some((field) => field.unknown);
+  if (unknownField || (job.blocker.trim() && job.status !== 'Skip'))
+    return 'needs_answer';
+  if (inspect?.accept_enabled) return 'ready_for_approval';
+  if (
+    inspect &&
+    inspect.ready &&
+    !inspect.armed &&
+    inspect.state !== 'authorized' &&
+    inspect.state !== 'executing' &&
+    inspect.state !== 'submitted' &&
+    inspect.state !== 'uncertain'
+  )
+    return 'disconnected';
+  if (
+    inspect &&
+    !inspectHasPayload(inspect) &&
+    (job.status === 'Ready' || job.accepted_draft)
+  )
+    return 'draft_only';
+  return 'preparing';
+}
+
+export function applicationReviewCopy(kind: ApplicationReviewKind): {
+  title: string;
+  detail: string;
+} {
+  if (kind === 'ready_for_approval')
     return {
-      pct: 100,
-      label: 'recorded',
-      step: 'This application is already on file.',
+      title: 'Ready to send',
+      detail: 'Your agent is connected',
     };
-  if (job.status === 'Skip')
+  if (kind === 'needs_answer')
     return {
-      pct: 0,
-      label: 'set aside',
-      step: 'This job is set aside.',
+      title: 'Needs an answer',
+      detail: 'Fill the highlighted field to continue.',
     };
-  if (job.status === 'Ready' || job.accepted_draft)
+  if (kind === 'disconnected')
     return {
-      pct: 100,
-      label: 'draft ready',
-      step: 'Exact draft accepted. Nothing has been sent.',
+      title: 'Agent disconnected',
+      detail: 'Reconnect your agent to continue',
     };
-  if (job.blocker.trim())
+  if (kind === 'sending')
     return {
-      pct: 40,
-      label: 'blocked',
-      step: 'Waiting on your answer before the draft can be accepted.',
+      title: 'Sending application',
+      detail: 'Your agent is submitting the application you approved',
     };
-  if (job.draft.trim())
+  if (kind === 'submitted')
     return {
-      pct: 70,
-      label: 'in review',
-      step: 'Draft saved. Review and accept the exact wording.',
+      title: 'Submission recorded',
+      detail: 'Confirmation recorded by your agent',
+    };
+  if (kind === 'uncertain')
+    return {
+      title: 'Submission needs checking',
+      detail:
+        'Your agent could not confirm the result. Check before trying again.',
+    };
+  if (kind === 'not_sent')
+    return {
+      title: 'Not sent',
+      detail: 'Your agent recorded that this was not sent.',
+    };
+  if (kind === 'ended')
+    return {
+      title: 'Application ended',
+      detail: 'This record is closed. No send confirmation is on file.',
+    };
+  if (kind === 'draft_only')
+    return {
+      title: 'Draft saved',
+      detail: 'The application form is not ready yet.',
     };
   return {
-    pct: 15,
-    label: 'opened',
-    step: 'No draft yet. Import research or ask an assistant to write.',
+    title: 'Preparing',
+    detail: 'Your agent is gathering the destination, answers, and files.',
   };
+}
+
+export function workbenchQueue<
+  T extends { id: string; name: string; status: string; blocker: string },
+>(jobs: T[], search: string): { waiting: T[]; ledger: T[] } {
+  const needle = search.trim().toLowerCase();
+  const match = (job: T) => !needle || job.name.toLowerCase().includes(needle);
+  const waiting = jobs.filter((job) => !isSentJob(job) && match(job));
+  const ledger = jobs.filter((job) => isSentJob(job) && match(job));
+  return { waiting, ledger };
+}
+
+export function queueRowHint(job: {
+  status: string;
+  blocker: string;
+  accepted_draft?: string | null;
+}) {
+  if (isSentJob(job)) {
+    if (job.status === 'Skip') return 'Set aside';
+    if (job.status === 'Submitted' || job.status === 'Live loop')
+      return 'Submitted';
+    return job.status;
+  }
+  if (job.blocker.trim()) return 'Needs an answer';
+  return 'In review';
 }
 
 export function isBlockedJob(job: { status: string; blocker: string }) {

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 test('a Ready job records an already completed submission with its receipt', async ({
   page,
@@ -174,6 +175,7 @@ test('track sheet filters jobs and a row opens the plant', async ({ page }) => {
       name: 'Track Sheet Beta — Unique Ready Role',
     }),
   ).toHaveCount(0);
+  await openDraftTools(page);
   const notes = page.locator('details.review-notes');
   if ((await notes.getAttribute('open')) === null)
     await notes.locator('summary').click();

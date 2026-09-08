@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 async function state(page: Page) {
   const r = await page.request.get('/api/workspace');
@@ -44,6 +45,7 @@ async function setup(page: Page, suffix: string) {
       name: new RegExp(`Cedar ${suffix} — Review Engineer`),
     })
     .click();
+  await openDraftTools(page);
   return (await state(page)).jobs.find(
     (j: { name: string }) => j.name === `Cedar ${suffix} — Review Engineer`,
   );
@@ -126,6 +128,7 @@ for (const width of [1280, 390])
         name: new RegExp(`Cedar ${width} — Review Engineer`),
       })
       .click();
+    await openDraftTools(page);
     // The existing assistant resumes, chooses grounded wording, and stages it.
     // This exercises persistence and review boundaries, not model quality.
     const current = (await state(page)).jobs.find(
@@ -287,6 +290,7 @@ test('short user answer is job-specific and cannot confirm a personal fact or ac
   );
   expect(after.facts).toEqual(before.facts);
   expect(after.draftingPreference).toEqual(before.draftingPreference);
+  await openDraftTools(page);
   await page
     .getByRole('textbox', { name: 'Application answer or outreach draft' })
     .fill('A partial draft, with the original question still unresolved.');

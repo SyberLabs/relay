@@ -302,6 +302,7 @@ function RuntimeModalDialog({
   >([]);
   const [rule, setRule] = useState('');
   const [note, setNote] = useState('');
+  const [panel, setPanel] = useState(which);
   useEffect(() => {
     if (which === 'inspect' || which === 'blocked' || which === 'tools') return;
     let cancelled = false;
@@ -416,27 +417,27 @@ function RuntimeModalDialog({
     setNote('Style rule saved. Drafts still need your exact acceptance.');
   }
   const title =
-    which === 'profile'
+    panel === 'profile'
       ? 'Profile'
-      : which === 'resume'
+      : panel === 'resume'
         ? 'Resume'
-        : which === 'style'
+        : panel === 'style'
           ? 'Style kit'
-          : which === 'tools'
+          : panel === 'tools'
             ? 'Tools'
-            : which === 'inspect'
+            : panel === 'inspect'
               ? job?.name || 'Inspect'
               : 'The agent needs an answer';
   const tag =
-    which === 'profile'
+    panel === 'profile'
       ? 'used to fill drafts'
-      : which === 'resume'
+      : panel === 'resume'
         ? 'extract only proposes'
-        : which === 'style'
+        : panel === 'style'
           ? 'how the agent writes as you'
-          : which === 'tools'
+          : panel === 'tools'
             ? 'where the agent can act'
-            : which === 'inspect'
+            : panel === 'inspect'
               ? job?.status || ''
               : 'paused until you answer';
   return (
@@ -463,7 +464,7 @@ function RuntimeModalDialog({
           </button>
         </header>
         <div className="scroll">
-          {which === 'profile' && (
+          {panel === 'profile' && (
             <>
               <div className="sect">
                 <h4>Confirmed facts</h4>
@@ -493,10 +494,26 @@ function RuntimeModalDialog({
                 <Link href="/profile" onClick={onNavigate}>
                   Open Your facts
                 </Link>
+                <div className="actions">
+                  <button
+                    className="secondary"
+                    onClick={() => setPanel('resume')}
+                    type="button"
+                  >
+                    Resume
+                  </button>
+                  <button
+                    className="secondary"
+                    onClick={() => setPanel('style')}
+                    type="button"
+                  >
+                    Style
+                  </button>
+                </div>
               </div>
             </>
           )}
-          {which === 'resume' && (
+          {panel === 'resume' && (
             <>
               <div className="sect">
                 <h4>Base ledger</h4>
@@ -552,7 +569,7 @@ function RuntimeModalDialog({
               </div>
             </>
           )}
-          {which === 'style' && (
+          {panel === 'style' && (
             <>
               <div className="sect">
                 <h4>Never write</h4>

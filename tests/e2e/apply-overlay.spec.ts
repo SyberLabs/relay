@@ -73,6 +73,9 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
+  ).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Save answer' })).toHaveCount(
     0,
   );
@@ -131,6 +134,9 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   await expect(page.getByText('Operative status: waiting')).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toHaveCount(0);
   await page.goto('/profile');
   await expect.poll(() => page.evaluate(() => window.relay ?? null)).toBeNull();

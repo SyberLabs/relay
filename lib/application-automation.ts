@@ -33,6 +33,8 @@ export type InspectView = {
   digest: string | null;
   state: string | null;
   accept_enabled: boolean;
+  recorded_result: 'submitted' | 'uncertain' | 'not-submitted' | null;
+  recorded_receipt: string | null;
 };
 export type ApplicationOperation = {
   id: string;
@@ -200,6 +202,27 @@ export function emptyInspect(jobId: string): InspectView {
     digest: null,
     state: null,
     accept_enabled: false,
+    recorded_result: null,
+    recorded_receipt: null,
+  };
+}
+function recordedOutcome(
+  state: string | null,
+  receipt: string | null | undefined,
+): {
+  recorded_result: InspectView['recorded_result'];
+  recorded_receipt: string | null;
+} {
+  if (
+    state !== 'submitted' &&
+    state !== 'uncertain' &&
+    state !== 'not-submitted'
+  )
+    return { recorded_result: null, recorded_receipt: null };
+  return {
+    recorded_result: state,
+    recorded_receipt:
+      typeof receipt === 'string' && receipt.length > 0 ? receipt : null,
   };
 }
 const PERMISSION_REFUSAL =
@@ -258,7 +281,7 @@ export async function inspectApplication(
   const policy = await loadApplicationPolicy(db, owner);
   const row = await db
     .prepare(
-      `SELECT p.revision,p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state,o.job_version,o.policy_version
+      `SELECT p.revision,p.destination,p.fields,p.files,p.ready,p.armed_until,p.operation_id,o.digest,o.state,o.receipt,o.job_version,o.policy_version
        FROM application_preparations p
        LEFT JOIN application_operations o ON o.owner=p.owner AND o.id=p.operation_id
        WHERE p.owner=? AND p.job_id=?`,
@@ -274,6 +297,7 @@ export async function inspectApplication(
       operation_id: string | null;
       digest: string | null;
       state: string | null;
+      receipt: string | null;
       job_version: number | null;
       policy_version: number | null;
     }>();
@@ -287,6 +311,7 @@ export async function inspectApplication(
   const ready = row.ready === 1;
   const armed = Date.parse(row.armed_until) > Date.parse(now);
   const state = row.state ?? null;
+  const recorded = recordedOutcome(state, row.receipt);
   return {
     job_id: jobId,
     preparation_revision: row.revision,
@@ -304,6 +329,8 @@ export async function inspectApplication(
     operation_id: row.operation_id,
     digest: row.digest ?? null,
     state,
+    recorded_result: recorded.recorded_result,
+    recorded_receipt: recorded.recorded_receipt,
     accept_enabled: inspectAcceptEnabled(
       ready,
       armed,

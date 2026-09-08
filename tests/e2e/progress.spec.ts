@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 type Job = {
   id: string;
@@ -52,6 +53,7 @@ async function select(page: Page, job: Job) {
   await expect(
     page.getByRole('heading', { name: job.name, exact: true }),
   ).toBeVisible();
+  await openDraftTools(page);
   const notes = page.locator('details.review-notes');
   if ((await notes.getAttribute('open')) === null)
     await notes.locator('summary').click();

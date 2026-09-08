@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 test('signed-out workspace and About open the data notice', async ({
   page,
@@ -44,6 +45,7 @@ test('dirty editor asks before opening the data notice', async ({ page }) => {
   await page
     .getByRole('button', { name: /Privacy Dirty — Nav Engineer/ })
     .click();
+  await openDraftTools(page);
   const draft = page.getByRole('textbox', {
     name: 'Application answer or outreach draft',
   });

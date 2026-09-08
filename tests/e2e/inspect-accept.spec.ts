@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { enableInspectJob } from './enable-inspect-job';
+import { openDraftTools } from './open-draft-tools';
 
 async function preparationRevision(page: Page, jobId: string) {
   const response = await page.request.get(
@@ -37,7 +38,7 @@ test('workspace draft saves can re-arm unchanged content before explicit send ap
   await page.goto('/');
   await page.getByRole('button', { name: /Inspect Send/ }).click();
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeDisabled();
   const prepared = await page.request.post('/api/applications', {
     data: {
@@ -64,8 +65,9 @@ test('workspace draft saves can re-arm unchanged content before explicit send ap
   });
   expect(armed.ok()).toBe(true);
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeEnabled();
+  await openDraftTools(page);
   await page
     .getByLabel('Application answer or outreach draft', { exact: true })
     .fill('Fictional exact draft for the ordinary review-then-send journey.');
@@ -86,7 +88,7 @@ test('workspace draft saves can re-arm unchanged content before explicit send ap
       })
       .toBe(job.version + index + 1);
     await expect(
-      page.getByRole('button', { name: 'Accept and send' }),
+      page.getByRole('button', { name: 'Approve & send' }),
     ).toBeDisabled();
     // Both a direct heartbeat and an unchanged re-prepare must recover after save.
     if (index === 1) {
@@ -132,12 +134,12 @@ test('workspace draft saves can re-arm unchanged content before explicit send ap
     });
     expect(staleBegin.status()).toBe(409);
     await expect(
-      page.getByRole('button', { name: 'Accept and send' }),
+      page.getByRole('button', { name: 'Approve & send' }),
     ).toBeEnabled();
   }
-  await page.getByRole('button', { name: 'Accept and send' }).click();
+  await page.getByRole('button', { name: 'Approve & send' }).click();
   await expect(
-    page.getByText(/waiting for the operative to send/i),
+    page.getByText(/Your agent is submitting the application you approved/i),
   ).toBeVisible();
   await expect(page.getByText('Operative is not on the page')).toHaveCount(0);
   const data = await (await page.request.get('/api/applications')).json();
@@ -218,7 +220,7 @@ test('set aside cancels a pre-begin freeze so send cannot begin', async ({
   });
   expect(armed.ok()).toBe(true);
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeEnabled();
   await page
     .locator('.core')
@@ -276,7 +278,7 @@ test('human can answer a Blocked inspect field then arm to enable Accept', async
     },
   });
   expect(prepared.ok()).toBe(true);
-  await expect(page.getByRole('heading', { name: 'Blocked' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Work authorization' })).toBeVisible();
   await page
     .getByRole('textbox', { name: 'Work authorization' })
     .fill('Authorized to work in the example country');
@@ -285,7 +287,7 @@ test('human can answer a Blocked inspect field then arm to enable Accept', async
     0,
   );
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeDisabled();
   const armed = await page.request.post('/api/applications', {
     data: {
@@ -299,7 +301,7 @@ test('human can answer a Blocked inspect field then arm to enable Accept', async
   });
   expect(armed.ok()).toBe(true);
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeEnabled();
 });
 
@@ -421,7 +423,7 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   await expect(page.getByText('Cover note')).toBeVisible();
   await expect(page.getByText('resume.txt', { exact: true })).toBeVisible();
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeDisabled();
   const armed = await page.request.post('/api/applications', {
     data: {
@@ -435,11 +437,11 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   });
   expect(armed.ok()).toBe(true);
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeEnabled();
-  await page.getByRole('button', { name: 'Accept and send' }).click();
+  await page.getByRole('button', { name: 'Approve & send' }).click();
   await expect(
-    page.getByText(/waiting for the operative to send/i),
+    page.getByText(/Your agent is submitting the application you approved/i),
   ).toBeVisible();
   const armedView = await armed.json();
   const refused = await page.request.post('/api/applications', {
@@ -553,11 +555,11 @@ test('inspect shows employer-uncertain separately from waiting to send', async (
   });
   expect(armed.ok()).toBe(true);
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeEnabled();
-  await page.getByRole('button', { name: 'Accept and send' }).click();
+  await page.getByRole('button', { name: 'Approve & send' }).click();
   await expect(
-    page.getByText(/waiting for the operative to send/i),
+    page.getByText(/Your agent is submitting the application you approved/i),
   ).toBeVisible();
   const armedView = await armed.json();
   const begun = await page.request.post('/api/applications', {
@@ -571,15 +573,13 @@ test('inspect shows employer-uncertain separately from waiting to send', async (
   expect(begun.ok()).toBe(true);
   expect((await begun.json()).execute).toBe(true);
   await expect(
-    page.getByText(
-      /Permit consumed\. If submit no-ops or a captcha appears, record uncertain; never begin again\./,
-    ),
+    page.getByText(/Sending application/i),
   ).toBeVisible();
-  await expect(page.getByText(/waiting for the operative to send/i)).toHaveCount(
-    0,
-  );
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByText(/Your agent is submitting the application you approved/i),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeDisabled();
   const marked = await page.request.post('/api/applications', {
     data: {
@@ -592,18 +592,16 @@ test('inspect shows employer-uncertain separately from waiting to send', async (
     },
   });
   expect(marked.ok()).toBe(true);
-  await expect(page.getByText(/Employer result uncertain/i)).toBeVisible();
-  await expect(page.getByText(/Do not submit again/i)).toBeVisible();
+  await expect(page.getByText(/Submission needs checking/i)).toBeVisible();
   await expect(
-    page.getByText(/not a draft or stage failure/i),
+    page.getByText(/could not confirm the result/i),
   ).toBeVisible();
-  await expect(page.getByText(/Captcha or unknown send/i)).toBeVisible();
-  await expect(page.getByText(/waiting for the operative to send/i)).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByText(/waiting for the operative to send/i),
+  ).toHaveCount(0);
   await expect(page.getByText('Operative is not on the page')).toHaveCount(0);
   await expect(
-    page.getByRole('button', { name: 'Accept and send' }),
+    page.getByRole('button', { name: 'Approve & send' }),
   ).toBeDisabled();
   const workspace = await (await page.request.get('/api/workspace')).json();
   const current = workspace.jobs.find((j: { id: string }) => j.id === job.id);

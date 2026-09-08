@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 test('assistant prompts and returned files preserve explicit draft review', async ({
   page,
@@ -36,6 +37,7 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
   await page
     .getByRole('button', { name: /Assistant Example — Engineer/ })
     .click();
+  await openDraftTools(page);
   await page.getByText('Prepare this job for an assistant', { exact: true }).click();
   await expect(
     page.getByText(
@@ -128,6 +130,7 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
       await page
         .getByRole('button', { name: /Assistant Example — Engineer/ })
         .click();
+      await openDraftTools(page);
       await expect(editor).toHaveValue(result.draft);
       workspace = await (await page.request.get('/api/workspace')).json();
       const saved = workspace.jobs.find(

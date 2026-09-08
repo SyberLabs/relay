@@ -23,7 +23,7 @@ context between assistants. Their handoff is the persisted workspace.
 - WebMCP is optional for this sequence. When `document.modelContext.registerTool`
   is missing, Relay still installs the same owner-session tools on `window.relay`
   in the signed-in tab (`relay_read_application`, `relay_stage_draft`,
-  application prepare/arm/begin/finish/cancel, and the other registered names;
+  application prepare/arm/wait/begin/finish/cancel, and the other registered names;
   there is no `relay_approve_application`). Call them with the same JSON inputs
   as WebMCP, for example `await window.relay.relay_read_workspace({})`. That
   eval surface reuses the existing same-origin `fetch` mapping below; it is not
@@ -155,11 +155,21 @@ exact operation. These are finite reads, not polling or a background scheduler.
    ```
 
    Persist that operation ID before sending. Arming freezes the exact payload
-   into a `proposed` immutable operation and opens a20-second presence window.
+   into a `proposed` immutable operation and opens a 20-second presence window.
    Read the returned `operation_id` and `digest`, and GET the operation by ID to
    inspect its complete manifest, job version and policy version. A stale or
    incomplete preparation refuses. Repeat presence only for the same known
    snapshot while the operative is present; never retry a refused mutation.
+
+   Keep `relay_wait_for_application` pending in this same signed-in tab with
+   that exact pin. It polls Inspect about every 3 seconds and renews the same
+   arm no faster than about 12 seconds. Default `wait_ms` is 40000; the helper
+   ceiling is five minutes. Cursor MCP times out around 60 seconds, so use
+   `wait_ms` of 40000 or less there; five minutes is not supported on that
+   host. A clean timeout may be followed by a new explicit wait. It returns
+   when Inspect Accept authorizes the pin. A source helper cannot wake a
+   terminated host; Playwright fixture continuation is not actual Cursor, Grok,
+   or ChatGPT proof.
 
    The human selects the job in the workspace and reviews **Prepared application**
    → **Inspect**. **Accept and send** authorizes its exact armed operation.
@@ -215,8 +225,10 @@ the protocol. Never claim actor strings enforce scout-only access.
 
 Record exact application revision/deployment, actual host/version, callable
 interface, independent sign-ins, saved IDs/digests, intervention count and the
-observed receipt/uncertainty privately. `tests/e2e/assistant-api.spec.ts` exercises
-separate browser sessions and real local Relay APIs with mocked development
-identity and an intercepted fictional employer. It is not live Grok or ChatGPT
-Work evidence. The database/gateway tests likewise cannot close #111/#117 or
-certify production. Peer merge review and production approval remain separate.
+observed receipt/uncertainty privately. `tests/e2e/assistant-api.spec.ts` and
+`tests/e2e/application-send.spec.ts` exercise separate browser sessions and
+real local Relay APIs with mocked development identity, an intercepted
+fictional employer, and a simulated still-running wait continuation. They are
+not live Cursor, Grok, or ChatGPT Work evidence. The database/gateway tests
+likewise cannot close #111/#117/#174 actual-host proof or certify production.
+Peer merge review and production approval remain separate.

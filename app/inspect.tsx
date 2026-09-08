@@ -10,10 +10,7 @@ import {
   applyInspectPoll,
   beginInspectPoll,
   createInspectPollGate,
-  inspectShowsAuthorizedWaiting,
-  inspectShowsExecuting,
-  inspectShowsReadyNotArmed,
-  inspectShowsUncertain,
+  inspectRecordedReceipt,
   selectInspectJob,
   type InspectSnapshot,
 } from '../lib/inspect-view';
@@ -82,82 +79,179 @@ export function inspectSummaryMarkup(view: InspectSnapshot | null): ReactNode {
   );
 }
 
+export function inspectSendControl({
+  enabled,
+  busy,
+  onAccept,
+}: {
+  enabled: boolean;
+  busy: boolean;
+  onAccept: () => void;
+}) {
+  return (
+    <button
+      className="btn btn-primary"
+      type="button"
+      disabled={busy || !enabled}
+      onClick={onAccept}
+    >
+      Approve & send
+    </button>
+  );
+}
+
 export function inspectMarkup({
   view,
   busy,
   error,
-  onAccept,
   onAnswer,
   onAnswerChange,
 }: {
   view: InspectSnapshot | null;
   busy: boolean;
   error: string;
-  onAccept: () => void;
   onAnswer: (label: string, value: string) => void;
   onAnswerChange: (label: string) => void;
 }): ReactNode {
   const blocked = view?.fields.filter((field) => field.unknown) ?? [];
+  const receipt = inspectRecordedReceipt(view);
+  const files = view?.files ?? [];
+  const recorded = view?.recorded_result ?? null;
+  const recordedKind =
+    recorded === 'submitted' ||
+    recorded === 'uncertain' ||
+    recorded === 'not-submitted'
+      ? recorded
+      : view?.state === 'submitted'
+        ? 'submitted'
+        : view?.state === 'uncertain'
+          ? 'uncertain'
+          : view?.state === 'cancelled' || view?.state === 'not-submitted'
+            ? 'not-submitted'
+            : null;
   return (
-    <div className="import">
-      <h3>Inspect</h3>
-      <p>
-        Accept sends this application via the waiting operative; not draft
-        Ready.
-      </p>
-      {inspectSummaryMarkup(view)}
-      {blocked.map((field) => (
-        <form
-          key={field.label}
-          onSubmit={(event) => {
-            event.preventDefault();
-            const raw = new FormData(event.currentTarget).get('value');
-            onAnswer(field.label, typeof raw === 'string' ? raw : '');
-          }}
-        >
-          <label>
-            {field.label}
-            <input
-              name="value"
-              type="text"
-              maxLength={20000}
-              autoComplete="off"
-              disabled={busy}
-              onChange={() => onAnswerChange(field.label)}
-            />
-          </label>
-          <button type="submit" disabled={busy}>
-            Save answer
-          </button>
-        </form>
-      ))}
-      {inspectShowsReadyNotArmed(view) && <p>Operative is not on the page.</p>}
-      {inspectShowsAuthorizedWaiting(view) && (
-        <p>Accepted — waiting for the operative to send.</p>
-      )}
-      {inspectShowsExecuting(view) && (
-        <p>
-          Permit consumed. If submit no-ops or a captcha appears, record
-          uncertain; never begin again.
-        </p>
-      )}
-      {inspectShowsUncertain(view) && (
-        <p>
-          Employer result uncertain. Do not submit again. This is not a draft
-          or stage failure. Captcha or unknown send.
-        </p>
-      )}
-      <div className="actions">
-        <button
-          className="primary"
-          type="button"
-          disabled={busy || !view?.accept_enabled}
-          onClick={onAccept}
-        >
-          Accept and send
-        </button>
-      </div>
-      {error ? <output>{error}</output> : null}
+    <div className="review-cols">
+      <section className="review-col" aria-label="Exact answers">
+        <div className="col-head">
+          <h2>Exact answers</h2>
+          <span className="tally">
+            {view?.fields.length
+              ? blocked.length
+                ? `${blocked.length} needed`
+                : `${view.fields.length} answers`
+              : 'Not prepared'}
+          </span>
+        </div>
+        {view?.destination ? (
+          <p className="destination">
+            Destination: <strong>{view.destination}</strong>
+          </p>
+        ) : (
+          <p className="muted">No employer destination yet.</p>
+        )}
+        {view?.fields.length ? (
+          <dl className="answer-rows">
+            {view.fields.map((field, index) => {
+              const fieldId = `inspect-field-${index}`;
+              return (
+              <div
+                className={'answer-row' + (field.unknown ? ' unknown' : '')}
+                key={field.label}
+              >
+                <dt>
+                  {field.unknown ? (
+                    <label htmlFor={fieldId}>{field.label}</label>
+                  ) : (
+                    field.label
+                  )}
+                </dt>
+                <dd>
+                  {field.unknown ? (
+                    <form
+                      className="block-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const raw = new FormData(event.currentTarget).get(
+                          'value',
+                        );
+                        onAnswer(
+                          field.label,
+                          typeof raw === 'string' ? raw : '',
+                        );
+                      }}
+                    >
+                      <input
+                        autoComplete="off"
+                        disabled={busy}
+                        id={fieldId}
+                        maxLength={20000}
+                        name="value"
+                        onChange={() => onAnswerChange(field.label)}
+                        type="text"
+                      />
+                      <button className="btn btn-sm" disabled={busy} type="submit">
+                        Save answer
+                      </button>
+                    </form>
+                  ) : (
+                    field.value || 'Empty'
+                  )}
+                </dd>
+              </div>
+              );
+            })}
+          </dl>
+        ) : (
+          <p className="muted">
+            Answers appear when your agent prepares this application.
+          </p>
+        )}
+      </section>
+      <section className="review-col" aria-label="Attachments and checks">
+        <div className="col-head">
+          <h2>Attachments</h2>
+          <span className="tally">
+            {files.length} file{files.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        {files.length ? (
+          <ul className="file-list">
+            {files.map((file) => (
+              <li key={`${file.name}:${file.sha256}`}>
+                <code>{file.name}</code>
+                <details>
+                  <summary>File details</summary>
+                  <small>{file.sha256}</small>
+                </details>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">No files attached.</p>
+        )}
+        {recordedKind === 'submitted' ? (
+          <div className="receipt">
+            <p>
+              Confirmation recorded by your agent
+              {receipt ? `: ${receipt}` : '.'}
+            </p>
+          </div>
+        ) : null}
+        {recordedKind === 'uncertain' ? (
+          <div className="alert">
+            <p>
+              Submission needs checking
+              {receipt ? `: ${receipt}` : '.'}
+            </p>
+          </div>
+        ) : null}
+        {recordedKind === 'not-submitted' ? (
+          <div className="alert">
+            <p>Not sent{receipt ? `: ${receipt}` : '.'}</p>
+          </div>
+        ) : null}
+        {error ? <output>{error}</output> : null}
+      </section>
     </div>
   );
 }
@@ -415,41 +509,45 @@ export function useInspect(
   const inspect = useInspectSnapshot(jobId, session);
   const shown = inspect.view;
 
-  return inspectMarkup({
-    view: shown,
-    busy: inspect.busy,
-    error: inspect.error,
-    onAccept: () => {
-      if (!shown?.operation_id || !shown.digest || !shown.accept_enabled)
-        return;
-      void inspect.mutate(
-        {
-          action: 'approve',
-          id: shown.operation_id,
-          digest: shown.digest,
-        },
-        'Unable to accept this application.',
-      );
-    },
-    onAnswerChange: (label) => {
-      if (shown)
-        inspect.rememberAnswerRevision(label, shown.preparation_revision);
-    },
-    onAnswer: (label, value) => {
-      if (!shown || shown.job_id !== jobId) return;
-      void inspect.mutate(
-        {
-          action: 'answer',
-          job: jobId,
-          preparation_revision: inspect.answerRevision(
+  function onAccept() {
+    if (!shown?.operation_id || !shown.digest || !shown.accept_enabled) return;
+    void inspect.mutate(
+      {
+        action: 'approve',
+        id: shown.operation_id,
+        digest: shown.digest,
+      },
+      'Unable to accept this application.',
+    );
+  }
+
+  return {
+    ...inspect,
+    onAccept,
+    review: inspectMarkup({
+      view: shown,
+      busy: inspect.busy,
+      error: inspect.error,
+      onAnswerChange: (label) => {
+        if (shown)
+          inspect.rememberAnswerRevision(label, shown.preparation_revision);
+      },
+      onAnswer: (label, value) => {
+        if (!shown || shown.job_id !== jobId) return;
+        void inspect.mutate(
+          {
+            action: 'answer',
+            job: jobId,
+            preparation_revision: inspect.answerRevision(
+              label,
+              shown.preparation_revision,
+            ),
             label,
-            shown.preparation_revision,
-          ),
-          label,
-          value,
-        },
-        'Unable to save this answer.',
-      );
-    },
-  });
+            value,
+          },
+          'Unable to save this answer.',
+        );
+      },
+    }),
+  };
 }

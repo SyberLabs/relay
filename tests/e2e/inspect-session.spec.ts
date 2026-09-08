@@ -59,7 +59,7 @@ async function inspectFixture(page: Page, name: string) {
       })
       .click();
     await expect(
-      page.getByRole('button', { name: 'Accept and send' }),
+      page.getByRole('button', { name: 'Approve & send' }),
     ).toBeEnabled();
   };
   await choose(0);
@@ -93,12 +93,12 @@ for (const action of ['approve', 'answer']) {
         .getByRole('textbox', { name: 'Fictional project', exact: true })
         .fill('Private unsaved answer');
       await page.getByRole('button', { name: 'Save answer' }).click();
-    } else await page.getByRole('button', { name: 'Accept and send' }).click();
+    } else await page.getByRole('button', { name: 'Approve & send' }).click();
     await expect(
       page.getByRole('link', { name: 'Sign in with ChatGPT' }),
     ).toBeVisible();
     await expect(
-      page.getByRole('button', { name: 'Accept and send' }),
+      page.getByRole('button', { name: 'Approve & send' }),
     ).toHaveCount(0);
     await expect(
       page.getByText('Private unsaved answer', { exact: true }),
@@ -132,7 +132,7 @@ for (const action of ['approve', 'answer']) {
             .fill('Fictional typed answer');
           await page.getByRole('button', { name: 'Save answer' }).click();
         } else
-          await page.getByRole('button', { name: 'Accept and send' }).click();
+          await page.getByRole('button', { name: 'Approve & send' }).click();
       };
       await act();
       await expect.poll(() => pending.length).toBe(1);
@@ -151,14 +151,14 @@ for (const action of ['approve', 'answer']) {
         page.getByText('Old job refusal', { exact: true }),
       ).toHaveCount(0);
       await expect(
-        page.getByRole('button', { name: 'Accept and send' }),
+        page.getByRole('button', { name: 'Approve & send' }),
       ).toBeDisabled();
       pending[1].release();
       await expect(
         page.getByText('Current job refusal', { exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole('button', { name: 'Accept and send' }),
+        page.getByRole('button', { name: 'Approve & send' }),
       ).toBeEnabled();
       expect(pending.length).toBe(2);
     });

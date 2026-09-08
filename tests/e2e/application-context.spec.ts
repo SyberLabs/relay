@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 for (const width of [1280, 390]) {
   test(`assistant context and versioned return preserve exact review at ${width}px`, async ({
@@ -71,6 +72,7 @@ for (const width of [1280, 390]) {
     });
     await page.reload();
     await page.getByRole('button', { name: new RegExp(name) }).click();
+    await openDraftTools(page);
     const workspace = await (await page.request.get('/api/workspace')).json();
     const job = workspace.jobs.find((j: { name: string }) => j.name === name);
     async function tool(name: string, input: unknown) {
@@ -131,6 +133,7 @@ for (const width of [1280, 390]) {
     expect(returned.draft).toBe(draft);
     await page.reload();
     await page.getByRole('button', { name: new RegExp(name) }).click();
+    await openDraftTools(page);
     const editor = page.getByRole('textbox', {
       name: 'Application answer or outreach draft',
     });

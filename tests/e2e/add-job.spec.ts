@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 async function signIn(page: import('@playwright/test').Page) {
   await page.goto('/');
@@ -55,9 +56,9 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
   ).toBeVisible();
   await expect(
     page.getByText(
-      'Review research and accept the exact wording for this job.',
+      'Review this application. Approve & send when the answers and files are complete.',
     ),
-  ).toHaveCount(2);
+  ).toHaveCount(1);
   await expect(
     page.getByRole('link', { name: 'Track jobs', exact: true }),
   ).toBeVisible();
@@ -148,6 +149,7 @@ test('cancel creates nothing and keeps unsaved editor work', async ({
     before = await (await page.request.get('/api/workspace')).json();
   }
   await page.locator('section.queue .joblist button').first().click();
+  await openDraftTools(page);
   const draft = page.getByRole('textbox', {
     name: 'Application answer or outreach draft',
   });
@@ -181,6 +183,7 @@ test('normalized duplicate URL adds research without losing accepted work', asyn
     .getByRole('textbox', { name: 'Research notes' })
     .fill('First fictional look.');
   await page.getByRole('button', { name: 'Save job' }).click();
+  await openDraftTools(page);
   await page.locator('details.review-notes > summary').click();
   await page.getByRole('textbox', { name: 'Blocker or missing fact' }).fill('');
   const draft = 'Exact fictional accepted wording for the duplicate check.';
@@ -312,6 +315,7 @@ for (const field of ['draft', 'progressNote'] as const) {
           ? 'Application answer or outreach draft'
           : 'Progress note',
     });
+    await openDraftTools(page);
     if (field !== 'draft')
       await page.locator('details.review-notes > summary').click();
     await draft.fill('Typed while add-job was in flight.');

@@ -1,6 +1,16 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Bot,
+  BriefcaseBusiness,
+  Check,
+  ChevronRight,
+  Plus,
+  RefreshCw,
+} from 'lucide-react';
 import type {
   ApplicationOperation,
   ApplicationPolicy,
@@ -10,6 +20,7 @@ import { digest } from '../../lib/application-automation';
 import { ApplicationPermissions } from './permissions';
 import { ApplicationEvidence } from './evidence';
 import { ProductShell } from '../shell';
+import './applications.css';
 
 type Job = {
   id: string;
@@ -43,6 +54,11 @@ export default function Applications() {
   const [receipt, setReceipt] = useState('');
   const operationId = useRef('');
   const fileGeneration = useRef(0);
+  const preparation = useRef<HTMLDetailsElement>(null);
+  const evidence = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (selected) evidence.current?.focus();
+  }, [selected]);
   const request = useCallback(async (url: string, body?: unknown) => {
     if (stopped.current) throw Error('Session changed. Reload to continue.');
     const r = await fetch(
@@ -138,337 +154,433 @@ export default function Applications() {
   }
   return (
     <ProductShell current="applications">
-      <Link href="/">← Workspace</Link>
-      <h1>Applications</h1>
-      <p>
-        Let your assistants prepare applications. Set when to review, then
-        inspect exactly what was sent.
-      </p>
-      <p>
-        Each assistant uses its own signed-in browser. Agent names and employer
-        confirmations are reported by the operator.
-      </p>
-      {message && <output>{message}</output>}
-      {expired ? (
-        <Link href="/signin-with-chatgpt?return_to=/applications">
-          Sign in again
+      <div className="applications-page">
+        <Link className="applications-back" href="/">
+          <ArrowLeft size={16} aria-hidden="true" />
+          Workspace
         </Link>
-      ) : !snapshot ? (
-        <p>Loading applications…</p>
-      ) : (
-        <>
-          <ApplicationPermissions
-            policy={snapshot.policy}
-            jobs={snapshot.jobs}
-            busy={busy}
-            run={run}
-            save={async (input) => {
-              const saved = await request('/api/applications', {
-                ...input,
-                action: 'policy',
-                viewer: snapshot.viewer,
-              });
-              await refresh();
-              setMessage(
-                'Permissions saved. Earlier proposals need fresh permission.',
-              );
-              return saved.policy!;
-            }}
-          />
-          <section>
-            <h2>History and review</h2>
+        <header className="applications-header">
+          <div>
+            <h1>Applications</h1>
             <p>
-              Accept and send lives on workspace Inspect; the operative begins
-              after Accept.
+              Let your assistants prepare applications. Review what goes out.
             </p>
-            {snapshot.operations.length === 0 && (
-              <p>No application proposals yet.</p>
-            )}
-            <ul>
-              {snapshot.operations.map((op) => (
-                <li key={op.id}>
-                  <button
-                    disabled={busy}
-                    onClick={() =>
-                      void run(async () => {
-                        const b = await request(
-                          `/api/applications?id=${encodeURIComponent(op.id)}`,
-                        );
-                        setSelected(b.operation);
-                        setReceipt('');
-                      })
-                    }
+          </div>
+          <button
+            className="application-primary"
+            type="button"
+            disabled={!snapshot || busy || expired}
+            aria-controls="application-preparation"
+            onClick={() => {
+              if (!preparation.current) return;
+              preparation.current.open = true;
+              preparation.current.querySelector('summary')?.focus();
+              preparation.current.scrollIntoView({ block: 'start' });
+            }}
+          >
+            <Plus size={16} aria-hidden="true" />
+            Prepare application
+          </button>
+        </header>
+        {message && <output className="application-message">{message}</output>}
+        {expired ? (
+          <Link href="/signin-with-chatgpt?return_to=/applications">
+            Sign in again
+          </Link>
+        ) : !snapshot ? (
+          <p className="application-empty">Loading applications…</p>
+        ) : (
+          <>
+            <ApplicationPermissions
+              policy={snapshot.policy}
+              jobs={snapshot.jobs}
+              busy={busy}
+              run={run}
+              save={async (input) => {
+                const saved = await request('/api/applications', {
+                  ...input,
+                  action: 'policy',
+                  viewer: snapshot.viewer,
+                });
+                await refresh();
+                setMessage(
+                  'Permissions saved. Earlier proposals need fresh permission.',
+                );
+                return saved.policy!;
+              }}
+            />
+            <section aria-labelledby="application-history-heading">
+              <div className="application-history-header">
+                <h2 id="application-history-heading">
+                  History and review{' '}
+                  <span
+                    className="application-count"
+                    aria-label={`${snapshot.operations.length} records on this page`}
                   >
-                    {snapshot.jobs.find((j) => j.id === op.job_id)?.name ||
-                      'Application'}{' '}
-                    · {op.state} · {op.actor}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await refresh();
-                })
-              }
-            >
-              Refresh history
-            </button>
-            {snapshot.next && (
-              <button
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await refresh(snapshot.next!);
-                  })
-                }
-              >
-                Next page
-              </button>
-            )}
-            {selected && (
-              <article
-                style={{
-                  border: '1px solid currentColor',
-                  padding: 20,
-                  marginTop: 16,
-                }}
-              >
-                <ApplicationEvidence
-                  selected={selected}
-                  name={
-                    snapshot.jobs.find((j) => j.id === selected.job_id)?.name
+                    {snapshot.operations.length}
+                  </span>
+                </h2>
+                <button
+                  className="application-refresh"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await refresh();
+                    })
                   }
-                />
-                {['proposed', 'authorized'].includes(selected.state) && (
-                  <button disabled={busy} onClick={() => void act('cancel')}>
-                    Cancel proposal
-                  </button>
-                )}
-                {['executing', 'uncertain'].includes(selected.state) && (
-                  <div>
-                    <p>
-                      Do not submit again. Check the employer’s page or
-                      confirmation before recording the result.
-                    </p>
-                    <label>
-                      Employer confirmation or reason for uncertainty
-                      <textarea
-                        value={receipt}
-                        onChange={(e) => setReceipt(e.target.value)}
-                        maxLength={10000}
-                      />
-                    </label>
-                    <button
-                      disabled={busy || !receipt.trim()}
-                      onClick={() => void act('complete')}
-                    >
-                      Record confirmed submission
+                >
+                  <RefreshCw size={15} aria-hidden="true" />
+                  Refresh history
+                </button>
+              </div>
+              <p>
+                Accept and send lives on workspace Inspect; the operative begins
+                after Accept.
+              </p>
+              {snapshot.operations.length === 0 && (
+                <div className="application-empty">
+                  <BriefcaseBusiness size={24} aria-hidden="true" />
+                  <h3>No application proposals yet.</h3>
+                  <p>
+                    Prepare an application to start a record of exactly what
+                    will be sent.
+                  </p>
+                </div>
+              )}
+              <ul className="application-history">
+                {snapshot.operations.map((op) => {
+                  const name =
+                    snapshot.jobs.find((j) => j.id === op.job_id)?.name ||
+                    'Application';
+                  return (
+                    <li className="application-card" key={op.id}>
+                      <div className="application-card-body">
+                        <span className="application-mark">
+                          <BriefcaseBusiness size={22} aria-hidden="true" />
+                        </span>
+                        <div className="application-card-title">
+                          <h3>{name}</h3>
+                          <span
+                            className="application-state"
+                            data-state={op.state}
+                          >
+                            {op.state === 'submitted' && (
+                              <Check size={13} aria-hidden="true" />
+                            )}
+                            {op.state.replaceAll('-', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="application-card-footer">
+                        <span className="application-actor">
+                          <Bot size={16} aria-hidden="true" />
+                          {op.actor}
+                        </span>
+                        <button
+                          aria-label={`View record for ${name}`}
+                          aria-expanded={selected?.id === op.id}
+                          aria-controls="application-record"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(async () => {
+                              const b = await request(
+                                `/api/applications?id=${encodeURIComponent(op.id)}`,
+                              );
+                              setSelected(b.operation);
+                              setReceipt('');
+                            })
+                          }
+                        >
+                          View record{' '}
+                          <ArrowUpRight size={15} aria-hidden="true" />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+              {snapshot.next && (
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      await refresh(snapshot.next!);
+                    })
+                  }
+                >
+                  Next page
+                </button>
+              )}
+              <p className="application-note">
+                Each assistant uses its own signed-in browser. Agent names and
+                employer confirmations are reported by the operator.
+              </p>
+              {selected && (
+                <article
+                  className="application-record"
+                  id="application-record"
+                  aria-label="Application record"
+                  tabIndex={-1}
+                  ref={evidence}
+                >
+                  <div className="application-record-heading">
+                    Application record
+                  </div>
+                  <ApplicationEvidence
+                    selected={selected}
+                    name={
+                      snapshot.jobs.find((j) => j.id === selected.job_id)?.name
+                    }
+                  />
+                  {['proposed', 'authorized'].includes(selected.state) && (
+                    <button disabled={busy} onClick={() => void act('cancel')}>
+                      Cancel proposal
                     </button>
-                    {selected.state === 'executing' && (
+                  )}
+                  {['executing', 'uncertain'].includes(selected.state) && (
+                    <div>
+                      <p>
+                        Do not submit again. Check the employer’s page or
+                        confirmation before recording the result.
+                      </p>
+                      <label>
+                        Employer confirmation or reason for uncertainty
+                        <textarea
+                          value={receipt}
+                          onChange={(e) => setReceipt(e.target.value)}
+                          maxLength={10000}
+                        />
+                      </label>
                       <button
                         disabled={busy || !receipt.trim()}
-                        onClick={() => void act('uncertain')}
+                        onClick={() => void act('complete')}
                       >
-                        Record uncertain outcome
+                        Record confirmed submission
                       </button>
-                    )}
-                    <button
-                      disabled={busy || !receipt.trim()}
-                      onClick={() => void act('not-submitted')}
-                    >
-                      Confirm no application was submitted
-                    </button>
-                    <p>
-                      Use this only after verifying no submission occurred. The
-                      evidence stays saved; a fresh proposal can then be
-                      prepared.
-                    </p>
-                  </div>
-                )}
-              </article>
-            )}
-          </section>
-          <details>
-            <summary>Prepare an application</summary>
-            <p>
-              Save every field and exact file before entering or uploading
-              information at the employer. Unknown answers require input. The
-              saved proposal cannot be edited.
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void run(async () => {
-                  const job = snapshot.jobs.find((j) => j.id === jobId);
-                  if (!filesReady)
-                    throw Error('Finish selecting files before saving.');
-                  if (!job) throw Error('Choose a job.');
-                  operationId.current ||= crypto.randomUUID();
-                  const b = await request('/api/applications', {
-                    action: 'propose',
-                    viewer: snapshot.viewer,
-                    id: operationId.current,
-                    job: job.id,
-                    version: jobVersion,
-                    actor,
-                    manifest: { destination, fields, files },
-                  });
-                  setSelected(b.operation);
-                  operationId.current = '';
-                  await refresh();
-                  setMessage('Exact proposal saved.');
-                });
-              }}
+                      {selected.state === 'executing' && (
+                        <button
+                          disabled={busy || !receipt.trim()}
+                          onClick={() => void act('uncertain')}
+                        >
+                          Record uncertain outcome
+                        </button>
+                      )}
+                      <button
+                        disabled={busy || !receipt.trim()}
+                        onClick={() => void act('not-submitted')}
+                      >
+                        Confirm no application was submitted
+                      </button>
+                      <p>
+                        Use this only after verifying no submission occurred.
+                        The evidence stays saved; a fresh proposal can then be
+                        prepared.
+                      </p>
+                    </div>
+                  )}
+                </article>
+              )}
+            </section>
+            <details
+              className="application-preparation"
+              id="application-preparation"
+              ref={preparation}
             >
-              <p>
-                <label>
-                  Job{' '}
-                  <select
-                    required
-                    value={jobId}
-                    onChange={(e) => {
-                      setJobId(e.target.value);
-                      setJobVersion(
-                        snapshot.jobs.find((j) => j.id === e.target.value)
-                          ?.version || 0,
-                      );
-                      setDestination(
-                        snapshot.jobs.find((j) => j.id === e.target.value)
-                          ?.url || '',
-                      );
-                    }}
-                  >
-                    <option value="">Choose a saved job</option>
-                    {snapshot.jobs
-                      .filter((j) => ['Held', 'Ready'].includes(j.status))
-                      .map((j) => (
-                        <option key={j.id} value={j.id}>
-                          {j.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              </p>
-              <p>
-                <label>
-                  Agent name{' '}
-                  <input
-                    required
-                    maxLength={100}
-                    value={actor}
-                    onChange={(e) => setActor(e.target.value)}
-                  />
-                </label>
-              </p>
-              <p>
-                <label>
-                  Employer application URL{' '}
-                  <input
-                    type="url"
-                    required
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                  />
-                </label>
-              </p>
-              {fields.map((f, i) => (
-                <fieldset key={i}>
-                  <legend>Field {i + 1}</legend>
-                  <label>
-                    Question or field label{' '}
-                    <input
-                      required
-                      value={f.label}
-                      maxLength={300}
-                      onChange={(e) =>
-                        setFields(
-                          fields.map((x, n) =>
-                            n === i ? { ...x, label: e.target.value } : x,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    Exact answer{' '}
-                    <textarea
-                      value={f.value}
-                      maxLength={20000}
-                      onChange={(e) =>
-                        setFields(
-                          fields.map((x, n) =>
-                            n === i ? { ...x, value: e.target.value } : x,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                </fieldset>
-              ))}
-              <button
-                type="button"
-                disabled={fields.length >= 100 || busy}
-                onClick={() => setFields([...fields, { label: '', value: '' }])}
-              >
-                Add field
-              </button>
-              <p>
-                <label>
-                  Exact files (up to two, 160 KB each){' '}
-                  <input
-                    type="file"
-                    multiple
-                    onChange={(e) => {
-                      const chosen = Array.from(e.target.files || []);
-                      const generation = ++fileGeneration.current;
-                      setFilesReady(false);
-                      setFiles([]);
-                      void run(async () => {
-                        if (
-                          chosen.length > 2 ||
-                          chosen.some((f) => f.size > 160000)
-                        )
-                          throw Error('Choose up to two files, 160 KB each.');
-                        const prepared = await Promise.all(
-                          chosen.map(async (file) => {
-                            const bytes = new Uint8Array(
-                              await file.arrayBuffer(),
-                            );
-                            return {
-                              name: file.name,
-                              base64: btoa(
-                                Array.from(bytes, (b) =>
-                                  String.fromCharCode(b),
-                                ).join(''),
-                              ),
-                              sha256: await digest(bytes),
-                            };
-                          }),
-                        );
-                        if (
-                          !stopped.current &&
-                          generation === fileGeneration.current
-                        ) {
-                          setFiles(prepared);
-                          setFilesReady(true);
-                        }
+              <summary>
+                <Plus size={17} aria-hidden="true" />
+                Prepare an application
+                <ChevronRight
+                  className="application-chevron"
+                  size={16}
+                  aria-hidden="true"
+                />
+              </summary>
+              <div className="application-form-body">
+                <p>
+                  Save every field and exact file before entering or uploading
+                  information at the employer. Unknown answers require input.
+                  The saved proposal cannot be edited.
+                </p>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void run(async () => {
+                      const job = snapshot.jobs.find((j) => j.id === jobId);
+                      if (!filesReady)
+                        throw Error('Finish selecting files before saving.');
+                      if (!job) throw Error('Choose a job.');
+                      operationId.current ||= crypto.randomUUID();
+                      const b = await request('/api/applications', {
+                        action: 'propose',
+                        viewer: snapshot.viewer,
+                        id: operationId.current,
+                        job: job.id,
+                        version: jobVersion,
+                        actor,
+                        manifest: { destination, fields, files },
                       });
-                    }}
-                  />
-                </label>
-              </p>
-              <p>{files.map((f) => f.name).join(', ')}</p>
-              {!filesReady && <p>Finish selecting files before saving.</p>}
-              <button disabled={busy || !filesReady}>
-                Save exact proposal
-              </button>
-            </form>
-          </details>
-        </>
-      )}
+                      setSelected(b.operation);
+                      operationId.current = '';
+                      await refresh();
+                      setMessage('Exact proposal saved.');
+                    });
+                  }}
+                >
+                  <p>
+                    <label>
+                      Job{' '}
+                      <select
+                        required
+                        value={jobId}
+                        onChange={(e) => {
+                          setJobId(e.target.value);
+                          setJobVersion(
+                            snapshot.jobs.find((j) => j.id === e.target.value)
+                              ?.version || 0,
+                          );
+                          setDestination(
+                            snapshot.jobs.find((j) => j.id === e.target.value)
+                              ?.url || '',
+                          );
+                        }}
+                      >
+                        <option value="">Choose a saved job</option>
+                        {snapshot.jobs
+                          .filter((j) => ['Held', 'Ready'].includes(j.status))
+                          .map((j) => (
+                            <option key={j.id} value={j.id}>
+                              {j.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </p>
+                  <p>
+                    <label>
+                      Agent name{' '}
+                      <input
+                        required
+                        maxLength={100}
+                        value={actor}
+                        onChange={(e) => setActor(e.target.value)}
+                      />
+                    </label>
+                  </p>
+                  <p>
+                    <label>
+                      Employer application URL{' '}
+                      <input
+                        type="url"
+                        required
+                        value={destination}
+                        onChange={(e) => setDestination(e.target.value)}
+                      />
+                    </label>
+                  </p>
+                  {fields.map((f, i) => (
+                    <fieldset key={i}>
+                      <legend>Field {i + 1}</legend>
+                      <label>
+                        Question or field label{' '}
+                        <input
+                          required
+                          value={f.label}
+                          maxLength={300}
+                          onChange={(e) =>
+                            setFields(
+                              fields.map((x, n) =>
+                                n === i ? { ...x, label: e.target.value } : x,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        Exact answer{' '}
+                        <textarea
+                          value={f.value}
+                          maxLength={20000}
+                          onChange={(e) =>
+                            setFields(
+                              fields.map((x, n) =>
+                                n === i ? { ...x, value: e.target.value } : x,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                    </fieldset>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={fields.length >= 100 || busy}
+                    onClick={() =>
+                      setFields([...fields, { label: '', value: '' }])
+                    }
+                  >
+                    Add field
+                  </button>
+                  <p>
+                    <label>
+                      Exact files (up to two, 160 KB each){' '}
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(e) => {
+                          const chosen = Array.from(e.target.files || []);
+                          const generation = ++fileGeneration.current;
+                          setFilesReady(false);
+                          setFiles([]);
+                          void run(async () => {
+                            if (
+                              chosen.length > 2 ||
+                              chosen.some((f) => f.size > 160000)
+                            )
+                              throw Error(
+                                'Choose up to two files, 160 KB each.',
+                              );
+                            const prepared = await Promise.all(
+                              chosen.map(async (file) => {
+                                const bytes = new Uint8Array(
+                                  await file.arrayBuffer(),
+                                );
+                                return {
+                                  name: file.name,
+                                  base64: btoa(
+                                    Array.from(bytes, (b) =>
+                                      String.fromCharCode(b),
+                                    ).join(''),
+                                  ),
+                                  sha256: await digest(bytes),
+                                };
+                              }),
+                            );
+                            if (
+                              !stopped.current &&
+                              generation === fileGeneration.current
+                            ) {
+                              setFiles(prepared);
+                              setFilesReady(true);
+                            }
+                          });
+                        }}
+                      />
+                    </label>
+                  </p>
+                  <p>{files.map((f) => f.name).join(', ')}</p>
+                  {!filesReady && <p>Finish selecting files before saving.</p>}
+                  <button
+                    className="application-primary"
+                    disabled={busy || !filesReady}
+                  >
+                    Save exact proposal
+                  </button>
+                </form>
+              </div>
+            </details>
+          </>
+        )}
+      </div>
     </ProductShell>
   );
 }

@@ -11,7 +11,9 @@ import {
   beginInspectPoll,
   createInspectPollGate,
   inspectShowsAuthorizedWaiting,
+  inspectShowsExecuting,
   inspectShowsReadyNotArmed,
+  inspectShowsUncertain,
   selectInspectJob,
   type InspectSnapshot,
 } from '../lib/inspect-view';
@@ -132,6 +134,18 @@ export function inspectMarkup({
       {inspectShowsReadyNotArmed(view) && <p>Operative is not on the page.</p>}
       {inspectShowsAuthorizedWaiting(view) && (
         <p>Accepted — waiting for the operative to send.</p>
+      )}
+      {inspectShowsExecuting(view) && (
+        <p>
+          Permit consumed. If submit no-ops or a captcha appears, record
+          uncertain; never begin again.
+        </p>
+      )}
+      {inspectShowsUncertain(view) && (
+        <p>
+          Employer result uncertain. Do not submit again. This is not a draft
+          or stage failure. Captcha or unknown send.
+        </p>
       )}
       <div className="actions">
         <button

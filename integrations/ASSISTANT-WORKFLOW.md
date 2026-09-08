@@ -24,8 +24,9 @@ Read `relay_inspect_application` first and retain its opaque `preparation_revisi
 3. Wait for the human to click **Accept and send** on the signed-in workspace. Poll `relay_inspect_application` at least every 2 seconds (prefer 3) until `state` is `authorized`, or cancelled/timeout. Chat “yes” and draft Ready are not send permission.
 4. `relay_begin_application` consumes the one permit. If `execute` is not true, do not click the employer submit control.
 5. Click the employer Submit **once**. Do not retry: a lost `begin` response is inspected on GET; `executing` is not permission to submit again.
-6. `relay_finish_application` records `complete`, `uncertain`, or `not-submitted` with a receipt. Only `complete` may set the job to Submitted. Never invent a receipt.
-7. If the human closes the attempt or the form cannot be sent, `relay_cancel_application` (`r.close`) cancels only while pre-`begin`. If already `executing`, do not cancel and do not submit. There is no `relay_approve_application`.
+6. If submit no-ops or a captcha appears after `begin`, stop. Record `relay_finish_application` with `action: "uncertain"` and the observed evidence (captcha, submit no-op, lost confirmation). Do not consume a second permit or call `begin` again. Human or Mac unlock of an employer captcha is outside Relay. This is not a `relay_stage_draft` bug.
+7. `relay_finish_application` records `complete`, `uncertain`, or `not-submitted` with a receipt. Only `complete` may set the job to Submitted. Never invent a receipt.
+8. If the human closes the attempt or the form cannot be sent, `relay_cancel_application` (`r.close`) cancels only while pre-`begin`. If already `executing`, do not cancel and do not submit. There is no `relay_approve_application`.
 
 ### Resolve a question without rewriting the agent's notes
 

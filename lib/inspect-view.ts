@@ -33,11 +33,11 @@ export type InspectApplyResult =
   | { type: 'clear' }
   | { type: 'view'; view: InspectSnapshot; viewer: string };
 
-const WAITING_STATES = new Set(['authorized', 'executing']);
 const READY_NOT_ARMED_HIDDEN = new Set([
   'authorized',
   'executing',
   'submitted',
+  'uncertain',
 ]);
 
 export function createInspectPollGate(): InspectPollGate {
@@ -98,13 +98,23 @@ export function inspectShowsReadyNotArmed(view: InspectSnapshot | null) {
 }
 
 export function inspectShowsAuthorizedWaiting(view: InspectSnapshot | null) {
-  return WAITING_STATES.has(view?.state ?? '');
+  return view?.state === 'authorized';
+}
+
+export function inspectShowsExecuting(view: InspectSnapshot | null) {
+  return view?.state === 'executing';
+}
+
+export function inspectShowsUncertain(view: InspectSnapshot | null) {
+  return view?.state === 'uncertain';
 }
 
 export function inspectOperativeStatus(
   view: InspectSnapshot | null,
-): 'armed' | 'waiting' | null {
+): 'armed' | 'waiting' | 'executing' | 'uncertain' | null {
   if (inspectShowsAuthorizedWaiting(view)) return 'waiting';
+  if (inspectShowsExecuting(view)) return 'executing';
+  if (inspectShowsUncertain(view)) return 'uncertain';
   if (view?.armed) return 'armed';
   return null;
 }

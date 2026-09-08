@@ -23,7 +23,7 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
       .getByText(/Your facts and Advanced tools are optional/),
   ).toBeVisible();
   await expect(
-    page.locator('aside').getByRole('group', { name: 'Job list' }),
+    page.locator('aside.sidebar').getByRole('group', { name: 'Job list' }),
   ).toHaveCount(0);
   await expect(page).not.toHaveURL(/\/profile/);
   await expect(
@@ -59,8 +59,11 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
     ),
   ).toHaveCount(2);
   await expect(
-    page.locator('aside').getByRole('group', { name: 'Job list' }),
+    page.getByRole('link', { name: 'Track jobs', exact: true }),
   ).toBeVisible();
+  await expect(
+    page.locator('aside.sidebar').getByRole('group', { name: 'Job list' }),
+  ).toHaveCount(0);
   await expect(page).not.toHaveURL(/\/profile/);
   await expect(
     page.getByRole('heading', { name: 'Cedar Example — First Job Engineer' }),
@@ -144,7 +147,6 @@ test('cancel creates nothing and keeps unsaved editor work', async ({
     await page.reload();
     before = await (await page.request.get('/api/workspace')).json();
   }
-  await page.getByRole('button', { name: /All opportunities/ }).click();
   await page.locator('section.queue .joblist button').first().click();
   const draft = page.getByRole('textbox', {
     name: 'Application answer or outreach draft',

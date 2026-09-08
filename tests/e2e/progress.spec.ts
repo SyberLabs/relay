@@ -37,7 +37,6 @@ async function prepare(page: Page, suffix: string) {
   await expect(
     page.locator('section.queue .joblist button').first(),
   ).toBeVisible();
-  await page.getByRole('button', { name: /All opportunities/ }).click();
   return (await workspace(page)).jobs.filter((job) =>
     job.name.startsWith(`Progress ${suffix} —`),
   );
@@ -49,7 +48,10 @@ const blockerField = (page: Page) =>
 const noteField = (page: Page) =>
   page.getByRole('textbox', { name: 'Progress note', exact: true });
 async function select(page: Page, job: Job) {
-  await page.getByRole('button', { name: new RegExp(job.name) }).click();
+  await page.goto(`/?job=${encodeURIComponent(job.id)}`);
+  await expect(
+    page.getByRole('heading', { name: job.name, exact: true }),
+  ).toBeVisible();
   const notes = page.locator('details.review-notes');
   if ((await notes.getAttribute('open')) === null)
     await notes.locator('summary').click();
@@ -153,11 +155,7 @@ for (const width of [1280, 390]) {
       const next = await resumed.newPage();
       await next.goto('/');
       await expect(
-        next.getByRole('button', { name: /All opportunities/ }),
-      ).toBeVisible();
-      await next.getByRole('button', { name: /All opportunities/ }).click();
-      await expect(
-        next.getByRole('heading', { name: 'Queued opportunities', exact: true }),
+        next.getByRole('heading', { name: 'Review queue', exact: true }),
       ).toBeVisible();
       for (const original of jobs) {
         const persisted = saved.jobs.find((job) => job.id === original.id)!;
@@ -200,7 +198,6 @@ test('nonblocking notes survive history and reload without preventing exact acce
     status: 'Held',
   });
   await page.reload();
-  await page.getByRole('button', { name: /All opportunities/ }).click();
   await select(page, job);
   await page
     .locator('summary')
@@ -436,7 +433,6 @@ test('registered progress tool survives reload and an ambiguous reply without du
       (event) => event.job_id === job.id && event.kind === 'Progress saved',
     ),
   ).toHaveLength(1);
-  await page.getByRole('button', { name: /All opportunities/ }).click();
   await select(page, job);
   await expect(draftField(page)).toHaveValue(staged.draft);
   await expect(blockerField(page)).toHaveValue(input.blocker);

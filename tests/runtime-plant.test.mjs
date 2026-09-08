@@ -69,6 +69,21 @@ void test('expiry clears runtime policy and context tiles', () => {
   );
 });
 
+void test('plant blocked answers do not post the remember preference flag', () => {
+  const start = workspace.indexOf('onBlockedSubmit={() => {');
+  assert.notEqual(start, -1);
+  const submit = workspace.slice(
+    start,
+    workspace.indexOf('onClose={() => setModal(null)}', start),
+  );
+  assert.match(submit, /saveDecision\(\s*'answer',\s*false,/);
+  assert.doesNotMatch(submit, /rememberAnswer/);
+  assert.doesNotMatch(workspace, /rememberAnswer/);
+  assert.doesNotMatch(modals, /onRemember/);
+  assert.doesNotMatch(modals, /Save this as a progress note/);
+  assert.match(modals, /Answer and continue/);
+});
+
 void test('stuck cards select the job without opening a dialog', () => {
   const start = workspace.indexOf('Stuck, needs your answer');
   const end = workspace.indexOf('<RuntimeModals');

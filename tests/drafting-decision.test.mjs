@@ -219,6 +219,11 @@ void test('decision validation refuses excessive input and permission-changing f
     { accepted_draft: 'approved' },
     { answer: 'a'.repeat(2001), choice: 'answer', remember: false },
     { choice: 'answer', answer: '' },
+    {
+      choice: 'answer',
+      remember: true,
+      answer: 'Use the confirmed database project; omit the optional anecdote.',
+    },
     { choice: 'reset' },
     { version: 0 },
     { viewer: undefined },

@@ -137,7 +137,6 @@ export default function Workspace() {
   const [modal, setModal] = useState<RuntimeModal>(null);
   const [autopilot, setAutopilot] = useState(false);
   const [policy, setPolicy] = useState<ApplicationPolicy | null>(null);
-  const [rememberAnswer, setRememberAnswer] = useState(true);
   const [styleCount, setStyleCount] = useState(0);
   const sessionRef = useRef(createWorkspaceSession());
   const policyRef = useRef<ApplicationPolicy | null>(null);
@@ -1775,17 +1774,14 @@ export default function Workspace() {
             save('Skip');
           }}
           onBlockedSubmit={() => {
-            void saveDecision(
-              'answer',
-              rememberAnswer,
-              editor?.progressNote ?? '',
-            ).then((ok) => {
-              if (ok) setModal(null);
-            });
+            void saveDecision('answer', false, editor?.progressNote ?? '').then(
+              (ok) => {
+                if (ok) setModal(null);
+              },
+            );
           }}
           onClose={() => setModal(null)}
           onEdit={() => setModal(null)}
-          onRemember={setRememberAnswer}
           onNavigate={confirmLeave}
           onSaveLimits={async (input) => {
             const started = { epoch: sessionRef.current.gate.epoch };
@@ -1800,7 +1796,6 @@ export default function Workspace() {
           }}
           onUnauthorized={applyExpired}
           policy={policy}
-          remember={rememberAnswer}
           sessionRef={sessionRef}
           sources={sources.filter((s) => s.job_key === current?.job_key)}
           toolStatus={toolStatus}

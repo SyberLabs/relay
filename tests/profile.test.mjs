@@ -498,6 +498,30 @@ void test('resume extraction separates an undated role title from surrounding cl
   );
 });
 
+void test('resume extraction separates a qualified role title from both neighboring claims', () => {
+  for (const title of ['Software Engineer', 'Senior Software Engineer']) {
+    assert.deepEqual(
+      parseResume(
+        [
+          'EXPERIENCE',
+          '- Built ingestion pipelines.',
+          `  ${title}`,
+          '    Shipped release tooling for 4 teams.',
+        ].join('\n'),
+      ).map(({ claim }) => claim),
+      ['Built ingestion pipelines.', 'Shipped release tooling for 4 teams.'],
+    );
+  }
+  assert.deepEqual(
+    parseResume(
+      '- Built ingestion pipelines,\n  for the software engineer managing customer dashboards.',
+    ).map(({ claim }) => claim),
+    [
+      'Built ingestion pipelines, for the software engineer managing customer dashboards.',
+    ],
+  );
+});
+
 void test('resume extraction bounds and deduplicates complete items', () => {
   const lines = Array.from(
     { length: 65 },

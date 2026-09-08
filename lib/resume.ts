@@ -41,8 +41,9 @@ function* resumeItems(text: string): Generator<string> {
       (roleWords.test(line) &&
         !claimVerb.test(line) &&
         (/\b(19|20)\d{2}\b/.test(line) ||
-          // An undated title such as "Senior Engineer" is unambiguous when
-          // every word is a known role word; prose mentioning a role is not.
+          // Preserve short title-cased headings such as "Software Engineer"
+          // without treating ordinary prose mentioning an engineer as a title.
+          /^(?:[A-Z][A-Za-z]*[ -]){0,3}[A-Z][A-Za-z]*$/.test(line) ||
           line.split(/\s+/).every((word) => roleWords.test(word))));
     // Only deeper indentation signals a continuation. Never combine an
     // explicit bullet, heading, contact line or clear role with its neighbor.

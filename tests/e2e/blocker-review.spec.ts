@@ -273,11 +273,22 @@ test('a required answer remains saved on refusals, stale conflict and account ex
     'Use my confirmed project. I have not supplied the required location answer.',
   );
   expect(await state(page)).toEqual(before);
-  await page.route('**/api/workspace', (route) =>
-    route.fulfill({ status: 401, json: { error: 'Sign in first.' } }),
-  );
+  let attempts = 0;
+  await page.route('**/api/workspace', async (route) => {
+    if (
+      route.request().method() === 'POST' &&
+      route.request().postDataJSON().action === 'drafting-decision'
+    ) {
+      attempts++;
+      await route.fulfill({ status: 401, json: { error: 'Sign in first.' } });
+    } else await route.continue();
+  });
   await page.getByRole('button', { name: 'Reload this record' }).click();
-  await page.getByRole('button', { name: 'Use your judgment' }).click();
+  const expired = await decisionResponse(page, () =>
+    page.getByRole('button', { name: 'Use your judgment' }).click(),
+  );
+  expect(expired.status()).toBe(401);
+  expect(attempts).toBe(1);
   await expect(
     page.getByRole('textbox', { name: 'Your answer or direction' }),
   ).toHaveCount(0);

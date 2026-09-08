@@ -481,6 +481,23 @@ void test('resume extraction drops an oversized wrapped item without emitting fr
   );
 });
 
+void test('resume extraction separates an undated role title from surrounding claims', () => {
+  assert.deepEqual(
+    parseResume(
+      [
+        '• Built reporting tools,',
+        '  for the engineer managing customer dashboards.',
+        '  Senior Engineer',
+        '    Built release automation.',
+      ].join('\n'),
+    ).map(({ claim }) => claim),
+    [
+      'Built reporting tools, for the engineer managing customer dashboards.',
+      'Built release automation.',
+    ],
+  );
+});
+
 void test('resume extraction bounds and deduplicates complete items', () => {
   const lines = Array.from(
     { length: 65 },

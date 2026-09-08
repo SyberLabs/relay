@@ -39,10 +39,13 @@ function* resumeItems(text: string): Generator<string> {
       isSection(line) ||
       contact.test(line) ||
       (roleWords.test(line) &&
-        /\b(19|20)\d{2}\b/.test(line) &&
-        !claimVerb.test(line));
+        !claimVerb.test(line) &&
+        (/\b(19|20)\d{2}\b/.test(line) ||
+          // An undated title such as "Senior Engineer" is unambiguous when
+          // every word is a known role word; prose mentioning a role is not.
+          line.split(/\s+/).every((word) => roleWords.test(word))));
     // Only deeper indentation signals a continuation. Never combine an
-    // explicit bullet, heading, contact line or dated role with its neighbor.
+    // explicit bullet, heading, contact line or clear role with its neighbor.
     if (
       item &&
       line &&

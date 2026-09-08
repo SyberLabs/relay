@@ -6,7 +6,9 @@ import {
   createInspectPollGate,
   inspectOperativeStatus,
   inspectShowsAuthorizedWaiting,
+  inspectShowsExecuting,
   inspectShowsReadyNotArmed,
+  inspectShowsUncertain,
   selectInspectJob,
 } from '../lib/inspect-view.ts';
 
@@ -167,7 +169,48 @@ void test('submitted hides ready-not-armed and authorized-waiting copy', () => {
   assert.equal(inspectShowsAuthorizedWaiting(view), false);
 });
 
-void test('overlay operative status is armed until authorized waiting', () => {
+void test('authorized waiting is only authorized, not executing or uncertain', () => {
+  const authorized = snapshot('job-a', {
+    ready: true,
+    armed: false,
+    state: 'authorized',
+    accept_enabled: false,
+  });
+  const executing = snapshot('job-a', {
+    ready: true,
+    armed: true,
+    state: 'executing',
+    accept_enabled: false,
+  });
+  const uncertain = snapshot('job-a', {
+    ready: true,
+    armed: false,
+    state: 'uncertain',
+    accept_enabled: false,
+  });
+  assert.equal(inspectShowsAuthorizedWaiting(authorized), true);
+  assert.equal(inspectShowsAuthorizedWaiting(executing), false);
+  assert.equal(inspectShowsAuthorizedWaiting(uncertain), false);
+  assert.equal(inspectShowsExecuting(executing), true);
+  assert.equal(inspectShowsExecuting(authorized), false);
+  assert.equal(inspectShowsExecuting(uncertain), false);
+  assert.equal(inspectShowsUncertain(uncertain), true);
+  assert.equal(inspectShowsUncertain(authorized), false);
+  assert.equal(inspectShowsUncertain(executing), false);
+});
+
+void test('uncertain hides ready-not-armed copy', () => {
+  const view = snapshot('job-a', {
+    ready: true,
+    armed: false,
+    state: 'uncertain',
+    accept_enabled: false,
+  });
+  assert.equal(inspectShowsReadyNotArmed(view), false);
+  assert.equal(inspectShowsUncertain(view), true);
+});
+
+void test('overlay operative status distinguishes armed waiting executing uncertain', () => {
   assert.equal(inspectOperativeStatus(snapshot('job-a')), 'armed');
   assert.equal(
     inspectOperativeStatus(
@@ -187,7 +230,17 @@ void test('overlay operative status is armed until authorized waiting', () => {
         accept_enabled: false,
       }),
     ),
-    'waiting',
+    'executing',
+  );
+  assert.equal(
+    inspectOperativeStatus(
+      snapshot('job-a', {
+        armed: false,
+        state: 'uncertain',
+        accept_enabled: false,
+      }),
+    ),
+    'uncertain',
   );
   assert.equal(
     inspectOperativeStatus(

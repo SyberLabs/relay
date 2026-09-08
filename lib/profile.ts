@@ -11,6 +11,7 @@ export type Fact = {
   status: string;
   verified: string | null;
   expires: string | null;
+  field_key?: string | null;
 };
 export type Rule = { id: string; rule: string; scope: string };
 export type DraftRow = {
@@ -110,6 +111,36 @@ export function isClaim(sentence: string): boolean {
 }
 export function usableFact(fact: Fact, now: string): boolean {
   return fact.status === 'Verified' && (!fact.expires || fact.expires > now);
+}
+
+const questionFields: [RegExp, string][] = [
+  [
+    /\b(work authori[sz]|authori[sz]ed to work|sponsor(?:ship)?|visa|citizenship|eligible to work)\b/i,
+    'work_authorization',
+  ],
+  [
+    /\b(start date|earliest start|notice period|available to start)\b/i,
+    'earliest_start',
+  ],
+  [
+    /\b(salary|compensation|pay expect|desired pay|pay range)\b/i,
+    'desired_pay',
+  ],
+  [/\b(relocat|willing to move)/i, 'relocation'],
+  [/\b(security clearance)\b/i, 'security_clearance'],
+];
+
+export function factFieldKey(question: string): string {
+  const text = question.trim();
+  for (const [pattern, key] of questionFields)
+    if (pattern.test(text)) return key;
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80)
+    .replace(/_+$/g, '');
+  return `question.${slug || 'unspecified'}`.slice(0, 128);
 }
 function supports(sentence: string, fact: Fact, pool: Set<string>): boolean {
   const sentenceNumbers = numbersIn(sentence);
@@ -327,7 +358,12 @@ export function profileBrief(
     cluster,
     facts: facts
       .filter((f) => usableFact(f, now))
-      .map((f) => ({ id: f.id, claim: f.claim, tag: f.tag })),
+      .map((f) => ({
+        id: f.id,
+        claim: f.claim,
+        tag: f.tag,
+        field_key: f.field_key || null,
+      })),
     style: rules
       .filter((r) => r.scope === 'global' || r.scope === cluster)
       .map((r) => r.rule),

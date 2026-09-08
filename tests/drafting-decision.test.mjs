@@ -8,6 +8,7 @@ import {
   validateDraftingDecision,
 } from '../lib/drafting-decision.ts';
 import { readApplicationContext } from '../lib/application-context.ts';
+import { usableFact } from '../lib/profile.ts';
 
 function database() {
   const sqlite = new DatabaseSync(':memory:');
@@ -110,10 +111,21 @@ void test('stale job, stale global preference, wrong viewer and other owner refu
       { version: 2 },
       { preference_version: 2 },
       { viewer: 'bob' },
+      {
+        version: 2,
+        choice: 'answer',
+        remember: false,
+        save_profile: true,
+        answer: 'Two weeks from a signed offer.',
+      },
     ])
       assert.equal((await save(db, change)).status, 409);
     assert.equal((await save(db, { viewer: 'bob' }, 'bob')).status, 404);
     assert.deepEqual(snapshot(db), before);
+    assert.equal(
+      db.sqlite.prepare('SELECT COUNT(*) AS n FROM profile_facts').get().n,
+      0,
+    );
     await save(db);
     const after = snapshot(db);
     assert.equal(
@@ -228,6 +240,270 @@ void test('decision validation refuses excessive input and permission-changing f
     { version: 0 },
     { viewer: undefined },
     { remember: 'yes' },
+    {
+      choice: 'answer',
+      remember: false,
+      save_profile: true,
+      answer: 'a'.repeat(501),
+    },
+    {
+      choice: 'delegate',
+      remember: false,
+      save_profile: true,
+      answer: '',
+    },
+    { save_profile: 'yes' },
   ])
     assert.throws(() => validateDraftingDecision(input(change)));
+});
+
+void test('a reusable blocked answer proposes an owner-scoped fact without verifying or preferring routine drafting', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    const before = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(before.length, 0);
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Two weeks from a signed offer.',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].owner, 'alice');
+    assert.equal(facts[0].claim, 'Two weeks from a signed offer.');
+    assert.equal(facts[0].field_key, 'earliest_start');
+    assert.equal(facts[0].status, 'Proposed');
+    assert.equal(facts[0].tag, 'detail');
+    assert.match(facts[0].evidence, /start date/);
+    assert.equal(facts[0].verified, null);
+    assert.equal(usableFact(facts[0], 'after'), false);
+    assert.equal((await loadDraftingPreference(db, 'alice')).routine, false);
+    const bob = db.sqlite
+      .prepare('SELECT * FROM profile_facts WHERE owner=?')
+      .all('bob');
+    assert.equal(bob.length, 0);
+    assert.deepEqual(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Two weeks from a signed offer.',
+        })
+      ).data,
+      { ok: true, replayed: true },
+    );
+    assert.equal(
+      db.sqlite.prepare('SELECT COUNT(*) AS n FROM profile_facts').get().n,
+      1,
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('job-only answers and unverified proposed facts stay out of drafting context', async () => {
+  const db = database();
+  try {
+    await save(db, {
+      choice: 'answer',
+      remember: false,
+      answer: 'Use the confirmed database project; omit the optional anecdote.',
+    });
+    assert.equal(
+      db.sqlite.prepare('SELECT COUNT(*) AS n FROM profile_facts').get().n,
+      0,
+    );
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.', version=2 WHERE id='job'",
+    );
+    await save(db, {
+      version: 2,
+      operation_id: 'save-start',
+      choice: 'answer',
+      remember: false,
+      save_profile: true,
+      answer: '12 June 2027.',
+    });
+    const proposed = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    const call = async (_path, body) =>
+      body
+        ? { events: [], next: null }
+        : {
+            jobs: db.sqlite.prepare('SELECT * FROM jobs ORDER BY rowid').all(),
+            sources: [],
+            facts: db.sqlite
+              .prepare('SELECT * FROM profile_facts')
+              .all()
+              .filter((row) => usableFact(row, 'after')),
+            draftingPreference: await loadDraftingPreference(db, 'alice'),
+          };
+    const unread = await readApplicationContext(call, 'job');
+    assert.equal(unread.facts.length, 0);
+    db.sqlite
+      .prepare(
+        "UPDATE profile_facts SET status='Verified', verified=? WHERE id=?",
+      )
+      .run('after', proposed.id);
+    const ready = await readApplicationContext(call, 'job');
+    assert.equal(ready.facts.length, 1);
+    assert.equal(ready.facts[0].field_key, 'earliest_start');
+    assert.equal(ready.facts[0].claim, '12 June 2027.');
+    assert.match(ready.guidance.join(' '), /may propose a profile fact/);
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('a later proposed answer updates the same field_key without adding a row', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Two weeks from a signed offer.',
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'decision-2',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: '12 June 2027.',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].field_key, 'earliest_start');
+    assert.equal(facts[0].claim, '12 June 2027.');
+    assert.equal(facts[0].status, 'Proposed');
+    assert.equal((await loadDraftingPreference(db, 'alice')).routine, false);
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('an existing claim does not abort the decision or duplicate the ledger row', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    db.sqlite.exec(
+      "INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,created) VALUES ('fact-claim','alice','Two weeks from a signed offer.','resume','detail','Proposed','before')",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Two weeks from a signed offer.',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].id, 'fact-claim');
+    assert.equal(facts[0].field_key, null);
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT drafting_direction FROM jobs WHERE id=?')
+        .get('job').drafting_direction,
+      'Two weeks from a signed offer.',
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('a full fact ledger refuses save_profile without writing the decision', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    db.sqlite
+      .exec(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<500)
+      INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,created)
+      SELECT 'fact-'||x,'alice','Claim '||x,'','detail','Proposed','before' FROM n;`);
+    const before = snapshot(db);
+    await assert.rejects(
+      save(db, {
+        choice: 'answer',
+        remember: false,
+        save_profile: true,
+        answer: 'Two weeks from a signed offer.',
+      }),
+      /storage quota/,
+    );
+    assert.deepEqual(snapshot(db), before);
+    assert.equal(
+      db.sqlite.prepare('SELECT COUNT(*) AS n FROM profile_facts').get().n,
+      500,
+    );
+    assert.equal((await loadDraftingPreference(db, 'alice')).routine, false);
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('a verified field is not overwritten by a later proposed answer', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    db.sqlite.exec(
+      "INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,verified,field_key,created) VALUES ('fact-1','alice','Already confirmed start','prior','detail','Verified','before','earliest_start','before')",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'A conflicting later start date.',
+        })
+      ).status,
+      200,
+    );
+    const row = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(row.claim, 'Already confirmed start');
+    assert.equal(row.status, 'Verified');
+    assert.equal((await loadDraftingPreference(db, 'alice')).routine, false);
+  } finally {
+    db.sqlite.close();
+  }
 });

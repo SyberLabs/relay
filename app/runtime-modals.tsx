@@ -155,6 +155,8 @@ export function RuntimeModals({
   onBlockedAnswer,
   onBlockedSubmit,
   onBlockedDrop,
+  saveProfile,
+  onSaveProfile,
   toolStatus,
   policy,
   jobs,
@@ -180,6 +182,8 @@ export function RuntimeModals({
   onBlockedAnswer: (value: string) => void;
   onBlockedSubmit: () => void;
   onBlockedDrop: () => void;
+  saveProfile: boolean;
+  onSaveProfile: (value: boolean) => void;
   toolStatus: RelayToolStatus;
   policy: ApplicationPolicy | null;
   jobs: { id: string; name: string; status: string }[];
@@ -226,6 +230,8 @@ export function RuntimeModals({
         onBlockedAnswer,
         onBlockedSubmit,
         onBlockedDrop,
+        saveProfile,
+        onSaveProfile,
         toolStatus,
         policy,
         jobs,
@@ -256,6 +262,8 @@ function RuntimeModalDialog({
   onBlockedAnswer,
   onBlockedSubmit,
   onBlockedDrop,
+  saveProfile,
+  onSaveProfile,
   toolStatus,
   policy,
   jobs,
@@ -281,6 +289,8 @@ function RuntimeModalDialog({
   onBlockedAnswer: (value: string) => void;
   onBlockedSubmit: () => void;
   onBlockedDrop: () => void;
+  saveProfile: boolean;
+  onSaveProfile: (value: boolean) => void;
   toolStatus: RelayToolStatus;
   policy: ApplicationPolicy | null;
   jobs: { id: string; name: string; status: string }[];
@@ -691,6 +701,15 @@ function RuntimeModalDialog({
                     type="text"
                     value={blockedAnswer}
                   />
+                </label>
+                <label className="check">
+                  <input
+                    checked={saveProfile}
+                    onChange={(e) => onSaveProfile(e.target.checked)}
+                    type="checkbox"
+                  />
+                  Save this to your profile so the agent can reuse it after you
+                  confirm it on Your facts.
                 </label>
               </div>
               <div className="sect">

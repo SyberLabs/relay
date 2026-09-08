@@ -84,6 +84,22 @@ void test('plant blocked answers do not post the remember preference flag', () =
   assert.match(modals, /Answer and continue/);
 });
 
+void test('plant blocked answers can propose a profile fact without the routine-writing flag', () => {
+  const start = workspace.indexOf('onBlockedSubmit={() => {');
+  const submit = workspace.slice(
+    start,
+    workspace.indexOf('onClose={() => setModal(null)}', start),
+  );
+  assert.match(submit, /save_profile|saveProfile/);
+  assert.match(
+    workspace,
+    /saveDecision\(\s*'answer',\s*false,[\s\S]*?saveProfile/,
+  );
+  assert.match(modals, /Save this to your profile/);
+  assert.match(modals, /Your facts/);
+  assert.doesNotMatch(modals, /onRemember/);
+});
+
 void test('stuck cards select the job without opening a dialog', () => {
   const start = workspace.indexOf('Stuck, needs your answer');
   const end = workspace.indexOf('<RuntimeModals');

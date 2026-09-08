@@ -200,6 +200,10 @@ test('plant blocked answer continues without the remember preference flag', asyn
     page.getByRole('heading', { name: 'The agent needs an answer' }),
   ).toBeVisible();
   await expect(page.getByText('Save this as a progress note')).toHaveCount(0);
+  const saveBox = page.getByRole('checkbox', {
+    name: /Save this to your profile/,
+  });
+  await expect(saveBox).toBeChecked();
   await page
     .getByRole('textbox', { name: 'Your answer' })
     .fill('Start date is 12 June 2027; omit optional anecdotes.');
@@ -216,6 +220,7 @@ test('plant blocked answer continues without the remember preference flag', asyn
     action: 'drafting-decision',
     choice: 'answer',
     remember: false,
+    save_profile: true,
     answer: 'Start date is 12 June 2027; omit optional anecdotes.',
   });
   await expect(
@@ -223,6 +228,7 @@ test('plant blocked answer continues without the remember preference flag', asyn
   ).toHaveCount(0);
   const after = await (await page.request.get('/api/workspace')).json();
   expect(after.draftingPreference.routine).toBe(false);
+  expect(after.facts).toHaveLength(0);
   const job = after.jobs.find(
     (row: { name: string }) =>
       row.name === 'Runtime Plant — Blocked Answer Engineer',
@@ -230,6 +236,30 @@ test('plant blocked answer continues without the remember preference flag', asyn
   expect(job.drafting_direction).toContain('12 June 2027');
   expect(job.status).toBe('Held');
   expect(job.accepted_draft).toBeNull();
+  const profile = await (await page.request.get('/api/profile')).json();
+  const proposed = profile.facts.find(
+    (row: { claim: string; status: string }) =>
+      row.claim === 'Start date is 12 June 2027; omit optional anecdotes.' &&
+      row.status === 'Proposed',
+  );
+  expect(proposed.field_key).toMatch(/^[\w.:-]{1,128}$/);
+  expect(proposed).toMatchObject({
+    claim: 'Start date is 12 June 2027; omit optional anecdotes.',
+    status: 'Proposed',
+  });
+  const verified = await page.request.post('/api/profile', {
+    data: { action: 'verify', id: proposed.id },
+  });
+  expect(verified.ok()).toBe(true);
+  const usable = await (await page.request.get('/api/workspace')).json();
+  expect(
+    usable.facts.some(
+      (row: { id: string; claim: string; field_key?: string }) =>
+        row.id === proposed.id &&
+        row.claim.includes('12 June 2027') &&
+        row.field_key === proposed.field_key,
+    ),
+  ).toBe(true);
 });
 
 test('dirty editor asks before Review prepared application and modal Your facts', async ({

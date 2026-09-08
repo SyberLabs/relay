@@ -151,9 +151,13 @@ export const profileFacts = sqliteTable(
     status: text('status').notNull().default('Proposed'),
     verified: text('verified'),
     expires: text('expires'),
+    field_key: text('field_key'),
     created: text('created').notNull(),
   },
-  (t) => [uniqueIndex('facts_owner_claim').on(t.owner, t.claim)],
+  (t) => [
+    uniqueIndex('facts_owner_claim').on(t.owner, t.claim),
+    uniqueIndex('facts_owner_field_key').on(t.owner, t.field_key),
+  ],
 );
 export const styleRules = sqliteTable(
   'style_rules',

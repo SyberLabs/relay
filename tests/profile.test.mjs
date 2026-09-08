@@ -17,6 +17,7 @@ import {
   validateDraftLog,
   validateFact,
   validateRule,
+  factFieldKey,
 } from '../lib/profile.ts';
 import { parseResume } from '../lib/resume.ts';
 const NOW = '2026-09-05T00:00:00.000Z';
@@ -349,6 +350,63 @@ void test('the brief exposes only usable facts and applicable rules', () => {
   );
   assert.deepEqual(brief.style, ['Global rule', 'Backend rule']);
   assert.equal(brief.profile_version, 7);
+});
+
+void test('form questions map to a bounded field_key without using the raw answer', () => {
+  assert.equal(
+    factFieldKey('do not submit until the start date is confirmed.'),
+    'earliest_start',
+  );
+  assert.equal(
+    factFieldKey(
+      'Are you authorized to work in the United States without sponsorship?',
+    ),
+    'work_authorization',
+  );
+  assert.equal(
+    factFieldKey('Desired pay or compensation range?'),
+    'desired_pay',
+  );
+  assert.equal(factFieldKey('Are you willing to relocate?'), 'relocation');
+  assert.equal(
+    factFieldKey('Do you hold an active security clearance?'),
+    'security_clearance',
+  );
+  const fallback = factFieldKey(
+    'Required personal answer; keep submission on hold',
+  );
+  assert.match(fallback, /^question\.[a-z0-9_]{1,80}$/);
+  assert.notEqual(
+    fallback,
+    'Required personal answer; keep submission on hold',
+  );
+  assert.ok(fallback.length <= 128);
+});
+
+void test('the brief exposes field_key on usable facts only', () => {
+  const brief = profileBrief(
+    [
+      fact('f1', 'Verified start', {
+        field_key: 'earliest_start',
+      }),
+      fact('f2', 'Proposed start', {
+        status: 'Proposed',
+        field_key: 'earliest_start',
+      }),
+    ],
+    [],
+    'backend',
+    NOW,
+    7,
+  );
+  assert.deepEqual(brief.facts, [
+    {
+      id: 'f1',
+      claim: 'Verified start',
+      tag: 'detail',
+      field_key: 'earliest_start',
+    },
+  ]);
 });
 
 void test('fact and rule input is bounded', () => {

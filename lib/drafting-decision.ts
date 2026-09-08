@@ -1,3 +1,5 @@
+import { factFieldKey } from './profile.ts';
+
 export type DraftingPreference = { routine: boolean; version: number };
 export const defaultDraftingPreference: DraftingPreference = {
   routine: false,
@@ -32,6 +34,7 @@ type Decision = {
   operation_id: string;
   choice: 'delegate' | 'answer' | 'reset';
   remember: boolean;
+  save_profile?: boolean;
   answer: string;
 };
 
@@ -48,6 +51,7 @@ export function validateDraftingDecision(
     'choice',
     'remember',
     'answer',
+    'save_profile',
   ];
   if (
     Object.keys(value).some((key) => !fields.includes(key)) ||
@@ -64,8 +68,11 @@ export function validateDraftingDecision(
     !['delegate', 'answer', 'reset'].includes(String(value.choice)) ||
     typeof value.remember !== 'boolean' ||
     (value.choice !== 'delegate' && value.remember) ||
+    (value.save_profile != null && typeof value.save_profile !== 'boolean') ||
+    (value.save_profile === true && value.choice !== 'answer') ||
     typeof value.answer !== 'string' ||
     value.answer.length > 2000 ||
+    (value.save_profile === true && value.answer.trim().length > 500) ||
     (value.choice === 'answer' ? !value.answer.trim() : value.answer !== '')
   )
     throw Error(
@@ -112,6 +119,7 @@ export async function saveDraftingDecision(
     preference_version: b.preference_version,
     choice: b.choice,
     remember: b.remember,
+    save_profile: !!b.save_profile,
     answer: b.answer,
   });
   const receipt = () =>
@@ -196,6 +204,35 @@ export async function saveDraftingDecision(
           b.id,
           detail,
           b.preference_version,
+        ),
+    );
+  if (b.save_profile && b.choice === 'answer')
+    statements.push(
+      db
+        .prepare(`INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,field_key,created)
+      SELECT ?,?,?,?,'detail','Proposed',?,?
+      WHERE EXISTS (SELECT 1 FROM events WHERE id=? AND owner=? AND job_id=? AND detail=?)
+      AND EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner=? AND version=?)
+      AND NOT EXISTS (SELECT 1 FROM profile_facts WHERE owner=? AND claim=?)
+      ON CONFLICT(owner, field_key) DO UPDATE SET claim=excluded.claim,
+        evidence=excluded.evidence, tag=excluded.tag
+      WHERE profile_facts.status='Proposed'`)
+        .bind(
+          crypto.randomUUID(),
+          owner,
+          b.answer.trim(),
+          `Blocked question on job ${b.id}: ${job.blocker}`.slice(0, 2000),
+          factFieldKey(job.blocker),
+          now,
+          eventId,
+          owner,
+          b.id,
+          detail,
+          b.id,
+          owner,
+          b.version + 1,
+          owner,
+          b.answer.trim(),
         ),
     );
   const result = await db.batch(statements);

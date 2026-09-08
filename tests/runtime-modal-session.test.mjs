@@ -484,6 +484,7 @@ void test('compiled plant blocked submit posts an answer without remember', asyn
       return true;
     },
     setModal() {},
+    saveProfile: true,
   };
   // oxlint-disable-next-line typescript/no-implied-eval -- compile actual plant blocked submit
   const submit = new Function(
@@ -498,6 +499,7 @@ void test('compiled plant blocked submit posts an answer without remember', asyn
   assert.equal(posted[0].action, 'drafting-decision');
   assert.equal(posted[0].choice, 'answer');
   assert.equal(posted[0].remember, false);
+  assert.equal(posted[0].save_profile, true);
   assert.equal(
     posted[0].answer,
     'Use the confirmed database project; omit the optional anecdote.',

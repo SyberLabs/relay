@@ -169,6 +169,69 @@ test('the workspace plant shows lanes, Relay tools, and autopilot without sendin
   });
 });
 
+test('plant blocked answer continues without the remember preference flag', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  const imported = await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          url: 'https://example.com/research/runtime-plant-blocked-answer',
+          Name: 'Runtime Plant — Blocked Answer Engineer',
+          Job: 'https://example.com/jobs/runtime-plant-blocked-answer',
+          Status: 'Held',
+          Notes: 'do not submit until the start date is confirmed.',
+        },
+      ],
+    },
+  });
+  expect(imported.ok()).toBe(true);
+  await page.reload();
+  await page
+    .getByRole('button', { name: /Runtime Plant — Blocked Answer Engineer/ })
+    .click();
+  const before = await (await page.request.get('/api/workspace')).json();
+  expect(before.draftingPreference.routine).toBe(false);
+  await page.getByRole('button', { name: 'Answer the open question' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'The agent needs an answer' }),
+  ).toBeVisible();
+  await expect(page.getByText('Save this as a progress note')).toHaveCount(0);
+  await page
+    .getByRole('textbox', { name: 'Your answer' })
+    .fill('Start date is 12 June 2027; omit optional anecdotes.');
+  const posted = page.waitForResponse(
+    (r) =>
+      r.url().endsWith('/api/workspace') &&
+      r.request().method() === 'POST' &&
+      r.request().postDataJSON()?.action === 'drafting-decision',
+  );
+  await page.getByRole('button', { name: 'Answer and continue' }).click();
+  const response = await posted;
+  expect(response.ok()).toBe(true);
+  expect(response.request().postDataJSON()).toMatchObject({
+    action: 'drafting-decision',
+    choice: 'answer',
+    remember: false,
+    answer: 'Start date is 12 June 2027; omit optional anecdotes.',
+  });
+  await expect(
+    page.getByRole('heading', { name: 'The agent needs an answer' }),
+  ).toHaveCount(0);
+  const after = await (await page.request.get('/api/workspace')).json();
+  expect(after.draftingPreference.routine).toBe(false);
+  const job = after.jobs.find(
+    (row: { name: string }) =>
+      row.name === 'Runtime Plant — Blocked Answer Engineer',
+  );
+  expect(job.drafting_direction).toContain('12 June 2027');
+  expect(job.status).toBe('Held');
+  expect(job.accepted_draft).toBeNull();
+});
+
 test('dirty editor asks before Review prepared application and modal Your facts', async ({
   page,
 }) => {

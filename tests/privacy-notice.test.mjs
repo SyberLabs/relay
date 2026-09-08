@@ -20,9 +20,11 @@ void test('the data notice states current shipped practices and is linked', asyn
     'public issues',
     'hiring outcomes',
     'google fonts',
+    'including the workspace',
   ]) {
     assert.ok(privacy.includes(phrase), `missing ${phrase}`);
   }
+  assert.equal(privacy.includes('product pages load fonts'), false);
   assert.equal(privacy.includes('lawsuit'), false);
   assert.equal(privacy.includes('soc 2'), false);
   assert.equal(privacy.includes('gdpr compliant'), false);

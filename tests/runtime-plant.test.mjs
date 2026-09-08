@@ -97,6 +97,17 @@ void test('inspect copy stays truthful and never claims a disconnected wake', ()
   assert.match(workspace, /refreshRef\.current\(\)/);
   assert.match(workspace, /inspectState === 'cancelled'/);
   assert.match(workspace, /id="history-title"/);
+  assert.match(workspace, /historyDialogRef/);
+  assert.match(workspace, /showModal\(\)/);
+  const historyDialog = workspace.slice(
+    workspace.indexOf('{historyOpen && current'),
+    workspace.indexOf('<RuntimeModals'),
+  );
+  assert.doesNotMatch(historyDialog, /^\s*open\s*$/m);
+  assert.match(historyDialog, /historyDialogRef/);
+  assert.match(modals, /window\.addEventListener\('keydown', onKey\)/);
+  assert.match(modals, /if \(event.key === 'Escape'\) onClose\(\)/);
+  assert.match(modals, /^\s*open\s*$/m);
   assert.match(modals, /setPanel\('resume'\)/);
   assert.match(modals, /setPanel\('style'\)/);
 });
@@ -108,12 +119,23 @@ void test('expiry clears runtime policy and context tiles', () => {
   assert.match(body, /setPolicy\(null\)/);
   assert.match(body, /setAutopilot\(false\)/);
   assert.match(body, /setStyleCount\(0\)/);
+  assert.match(body, /setHistoryOpen\(false\)/);
   assert.match(body, /selectedRef\.current = ''/);
   assert.match(workspace, /processAuthorizedGet/);
   assert.match(
     workspace,
     /if \(outcome\.switched\) \{\s*setModal\(null\);\s*setPolicy\(null\);\s*setAutopilot\(false\);\s*setStyleCount\(0\);\s*policyRef\.current = null/,
   );
+  assert.match(
+    workspace,
+    /policyRef\.current = null;\s*setHistoryOpen\(false\)/,
+  );
+  assert.match(workspace, /historyDisabled=\{!current\}/);
+  assert.match(
+    workspace,
+    /if \(!current\) return;\s*if \(historyOpen\) closeHistory\(\)/,
+  );
+  assert.match(shell, /disabled=\{historyDisabled\}/);
 });
 
 void test('plant blocked answers do not post the remember preference flag', () => {

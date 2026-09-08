@@ -131,6 +131,7 @@ export default function Workspace() {
   const [modal, setModal] = useState<RuntimeModal>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyReturnRef = useRef<HTMLElement | null>(null);
+  const historyDialogRef = useRef<HTMLDialogElement>(null);
   const [autopilot, setAutopilot] = useState(false);
   const [policy, setPolicy] = useState<ApplicationPolicy | null>(null);
   const [styleCount, setStyleCount] = useState(0);
@@ -165,6 +166,7 @@ export default function Workspace() {
     setAutopilot(false);
     setStyleCount(0);
     setModal(null);
+    setHistoryOpen(false);
     selectedRef.current = '';
   }, []);
   const researchRows = useMemo(() => {
@@ -194,12 +196,14 @@ export default function Workspace() {
     },
   });
   const outcomeSeenRef = useRef('');
+  const outcomeBusyRef = useRef(false);
   const inspectJobId = inspect.view?.job_id;
   const inspectOperationId = inspect.view?.operation_id;
   const inspectRecorded = inspect.view?.recorded_result;
   const inspectState = inspect.view?.state;
   useEffect(() => {
     if (!inspectJobId) return;
+    if (selectedRef.current !== inspectJobId) return;
     const terminal =
       inspectRecorded === 'submitted' ||
       inspectRecorded === 'uncertain' ||
@@ -211,8 +215,38 @@ export default function Workspace() {
     if (!terminal) return;
     const key = `${inspectJobId}:${inspectOperationId || ''}:${inspectRecorded || inspectState}`;
     if (outcomeSeenRef.current === key) return;
-    outcomeSeenRef.current = key;
-    void refreshRef.current();
+    if (outcomeBusyRef.current) return;
+    let cancelled = false;
+    outcomeBusyRef.current = true;
+    void (async () => {
+      try {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          if (cancelled) return;
+          try {
+            const jobs = await refreshRef.current();
+            if (cancelled) return;
+            if (jobs) {
+              outcomeSeenRef.current = key;
+              if (attempt > 0) setMessage('');
+              return;
+            }
+            return;
+          } catch (error) {
+            if (cancelled) return;
+            setMessage(
+              error instanceof Error ? error.message : 'Unable to load.',
+            );
+            if (attempt >= 1) return;
+          }
+        }
+      } finally {
+        if (!cancelled) outcomeBusyRef.current = false;
+      }
+    })();
+    return () => {
+      cancelled = true;
+      outcomeBusyRef.current = false;
+    };
   }, [inspectJobId, inspectOperationId, inspectRecorded, inspectState]);
   const lanes = workbenchQueue(jobs, search);
   const queued = lanes.waiting;
@@ -367,6 +401,7 @@ export default function Workspace() {
         setAutopilot(false);
         setStyleCount(0);
         policyRef.current = null;
+        setHistoryOpen(false);
         setShowAddJob(false);
         setShowImport(false);
         setImportText('');
@@ -424,9 +459,13 @@ export default function Workspace() {
   }, [showImport]);
   useEffect(() => {
     if (!historyOpen) return;
+    const dialog = historyDialogRef.current;
+    if (!dialog) return;
     historyReturnRef.current = document.activeElement as HTMLElement | null;
+    if (!dialog.open) dialog.showModal();
     document.getElementById('history-title')?.focus();
     return () => {
+      if (dialog.open) dialog.close();
       historyReturnRef.current?.focus?.();
     };
   }, [historyOpen]);
@@ -500,6 +539,10 @@ export default function Workspace() {
   }
   function confirmLeave(event: { preventDefault: () => void }) {
     if (editorIsDirty(editor) && !discardUnsaved()) event.preventDefault();
+  }
+  function closeHistory() {
+    historyDialogRef.current?.close();
+    setHistoryOpen(false);
   }
   function chooseJob(job: Job) {
     if (keepEditorOnReselect(editor, job.id)) return;
@@ -902,6 +945,7 @@ export default function Workspace() {
     <RuntimeShell
       addJobPrimary={addJobPrimary}
       autopilot={autopilot}
+      historyDisabled={!current}
       historyOpen={historyOpen}
       importOpen={showImport}
       importDisabled={signedOut || !loaded}
@@ -919,7 +963,11 @@ export default function Workspace() {
       logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
       onAddJob={openAddJob}
       onAutopilot={() => void toggleAutopilot()}
-      onHistory={() => setHistoryOpen((open) => !open)}
+      onHistory={() => {
+        if (!current) return;
+        if (historyOpen) closeHistory();
+        else setHistoryOpen(true);
+      }}
       onImport={findMoreJobs}
       onNavigate={confirmLeave}
       onProfile={() => setModal('profile')}
@@ -1569,13 +1617,13 @@ export default function Workspace() {
         )}
         {historyOpen && current ? (
           <dialog
+            ref={historyDialogRef}
             aria-labelledby="history-title"
             className="veil on"
             onCancel={(event) => {
               event.preventDefault();
-              setHistoryOpen(false);
+              closeHistory();
             }}
-            open
           >
             <div className="modal">
               <header>
@@ -1585,7 +1633,7 @@ export default function Workspace() {
                 <button
                   aria-label="Close"
                   className="x"
-                  onClick={() => setHistoryOpen(false)}
+                  onClick={closeHistory}
                   type="button"
                 >
                   ×
@@ -1608,7 +1656,7 @@ export default function Workspace() {
               <footer>
                 <button
                   className="btn btn-sm"
-                  onClick={() => setHistoryOpen(false)}
+                  onClick={closeHistory}
                   type="button"
                 >
                   Done

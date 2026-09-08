@@ -288,6 +288,159 @@ test('plant blocked answer continues without the remember preference flag', asyn
   expect(job.accepted_draft).toBeNull();
 });
 
+test('History dialog traps focus, closes on Escape, and returns to the trigger', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  const imported = await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          url: 'https://example.com/research/runtime-history-modal',
+          Name: 'Runtime History — Modal Engineer',
+          Job: 'https://example.com/jobs/runtime-history-modal',
+          Status: 'Held',
+          Notes: 'Fictional history dialog role.',
+        },
+      ],
+    },
+  });
+  expect(imported.ok()).toBe(true);
+  await page.reload();
+  await page
+    .getByRole('button', { name: /Runtime History — Modal Engineer/ })
+    .click();
+  const trigger = page.getByRole('button', { name: 'History' });
+  await trigger.click();
+  const dialog = page.getByRole('dialog', { name: 'History' });
+  await expect(dialog).toBeVisible();
+  expect(
+    await dialog.evaluate(
+      (node) => node instanceof HTMLDialogElement && node.matches(':modal'),
+    ),
+  ).toBe(true);
+  await expect(page.locator('#history-title')).toBeFocused();
+  await page.keyboard.press('Tab');
+  expect(
+    await page.evaluate(() => {
+      const dialog = document.querySelector('dialog.veil');
+      return !!dialog && dialog.contains(document.activeElement);
+    }),
+  ).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test('terminal inspect recovers after one failed workspace read without losing a dirty draft', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  const imported = await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          url: 'https://example.com/research/runtime-terminal-refresh',
+          Name: 'Runtime Terminal — Queue Engineer',
+          Job: 'https://example.com/jobs/runtime-terminal-refresh',
+          Status: 'Held',
+          Notes: 'Fictional terminal queue refresh role.',
+        },
+      ],
+    },
+  });
+  expect(imported.ok()).toBe(true);
+  await page.reload();
+  await page
+    .getByRole('button', { name: /Runtime Terminal — Queue Engineer/ })
+    .click();
+  await openDraftTools(page);
+  const draft = page.getByRole('textbox', {
+    name: 'Application answer or outreach draft',
+  });
+  await draft.fill('Unsaved terminal queue draft.');
+  const jobName = 'Runtime Terminal — Queue Engineer';
+  await expect(
+    page.locator('#workspace-queue').getByRole('button', { name: jobName }),
+  ).toBeVisible();
+  const ws = await (await page.request.get('/api/workspace')).json();
+  const job = ws.jobs.find((row: { name: string }) => row.name === jobName);
+  let failNextGet = false;
+  let failedGets = 0;
+  await page.route('**/api/workspace', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    if (failNextGet && failedGets === 0) {
+      failedGets += 1;
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Unable to load.' }),
+      });
+      return;
+    }
+    const current = await route.fetch();
+    const body = await current.json();
+    await route.fulfill({
+      status: 200,
+      json: {
+        ...body,
+        jobs: body.jobs.map(
+          (row: { id: string; status: string; version: number }) =>
+            row.id === job.id
+              ? { ...row, status: 'Submitted', version: job.version + 1 }
+              : row,
+        ),
+      },
+    });
+  });
+  failNextGet = true;
+  await page.route('**/api/applications?job=*', async (route) => {
+    await route.fulfill({
+      json: {
+        viewer: ws.viewer,
+        job_id: job.id,
+        destination: 'https://employer.example/fictional',
+        preparation_revision: 'revision-terminal',
+        fields: [
+          {
+            label: 'Full name',
+            value: 'Avery Example',
+            unknown: false,
+            filled: true,
+          },
+        ],
+        files: [],
+        ready: true,
+        armed: false,
+        operation_id: 'op-terminal-queue',
+        digest: 'b'.repeat(64),
+        state: 'submitted',
+        recorded_result: 'submitted',
+        accept_enabled: false,
+      },
+    });
+  });
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(
+    page.locator('#workspace-queue').getByRole('button', { name: jobName }),
+  ).toContainText('Submitted');
+  await expect(
+    page.getByText('This record changed. Reload before saving.'),
+  ).toBeVisible();
+  await expect(draft).toHaveValue('Unsaved terminal queue draft.');
+  expect(failedGets).toBe(1);
+  await expect(page).not.toHaveURL(/signin-with-chatgpt/);
+});
+
 test('dirty editor asks before leaving to Your facts', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();

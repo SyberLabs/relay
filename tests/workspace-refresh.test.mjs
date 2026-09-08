@@ -395,6 +395,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
     'autopilot',
     'styleCount',
     'modal',
+    'historyOpen',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -479,6 +480,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
     'autopilot',
     'styleCount',
     'modal',
+    'historyOpen',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -580,6 +582,7 @@ void test('history JSON that expires during parse cannot restore events', async 
     'autopilot',
     'styleCount',
     'modal',
+    'historyOpen',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);
@@ -813,6 +816,7 @@ void test('compiled refresh keeps B selection after a stale older A GET', async 
     'autopilot',
     'styleCount',
     'modal',
+    'historyOpen',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) =>
       (state[key] = typeof value === 'function' ? value(state[key]) : value);

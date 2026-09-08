@@ -26,6 +26,7 @@ export function RuntimeShell({
   onResearch,
   onHistory,
   historyOpen,
+  historyDisabled,
 }: {
   children: ReactNode;
   onNavigate?: (event: { preventDefault: () => void }) => void;
@@ -48,6 +49,7 @@ export function RuntimeShell({
   onResearch: () => void;
   onHistory: () => void;
   historyOpen?: boolean;
+  historyDisabled?: boolean;
 }) {
   const lamp = stateKind || (live ? 'live' : 'idle');
   return (
@@ -111,6 +113,7 @@ export function RuntimeShell({
           <button
             aria-pressed={historyOpen}
             className="textbtn"
+            disabled={historyDisabled}
             onClick={onHistory}
             type="button"
           >

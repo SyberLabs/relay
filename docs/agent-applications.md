@@ -25,6 +25,21 @@ Each assistant signs into Relay through its own supported browser and the existi
 
 Scout imports still use Held and cannot grant approval. Existing jobs are deduplicated by posting identity. Imports add evidence; they cannot authorize send.
 
+## Action and review matrix
+
+This is the current contract, not a planned Autopilot path. Actor strings are reported provenance, not revocable scoped credentials (#111). Default policy remains `review: all`.
+
+| Action | Who | Review | Notes |
+| --- | --- | --- | --- |
+| prepare / arm | operative | none | not send permission |
+| Inspect Accept | human in workspace | required for send | overlay `/apply` has no Accept |
+| begin execute:true | operative after Accept | consumed once | never retry `executing` |
+| employer Submit | operative browser | one permit | Relay does not POST |
+| complete / uncertain / not-submitted | operative | uncertain retains lock | captcha/no-op → uncertain, no second permit |
+| stage draft / progress | assistant | not acceptance | |
+| confirm facts / enable policy | human | required | agent must not self-enable |
+| fully automated unattended send | **not implemented** | — | blocked on #111 transport + explicit future contract |
+
 ## Trust and limits
 
 The initial transport uses the owner's authenticated browser session. Agent names are reported provenance, not independently authenticated identities or scoped credentials. This does not yet establish revocable per-agent access (#111); closing sessions and account access remain the identity controls. Browser agents have the same account capabilities as their owner. Relay cannot prevent an external agent from independently opening an employer site or verify an agent-reported receipt with no employer integration. Those limitations must remain visible in the release evidence.

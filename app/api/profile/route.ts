@@ -1,6 +1,12 @@
 import { getChatGPTUser } from '../../chatgpt-auth';
 import { database } from '../../../lib/database';
-import { validateFact, validateRule, usableFact } from '../../../lib/profile';
+import {
+  confirmProfileFact,
+  retireProfileFact,
+  validateFact,
+  validateRule,
+  usableFact,
+} from '../../../lib/profile';
 import { parseResume } from '../../../lib/resume';
 import {
   bumpProfile,
@@ -71,39 +77,15 @@ export async function POST(request: Request) {
       return reply({ ok: true, proposed: rows.length });
     }
     // Verification is the only path to a usable fact, and it is always a
-    // human action on one specific claim.
+    // human action on one specific claim. A stale Confirm that only has the
+    // id cannot bless later wording written onto that same row.
     if (b.action === 'verify') {
-      if (b.expires != null && Number.isNaN(Date.parse(String(b.expires))))
-        throw Error('Use an ISO date for the expiry, or leave it empty.');
-      const result = await db.batch([
-        db
-          .prepare(
-            "UPDATE profile_facts SET status='Verified', verified=?, expires=? WHERE id=? AND owner=?",
-          )
-          .bind(
-            now,
-            b.expires ? new Date(String(b.expires)).toISOString() : null,
-            b.id,
-            user,
-          ),
-        bumpProfile(db, user, now),
-      ]);
-      if (!result[0].meta.changes)
-        return reply({ error: 'Fact not found.' }, 404);
-      return reply({ ok: true });
+      const result = await confirmProfileFact(db, user, b, now);
+      return reply(result.data, result.status);
     }
     if (b.action === 'retire') {
-      const result = await db.batch([
-        db
-          .prepare(
-            "UPDATE profile_facts SET status='Retired' WHERE id=? AND owner=?",
-          )
-          .bind(b.id, user),
-        bumpProfile(db, user, now),
-      ]);
-      if (!result[0].meta.changes)
-        return reply({ error: 'Fact not found.' }, 404);
-      return reply({ ok: true });
+      const result = await retireProfileFact(db, user, b, now);
+      return reply(result.data, result.status);
     }
     if (b.action === 'rule-add') {
       const rule = validateRule(b);

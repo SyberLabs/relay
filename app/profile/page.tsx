@@ -310,6 +310,7 @@ export default function Profile() {
                       {
                         action: 'verify',
                         id: f.id,
+                        claim: f.claim,
                         expires: expiry[f.id] || null,
                       },
                       'Confirmed by you. The agent may now cite this fact.',
@@ -322,7 +323,10 @@ export default function Profile() {
                   className="textbutton"
                   disabled={busy}
                   onClick={() =>
-                    run({ action: 'retire', id: f.id }, 'Fact retired.')
+                    run(
+                      { action: 'retire', id: f.id, claim: f.claim },
+                      'Fact retired.',
+                    )
                   }
                 >
                   Discard
@@ -358,7 +362,7 @@ export default function Profile() {
                 disabled={busy}
                 onClick={() =>
                   run(
-                    { action: 'retire', id: f.id },
+                    { action: 'retire', id: f.id, claim: f.claim },
                     'Fact retired. New agent draft logs cannot cite it.',
                   )
                 }

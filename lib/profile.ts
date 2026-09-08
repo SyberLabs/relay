@@ -374,6 +374,122 @@ export function profileBrief(
     ],
   };
 }
+function parseFactExpiry(value: unknown) {
+  if (value == null || value === '') return null;
+  if (typeof value !== 'string' && typeof value !== 'number')
+    throw Error('Use an ISO date for the expiry, or leave it empty.');
+  const parsed = Date.parse(String(value));
+  if (Number.isNaN(parsed))
+    throw Error('Use an ISO date for the expiry, or leave it empty.');
+  return new Date(parsed).toISOString();
+}
+
+function exactDisplayedClaim(value: unknown) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 500
+    ? value
+    : null;
+}
+
+function bumpWhenFactMatches(
+  db: D1Database,
+  owner: string,
+  now: string,
+  id: string,
+  claim: string,
+  status: 'Verified' | 'Retired',
+) {
+  return db
+    .prepare(
+      `INSERT INTO profile_state (owner,profile_version,updated)
+      SELECT ?,2,?
+      WHERE EXISTS (
+        SELECT 1 FROM profile_facts
+        WHERE id=? AND owner=? AND claim=? AND status=?
+      )
+      ON CONFLICT(owner) DO UPDATE SET
+        profile_version=profile_state.profile_version+1,
+        updated=excluded.updated
+      WHERE EXISTS (
+        SELECT 1 FROM profile_facts
+        WHERE id=? AND owner=? AND claim=? AND status=?
+      )`,
+    )
+    .bind(owner, now, id, owner, claim, status, id, owner, claim, status);
+}
+
+export async function confirmProfileFact(
+  db: D1Database,
+  owner: string,
+  body: { id?: unknown; claim?: unknown; expires?: unknown },
+  now: string,
+) {
+  const id = typeof body.id === 'string' && body.id ? body.id : null;
+  const claim = exactDisplayedClaim(body.claim);
+  if (!id || !claim)
+    return {
+      status: 400,
+      data: { error: 'Confirm the exact fact wording shown.' },
+    };
+  const expires = parseFactExpiry(body.expires);
+  const result = await db.batch([
+    db
+      .prepare(
+        `UPDATE profile_facts SET status='Verified', verified=?, expires=?
+        WHERE id=? AND owner=? AND claim=? AND status='Proposed'`,
+      )
+      .bind(now, expires, id, owner, claim),
+    bumpWhenFactMatches(db, owner, now, id, claim, 'Verified'),
+  ]);
+  if (result[0].meta.changes) return { status: 200, data: { ok: true } };
+  const row = await db
+    .prepare('SELECT claim, status FROM profile_facts WHERE id=? AND owner=?')
+    .bind(id, owner)
+    .first<{ claim: string; status: string }>();
+  if (!row) return { status: 404, data: { error: 'Fact not found.' } };
+  if (row.status === 'Verified' && row.claim === claim)
+    return { status: 200, data: { ok: true, replayed: true } };
+  return {
+    status: 409,
+    data: { error: 'This fact changed. Reload before confirming.' },
+  };
+}
+
+export async function retireProfileFact(
+  db: D1Database,
+  owner: string,
+  body: { id?: unknown; claim?: unknown },
+  now: string,
+) {
+  const id = typeof body.id === 'string' && body.id ? body.id : null;
+  const claim = exactDisplayedClaim(body.claim);
+  if (!id || !claim)
+    return {
+      status: 400,
+      data: { error: 'Discard the exact fact wording shown.' },
+    };
+  const result = await db.batch([
+    db
+      .prepare(
+        `UPDATE profile_facts SET status='Retired'
+        WHERE id=? AND owner=? AND claim=? AND status!='Retired'`,
+      )
+      .bind(id, owner, claim),
+    bumpWhenFactMatches(db, owner, now, id, claim, 'Retired'),
+  ]);
+  if (result[0].meta.changes) return { status: 200, data: { ok: true } };
+  const row = await db
+    .prepare('SELECT claim, status FROM profile_facts WHERE id=? AND owner=?')
+    .bind(id, owner)
+    .first<{ claim: string; status: string }>();
+  if (!row) return { status: 404, data: { error: 'Fact not found.' } };
+  if (row.status === 'Retired' && row.claim === claim)
+    return { status: 200, data: { ok: true, replayed: true } };
+  return {
+    status: 409,
+    data: { error: 'This fact changed. Reload before discarding.' },
+  };
+}
+
 export function validateFact(v: unknown): {
   claim: string;
   evidence: string;

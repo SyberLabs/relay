@@ -8,7 +8,11 @@ import {
   validateDraftingDecision,
 } from '../lib/drafting-decision.ts';
 import { readApplicationContext } from '../lib/application-context.ts';
-import { usableFact } from '../lib/profile.ts';
+import {
+  confirmProfileFact,
+  retireProfileFact,
+  usableFact,
+} from '../lib/profile.ts';
 
 function database() {
   const sqlite = new DatabaseSync(':memory:');
@@ -353,16 +357,158 @@ void test('job-only answers and unverified proposed facts stay out of drafting c
           };
     const unread = await readApplicationContext(call, 'job');
     assert.equal(unread.facts.length, 0);
-    db.sqlite
-      .prepare(
-        "UPDATE profile_facts SET status='Verified', verified=? WHERE id=?",
-      )
-      .run('after', proposed.id);
+    assert.equal(
+      (
+        await confirmProfileFact(
+          db,
+          'alice',
+          { id: proposed.id, claim: proposed.claim },
+          'after',
+        )
+      ).status,
+      200,
+    );
     const ready = await readApplicationContext(call, 'job');
     assert.equal(ready.facts.length, 1);
     assert.equal(ready.facts[0].field_key, 'earliest_start');
     assert.equal(ready.facts[0].claim, '12 June 2027.');
     assert.match(ready.guidance.join(' '), /may propose a profile fact/);
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('a stale confirmation of a replaced Proposed claim does not verify the unseen wording', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: '1 June 2027',
+        })
+      ).status,
+      200,
+    );
+    const displayed = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(displayed.claim, '1 June 2027');
+    assert.equal(displayed.status, 'Proposed');
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'decision-2',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: '1 July 2027',
+        })
+      ).status,
+      200,
+    );
+    const stale = await confirmProfileFact(
+      db,
+      'alice',
+      { id: displayed.id, claim: displayed.claim },
+      'confirm',
+    );
+    assert.equal(stale.status, 409);
+    const row = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(row.id, displayed.id);
+    assert.equal(row.claim, '1 July 2027');
+    assert.equal(row.status, 'Proposed');
+    assert.equal(row.verified, null);
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
+        .get('alice'),
+      undefined,
+    );
+    const missingClaim = await confirmProfileFact(
+      db,
+      'alice',
+      { id: displayed.id },
+      'confirm',
+    );
+    assert.equal(missingClaim.status, 400);
+    assert.equal(
+      db.sqlite.prepare('SELECT status FROM profile_facts').get().status,
+      'Proposed',
+    );
+    const current = await confirmProfileFact(
+      db,
+      'alice',
+      { id: displayed.id, claim: '1 July 2027' },
+      'confirm',
+    );
+    assert.equal(current.status, 200);
+    const verified = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(verified.claim, '1 July 2027');
+    assert.equal(verified.status, 'Verified');
+    assert.equal(verified.verified, 'confirm');
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
+        .get('alice').profile_version,
+      2,
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('Your facts Confirm fact and Discard send the displayed claim', () => {
+  const source = readFileSync('app/profile/page.tsx', 'utf8');
+  assert.match(source, /action: 'verify',\s*id: f\.id,\s*claim: f\.claim/);
+  assert.match(source, /action: 'retire', id: f\.id, claim: f\.claim/);
+});
+
+void test('a stale discard of a replaced Proposed claim does not retire the unseen wording', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: '1 June 2027',
+        })
+      ).status,
+      200,
+    );
+    const displayed = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'decision-2',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: '1 July 2027',
+        })
+      ).status,
+      200,
+    );
+    const stale = await retireProfileFact(
+      db,
+      'alice',
+      { id: displayed.id, claim: displayed.claim },
+      'retire',
+    );
+    assert.equal(stale.status, 409);
+    const row = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(row.claim, '1 July 2027');
+    assert.equal(row.status, 'Proposed');
   } finally {
     db.sqlite.close();
   }

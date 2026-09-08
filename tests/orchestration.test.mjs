@@ -166,7 +166,11 @@ await call('/api/profile', {
   facts: [{ claim: 'Led a team of 6 engineers at Northstar', tag: 'role' }],
 });
 const fact = (await call('/api/profile')).data.facts[0];
-await call('/api/profile', { action: 'verify', id: fact.id });
+await call('/api/profile', {
+  action: 'verify',
+  id: fact.id,
+  claim: fact.claim,
+});
 
 const logged = await call('/api/drafts', {
   action: 'log',

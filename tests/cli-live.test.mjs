@@ -73,7 +73,11 @@ await api('/api/profile', {
 });
 const proposed = (await api('/api/profile')).data.facts;
 const verified = proposed.find((f) => f.claim.startsWith('Led a team'));
-await api('/api/profile', { action: 'verify', id: verified.id });
+await api('/api/profile', {
+  action: 'verify',
+  id: verified.id,
+  claim: verified.claim,
+});
 // Re-read after verifying, so this really is a fact that stayed unverified.
 const unverified = (await api('/api/profile')).data.facts.find(
   (f) => f.status === 'Proposed',

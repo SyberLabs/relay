@@ -192,7 +192,7 @@ test('plant blocked answer continues without the remember preference flag', asyn
   expect(
     (
       await page.request.post('/api/profile', {
-        data: { action: 'verify', id: seedFact.id },
+        data: { action: 'verify', id: seedFact.id, claim: seedClaim },
       })
     ).ok(),
   ).toBe(true);
@@ -276,7 +276,7 @@ test('plant blocked answer continues without the remember preference flag', asyn
     status: 'Proposed',
   });
   const verified = await page.request.post('/api/profile', {
-    data: { action: 'verify', id: proposed.id },
+    data: { action: 'verify', id: proposed.id, claim: answerClaim },
   });
   expect(verified.ok()).toBe(true);
   const usable = await (await page.request.get('/api/workspace')).json();

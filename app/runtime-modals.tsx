@@ -155,8 +155,6 @@ export function RuntimeModals({
   onBlockedAnswer,
   onBlockedSubmit,
   onBlockedDrop,
-  remember,
-  onRemember,
   toolStatus,
   policy,
   jobs,
@@ -182,8 +180,6 @@ export function RuntimeModals({
   onBlockedAnswer: (value: string) => void;
   onBlockedSubmit: () => void;
   onBlockedDrop: () => void;
-  remember: boolean;
-  onRemember: (value: boolean) => void;
   toolStatus: RelayToolStatus;
   policy: ApplicationPolicy | null;
   jobs: { id: string; name: string; status: string }[];
@@ -230,8 +226,6 @@ export function RuntimeModals({
         onBlockedAnswer,
         onBlockedSubmit,
         onBlockedDrop,
-        remember,
-        onRemember,
         toolStatus,
         policy,
         jobs,
@@ -262,8 +256,6 @@ function RuntimeModalDialog({
   onBlockedAnswer,
   onBlockedSubmit,
   onBlockedDrop,
-  remember,
-  onRemember,
   toolStatus,
   policy,
   jobs,
@@ -289,8 +281,6 @@ function RuntimeModalDialog({
   onBlockedAnswer: (value: string) => void;
   onBlockedSubmit: () => void;
   onBlockedDrop: () => void;
-  remember: boolean;
-  onRemember: (value: boolean) => void;
   toolStatus: RelayToolStatus;
   policy: ApplicationPolicy | null;
   jobs: { id: string; name: string; status: string }[];
@@ -701,15 +691,6 @@ function RuntimeModalDialog({
                     type="text"
                     value={blockedAnswer}
                   />
-                </label>
-                <label className="check">
-                  <input
-                    checked={remember}
-                    onChange={(e) => onRemember(e.target.checked)}
-                    type="checkbox"
-                  />
-                  Save this as a progress note. Confirm facts separately on Your
-                  facts if the agent should reuse them.
                 </label>
               </div>
               <div className="sect">

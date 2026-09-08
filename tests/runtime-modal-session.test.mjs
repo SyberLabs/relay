@@ -443,6 +443,70 @@ void test('modal profile POST 502 HTML becomes an error instead of rejecting', a
   assert.equal(outcome.error, 'Unable to save.');
 });
 
+void test('compiled plant blocked submit posts an answer without remember', async () => {
+  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const saveSrc = src.slice(
+    src.indexOf('async function saveDecision'),
+    src.indexOf('\n  function openAddJob'),
+  );
+  const token = 'onBlockedSubmit={() => {';
+  const start = src.indexOf(token);
+  assert.notEqual(start, -1, token);
+  const submitSrc = src.slice(
+    start + token.length,
+    src.indexOf('\n          }}', start),
+  );
+  const posted = [];
+  const deps = {
+    busy: false,
+    editor: {
+      jobId: 'job',
+      session: 's1',
+      version: 1,
+      draft: 'Saved wording',
+      baseDraft: 'Saved wording',
+      blocker: 'Required personal answer; keep submission on hold',
+      baseBlocker: 'Required personal answer; keep submission on hold',
+      progressNote:
+        'Use the confirmed database project; omit the optional anecdote.',
+    },
+    current: {
+      id: 'job',
+      draft: 'Saved wording',
+      blocker: 'Required personal answer; keep submission on hold',
+    },
+    canSave: () => true,
+    sessionRef: { current: { viewer: 'alice' } },
+    draftingPreference: defaultDraftingPreference,
+    decisionAttempt: { current: null },
+    async run(body) {
+      posted.push(body);
+      return true;
+    },
+    setModal() {},
+  };
+  // oxlint-disable-next-line typescript/no-implied-eval -- compile actual plant blocked submit
+  const submit = new Function(
+    ...Object.keys(deps),
+    compile(saveSrc) +
+      ';\nreturn async () => {\n' +
+      compile(submitSrc) +
+      '\n};',
+  )(...Object.values(deps));
+  await submit();
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0].action, 'drafting-decision');
+  assert.equal(posted[0].choice, 'answer');
+  assert.equal(posted[0].remember, false);
+  assert.equal(
+    posted[0].answer,
+    'Use the confirmed database project; omit the optional anecdote.',
+  );
+  assert.equal(posted[0].id, 'job');
+  assert.equal(posted[0].viewer, 'alice');
+  assert.ok(posted[0].operation_id);
+});
+
 void test('modal profile GET json reject after expiry is ignored', async () => {
   const session = helper.createWorkspaceSession();
   helper.bindViewer(session, 'owner-a');

@@ -122,6 +122,8 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
       )) as { job: { draft: string; accepted_draft: string | null } };
       expect(application.job.draft).toBe(draft);
       expect(application.job.accepted_draft).toBeNull();
+      await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+      await expect(page).toHaveURL(/\/track/);
       await page.getByRole('link', { name: 'Your facts', exact: true }).click();
       await expect(page).toHaveURL(/\/profile$/);
       await expect

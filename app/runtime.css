@@ -681,6 +681,15 @@
 .log .stamp {
   color: var(--signal);
 }
+.log a {
+  margin-left: auto;
+  color: var(--dimmer);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.log a:hover {
+  color: var(--dim);
+}
 .veil {
   position: fixed;
   inset: 0;

@@ -48,11 +48,11 @@ export default function About() {
       </section>
       <h2>Bring your applications together.</h2>
       <p>
-        Add a posting with its title, URL and notes, or import multiple jobs from
-        a tracker CSV. Select a job to prepare, review and accept its wording.
-        Keep each application’s research and decisions available as you move
-        to the next. Already interviewing? Save notes and follow-ups without
-        resetting your application status.
+        Add a posting with its title, URL and notes, or import multiple jobs
+        from a tracker CSV. Select a job to prepare, review and accept its
+        wording. Keep each application’s research and decisions available as you
+        move to the next. Already interviewing? Save notes and follow-ups
+        without resetting your application status.
       </p>
       <h2>What’s available today</h2>
       <p>
@@ -73,9 +73,8 @@ export default function About() {
       <p>
         Relay does not POST the employer form. A human Inspect Accept on a
         complete armed payload authorizes the waiting operative to send once.
-        Live provider connections require
-        setup. This early release has no claimed hiring outcomes or proven
-        throughput gains.
+        Live provider connections require setup. This early release has no
+        claimed hiring outcomes or proven throughput gains.
       </p>
       <h2>What the checks mean</h2>
       <p>
@@ -97,7 +96,10 @@ export default function About() {
           Report an issue ↗
         </a>
       </div>
-      <footer>Relay / SyberLabs</footer>
+      <footer>
+        Relay / SyberLabs
+        <Link href="/privacy">How Relay uses your data</Link>
+      </footer>
     </main>
   );
 }

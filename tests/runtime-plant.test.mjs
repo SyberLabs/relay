@@ -38,6 +38,7 @@ void test('the home plant keeps existing acceptance and import contracts', () =>
   assert.doesNotMatch(shell, /ShellNav/);
   assert.match(workspace, /runtimeLanes\(jobs, selected, 'Held'\)/);
   assert.doesNotMatch(workspace, /chooseFilter/);
+  assert.match(shell, /href="\/privacy"[\s\S]{0,40}onClick=\{onNavigate\}/);
   assert.match(workspace, /id="import-dock"/);
   assert.match(
     workspace,

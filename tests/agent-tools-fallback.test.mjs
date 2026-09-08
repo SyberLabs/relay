@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { stageDraft } from '../lib/draft-stage.ts';
 import { readApplicationContext } from '../lib/application-context.ts';
+import { createApplicationWait } from '../lib/application-wait.ts';
 
 const source = stripTypeScriptTypes(
   readFileSync(new URL('../app/agent-tools.ts', import.meta.url), 'utf8')
@@ -28,6 +29,7 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject']) {
       useState: () => ['checking', (status) => statuses.push(status)],
       stageDraft,
       readApplicationContext,
+      createApplicationWait,
       document: {
         modelContext:
           mode === 'unavailable'
@@ -66,7 +68,7 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject']) {
       statuses.at(-1),
       mode === 'throw' || mode === 'reject' ? 'failed' : mode,
     );
-    assert.equal(Object.keys(window.relay).length, 14);
+    assert.equal(Object.keys(window.relay).length, 15);
     assert.equal(window.relay.relay_approve_application, undefined);
 
     const result = await window.relay.relay_read_workspace({});
@@ -120,3 +122,64 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject']) {
     assert.equal(active.size, 0);
   });
 }
+
+void test(
+  'relay_wait_for_application returns even if display refresh never settles',
+  { timeout: 2_000 },
+  async () => {
+    const pin = {
+      job: 'job-a',
+      preparation_revision: 'rev-1',
+      id: 'op-1',
+      digest: 'd'.repeat(64),
+      actor: 'Fictional applying agent',
+    };
+    const snapshot = {
+      viewer: 'owner-a',
+      job_id: pin.job,
+      preparation_revision: pin.preparation_revision,
+      destination: 'https://employer.example/jobs/a',
+      fields: [],
+      files: [],
+      ready: true,
+      armed: true,
+      operation_id: pin.id,
+      digest: pin.digest,
+      state: 'authorized',
+      accept_enabled: false,
+      recorded_result: null,
+      recorded_receipt: null,
+    };
+    const window = {};
+    const requests = [];
+    let cleanup;
+    const deps = {
+      useEffect: (effect) => {
+        cleanup = effect();
+      },
+      useState: () => ['checking', () => {}],
+      stageDraft,
+      readApplicationContext,
+      createApplicationWait,
+      document: { modelContext: undefined },
+      window,
+      fetch: async (url) => {
+        requests.push(url);
+        if (String(url).includes('/api/workspace'))
+          return Response.json({ viewer: 'owner-a', jobs: [] });
+        return Response.json(snapshot);
+      },
+    };
+    // oxlint-disable-next-line typescript/no-implied-eval -- run the actual hook with isolated host dependencies
+    const useRelayTools = new Function(
+      ...Object.keys(deps),
+      `${source}\nreturn useRelayTools;`,
+    )(...Object.values(deps));
+    useRelayTools(() => new Promise(() => {}));
+    await new Promise((resolve) => setImmediate(resolve));
+    const result = await window.relay.relay_wait_for_application(pin);
+    assert.equal(result.authorized, true);
+    assert.equal(result.id, pin.id);
+    cleanup();
+  },
+);

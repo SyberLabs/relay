@@ -16,6 +16,8 @@ export type InspectSnapshot = {
   state: string | null;
   accept_enabled: boolean;
   viewer?: string;
+  recorded_result?: 'submitted' | 'uncertain' | 'not-submitted' | null;
+  recorded_receipt?: string | null;
 };
 
 export type InspectPollGate = {
@@ -109,12 +111,31 @@ export function inspectShowsUncertain(view: InspectSnapshot | null) {
   return view?.state === 'uncertain';
 }
 
+export function inspectShowsSubmitted(view: InspectSnapshot | null) {
+  return view?.state === 'submitted' || view?.recorded_result === 'submitted';
+}
+
+export function inspectRecordedReceipt(view: InspectSnapshot | null) {
+  if (
+    view?.state !== 'submitted' &&
+    view?.state !== 'uncertain' &&
+    view?.state !== 'not-submitted' &&
+    view?.recorded_result !== 'submitted' &&
+    view?.recorded_result !== 'uncertain' &&
+    view?.recorded_result !== 'not-submitted'
+  )
+    return null;
+  const text = view.recorded_receipt;
+  return typeof text === 'string' && text.length > 0 ? text : null;
+}
+
 export function inspectOperativeStatus(
   view: InspectSnapshot | null,
-): 'armed' | 'waiting' | 'executing' | 'uncertain' | null {
+): 'armed' | 'waiting' | 'executing' | 'uncertain' | 'submitted' | null {
   if (inspectShowsAuthorizedWaiting(view)) return 'waiting';
   if (inspectShowsExecuting(view)) return 'executing';
   if (inspectShowsUncertain(view)) return 'uncertain';
+  if (inspectShowsSubmitted(view)) return 'submitted';
   if (view?.armed) return 'armed';
   return null;
 }

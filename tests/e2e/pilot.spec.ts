@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftNested, openDraftTools } from './open-draft-tools';
 
 test('pilot navigation keeps facts, exact review and history visible with advanced tools secondary', async ({
   page,
@@ -20,12 +21,26 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   for (const href of ['/review', '/preferences', '/plan'])
     await expect(sidebar.locator(`a[href="${href}"]`)).toHaveCount(0);
 
+  const profileLoaded = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/profile') &&
+      response.request().method() === 'GET' &&
+      response.ok(),
+  );
   await sidebar.getByRole('link', { name: 'Your facts' }).click();
   await expect(
     page.getByText(/does not independently verify facts/),
   ).toBeVisible();
+  await expect(page.getByText('Profile version')).toBeVisible();
   const claim = 'Built a fictional inventory service for Larch Example';
-  await page.getByRole('textbox', { name: 'Resume text' }).fill(claim);
+  const resume = page.getByRole('textbox', { name: 'Resume text' });
+  await expect(resume).toBeVisible();
+  await profileLoaded;
+  await resume.fill(claim);
+  await expect(resume).toHaveValue(claim);
+  await expect(
+    page.getByRole('button', { name: 'Extract candidate facts' }),
+  ).toBeEnabled();
   await page.getByRole('button', { name: 'Extract candidate facts' }).click();
   await page.getByRole('button', { name: 'Add 1 to ledger' }).click();
   const factRow = page.locator('article.factrow').filter({ hasText: claim });
@@ -60,8 +75,10 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await page
     .getByRole('button', { name: /Larch Example — Pilot Engineer/ })
     .click();
+  await openDraftTools(page);
+  await openDraftNested(page, 'Evidence matches');
   await expect(
-    page.getByRole('heading', { name: 'Evidence matches' }),
+    page.getByText('Evidence matches', { exact: true }),
   ).toBeVisible();
   await expect(
     page.locator('.gates').getByText('Possible evidence', { exact: true }),
@@ -93,12 +110,12 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(
     page.getByRole('button', { name: 'Accept exact draft' }),
   ).toBeDisabled();
+  await openDraftNested(page, 'Your review history');
   await expect(
-    page.getByRole('heading', { name: 'Your review history' }),
+    page.getByText('Your review history', { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Source history' }),
-  ).toBeVisible();
+  await openDraftNested(page, 'Source history');
+  await expect(page.getByText('Source history', { exact: true })).toBeVisible();
   await editor.fill(draft + ' Thank you for considering my application.');
   await expect(
     page.getByRole('button', { name: 'Accept exact draft' }),
@@ -108,6 +125,10 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
     page.getByRole('button', { name: 'Accept exact draft' }),
   ).toBeDisabled();
   await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Larch Example — Pilot Engineer' }),
+  ).toBeVisible();
+  await openDraftTools(page);
   await expect(editor).toHaveValue(
     draft + ' Thank you for considering my application.',
   );

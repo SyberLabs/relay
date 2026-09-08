@@ -87,6 +87,7 @@ function baseDeps(state, session, fetcher) {
     'styleCount',
     'modal',
     'filter',
+    'historyOpen',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) => {
       if (typeof value === 'function') {

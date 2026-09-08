@@ -10,6 +10,7 @@ export function RuntimeShell({
   lead,
   live,
   stateText,
+  stateKind,
   autopilot,
   onAutopilot,
   showAddJob,
@@ -20,12 +21,19 @@ export function RuntimeShell({
   importDisabled,
   logTime,
   logLine,
+  onProfile,
+  onTools,
+  onResearch,
+  onHistory,
+  historyOpen,
+  historyDisabled,
 }: {
   children: ReactNode;
   onNavigate?: (event: { preventDefault: () => void }) => void;
   lead: string;
   live: boolean;
   stateText: string;
+  stateKind?: 'live' | 'off' | 'idle';
   autopilot: boolean;
   onAutopilot: () => void;
   showAddJob: boolean;
@@ -36,7 +44,14 @@ export function RuntimeShell({
   importDisabled?: boolean;
   logTime: string;
   logLine: string;
+  onProfile: () => void;
+  onTools: () => void;
+  onResearch: () => void;
+  onHistory: () => void;
+  historyOpen?: boolean;
+  historyDisabled?: boolean;
 }) {
+  const lamp = stateKind || (live ? 'live' : 'idle');
   return (
     <div className={'runtime' + (live ? ' working' : ' idle')}>
       <a className="skip" href="#workspace-main">
@@ -45,12 +60,17 @@ export function RuntimeShell({
       <header className="bar">
         <div>
           <p className="wordmark" aria-hidden="true">
-            Relay <span>/ runtime</span>
+            Relay <span>/ workbench</span>
           </p>
           <h1 className="sr-only">Workspace</h1>
           <p>{lead}</p>
         </div>
-        <div className={'state' + (live ? ' live' : '')} id="runtime-state">
+        <div
+          className={
+            'state' + (lamp === 'live' ? ' live' : lamp === 'off' ? ' off' : '')
+          }
+          id="runtime-state"
+        >
           <span className="lamp" />
           <span>{stateText}</span>
         </div>
@@ -80,6 +100,24 @@ export function RuntimeShell({
           >
             <Upload size={16} />
             Find more jobs
+          </button>
+          <button className="textbtn" onClick={onProfile} type="button">
+            Profile
+          </button>
+          <button className="textbtn" onClick={onTools} type="button">
+            Tools
+          </button>
+          <button className="textbtn" onClick={onResearch} type="button">
+            Research
+          </button>
+          <button
+            aria-pressed={historyOpen}
+            className="textbtn"
+            disabled={historyDisabled}
+            onClick={onHistory}
+            type="button"
+          >
+            History
           </button>
           <button
             aria-pressed={autopilot}

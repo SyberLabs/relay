@@ -18,3 +18,16 @@ void test('relay_begin_application swallows a failed display refresh after a suc
   );
   assert.doesNotMatch(begin, /await refresh\(\);\s*return \{ execute/);
 });
+
+void test('relay_wait_for_application returns without awaiting display refresh', async () => {
+  const source = await readFile(
+    new URL('../app/agent-tools.ts', import.meta.url),
+    'utf8',
+  );
+  const start = source.indexOf("name: 'relay_wait_for_application'");
+  const end = source.indexOf("name: 'relay_begin_application'");
+  assert.ok(start >= 0 && end > start);
+  const wait = source.slice(start, end);
+  assert.doesNotMatch(wait, /await refresh\(\)/);
+  assert.match(wait, /return result;/);
+});

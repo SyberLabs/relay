@@ -71,14 +71,14 @@ export function stageLead(view: StageView): string {
 
 export function loopStepLead(status: string | null): string {
   if (status === 'Ready')
-    return 'Record a submission with a receipt when you send the saved accepted draft yourself.';
+    return 'Review this application. Approve & send when the answers and files are complete.';
   if (status === 'Submitted' || status === 'Live loop')
     return 'Save notes and follow-up drafts. Saving keeps this application status.';
   if (status === 'Skip')
     return 'This job is set aside. Choose another job, or return it to the review queue.';
   if (status && isTerminal(status))
     return 'This application has ended. Import cannot reopen it.';
-  return 'Review research and accept the exact wording for this job.';
+  return 'Review this application. Approve & send when the answers and files are complete.';
 }
 
 export function headerAddJobIsPrimary(view: StageView): boolean {

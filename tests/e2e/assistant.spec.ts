@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 test('assistant prompts and returned files preserve explicit draft review', async ({
   page,
@@ -36,7 +37,13 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
   await page
     .getByRole('button', { name: /Assistant Example — Engineer/ })
     .click();
-  await page.getByText('Prepare this job for an assistant', { exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Assistant Example — Engineer' }),
+  ).toBeVisible();
+  await openDraftTools(page);
+  await page
+    .getByText('Prepare this job for an assistant', { exact: true })
+    .click();
   await expect(
     page.getByText(
       'This separate text box is not saved or linked to your ledger.',
@@ -128,6 +135,10 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
       await page
         .getByRole('button', { name: /Assistant Example — Engineer/ })
         .click();
+      await expect(
+        page.getByRole('heading', { name: 'Assistant Example — Engineer' }),
+      ).toBeVisible();
+      await openDraftTools(page);
       await expect(editor).toHaveValue(result.draft);
       workspace = await (await page.request.get('/api/workspace')).json();
       const saved = workspace.jobs.find(
@@ -136,7 +147,9 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
       expect(saved.status).toBe('Held');
       expect(saved.accepted_draft).toBeNull();
       expect(saved.version).toBeGreaterThan(result.job.version);
-      await page.getByText('Prepare this job for an assistant', { exact: true }).click();
+      await page
+        .getByText('Prepare this job for an assistant', { exact: true })
+        .click();
       await page.getByLabel('Load integration result').setInputFiles({
         name: 'stale-result.json',
         mimeType: 'application/json',

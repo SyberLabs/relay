@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 test('private history requires sign-in and ignores forged identity headers', async ({
   page,
@@ -64,6 +65,7 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
     .click();
   const draft =
     'I reviewed this exact answer against the fictional role requirements.';
+  await openDraftTools(page);
   await page.locator('details.review-notes > summary').click();
   await page.getByRole('textbox', { name: 'Blocker or missing fact' }).fill('');
   await page
@@ -79,6 +81,7 @@ test('import, acceptance, reload and rediscovery preserve the exact reviewed dra
       name: 'Browser Example — Reliability Engineer',
     }),
   ).toBeVisible();
+  await openDraftTools(page);
   await expect(
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
@@ -207,6 +210,7 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
     .getByRole('button', { name: /CSV Browser Example — Engineer/ })
     .click();
   const draft = 'My exact reviewed CSV application answer.';
+  await openDraftTools(page);
   await page.locator('details.review-notes > summary').click();
   await page.getByRole('textbox', { name: 'Blocker or missing fact' }).fill('');
   await page
@@ -245,6 +249,7 @@ test('tracker CSV mapping and repeated imports preserve reviewed wording', async
   await expect(
     page.getByRole('heading', { name: 'CSV Browser Example — Engineer' }),
   ).toBeVisible();
+  await openDraftTools(page);
   await expect(
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
@@ -262,6 +267,7 @@ test('a dirty editor asks before opening the saved facts screen', async ({
     await expect(page.getByText('Workspace updated.')).toBeVisible();
   }
   await page.locator('section.queue .joblist button').first().click();
+  await openDraftTools(page);
   const draft = 'Unsaved dirty-navigation draft.';
   await page
     .getByRole('textbox', { name: 'Application answer or outreach draft' })

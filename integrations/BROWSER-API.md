@@ -23,7 +23,7 @@ context between assistants. Their handoff is the persisted workspace.
 - WebMCP is optional for this sequence. When `document.modelContext.registerTool`
   is missing, Relay still installs the same owner-session tools on `window.relay`
   in the signed-in tab (`relay_read_application`, `relay_stage_draft`,
-  application prepare/arm/begin/finish/cancel, and the other registered names;
+  application prepare/arm/wait/begin/finish/cancel, and the other registered names;
   there is no `relay_approve_application`). Call them with the same JSON inputs
   as WebMCP, for example `await window.relay.relay_read_workspace({})`. That
   eval surface reuses the existing same-origin `fetch` mapping below; it is not
@@ -155,11 +155,22 @@ exact operation. These are finite reads, not polling or a background scheduler.
    ```
 
    Persist that operation ID before sending. Arming freezes the exact payload
-   into a `proposed` immutable operation and opens a20-second presence window.
+   into a `proposed` immutable operation and opens a 20-second presence window.
    Read the returned `operation_id` and `digest`, and GET the operation by ID to
    inspect its complete manifest, job version and policy version. A stale or
    incomplete preparation refuses. Repeat presence only for the same known
    snapshot while the operative is present; never retry a refused mutation.
+
+   Keep `relay_wait_for_application` pending in this same signed-in tab with
+   that exact pin. Preplan fill and Submit before waiting so this invocation
+   can `begin`, check `execute === true`, compare the frozen manifest to the
+   prepared form, Submit once, and record the observed receipt without a later
+   model turn. Default `wait_ms` is 40000 for wait-only. For that combined
+   Cursor MCP operation pass `wait_ms: 20000` (headroom under the ~60-second
+   tool deadline). Five minutes is not supported on that host. A clean timeout
+   may be followed by a new explicit wait. It returns when Inspect Accept
+   authorizes the pin. A terminated host cannot be woken. Playwright simulated
+   continuation is not this proof; see the actual-host note at the end.
 
    The human selects the job in the workspace and reviews **Prepared application**
    → **Inspect**. **Accept and send** authorizes its exact armed operation.
@@ -179,13 +190,15 @@ exact operation. These are finite reads, not polling or a background scheduler.
    one to force the old proposal through.
 
 6. **Execute once and record.** Use a controlled fictional employer fixture for
-   this trial, never the example domain as a real employer. Use computer use to
-   enter/upload exactly the manifest and submit once. Record a witnessed receipt
-   using `{action:"complete", viewer, id, digest, receipt}`. This records reported
-   evidence, not independently verified employer truth. If the permit response
-   or employer outcome is ambiguous, perform no new employer writes; read the
-   saved operation and record `{action:"uncertain", viewer, id, digest, receipt}`
-   when its state is executing. Record what is unknown, never a guessed success.
+   this trial, never the example domain as a real employer. Enter or upload
+   exactly the frozen manifest, Submit once, and record a witnessed receipt
+   using `{action:"complete", viewer, id, digest, receipt}`. This records
+   reported evidence, not independently verified employer truth. If the permit
+   response or employer outcome is ambiguous, perform no new employer writes;
+   read the saved operation and record
+   `{action:"uncertain", viewer, id, digest, receipt}` when its state is
+   executing. Keep that uncertain result; do not retry. Record what is unknown,
+   never a guessed success.
 
 7. **Interrupt and resume both agents.** Discard conversational state, reopen
    each Relay browser and discover the job/operation from workspace and paged
@@ -215,8 +228,15 @@ the protocol. Never claim actor strings enforce scout-only access.
 
 Record exact application revision/deployment, actual host/version, callable
 interface, independent sign-ins, saved IDs/digests, intervention count and the
-observed receipt/uncertainty privately. `tests/e2e/assistant-api.spec.ts` exercises
-separate browser sessions and real local Relay APIs with mocked development
-identity and an intercepted fictional employer. It is not live Grok or ChatGPT
-Work evidence. The database/gateway tests likewise cannot close #111/#117 or
-certify production. Peer merge review and production approval remain separate.
+observed receipt/uncertainty privately. `tests/e2e/assistant-api.spec.ts` and
+`tests/e2e/application-send.spec.ts` remain simulated wait continuation, not
+live host evidence. Cursor Grok 4.6 Extra High, local fictional HTTPS fixture:
+one MCP `browser_run_code` invocation awaited `relay_wait_for_application`,
+began with `execute: true` once, compared the frozen manifest to the prepared
+form, submitted once, observed confirmation, and finished a recorded receipt.
+The fixture observed exactly one POST and Submitted 1.209 seconds after
+authorization reached the host. That Accept was root-automated fixture
+approval, not human Inspect, staging, or production. Earlier separate model
+roundtrips after wait caused delay and truthful `uncertain` results; those
+were not retried. Database/gateway tests cannot close #111/#117 or certify
+production. Peer merge review and production approval remain separate.

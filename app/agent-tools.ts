@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { stageDraft } from '../lib/draft-stage';
 import { readApplicationContext } from '../lib/application-context';
+import { createApplicationWait } from '../lib/application-wait';
 type Json = Record<string, unknown>;
 export type RelayToolStatus =
   | 'checking'
@@ -29,7 +30,7 @@ const object = (properties: Json, required: string[] = []) => ({
   required,
   additionalProperties: false,
 });
-async function call(url: string, body?: Json) {
+async function call(url: string, body?: Json, signal?: AbortSignal) {
   const r = await fetch(
     url,
     body
@@ -37,8 +38,9 @@ async function call(url: string, body?: Json) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
+          signal,
         }
-      : {},
+      : { signal },
   );
   const result = (await r.json()) as {
     error?: string;
@@ -78,6 +80,19 @@ export function useRelayTools(
         };
       }
     ).modelContext;
+    const waiter = createApplicationWait(
+      {
+        readWorkspace: (signal) => call('/api/workspace', undefined, signal),
+        inspect: (job, signal) =>
+          call(
+            `/api/applications?job=${encodeURIComponent(job)}`,
+            undefined,
+            signal,
+          ),
+        arm: (body, signal) => call('/api/applications', body, signal),
+      },
+      lifecycle.signal,
+    );
     const tools: Tool[] = [
       {
         name: 'relay_read_application',
@@ -292,7 +307,7 @@ export function useRelayTools(
       {
         name: 'relay_inspect_application',
         description:
-          'Read the Inspect view for one job: preparation_revision, destination, filled/unknown marks, files, ready/armed, operation state, and whether Accept is enabled. Wait here for human Accept (state authorized). Unknown answers use unknown: true and never invent. Does not modify records, click Accept, or submit.',
+          'Read the Inspect view for one job: preparation_revision, destination, filled/unknown marks, files, ready/armed, operation state, recorded result/receipt, and whether Accept is enabled. Prefer relay_wait_for_application to stay pending until human Accept. Unknown answers use unknown: true and never invent. Does not modify records, click Accept, or submit.',
         readOnly: true,
         schema: object(
           { job: { type: 'string', minLength: 1, maxLength: 100 } },
@@ -302,6 +317,46 @@ export function useRelayTools(
           call(
             `/api/applications?job=${encodeURIComponent(String(input.job))}`,
           ),
+      },
+      {
+        name: 'relay_wait_for_application',
+        description:
+          'Keep this capable host invocation pending until the human Accepts this exact armed payload in the signed-in workspace. Pins viewer, job, preparation_revision, operation id and digest. Default wait_ms is 40000; the hard ceiling is 300000. At most one wait per tab, inspect about every 3 seconds, and renew the same arm no faster than about 12 seconds. Returns the authorized operation so this host can call relay_begin_application once. A clean wait_timeout may be followed by a new explicit wait; do not auto-retry refusals. Does not click Accept, begin, submit, substitute a newer preparation token, or consume a permit from a background timer. Cannot wake a terminated host; presence is only truthful while this invocation is still running. Cursor MCP times out around 60 seconds, so use wait_ms of 40000 or less there; five minutes is not supported on that host. Chat yes and draft Ready are not send permission.',
+        readOnly: false,
+        schema: object(
+          {
+            job: { type: 'string', minLength: 1, maxLength: 100 },
+            preparation_revision: {
+              type: ['string', 'null'],
+              maxLength: 100,
+            },
+            id: { type: 'string', minLength: 1, maxLength: 100 },
+            digest: { type: 'string', minLength: 1, maxLength: 64 },
+            actor: { type: 'string', minLength: 1, maxLength: 100 },
+            wait_ms: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 300000,
+            },
+          },
+          ['job', 'preparation_revision', 'id', 'digest', 'actor'],
+        ),
+        run: async (input) => {
+          const revision = input.preparation_revision;
+          const waitMs = input.wait_ms;
+          const result = await waiter.wait({
+            job: String(input.job),
+            preparation_revision:
+              typeof revision === 'string' || revision === null
+                ? revision
+                : null,
+            id: String(input.id),
+            digest: String(input.digest),
+            actor: String(input.actor),
+            ...(typeof waitMs === 'number' ? { wait_ms: waitMs } : {}),
+          });
+          return result;
+        },
       },
       {
         name: 'relay_begin_application',

@@ -2656,3 +2656,36 @@ void test('concurrent replacement arms cannot overwrite the winning current-vers
   assert.equal(prep.job_version, 2);
   db.sqlite.close();
 });
+
+void test('inspect projects recorded receipt only after a terminal outcome', async () => {
+  const db = database();
+  const { op } = await authorizedPreparation(db);
+  const authorized = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(authorized.state, 'authorized');
+  assert.equal(authorized.recorded_result, null);
+  assert.equal(authorized.recorded_receipt, null);
+  await actOnApplication(db, 'alice', action(op, 'begin'), now);
+  const executing = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(executing.state, 'executing');
+  assert.equal(executing.recorded_result, null);
+  assert.equal(executing.recorded_receipt, null);
+  await actOnApplication(
+    db,
+    'alice',
+    action(op, 'complete', {
+      receipt: 'Fictional employer confirmation ABC',
+    }),
+    now,
+  );
+  const submitted = await inspectApplication(db, 'alice', 'alice-0', now);
+  assert.equal(submitted.state, 'submitted');
+  assert.equal(submitted.recorded_result, 'submitted');
+  assert.equal(
+    submitted.recorded_receipt,
+    'Fictional employer confirmation ABC',
+  );
+  const empty = await inspectApplication(db, 'alice', 'alice-1', now);
+  assert.equal(empty.recorded_result, null);
+  assert.equal(empty.recorded_receipt, null);
+  db.sqlite.close();
+});

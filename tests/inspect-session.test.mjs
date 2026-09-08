@@ -6,9 +6,15 @@ import { runInNewContext } from 'node:vm';
 
 const source = readFileSync('app/inspect.tsx', 'utf8').replaceAll('\r\n', '\n');
 const start = source.indexOf('  async function mutate(');
-const end = source.indexOf('\n  return {\n    view:', start);
-assert.ok(start >= 0 && end > start);
-const compiled = stripTypeScriptTypes(source.slice(start, end), {
+assert.ok(start >= 0);
+const end = source.indexOf('\n  }\n', start);
+assert.ok(end > start);
+const extracted = source.slice(start, end + '\n  }'.length);
+assert.match(extracted, /^  async function mutate\(/);
+assert.equal(extracted.endsWith('\n  }'), true);
+assert.doesNotMatch(extracted, /\bshownView\b/);
+assert.doesNotMatch(extracted, /\bacceptEnabled\b/);
+const compiled = stripTypeScriptTypes(extracted, {
   mode: 'transform',
 });
 

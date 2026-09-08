@@ -67,6 +67,7 @@ function expireKeys(state, deps) {
     'autopilot',
     'styleCount',
     'modal',
+    'historyOpen',
   ]) {
     deps['set' + key[0].toUpperCase() + key.slice(1)] = (value) => {
       state[key] = typeof value === 'function' ? value(state[key]) : value;
@@ -88,6 +89,7 @@ void test('policy and profile 401s expire before JSON and delayed 200s cannot re
     styleCount: 3,
     signedOut: false,
     modal: 'tools',
+    historyOpen: true,
   };
   const deps = {
     ...helper,
@@ -125,6 +127,7 @@ void test('policy and profile 401s expire before JSON and delayed 200s cannot re
   assert.equal(state.autopilot, false);
   assert.equal(state.styleCount, 0);
   assert.equal(state.modal, null);
+  assert.equal(state.historyOpen, false);
 });
 
 void test('policy POST 401 expires without parsing and a delayed 200 cannot restore it', async () => {

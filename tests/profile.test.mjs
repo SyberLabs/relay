@@ -522,6 +522,41 @@ void test('resume extraction separates a qualified role title from both neighbor
   );
 });
 
+for (const title of [
+  'Head of Engineering',
+  'Director of Engineering',
+  'Director of Product',
+  'Vice President of Engineering',
+  'Software Engineer, Example Corp',
+  'Software Engineer at Example Corp',
+  'Software Engineer | Example Corp',
+]) {
+  void test(`resume extraction preserves the ${title} role boundary`, () => {
+    assert.deepEqual(
+      parseResume(
+        `EXPERIENCE\n- Built ingestion pipelines.\n  ${title}\n    Shipped release tooling for 4 teams.`,
+      ).map(({ claim }) => claim),
+      ['Built ingestion pipelines.', 'Shipped release tooling for 4 teams.'],
+    );
+  });
+}
+
+void test('resume extraction keeps role and company mentions in ordinary continuations', () => {
+  for (const continuation of [
+    'for the head of engineering managing customer dashboards.',
+    'for the software engineer at Example Corp.',
+    'with the software engineer, Example Corp teams, and customers.',
+    'Software Engineer teams built the customer dashboards.',
+  ]) {
+    assert.deepEqual(
+      parseResume(`- Built reporting tools,\n  ${continuation}`).map(
+        ({ claim }) => claim,
+      ),
+      [`Built reporting tools, ${continuation}`],
+    );
+  }
+});
+
 void test('resume extraction bounds and deduplicates complete items', () => {
   const lines = Array.from(
     { length: 65 },

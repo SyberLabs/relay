@@ -29,6 +29,19 @@ function isSection(line: string): boolean {
     !/\d/.test(line)
   );
 }
+function isRoleHeading(line: string): boolean {
+  if (!roleWords.test(line) || claimVerb.test(line)) return false;
+  if (/\b(19|20)\d{2}\b/.test(line)) return true;
+  if (line.length > 120) return false;
+  // Check the title separately from an optional company suffix. Lowercase
+  // prose still fails the title shape; no occupation vocabulary is needed.
+  const title = line.split(/,|\||\s+at\s+/, 1)[0].trim();
+  return (
+    roleWords.test(title) &&
+    (/^[A-Z][A-Za-z]*(?:[ -](?:[A-Z][A-Za-z]*|of)){0,3}$/.test(title) ||
+      title.split(/\s+/).every((word) => roleWords.test(word)))
+  );
+}
 function* resumeItems(text: string): Generator<string> {
   let item = '';
   let indent = 0;
@@ -38,13 +51,7 @@ function* resumeItems(text: string): Generator<string> {
     const boundary =
       isSection(line) ||
       contact.test(line) ||
-      (roleWords.test(line) &&
-        !claimVerb.test(line) &&
-        (/\b(19|20)\d{2}\b/.test(line) ||
-          // Preserve short title-cased headings such as "Software Engineer"
-          // without treating ordinary prose mentioning an engineer as a title.
-          /^(?:[A-Z][A-Za-z]*[ -]){0,3}[A-Z][A-Za-z]*$/.test(line) ||
-          line.split(/\s+/).every((word) => roleWords.test(word))));
+      isRoleHeading(line);
     // Only deeper indentation signals a continuation. Never combine an
     // explicit bullet, heading, contact line or clear role with its neighbor.
     if (

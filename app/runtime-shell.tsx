@@ -110,7 +110,9 @@ export function RuntimeShell({
       <div className="log">
         <span className="stamp mono">{logTime}</span>
         <span className="now">{logLine}</span>
-        <Link href="/privacy">How Relay uses your data</Link>
+        <Link href="/privacy" onClick={onNavigate}>
+          How Relay uses your data
+        </Link>
       </div>
     </div>
   );

@@ -189,7 +189,9 @@ export function AppShell({
         <div className="sidebottom">
           <p>External agents apply under your permissions.</p>
           <p>
-            <Link href="/privacy">How Relay uses your data</Link>
+            <Link href="/privacy" onClick={onNavigate}>
+              How Relay uses your data
+            </Link>
           </p>
         </div>
       </aside>

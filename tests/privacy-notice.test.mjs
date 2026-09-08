@@ -19,6 +19,7 @@ void test('the data notice states current shipped practices and is linked', asyn
     'self-service',
     'public issues',
     'hiring outcomes',
+    'google fonts',
   ]) {
     assert.ok(privacy.includes(phrase), `missing ${phrase}`);
   }
@@ -31,6 +32,14 @@ void test('the data notice states current shipped practices and is linked', asyn
   assert.match(about, /href="\/privacy"/);
   assert.match(await source('app/shell.tsx'), /href="\/privacy"/);
   assert.match(await source('app/runtime-shell.tsx'), /href="\/privacy"/);
+  assert.match(
+    await readFile('app/runtime-shell.tsx', 'utf8'),
+    /href="\/privacy"[\s\S]{0,40}onClick=\{onNavigate\}/,
+  );
+  assert.match(
+    await readFile('app/shell.tsx', 'utf8'),
+    /href="\/privacy"[\s\S]{0,80}onClick=\{onNavigate\}/,
+  );
   assert.match(await source('README.md'), /\/privacy/);
 });
 

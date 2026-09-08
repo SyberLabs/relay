@@ -49,10 +49,11 @@ export default function Privacy() {
       <p>
         Cloudflare provides Access, Workers, D1, Turnstile, connecting-IP rate
         limits, and optional request observability that must stay content-free.
-        Assistants and vaults you use (ChatGPT, Codex, Claude, Grok Bot, Notion,
-        Obsidian) receive only what you export or run under your own accounts
-        and their policies. Public Greenhouse and Lever board pulls fetch job
-        listings, not your profile.
+        Product pages load fonts from Google Fonts. Assistants and vaults you
+        use (ChatGPT, Codex, Claude, Grok Bot, Notion, Obsidian) receive only
+        what you export or run under your own accounts and their policies.
+        Public Greenhouse and Lever board pulls fetch job listings, not your
+        profile.
       </p>
       <p>
         Relay does not POST the employer form. Inspect Accept on a complete

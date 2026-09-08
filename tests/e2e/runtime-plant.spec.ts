@@ -21,7 +21,9 @@ test('the workspace workbench shows a full-width queue and review without sendin
     page.getByRole('link', { name: 'Track jobs', exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Profile' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'History' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'History', exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /All opportunities/ }),
   ).toHaveCount(0);
@@ -312,7 +314,7 @@ test('History dialog traps focus, closes on Escape, and returns to the trigger',
   await page
     .getByRole('button', { name: /Runtime History — Modal Engineer/ })
     .click();
-  const trigger = page.getByRole('button', { name: 'History' });
+  const trigger = page.getByRole('button', { name: 'History', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'History' });
   await expect(dialog).toBeVisible();

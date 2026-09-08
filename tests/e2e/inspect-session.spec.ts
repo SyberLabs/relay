@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openDraftTools } from './open-draft-tools';
 
 async function inspectFixture(page: Page, name: string) {
   await page.goto('/');
@@ -71,6 +72,20 @@ async function inspectFixture(page: Page, name: string) {
       revision = 'revision-after-edit';
     },
   };
+}
+
+async function bumpJobVersionBySavingDraft(page: Page) {
+  await openDraftTools(page);
+  await page
+    .getByRole('textbox', { name: 'Application answer or outreach draft' })
+    .fill('Fictional draft for inspect freshness.');
+  await page
+    .locator('.core')
+    .getByRole('button', { name: 'Save draft', exact: true })
+    .click();
+  await expect(
+    page.getByText('Saved. Your review is preserved.'),
+  ).toBeVisible();
 }
 
 for (const action of ['approve', 'answer']) {
@@ -195,3 +210,149 @@ test('a refused answer preserves text and the revision from when typing began', 
   expect(writes).toHaveLength(1);
   expect(writes[0].preparation_revision).toBe('revision-before-edit');
 });
+
+test('same-job version refresh disables stale approval without dropping a typed answer', async ({
+  page,
+}) => {
+  await inspectFixture(page, 'version-refresh');
+  const answer = page.getByRole('textbox', {
+    name: 'Fictional project',
+    exact: true,
+  });
+  await answer.fill('Keep my unsaved wording');
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
+  ).toBeEnabled();
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/applications?job=*', async (route) => {
+    await held;
+    await route.fallback();
+  });
+  await expect(
+    page.getByRole('heading', { name: /Fictional version-refresh A/ }),
+  ).toBeVisible();
+  await openDraftTools(page);
+  await page
+    .getByRole('textbox', { name: 'Application answer or outreach draft' })
+    .fill('Fictional draft for inspect freshness.');
+  await page
+    .locator('.core')
+    .getByRole('button', { name: 'Save draft', exact: true })
+    .click();
+  await expect(
+    page.getByText('Saved. Your review is preserved.'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
+  ).toBeDisabled();
+  await expect(answer).toHaveValue('Keep my unsaved wording');
+  release();
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
+  ).toBeEnabled();
+  await expect(answer).toHaveValue('Keep my unsaved wording');
+});
+
+for (const action of ['approve', 'answer']) {
+  for (const status of [200, 409, 401]) {
+    test(`same-job version refresh still applies held Inspect ${action} ${status}`, async ({
+      page,
+    }) => {
+      const fixture = await inspectFixture(
+        page,
+        `held-refresh-${action}-${status}`,
+      );
+      const answer = page.getByRole('textbox', {
+        name: 'Fictional project',
+        exact: true,
+      });
+      const saveAnswer = page.getByRole('button', { name: 'Save answer' });
+      const approve = page.getByRole('button', { name: 'Approve & send' });
+      await answer.fill('Keep my unsaved wording');
+      if (action === 'answer') {
+        fixture.changeRevision();
+        await expect
+          .poll(() => fixture.polls.includes('revision-after-edit'))
+          .toBe(true);
+      }
+      const writes: Record<string, unknown>[] = [];
+      const pending: { release: () => void }[] = [];
+      await page.route('**/api/applications', async (route) => {
+        if (route.request().method() !== 'POST') return route.continue();
+        writes.push(route.request().postDataJSON());
+        await new Promise<void>((release) => pending.push({ release }));
+        if (status === 401) {
+          await route.fulfill({
+            status: 401,
+            contentType: 'text/html',
+            body: '<h1>Sign in</h1>',
+          });
+          return;
+        }
+        await route.fulfill({
+          status,
+          json: status === 409 ? { error: 'Current inspect refusal' } : {},
+        });
+      });
+      if (action === 'answer') await saveAnswer.click();
+      else await approve.click();
+      await expect.poll(() => pending.length).toBe(1);
+      await expect(saveAnswer).toBeDisabled();
+      const pollsBefore = fixture.polls.length;
+      await bumpJobVersionBySavingDraft(page);
+      await expect
+        .poll(() => fixture.polls.length)
+        .toBeGreaterThan(pollsBefore);
+      await expect(saveAnswer).toBeDisabled();
+      await expect(answer).toHaveValue('Keep my unsaved wording');
+      const heldResponse = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/applications') &&
+          response.status() === status,
+      );
+      pending[0].release();
+      await heldResponse;
+      if (status === 401) {
+        await expect(
+          page.getByRole('link', { name: 'Sign in with ChatGPT' }),
+        ).toBeVisible();
+        await expect(approve).toHaveCount(0);
+        await expect(
+          page.getByText('Keep my unsaved wording', { exact: true }),
+        ).toHaveCount(0);
+        expect(writes).toHaveLength(1);
+        if (action === 'answer')
+          expect(writes[0].preparation_revision).toBe('revision-before-edit');
+        return;
+      }
+      if (status === 409) {
+        await expect(
+          page.getByText('Current inspect refusal', { exact: true }),
+        ).toBeVisible();
+      } else {
+        await expect(
+          page.getByText('Current inspect refusal', { exact: true }),
+        ).toHaveCount(0);
+      }
+      await expect(saveAnswer).toBeEnabled();
+      await expect(approve).toBeEnabled();
+      await expect(answer).toHaveValue('Keep my unsaved wording');
+      if (action !== 'answer') return;
+      expect(writes[0].preparation_revision).toBe('revision-before-edit');
+      if (status !== 409) return;
+      await saveAnswer.click();
+      await expect.poll(() => pending.length).toBe(2);
+      pending[1].release();
+      await expect(
+        page.getByText('Current inspect refusal', { exact: true }),
+      ).toBeVisible();
+      await expect(saveAnswer).toBeEnabled();
+      await expect(answer).toHaveValue('Keep my unsaved wording');
+      expect(writes).toHaveLength(2);
+      expect(writes[1].preparation_revision).toBe('revision-before-edit');
+    });
+  }
+}

@@ -92,6 +92,12 @@ void test('review kinds stay truthful through send and receipt', () => {
     blocker: '',
   };
   assert.equal(applicationReviewKind(held, null), 'preparing');
+  assert.equal(applicationReviewCopy('preparing').title, 'Not prepared yet');
+  assert.match(
+    applicationReviewCopy('preparing').detail,
+    /Ask your agent to prepare the destination, answers, and files/i,
+  );
+  assert.doesNotMatch(applicationReviewCopy('preparing').detail, /gathering/i);
   assert.equal(
     applicationReviewKind({ ...held, blocker: 'Need a start date' }, null),
     'needs_answer',
@@ -194,7 +200,10 @@ void test('review kinds stay truthful through send and receipt', () => {
     applicationReviewCopy('submitted').detail,
     /recorded by your agent/i,
   );
-  assert.doesNotMatch(applicationReviewCopy('submitted').detail, /independently verified/i);
+  assert.doesNotMatch(
+    applicationReviewCopy('submitted').detail,
+    /independently verified/i,
+  );
   assert.doesNotMatch(
     applicationReviewCopy('ready_for_approval').detail,
     /POST|frozen|operative|Permit/i,

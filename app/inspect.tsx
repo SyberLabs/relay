@@ -154,50 +154,54 @@ export function inspectMarkup({
             {view.fields.map((field, index) => {
               const fieldId = `inspect-field-${index}`;
               return (
-              <div
-                className={'answer-row' + (field.unknown ? ' unknown' : '')}
-                key={field.label}
-              >
-                <dt>
-                  {field.unknown ? (
-                    <label htmlFor={fieldId}>{field.label}</label>
-                  ) : (
-                    field.label
-                  )}
-                </dt>
-                <dd>
-                  {field.unknown ? (
-                    <form
-                      className="block-form"
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        const raw = new FormData(event.currentTarget).get(
-                          'value',
-                        );
-                        onAnswer(
-                          field.label,
-                          typeof raw === 'string' ? raw : '',
-                        );
-                      }}
-                    >
-                      <input
-                        autoComplete="off"
-                        disabled={busy}
-                        id={fieldId}
-                        maxLength={20000}
-                        name="value"
-                        onChange={() => onAnswerChange(field.label)}
-                        type="text"
-                      />
-                      <button className="btn btn-sm" disabled={busy} type="submit">
-                        Save answer
-                      </button>
-                    </form>
-                  ) : (
-                    field.value || 'Empty'
-                  )}
-                </dd>
-              </div>
+                <div
+                  className={'answer-row' + (field.unknown ? ' unknown' : '')}
+                  key={field.label}
+                >
+                  <dt>
+                    {field.unknown ? (
+                      <label htmlFor={fieldId}>{field.label}</label>
+                    ) : (
+                      field.label
+                    )}
+                  </dt>
+                  <dd>
+                    {field.unknown ? (
+                      <form
+                        className="block-form"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const raw = new FormData(event.currentTarget).get(
+                            'value',
+                          );
+                          onAnswer(
+                            field.label,
+                            typeof raw === 'string' ? raw : '',
+                          );
+                        }}
+                      >
+                        <input
+                          autoComplete="off"
+                          disabled={busy}
+                          id={fieldId}
+                          maxLength={20000}
+                          name="value"
+                          onChange={() => onAnswerChange(field.label)}
+                          type="text"
+                        />
+                        <button
+                          className="btn btn-sm"
+                          disabled={busy}
+                          type="submit"
+                        >
+                          Save answer
+                        </button>
+                      </form>
+                    ) : (
+                      field.value || 'Empty'
+                    )}
+                  </dd>
+                </div>
               );
             })}
           </dl>
@@ -264,6 +268,7 @@ type InspectSession = {
 export function useInspectSnapshot(
   jobId: string | undefined,
   session?: InspectSession,
+  jobVersion?: number,
 ) {
   const [view, setView] = useState<InspectSnapshot | null>(null);
   const [viewer, setViewer] = useState('');
@@ -275,8 +280,10 @@ export function useInspectSnapshot(
   const inflightRef = useRef<AbortController | null>(null);
   // Poll generations change every refresh. Mutation generations change only
   // when the selected job or authenticated session changes.
+  const [loadedVersion, setLoadedVersion] = useState<number | undefined>();
   const contextRef = useRef({
     jobId,
+    jobVersion,
     session,
     generation: 0,
     viewer: '',
@@ -288,6 +295,7 @@ export function useInspectSnapshot(
   if (renderedJob !== jobId) {
     setRenderedJob(jobId);
     setView(null);
+    setLoadedVersion(undefined);
     setViewer('');
     setBusy(false);
     setError('');
@@ -306,6 +314,7 @@ export function useInspectSnapshot(
       context.answerRevisions.clear();
       selectInspectJob(gateRef.current, jobId);
     }
+    context.jobVersion = jobVersion;
     context.session = session;
   });
 
@@ -319,6 +328,7 @@ export function useInspectSnapshot(
     selectInspectJob(gateRef.current, current.jobId);
     inflightRef.current?.abort();
     setView(null);
+    setLoadedVersion(undefined);
     setViewer('');
     setBusy(false);
     setError('');
@@ -329,6 +339,7 @@ export function useInspectSnapshot(
   const load = useCallback(async () => {
     const context = contextRef.current;
     const job = context.jobId;
+    const version = context.jobVersion;
     if (!job || context.expired) return;
     inflightRef.current?.abort();
     const controller = new AbortController();
@@ -345,10 +356,12 @@ export function useInspectSnapshot(
       generation === contextRef.current.generation &&
       started.generation === gateRef.current.generation &&
       job === contextRef.current.jobId &&
+      version === contextRef.current.jobVersion &&
       epoch === context.session?.sessionRef.current.gate.epoch &&
       owner === context.session?.sessionRef.current.viewer;
     const clear = () => {
       setView(null);
+      setLoadedVersion(undefined);
       setViewer('');
       contextRef.current.viewer = '';
       contextRef.current.generation += 1;
@@ -401,6 +414,7 @@ export function useInspectSnapshot(
       setSignedOut(false);
       setViewer(outcome.viewer);
       setView(outcome.view);
+      setLoadedVersion(version);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
       if (live()) clear();
@@ -424,6 +438,11 @@ export function useInspectSnapshot(
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [jobId, load]);
+
+  useEffect(() => {
+    if (!jobId || jobVersion === undefined) return;
+    void Promise.resolve().then(() => load());
+  }, [jobId, jobVersion, load]);
 
   async function mutate(body: Record<string, unknown>, failure: string) {
     const current = contextRef.current;
@@ -483,8 +502,14 @@ export function useInspectSnapshot(
     }
   }
 
+  const shownView = view?.job_id === jobId ? view : null;
+  const acceptEnabled =
+    Boolean(shownView?.accept_enabled) &&
+    (jobVersion === undefined || loadedVersion === jobVersion);
+
   return {
-    view: view?.job_id === jobId ? view : null,
+    view: shownView,
+    acceptEnabled,
     viewer,
     busy,
     error,
@@ -505,12 +530,13 @@ export function useInspectSnapshot(
 export function useInspect(
   jobId: string | undefined,
   session?: InspectSession,
+  jobVersion?: number,
 ) {
-  const inspect = useInspectSnapshot(jobId, session);
+  const inspect = useInspectSnapshot(jobId, session, jobVersion);
   const shown = inspect.view;
 
   function onAccept() {
-    if (!shown?.operation_id || !shown.digest || !shown.accept_enabled) return;
+    if (!inspect.acceptEnabled || !shown?.operation_id || !shown.digest) return;
     void inspect.mutate(
       {
         action: 'approve',

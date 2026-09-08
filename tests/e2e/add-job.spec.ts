@@ -70,11 +70,9 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
     page.getByRole('heading', { name: 'Cedar Example — First Job Engineer' }),
   ).toBeVisible();
   await openDraftTools(page);
-  const sourceHistory = page
-    .locator('details.draft-tools details')
-    .filter({
-      has: page.locator(':scope > summary', { hasText: 'Source history' }),
-    });
+  const sourceHistory = page.locator('details.draft-tools details').filter({
+    has: page.locator(':scope > summary', { hasText: 'Source history' }),
+  });
   if ((await sourceHistory.getAttribute('open')) === null)
     await sourceHistory.locator(':scope > summary').click();
   await expect(
@@ -194,6 +192,9 @@ test('normalized duplicate URL adds research without losing accepted work', asyn
     .getByRole('textbox', { name: 'Research notes' })
     .fill('First fictional look.');
   await page.getByRole('button', { name: 'Save job' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Pine Example — Duplicate Engineer' }),
+  ).toBeVisible();
   await openDraftTools(page);
   await page.locator('details.review-notes > summary').click();
   await page.getByRole('textbox', { name: 'Blocker or missing fact' }).fill('');

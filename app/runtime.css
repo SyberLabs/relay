@@ -17,7 +17,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
 }
 .bar {
   display: flex;
@@ -126,6 +126,10 @@
   min-width: 0;
   overflow-x: auto;
 }
+.bar-right > * {
+  flex: none;
+  white-space: nowrap;
+}
 .textbtn {
   background: none;
   border: 0;
@@ -181,8 +185,8 @@
   background: var(--signal);
 }
 .workbench {
-  flex: 1;
-  min-height: 0;
+  flex: 1 0 16rem;
+  min-height: 16rem;
   display: grid;
   grid-template-columns: var(--queue) minmax(0, 1fr);
   width: 100%;
@@ -308,7 +312,7 @@
 .review,
 .runtime .core {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(6.5rem, 1fr) auto auto;
   min-height: 0;
   min-width: 0;
   background: var(--paper);
@@ -347,7 +351,7 @@
   border-color: rgba(226, 104, 95, 0.45);
 }
 .review-scroll {
-  min-height: 0;
+  min-height: 6.5rem;
   min-width: 0;
   overflow: auto;
   display: flex;
@@ -516,7 +520,7 @@
   padding: 4px 0;
 }
 .draft-tools[open] {
-  max-height: 42%;
+  max-height: min(42%, 16rem);
   overflow: auto;
 }
 .runtime .empty {
@@ -837,15 +841,45 @@
 .runtime .notice {
   margin: 16px 24px 0;
   flex: none;
+  min-height: 0;
+}
+.runtime .import-dock:not([hidden]),
+.runtime .report {
+  flex: 0 1 auto;
+  max-height: min(42vh, 24rem);
+  overflow: auto;
 }
 @media (max-width: 900px) {
   .workbench {
+    flex: 1 0 28rem;
+    min-height: 28rem;
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(5.5rem, min(28vh, 12rem)) minmax(0, 1fr);
+    grid-template-rows: minmax(5.5rem, min(28vh, 12rem)) minmax(16rem, 1fr);
+  }
+  .review,
+  .runtime .core {
+    overflow: auto;
+    min-height: 16rem;
   }
   .runtime .queue {
     border-right: 0;
     border-bottom: 1px solid var(--rule);
+  }
+  .runtime .queue .plate-foot {
+    display: none;
+  }
+  .plate-head {
+    padding: 6px 10px;
+  }
+  .runtime .search {
+    margin: 4px 8px;
+    padding: 5px 8px;
+  }
+  .q-sec {
+    padding: 6px 6px 2px;
+  }
+  .plate-body {
+    padding: 4px 8px 8px;
   }
   .review-cols {
     grid-template-columns: 1fr;
@@ -861,6 +895,86 @@
   }
   .btn-primary {
     width: 100%;
+  }
+}
+@media (max-width: 900px) and (min-height: 521px) {
+  .bar {
+    display: grid;
+    grid-template-columns: minmax(9rem, max-content) minmax(0, 1fr);
+    grid-template-areas:
+      'brand state'
+      'nav actions';
+    align-items: center;
+    overflow: hidden;
+    column-gap: 8px;
+    row-gap: 4px;
+    padding: 6px 10px;
+  }
+  .bar > div:first-child {
+    grid-area: brand;
+    flex: none;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .bar > div:first-child .wordmark {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bar > div:first-child p:last-of-type {
+    display: none;
+  }
+  .state {
+    grid-area: state;
+    align-self: center;
+    justify-self: stretch;
+    flex: none;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 3px 9px 3px 6px;
+  }
+  .state > span:not(.lamp) {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bar-nav {
+    grid-area: nav;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .bar-nav a {
+    display: inline-block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .bar-right {
+    grid-area: actions;
+    margin-left: 0;
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .bar-right .primary,
+  .bar-right .secondary,
+  .bar-right .textbtn,
+  .bar-right .toggle {
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+  .workbench {
+    grid-template-rows: minmax(8.5rem, min(24vh, 11rem)) minmax(16rem, 1fr);
+  }
+  .runtime .joblist,
+  .runtime .q-list {
+    min-height: 3.5rem;
   }
 }
 @media (max-height: 520px) {
@@ -890,7 +1004,18 @@
 }
 @media (max-width: 900px) and (max-height: 520px) {
   .workbench {
-    grid-template-rows: 4.75rem minmax(0, 1fr);
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: minmax(3.5rem, 5.25rem) minmax(0, 1fr);
+  }
+  .review,
+  .runtime .core {
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+  }
+  .review-scroll {
+    min-height: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

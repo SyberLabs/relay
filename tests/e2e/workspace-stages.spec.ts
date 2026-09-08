@@ -24,9 +24,11 @@ test('held job primary control is accept, not Advanced or add job', async ({
   const addJob = page.getByRole('button', { name: 'Add job', exact: true });
   await expect(addJob).toHaveClass(/primary/);
   await expect(
-    page.getByText(
-      'Select a job to continue its review. Adding or importing is between jobs.',
-    ),
+    page
+      .locator('header.bar')
+      .getByText(
+        'Select a job to continue its review. Adding or importing is between jobs.',
+      ),
   ).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'Select a role' }),

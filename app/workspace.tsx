@@ -188,13 +188,17 @@ export default function Workspace() {
           new Date().toISOString(),
         )
       : null;
-  const inspect = useInspect(current?.id, {
-    sessionRef,
-    onUnauthorized: () => {
-      expireSession(sessionRef.current);
-      applyExpired();
+  const inspect = useInspect(
+    current?.id,
+    {
+      sessionRef,
+      onUnauthorized: () => {
+        expireSession(sessionRef.current);
+        applyExpired();
+      },
     },
-  });
+    current?.version,
+  );
   const outcomeSeenRef = useRef('');
   const outcomeBusyRef = useRef(false);
   const inspectJobId = inspect.view?.job_id;
@@ -251,10 +255,25 @@ export default function Workspace() {
   const lanes = workbenchQueue(jobs, search);
   const queued = lanes.waiting;
   const named = current ? splitJobName(current.name) : null;
+  const inspectFreshnessGap =
+    Boolean(inspect.view?.accept_enabled) && !inspect.acceptEnabled;
   const reviewKind = current
-    ? applicationReviewKind(current, inspect.view)
+    ? applicationReviewKind(
+        current,
+        inspect.view
+          ? { ...inspect.view, accept_enabled: inspect.acceptEnabled }
+          : inspect.view,
+      )
     : null;
-  const reviewCopy = reviewKind ? applicationReviewCopy(reviewKind) : null;
+  const reviewCopy = reviewKind
+    ? inspectFreshnessGap &&
+      (reviewKind === 'preparing' || reviewKind === 'disconnected')
+      ? {
+          title: 'Checking latest changes',
+          detail: 'Refreshing this prepared application.',
+        }
+      : applicationReviewCopy(reviewKind)
+    : null;
   const stageView = {
     page: 'workspace' as const,
     signedOut,
@@ -977,7 +996,8 @@ export default function Workspace() {
       stateKind={
         busy || reviewKind === 'sending' || reviewKind === 'ready_for_approval'
           ? 'live'
-          : reviewKind === 'disconnected' || reviewKind === 'uncertain'
+          : (reviewKind === 'disconnected' && !inspectFreshnessGap) ||
+              reviewKind === 'uncertain'
             ? 'off'
             : 'idle'
       }
@@ -986,21 +1006,24 @@ export default function Workspace() {
           ? 'Working'
           : signedOut
             ? 'Signed out'
-            : reviewKind === 'ready_for_approval'
-              ? 'Your agent is connected'
-              : reviewKind === 'sending'
-                ? 'Sending'
-                : reviewKind === 'disconnected'
-                  ? 'Agent disconnected'
-                  : reviewKind === 'submitted'
-                    ? 'Submission recorded'
-                    : reviewKind === 'uncertain'
-                      ? 'Submission needs checking'
-                      : reviewKind === 'not_sent'
-                        ? 'Not sent'
-                        : reviewKind === 'ended'
-                          ? 'Application ended'
-                          : 'Waiting for you'
+            : inspectFreshnessGap &&
+                (reviewKind === 'preparing' || reviewKind === 'disconnected')
+              ? 'Checking latest changes'
+              : reviewKind === 'ready_for_approval'
+                ? 'Your agent is connected'
+                : reviewKind === 'sending'
+                  ? 'Sending'
+                  : reviewKind === 'disconnected'
+                    ? 'Agent disconnected'
+                    : reviewKind === 'submitted'
+                      ? 'Submission recorded'
+                      : reviewKind === 'uncertain'
+                        ? 'Submission needs checking'
+                        : reviewKind === 'not_sent'
+                          ? 'Not sent'
+                          : reviewKind === 'ended'
+                            ? 'Application ended'
+                            : 'Waiting for you'
       }
     >
       <main id="workspace-main">
@@ -1280,7 +1303,7 @@ export default function Workspace() {
                     </div>
                     {inspectSendControl({
                       busy: busy || inspect.busy,
-                      enabled: Boolean(inspect.view?.accept_enabled),
+                      enabled: inspect.acceptEnabled,
                       onAccept: inspect.onAccept,
                     })}
                   </footer>

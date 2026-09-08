@@ -45,6 +45,11 @@ async function setup(page: Page, suffix: string) {
       name: new RegExp(`Cedar ${suffix} — Review Engineer`),
     })
     .click();
+  await expect(
+    page.getByRole('heading', {
+      name: `Cedar ${suffix} — Review Engineer`,
+    }),
+  ).toBeVisible();
   await openDraftTools(page);
   return (await state(page)).jobs.find(
     (j: { name: string }) => j.name === `Cedar ${suffix} — Review Engineer`,
@@ -121,6 +126,12 @@ for (const width of [1280, 390])
       })
       .click();
     await expect(
+      page.getByRole('heading', {
+        name: `Cedar ${width} — Next Engineer`,
+      }),
+    ).toBeVisible();
+    await openDraftTools(page);
+    await expect(
       page.getByText('Routine writing choices are delegated'),
     ).toBeVisible();
     await page
@@ -128,6 +139,11 @@ for (const width of [1280, 390])
         name: new RegExp(`Cedar ${width} — Review Engineer`),
       })
       .click();
+    await expect(
+      page.getByRole('heading', {
+        name: `Cedar ${width} — Review Engineer`,
+      }),
+    ).toBeVisible();
     await openDraftTools(page);
     // The existing assistant resumes, chooses grounded wording, and stages it.
     // This exercises persistence and review boundaries, not model quality.
@@ -155,6 +171,12 @@ for (const width of [1280, 390])
         name: new RegExp(`Cedar ${width} — Review Engineer`),
       })
       .click();
+    await expect(
+      page.getByRole('heading', {
+        name: `Cedar ${width} — Review Engineer`,
+      }),
+    ).toBeVisible();
+    await openDraftTools(page);
     await expect(
       page.getByRole('heading', { name: 'Choose how to continue' }),
     ).toHaveCount(0);
@@ -306,6 +328,10 @@ test('short user answer is job-specific and cannot confirm a personal fact or ac
   await page
     .getByRole('button', { name: /Cedar answer — Review Engineer/ })
     .click();
+  await expect(
+    page.getByRole('heading', { name: 'Cedar answer — Review Engineer' }),
+  ).toBeVisible();
+  await openDraftTools(page);
   await expect(
     page.getByRole('heading', { name: 'Ready for your assistant' }),
   ).toBeVisible();

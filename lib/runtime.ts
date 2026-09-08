@@ -203,8 +203,8 @@ export function applicationReviewCopy(kind: ApplicationReviewKind): {
       detail: 'The application form is not ready yet.',
     };
   return {
-    title: 'Preparing',
-    detail: 'Your agent is gathering the destination, answers, and files.',
+    title: 'Not prepared yet',
+    detail: 'Ask your agent to prepare the destination, answers, and files.',
   };
 }
 

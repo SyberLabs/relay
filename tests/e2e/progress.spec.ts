@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openDraftTools } from './open-draft-tools';
+import { openDraftNested, openDraftTools } from './open-draft-tools';
 
 type Job = {
   id: string;
@@ -112,6 +112,7 @@ for (const width of [1280, 390]) {
     expect(saved.jobs.find((job) => job.id === interrupted.id)).toEqual(
       interrupted,
     );
+    await openDraftNested(page, 'Your review history');
     await expect(
       page.locator('summary').filter({ hasText: /^Progress saved ·/ }),
     ).toBeVisible();
@@ -131,8 +132,9 @@ for (const width of [1280, 390]) {
     await saveProgress(page);
     await expect(
       page.getByRole('button', { name: new RegExp(essay.name) }),
-    ).toContainText(
-      'Need a reviewed example of resolving a production incident',
+    ).toContainText('Needs an answer');
+    await expect(blockerField(page)).toHaveValue(
+      'Need a reviewed example of resolving a production incident for the essay.',
     );
     await select(page, interrupted);
     await draftField(page).fill(
@@ -164,6 +166,12 @@ for (const width of [1280, 390]) {
         await select(next, original);
         await expect(draftField(next)).toHaveValue(persisted.draft);
         await expect(blockerField(next)).toHaveValue(persisted.blocker);
+        await expect(
+          next.getByRole('button', { name: new RegExp(original.name) }),
+        ).toContainText(
+          persisted.blocker.trim() ? 'Needs an answer' : 'In review',
+        );
+        await openDraftNested(next, 'Your review history');
         await expect(
           next.locator('summary').filter({ hasText: /^Progress saved ·/ }),
         ).toBeVisible();
@@ -201,6 +209,7 @@ test('nonblocking notes survive history and reload without preventing exact acce
   });
   await page.reload();
   await select(page, job);
+  await openDraftNested(page, 'Your review history');
   await page
     .locator('summary')
     .filter({ hasText: /^Progress saved ·/ })
@@ -438,6 +447,7 @@ test('registered progress tool survives reload and an ambiguous reply without du
   await select(page, job);
   await expect(draftField(page)).toHaveValue(staged.draft);
   await expect(blockerField(page)).toHaveValue(input.blocker);
+  await openDraftNested(page, 'Your review history');
   await page
     .locator('summary')
     .filter({ hasText: /^Progress saved ·/ })

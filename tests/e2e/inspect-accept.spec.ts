@@ -110,6 +110,30 @@ test('workspace draft saves can re-arm unchanged content before explicit send ap
     }
     const oldOperationId = operationId;
     operationId = `op-inspect-after-save-${index}`;
+    const inspectPin =
+      index === 1
+        ? page.waitForResponse(async (response) => {
+            let url: URL;
+            try {
+              url = new URL(response.url());
+            } catch {
+              return false;
+            }
+            if (!url.pathname.endsWith('/api/applications')) return false;
+            if (url.searchParams.get('job') !== job.id) return false;
+            if (response.request().method() !== 'GET') return false;
+            if (!response.ok()) return false;
+            try {
+              const data = await response.json();
+              return (
+                data.operation_id === operationId &&
+                data.accept_enabled === true
+              );
+            } catch {
+              return false;
+            }
+          })
+        : null;
     const rearmed = await page.request.post('/api/applications', {
       data: {
         action: 'arm',
@@ -133,11 +157,27 @@ test('workspace draft saves can re-arm unchanged content before explicit send ap
       },
     });
     expect(staleBegin.status()).toBe(409);
+    if (inspectPin) await inspectPin;
     await expect(
       page.getByRole('button', { name: 'Approve & send' }),
     ).toBeEnabled();
   }
+  await expect(
+    page.getByRole('button', { name: 'Approve & send' }),
+  ).toBeEnabled();
+  const approveResponse = page.waitForResponse((response) => {
+    if (!response.url().endsWith('/api/applications')) return false;
+    if (response.request().method() !== 'POST') return false;
+    const body = response.request().postDataJSON() as {
+      action?: string;
+      id?: string;
+    };
+    return body.action === 'approve' && body.id === operationId;
+  });
   await page.getByRole('button', { name: 'Approve & send' }).click();
+  const accepted = await approveResponse;
+  expect(accepted.ok()).toBe(true);
+  expect((await accepted.json()).operation.id).toBe(operationId);
   await expect(
     page.getByText(/Your agent is submitting the application you approved/i),
   ).toBeVisible();
@@ -222,6 +262,12 @@ test('set aside cancels a pre-begin freeze so send cannot begin', async ({
   await expect(
     page.getByRole('button', { name: 'Approve & send' }),
   ).toBeEnabled();
+  await expect(
+    page.getByRole('heading', {
+      name: 'Cedar Example — Inspect Skip Engineer',
+    }),
+  ).toBeVisible();
+  await openDraftTools(page);
   await page
     .locator('.core')
     .getByRole('button', { name: 'Set aside', exact: true })
@@ -278,7 +324,9 @@ test('human can answer a Blocked inspect field then arm to enable Accept', async
     },
   });
   expect(prepared.ok()).toBe(true);
-  await expect(page.getByRole('textbox', { name: 'Work authorization' })).toBeVisible();
+  await expect(
+    page.getByRole('textbox', { name: 'Work authorization' }),
+  ).toBeVisible();
   await page
     .getByRole('textbox', { name: 'Work authorization' })
     .fill('Authorized to work in the example country');
@@ -388,120 +436,141 @@ test('inspect overlay prepare fills three fields then Accept send completes', as
   const unrelatedBefore = await (
     await page.request.get(`/api/applications?id=${unrelatedView.operation_id}`)
   ).json();
-  const prepared = await page.request.post('/api/applications', {
-    data: {
-      action: 'prepare',
-      preparation_revision: await preparationRevision(page, job.id),
-      viewer: ws.viewer,
-      job: job.id,
-      actor: 'Fictional applying agent',
-      destination: job.url,
-      fields: [
-        { label: 'Full name', value: 'Avery Example', unknown: false },
-        {
-          label: 'Work authorization',
-          value: 'Authorized to work in the example country',
-          unknown: false,
-        },
-        {
-          label: 'Cover note',
-          value: 'Fictional cover note for Inspect Handshake Engineer.',
-          unknown: false,
-        },
-      ],
-      files: [resume],
-    },
-  });
-  expect(prepared.ok()).toBe(true);
-  await page.goto('/');
-  await page.getByRole('button', { name: /Inspect Handshake/ }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Inspect', exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText('Full name')).toBeVisible();
-  await expect(page.getByText('Work authorization')).toBeVisible();
-  await expect(page.getByText('Cover note')).toBeVisible();
-  await expect(page.getByText('resume.txt', { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: 'Approve & send' }),
-  ).toBeDisabled();
-  const armed = await page.request.post('/api/applications', {
-    data: {
-      action: 'arm',
-      preparation_revision: await preparationRevision(page, job.id),
-      viewer: ws.viewer,
-      job: job.id,
-      id: 'op-inspect-handshake',
-      actor: 'Fictional applying agent',
-    },
-  });
-  expect(armed.ok()).toBe(true);
-  await expect(
-    page.getByRole('button', { name: 'Approve & send' }),
-  ).toBeEnabled();
-  await page.getByRole('button', { name: 'Approve & send' }).click();
-  await expect(
-    page.getByText(/Your agent is submitting the application you approved/i),
-  ).toBeVisible();
-  const armedView = await armed.json();
-  const refused = await page.request.post('/api/applications', {
-    data: {
-      action: 'begin',
-      viewer: ws.viewer,
-      id: 'op-inspect-handshake',
-      digest: armedView.digest,
-    },
-  });
-  expect(refused.status()).toBe(409);
-  const unrelatedAfter = await (
-    await page.request.get(`/api/applications?id=${unrelatedView.operation_id}`)
-  ).json();
-  expect(unrelatedAfter.operation).toEqual(unrelatedBefore.operation);
-  // Only now end the explicitly test-owned sentinel. No employer was visited.
-  const ended = await page.request.post('/api/applications', {
-    data: {
-      action: 'not-submitted',
-      viewer: ws.viewer,
-      id: unrelatedView.operation_id,
-      digest: unrelatedView.digest,
-      receipt: 'Owned fictional sentinel stopped before employer interaction.',
-    },
-  });
-  expect(ended.ok()).toBe(true);
-  const begun = await page.request.post('/api/applications', {
-    data: {
-      action: 'begin',
-      viewer: ws.viewer,
-      id: 'op-inspect-handshake',
-      digest: armedView.digest,
-    },
-  });
-  expect(begun.ok()).toBe(true);
-  const begunBody = await begun.json();
-  expect(begunBody.execute).toBe(true);
-  const completed = await page.request.post('/api/applications', {
-    data: {
-      action: 'complete',
-      viewer: ws.viewer,
-      id: begunBody.operation.id,
-      digest: begunBody.operation.digest,
-      receipt: 'Fictional employer accepted application INS-9',
-    },
-  });
-  expect(completed.ok()).toBe(true);
-  const workspace = await (await page.request.get('/api/workspace')).json();
-  const submitted = workspace.jobs.find((j: { id: string }) => j.id === job.id);
-  expect(submitted.status).toBe('Submitted');
-  const detail = await (
-    await page.request.get(
-      `/api/applications?id=${encodeURIComponent(begunBody.operation.id)}`,
-    )
-  ).json();
-  const manifest = JSON.parse(detail.operation.manifest) as {
-    files: { name: string; base64: string }[];
+  let sentinelOpen = true;
+  const endSentinel = async () => {
+    if (!sentinelOpen) return;
+    sentinelOpen = false;
+    const ended = await page.request.post('/api/applications', {
+      data: {
+        action: 'not-submitted',
+        viewer: ws.viewer,
+        id: unrelatedView.operation_id,
+        digest: unrelatedView.digest,
+        receipt:
+          'Owned fictional sentinel stopped before employer interaction.',
+      },
+    });
+    expect(ended.ok()).toBe(true);
   };
-  expect(manifest.files[0].name).toBe('resume.txt');
-  expect(manifest.files[0].base64).toBe(resume.base64);
+  try {
+    const prepared = await page.request.post('/api/applications', {
+      data: {
+        action: 'prepare',
+        preparation_revision: await preparationRevision(page, job.id),
+        viewer: ws.viewer,
+        job: job.id,
+        actor: 'Fictional applying agent',
+        destination: job.url,
+        fields: [
+          { label: 'Full name', value: 'Avery Example', unknown: false },
+          {
+            label: 'Work authorization',
+            value: 'Authorized to work in the example country',
+            unknown: false,
+          },
+          {
+            label: 'Cover note',
+            value: 'Fictional cover note for Inspect Handshake Engineer.',
+            unknown: false,
+          },
+        ],
+        files: [resume],
+      },
+    });
+    expect(prepared.ok()).toBe(true);
+    await page.goto('/');
+    await page.getByRole('button', { name: /Inspect Handshake/ }).click();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Cedar Example — Inspect Handshake Engineer',
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Exact answers' }),
+    ).toBeVisible();
+    await expect(page.getByText('Full name', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('Work authorization', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Cover note', { exact: true })).toBeVisible();
+    await expect(page.getByText('resume.txt', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Approve & send' }),
+    ).toBeDisabled();
+    const armed = await page.request.post('/api/applications', {
+      data: {
+        action: 'arm',
+        preparation_revision: await preparationRevision(page, job.id),
+        viewer: ws.viewer,
+        job: job.id,
+        id: 'op-inspect-handshake',
+        actor: 'Fictional applying agent',
+      },
+    });
+    expect(armed.ok()).toBe(true);
+    await expect(
+      page.getByRole('button', { name: 'Approve & send' }),
+    ).toBeEnabled();
+    await page.getByRole('button', { name: 'Approve & send' }).click();
+    await expect(
+      page.getByText(/Your agent is submitting the application you approved/i),
+    ).toBeVisible();
+    const armedView = await armed.json();
+    const refused = await page.request.post('/api/applications', {
+      data: {
+        action: 'begin',
+        viewer: ws.viewer,
+        id: 'op-inspect-handshake',
+        digest: armedView.digest,
+      },
+    });
+    expect(refused.status()).toBe(409);
+    const unrelatedAfter = await (
+      await page.request.get(
+        `/api/applications?id=${unrelatedView.operation_id}`,
+      )
+    ).json();
+    expect(unrelatedAfter.operation).toEqual(unrelatedBefore.operation);
+    await endSentinel();
+    const begun = await page.request.post('/api/applications', {
+      data: {
+        action: 'begin',
+        viewer: ws.viewer,
+        id: 'op-inspect-handshake',
+        digest: armedView.digest,
+      },
+    });
+    expect(begun.ok()).toBe(true);
+    const begunBody = await begun.json();
+    expect(begunBody.execute).toBe(true);
+    const completed = await page.request.post('/api/applications', {
+      data: {
+        action: 'complete',
+        viewer: ws.viewer,
+        id: begunBody.operation.id,
+        digest: begunBody.operation.digest,
+        receipt: 'Fictional employer accepted application INS-9',
+      },
+    });
+    expect(completed.ok()).toBe(true);
+    const workspace = await (await page.request.get('/api/workspace')).json();
+    const submitted = workspace.jobs.find(
+      (j: { id: string }) => j.id === job.id,
+    );
+    expect(submitted.status).toBe('Submitted');
+    const detail = await (
+      await page.request.get(
+        `/api/applications?id=${encodeURIComponent(begunBody.operation.id)}`,
+      )
+    ).json();
+    const manifest = JSON.parse(detail.operation.manifest) as {
+      files: { name: string; base64: string }[];
+    };
+    expect(manifest.files[0].name).toBe('resume.txt');
+    expect(manifest.files[0].base64).toBe(resume.base64);
+  } finally {
+    await endSentinel();
+  }
 });
 
 test('inspect shows employer-uncertain separately from waiting to send', async ({
@@ -573,7 +642,7 @@ test('inspect shows employer-uncertain separately from waiting to send', async (
   expect(begun.ok()).toBe(true);
   expect((await begun.json()).execute).toBe(true);
   await expect(
-    page.getByText(/Sending application/i),
+    page.getByRole('paragraph').filter({ hasText: /^Sending application$/ }),
   ).toBeVisible();
   await expect(
     page.getByText(/Your agent is submitting the application you approved/i),
@@ -592,10 +661,12 @@ test('inspect shows employer-uncertain separately from waiting to send', async (
     },
   });
   expect(marked.ok()).toBe(true);
-  await expect(page.getByText(/Submission needs checking/i)).toBeVisible();
   await expect(
-    page.getByText(/could not confirm the result/i),
+    page
+      .locator('.foot-copy p')
+      .filter({ hasText: /^Submission needs checking$/ }),
   ).toBeVisible();
+  await expect(page.getByText(/could not confirm the result/i)).toBeVisible();
   await expect(
     page.getByText(/waiting for the operative to send/i),
   ).toHaveCount(0);

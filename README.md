@@ -211,7 +211,7 @@ Domain, import, editor, profile, selection, and API tests cover status preservat
 
 ## Hosting and privacy
 
-Keep real imports, packets, and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, and personal records stay out of Git.
+Keep real imports, packets, and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, and personal records stay out of Git. The invited-pilot product describes current data practices at `/privacy`; that page is a disclosure of shipped behavior, not a waiver or hiring warranty.
 
 Deploy only the verified release artifact through the protected workflows. An invited pilot may use workers.dev without purchasing a domain; a custom domain remains optional. Account provisioning, live authentication, and the first production release still require verification before inviting users.
 

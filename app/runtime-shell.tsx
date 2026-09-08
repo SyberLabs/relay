@@ -1,5 +1,6 @@
 'use client';
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { Upload } from 'lucide-react';
 import { ShellNav } from './shell';
 import type { QueueFilter } from '../lib/nav';
@@ -109,6 +110,9 @@ export function RuntimeShell({
       <div className="log">
         <span className="stamp mono">{logTime}</span>
         <span className="now">{logLine}</span>
+        <Link href="/privacy" onClick={onNavigate}>
+          How Relay uses your data
+        </Link>
       </div>
     </div>
   );

@@ -11,6 +11,8 @@ import {
   isSentJob,
   policyExpiryIso,
   runtimeLanes,
+  asSheetJobs,
+  jobsMatchingQueue,
   sentPip,
   sourceLabel,
   splitJobName,
@@ -130,6 +132,22 @@ void test('lanes put blockers south, outcomes west, and Held east', () => {
   assert.deepEqual(
     all.queue.map((j) => j.id),
     ['a', 'c'],
+  );
+  assert.deepEqual(
+    jobsMatchingQueue(jobs, 'All').map((j) => j.id),
+    ['a', 'b', 'c', 'd', 'e', 'f'],
+  );
+  assert.deepEqual(
+    jobsMatchingQueue(jobs, 'Ready').map((j) => j.id),
+    ['c'],
+  );
+  assert.deepEqual(
+    asSheetJobs([{ id: 'a', name: 'Role', status: 'Held' }, { id: 'bad' }]),
+    [{ id: 'a', name: 'Role', status: 'Held' }],
+  );
+  assert.deepEqual(
+    asSheetJobs([{ id: 'x'.repeat(201), name: 'n', status: 'Held' }]),
+    [],
   );
   assert.equal(isBlockedJob(jobs[1]), true);
   assert.equal(isBlockedJob(jobs[4]), false);

@@ -221,6 +221,21 @@ for (const [format, payload] of Object.entries(unauthorized)) {
       }
       await route.fulfill({ status: 401, ...payload });
     });
+    await page.route('**/api/workspace', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          json: {
+            viewer: 'track-expiry',
+            jobs: [],
+            sources: [],
+            events: [],
+            facts: [],
+          },
+        });
+        return;
+      }
+      await route.fallback();
+    });
     await page.goto('/track');
     await expect(page.getByText('PRIVATE_TRACK_JOB')).toBeVisible();
     await page.getByLabel('Submission receipt').fill('https://example.com/r1');

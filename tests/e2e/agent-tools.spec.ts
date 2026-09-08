@@ -133,6 +133,8 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
       expect(await activeNames()).not.toContain('relay_approve_application');
       expect(await relayNames(page)).toEqual([...TOOL_NAMES]);
       // Client navigation unmounts the workspace and removes its tools.
+      await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+      await expect(page).toHaveURL(/\/track/);
       await page.getByRole('link', { name: 'Your facts', exact: true }).click();
       await expect(page).toHaveURL(/\/profile$/);
       await expect

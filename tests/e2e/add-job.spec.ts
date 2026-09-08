@@ -69,6 +69,14 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
   await expect(
     page.getByRole('heading', { name: 'Cedar Example — First Job Engineer' }),
   ).toBeVisible();
+  await openDraftTools(page);
+  const sourceHistory = page
+    .locator('details.draft-tools details')
+    .filter({
+      has: page.locator(':scope > summary', { hasText: 'Source history' }),
+    });
+  if ((await sourceHistory.getAttribute('open')) === null)
+    await sourceHistory.locator(':scope > summary').click();
   await expect(
     page.getByText('Fictional first-job research notes.'),
   ).toBeVisible();
@@ -95,6 +103,9 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
   await expect(
     page.getByRole('heading', { name: 'Cedar Example — First Job Engineer' }),
   ).toBeVisible();
+  await openDraftTools(page);
+  if ((await sourceHistory.getAttribute('open')) === null)
+    await sourceHistory.locator(':scope > summary').click();
   await expect(
     page.getByText('Fictional first-job research notes.'),
   ).toBeVisible();

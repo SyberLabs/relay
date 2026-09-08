@@ -396,3 +396,181 @@ void test('resume extraction reports empty and oversized input', () => {
   assert.throws(() => parseResume('Hello there friend'), /No candidate facts/);
   assert.throws(() => parseResume('a'.repeat(100001)), /under 100000/);
 });
+
+void test('resume extraction keeps wrapped bullet claims whole with LF or CRLF', () => {
+  for (const newline of ['\n', '\r\n']) {
+    assert.deepEqual(
+      parseResume(
+        [
+          'EXPERIENCE',
+          '• Built an end-to-end reporting pipeline spanning ingestion,',
+          '  validation, storage, and customer dashboards.',
+        ].join(newline),
+      ),
+      [
+        {
+          claim:
+            'Built an end-to-end reporting pipeline spanning ingestion, validation, storage, and customer dashboards.',
+          evidence: 'Resume · EXPERIENCE',
+          tag: 'detail',
+        },
+      ],
+    );
+  }
+});
+
+void test('resume extraction attaches a wrapped metric to its parent claim', () => {
+  assert.deepEqual(
+    parseResume(
+      '• Built a reporting pipeline,\n  reducing manual review time by 40%.',
+    ),
+    [
+      {
+        claim:
+          'Built a reporting pipeline, reducing manual review time by 40%.',
+        evidence: 'Resume · Resume',
+        tag: 'metric',
+      },
+    ],
+  );
+});
+
+void test('resume extraction preserves bullet, heading, blank, contact and role boundaries', () => {
+  const candidates = parseResume(
+    [
+      'EXPERIENCE',
+      '• Built a reporting pipeline,',
+      '  spanning ingestion and validation.',
+      '  • Reduced manual review time by 40%.',
+      '    EDUCATION',
+      'B.S. Computer Science, 2021',
+      '',
+      '  Earned a systems certification.',
+      '    candidate@example.com',
+      '    Senior Engineer, 2023',
+      '      Built release automation.',
+      'Built deployment tools.',
+      'Maintained service dashboards.',
+    ].join('\n'),
+  );
+  assert.deepEqual(
+    candidates.map(({ claim }) => claim),
+    [
+      'Built a reporting pipeline, spanning ingestion and validation.',
+      'Reduced manual review time by 40%.',
+      'B.S. Computer Science, 2021',
+      'Earned a systems certification.',
+      'Senior Engineer, 2023',
+      'Built release automation.',
+      'Built deployment tools.',
+      'Maintained service dashboards.',
+    ],
+  );
+  assert.equal(candidates[1].evidence, 'Resume · EXPERIENCE');
+  assert.equal(candidates[2].evidence, 'Resume · EDUCATION');
+});
+
+void test('resume extraction drops an oversized wrapped item without emitting fragments', () => {
+  const oversized = `• Built ${'reporting '.repeat(20)}\n  Reduced ${'manual work '.repeat(20)}\n  by 40%.`;
+  assert.throws(() => parseResume(oversized), /No candidate facts/);
+  assert.deepEqual(
+    parseResume(`${oversized}\n• Built deployment tools.`).map(
+      ({ claim }) => claim,
+    ),
+    ['Built deployment tools.'],
+  );
+});
+
+void test('resume extraction separates an undated role title from surrounding claims', () => {
+  assert.deepEqual(
+    parseResume(
+      [
+        '• Built reporting tools,',
+        '  for the engineer managing customer dashboards.',
+        '  Senior Engineer',
+        '    Built release automation.',
+      ].join('\n'),
+    ).map(({ claim }) => claim),
+    [
+      'Built reporting tools, for the engineer managing customer dashboards.',
+      'Built release automation.',
+    ],
+  );
+});
+
+void test('resume extraction separates a qualified role title from both neighboring claims', () => {
+  for (const title of ['Software Engineer', 'Senior Software Engineer']) {
+    assert.deepEqual(
+      parseResume(
+        [
+          'EXPERIENCE',
+          '- Built ingestion pipelines.',
+          `  ${title}`,
+          '    Shipped release tooling for 4 teams.',
+        ].join('\n'),
+      ).map(({ claim }) => claim),
+      ['Built ingestion pipelines.', 'Shipped release tooling for 4 teams.'],
+    );
+  }
+  assert.deepEqual(
+    parseResume(
+      '- Built ingestion pipelines,\n  for the software engineer managing customer dashboards.',
+    ).map(({ claim }) => claim),
+    [
+      'Built ingestion pipelines, for the software engineer managing customer dashboards.',
+    ],
+  );
+});
+
+for (const title of [
+  'Head of Engineering',
+  'Director of Engineering',
+  'Director of Product',
+  'Vice President of Engineering',
+  'Software Engineer, Example Corp',
+  'Software Engineer at Example Corp',
+  'Software Engineer | Example Corp',
+]) {
+  void test(`resume extraction preserves the ${title} role boundary`, () => {
+    assert.deepEqual(
+      parseResume(
+        `EXPERIENCE\n- Built ingestion pipelines.\n  ${title}\n    Shipped release tooling for 4 teams.`,
+      ).map(({ claim }) => claim),
+      ['Built ingestion pipelines.', 'Shipped release tooling for 4 teams.'],
+    );
+  });
+}
+
+void test('resume extraction keeps role and company mentions in ordinary continuations', () => {
+  for (const continuation of [
+    'for the head of engineering managing customer dashboards.',
+    'for the software engineer at Example Corp.',
+    'with the software engineer, Example Corp teams, and customers.',
+    'Software Engineer teams built the customer dashboards.',
+  ]) {
+    assert.deepEqual(
+      parseResume(`- Built reporting tools,\n  ${continuation}`).map(
+        ({ claim }) => claim,
+      ),
+      [`Built reporting tools, ${continuation}`],
+    );
+  }
+});
+
+void test('resume extraction bounds and deduplicates complete items', () => {
+  const lines = Array.from(
+    { length: 65 },
+    (_, i) =>
+      `• Built reporting pipeline ${i},\n  spanning ingestion and validation.`,
+  );
+  const candidates = parseResume([lines[0], ...lines].join('\n'));
+  assert.equal(candidates.length, 60);
+  assert.equal(
+    candidates[0].claim,
+    'Built reporting pipeline 0, spanning ingestion and validation.',
+  );
+  assert.equal(
+    candidates.at(-1).claim,
+    'Built reporting pipeline 59, spanning ingestion and validation.',
+  );
+});

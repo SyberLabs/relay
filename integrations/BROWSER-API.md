@@ -20,14 +20,21 @@ context between assistants. Their handoff is the persisted workspace.
   [browser](https://learn.chatgpt.com/docs/browser) and
   [site-tool](https://learn.chatgpt.com/docs/webmcp) documentation does not prove
   this session is signed in or can call a particular API.
-- WebMCP is optional for this sequence. Relay's current registered tools read
-  context and stage drafts; they do not cover application permits. A host must
-  explicitly support same-tab JavaScript requests to use the snippets below.
-  If only computer-use controls are available, the signed-in workspace and
-  Inspect in the workspace exposes review, while `/applications` holds
-  permissions, evidence, cancellation and receipts. Record that interface and
-  every intervention. Do not inject JavaScript through browser controls that
-  do not support it, invent a callable tool, or expose a development server.
+- WebMCP is optional for this sequence. When `document.modelContext.registerTool`
+  is missing, Relay still installs the same owner-session tools on `window.relay`
+  in the signed-in tab (`relay_read_application`, `relay_stage_draft`,
+  application prepare/arm/begin/finish/cancel, and the other registered names;
+  there is no `relay_approve_application`). Call them with the same JSON inputs
+  as WebMCP, for example `await window.relay.relay_read_workspace({})`. That
+  eval surface reuses the existing same-origin `fetch` mapping below; it is not
+  a hosted MCP connection. A historical GET 200 from `/api/workspace` is not
+  mutation proof. A host must explicitly support same-tab JavaScript to use
+  either `window.relay` or the snippets. If only computer-use controls are
+  available, the signed-in workspace and Inspect in the workspace exposes
+  review, while `/applications` holds permissions, evidence, cancellation and
+  receipts. Record that interface and every intervention. Do not inject
+  JavaScript through browser controls that do not support it, invent a
+  callable tool, export cookies, or expose a development server.
 
 Read-only capability probe in the signed-in Relay tab (async wrapper also works
 in hosts that reject top-level `await`):
@@ -43,6 +50,7 @@ in hosts that reject top-level `await`):
     status: r.status,
     type: r.headers.get('content-type'),
     webmcp: typeof document.modelContext?.registerTool === 'function',
+    relay: typeof window.relay,
   };
 })();
 ```

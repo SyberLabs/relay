@@ -3,7 +3,31 @@ import { expect, test } from '@playwright/test';
 declare global {
   interface Window {
     relayTestActiveTools: Set<string>;
+    relay?: Record<string, (input: Record<string, unknown>) => Promise<unknown>>;
   }
+}
+
+const TOOL_NAMES = [
+  'relay_read_application',
+  'relay_read_workspace',
+  'relay_read_profile',
+  'relay_review_status',
+  'relay_preview_import',
+  'relay_log_draft',
+  'relay_save_progress',
+  'relay_stage_draft',
+  'relay_prepare_application',
+  'relay_arm_application',
+  'relay_inspect_application',
+  'relay_begin_application',
+  'relay_finish_application',
+  'relay_cancel_application',
+] as const;
+
+async function relayNames(page: {
+  evaluate: (fn: () => string[]) => Promise<string[]>;
+}) {
+  return page.evaluate(() => Object.keys(window.relay || {}));
 }
 
 for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
@@ -59,36 +83,69 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject'] as const) {
     });
     const expected =
       mode === 'unavailable'
-        ? 'This browser does not provide WebMCP tools.'
+        ? 'This browser does not provide WebMCP tools. Same-origin tools are on window.relay in this signed-in tab. File handoff remains.'
         : mode === 'registered'
           ? 'Relay tools registered in this tab.'
-          : 'Relay tools could not register in this tab.';
+          : 'WebMCP tools could not register in this tab. Same-origin tools remain on window.relay.';
     await expect(status).toContainText(expected);
     const activeNames = () =>
       page.evaluate(() => [...window.relayTestActiveTools]);
+    if (mode === 'unavailable') {
+      expect(await relayNames(page)).toEqual([...TOOL_NAMES]);
+      expect(await relayNames(page)).not.toContain('relay_approve_application');
+      const workspace = (await page.evaluate(() =>
+        window.relay!.relay_read_workspace({}),
+      )) as { jobs: { id: string; name: string; version: number }[] };
+      expect(workspace).toEqual(
+        expect.objectContaining({
+          jobs: expect.arrayContaining([
+            expect.objectContaining({ name: `Tool QA ${mode}` }),
+          ]),
+        }),
+      );
+      const job = workspace.jobs.find((row) => row.name === `Tool QA ${mode}`);
+      expect(job).toBeTruthy();
+      const draft = 'Exact window.relay staged wording for Tool QA.';
+      await page.evaluate(
+        async ({ id, version, draft }) =>
+          window.relay!.relay_stage_draft({
+            id,
+            version,
+            draft,
+            blocker: '',
+          }),
+        { id: job!.id, version: job!.version, draft },
+      );
+      const application = (await page.evaluate(
+        async (id) => window.relay!.relay_read_application({ id }),
+        job!.id,
+      )) as { job: { draft: string; accepted_draft: string | null } };
+      expect(application.job.draft).toBe(draft);
+      expect(application.job.accepted_draft).toBeNull();
+      await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+      await expect(page).toHaveURL(/\/track/);
+      await page.getByRole('link', { name: 'Your facts', exact: true }).click();
+      await expect(page).toHaveURL(/\/profile$/);
+      await expect
+        .poll(async () => page.evaluate(() => window.relay ?? null))
+        .toBeNull();
+    }
     if (mode === 'registered') {
-      expect(await activeNames()).toEqual([
-        'relay_read_application',
-        'relay_read_workspace',
-        'relay_read_profile',
-        'relay_review_status',
-        'relay_preview_import',
-        'relay_log_draft',
-        'relay_save_progress',
-        'relay_stage_draft',
-        'relay_prepare_application',
-        'relay_arm_application',
-        'relay_inspect_application',
-        'relay_begin_application',
-        'relay_finish_application',
-        'relay_cancel_application',
-      ]);
+      expect(await activeNames()).toEqual([...TOOL_NAMES]);
       expect(await activeNames()).not.toContain('relay_approve_application');
+      expect(await relayNames(page)).toEqual([...TOOL_NAMES]);
       // Client navigation unmounts the workspace and removes its tools.
       await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
       await expect(page).toHaveURL(/\/track/);
       await page.getByRole('link', { name: 'Your facts', exact: true }).click();
       await expect(page).toHaveURL(/\/profile$/);
+      await expect
+        .poll(async () => page.evaluate(() => window.relay ?? null))
+        .toBeNull();
+    }
+    if (mode === 'throw' || mode === 'reject') {
+      expect(await relayNames(page)).toEqual([...TOOL_NAMES]);
+      expect(await relayNames(page)).not.toContain('relay_approve_application');
     }
     await expect.poll(activeNames).toEqual([]);
     expect(errors).toEqual([]);

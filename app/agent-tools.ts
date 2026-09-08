@@ -15,6 +15,14 @@ type Tool = {
   schema: Json;
   run: (input: Json) => Promise<unknown>;
 };
+type RelayWindowTools = {
+  [name: string]: (input: Json) => Promise<unknown>;
+};
+declare global {
+  interface Window {
+    relay?: RelayWindowTools;
+  }
+}
 const object = (properties: Json, required: string[] = []) => ({
   type: 'object',
   properties,
@@ -70,12 +78,6 @@ export function useRelayTools(
         };
       }
     ).modelContext;
-    if (typeof context?.registerTool !== 'function') {
-      void Promise.resolve().then(() => {
-        if (!lifecycle.signal.aborted) setStatus('unavailable');
-      });
-      return () => lifecycle.abort();
-    }
     const tools: Tool[] = [
       {
         name: 'relay_read_application',
@@ -393,6 +395,26 @@ export function useRelayTools(
         },
       },
     ];
+    const execute = async (tool: Tool, input: Json) => {
+      const result = await tool.run(input);
+      onVerb?.(tool.name, result);
+      return result;
+    };
+    const relay: RelayWindowTools = Object.fromEntries(
+      tools.map((tool) => [tool.name, (input: Json) => execute(tool, input)]),
+    );
+    const webmcp = new AbortController();
+    window.relay = relay;
+    lifecycle.signal.addEventListener('abort', () => {
+      webmcp.abort();
+      if (window.relay === relay) delete window.relay;
+    });
+    if (typeof context?.registerTool !== 'function') {
+      void Promise.resolve().then(() => {
+        if (!lifecycle.signal.aborted) setStatus('unavailable');
+      });
+      return () => lifecycle.abort();
+    }
     Promise.all(
       tools.map(async (tool) =>
         context.registerTool(
@@ -404,13 +426,9 @@ export function useRelayTools(
               readOnlyHint: tool.readOnly,
               untrustedContentHint: true,
             },
-            execute: async (input: Json) => {
-              const result = await tool.run(input);
-              onVerb?.(tool.name, result);
-              return result;
-            },
+            execute: (input: Json) => execute(tool, input),
           },
-          { signal: lifecycle.signal },
+          { signal: webmcp.signal },
         ),
       ),
     ).then(
@@ -419,7 +437,7 @@ export function useRelayTools(
       },
       () => {
         if (lifecycle.signal.aborted) return;
-        lifecycle.abort();
+        webmcp.abort();
         setStatus('failed');
       },
     );

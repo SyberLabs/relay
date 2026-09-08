@@ -74,9 +74,9 @@ function ToolsPanel({
               {
                 {
                   checking: 'Checking this browser…',
-                  unavailable: 'This browser does not register tools',
+                  unavailable: 'No WebMCP; window.relay is in this tab',
                   registered: 'Tools registered in this tab',
-                  failed: 'Registration failed in this tab',
+                  failed: 'WebMCP failed; window.relay remains',
                 }[toolStatus]
               }
             </span>

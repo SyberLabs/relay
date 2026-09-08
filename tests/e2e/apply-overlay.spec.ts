@@ -4,6 +4,12 @@ import { enableInspectJob } from './enable-inspect-job';
 test('apply overlay shows inspect summary without Accept and send', async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: undefined,
+    });
+  });
   await page.setViewportSize({ width: 320, height: 240 });
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
@@ -73,6 +79,42 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   await expect(page.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Applications' })).toHaveCount(0);
 
+  await expect
+    .poll(() =>
+      page.evaluate(() => typeof window.relay?.relay_inspect_application),
+    )
+    .toBe('function');
+  await page.evaluate(
+    (jobId) => window.relay!.relay_inspect_application({ job: jobId }),
+    job.id,
+  );
+  const lastVerb = page.getByRole('status', { name: 'Last verb result' });
+  await expect(lastVerb).toContainText('relay_inspect_application');
+  await expect(lastVerb).toContainText(job.id);
+  const successfulTranscript = await lastVerb.textContent();
+  await page.route('**/api/profile', (route) =>
+    route.fulfill({
+      status: 429,
+      headers: { 'Retry-After': '60' },
+      json: { error: 'Fictional quota refusal.', code: 'usage_limit' },
+    }),
+  );
+  const refusal = await page.evaluate(async () => {
+    try {
+      await window.relay!.relay_read_profile({});
+      return null;
+    } catch (error) {
+      return JSON.parse(error instanceof Error ? error.message : String(error));
+    }
+  });
+  expect(refusal).toMatchObject({
+    status: 429,
+    code: 'usage_limit',
+    retry_after: '60',
+  });
+  await expect(lastVerb).toHaveText(successfulTranscript!);
+  await page.unroute('**/api/profile');
+
   const inspect = await (
     await page.request.get(
       `/api/applications?job=${encodeURIComponent(job.id)}`,
@@ -90,4 +132,6 @@ test('apply overlay shows inspect summary without Accept and send', async ({
   await expect(
     page.getByRole('button', { name: 'Accept and send' }),
   ).toHaveCount(0);
+  await page.goto('/profile');
+  await expect.poll(() => page.evaluate(() => window.relay ?? null)).toBeNull();
 });

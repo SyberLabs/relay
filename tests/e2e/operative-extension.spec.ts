@@ -239,6 +239,8 @@ async function startOperative(
 test('first-party operative submits the fixture once after Inspect Accept', async ({
   baseURL,
 }) => {
+  // Shared D1 admits 10 starts per owner per UTC day. This spec runs in the
+  // leading Playwright project so that begin still has capacity.
   test.setTimeout(90_000);
   const session = await launchOperative(baseURL!);
   try {

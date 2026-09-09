@@ -432,7 +432,8 @@ void test('retry and resubmit holds with an explanation reject Ready acceptance'
       'Do not resubmit because the first attempt may have succeeded.',
       'Do not double-submit this job.',
       'Prior attempt is unconfirmed; do not retry this application.',
-      'First attempt may have succeeded, do not resubmit.',
+      'Wait, do not resubmit because the first attempt may have succeeded.',
+      'Prior attempt is unconfirmed; do not double-submit this job.',
     ]) {
       const owner = 'retry-hold-' + note;
       const job = 'https://example.com/jobs/retry-hold';

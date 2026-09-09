@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +26,65 @@ async function packExtension() {
   const dir = await mkdtemp(join(tmpdir(), 'relay-operative-'));
   await cp(SOURCE, dir, { recursive: true });
   return dir;
+}
+
+type ExtensionPermissionState = {
+  explicit_host?: string[];
+  scriptable_host?: string[];
+};
+
+async function grantOptionalHttpsHosts(
+  userDataDir: string,
+  extensionId: string,
+  patterns: string[],
+) {
+  const prefsPath = join(userDataDir, 'Default', 'Preferences');
+  const prefs = JSON.parse(await readFile(prefsPath, 'utf8')) as {
+    extensions?: {
+      settings?: Record<
+        string,
+        {
+          active_permissions?: ExtensionPermissionState;
+          granted_permissions?: ExtensionPermissionState;
+        }
+      >;
+    };
+  };
+  const ext = prefs.extensions?.settings?.[extensionId];
+  if (!ext) throw new Error(`Extension prefs missing for ${extensionId}`);
+  for (const key of ['active_permissions', 'granted_permissions'] as const) {
+    const state = ext[key] ?? (ext[key] = {});
+    state.explicit_host = [
+      ...new Set([...(state.explicit_host ?? []), ...patterns]),
+    ];
+    state.scriptable_host = [
+      ...new Set([...(state.scriptable_host ?? []), ...patterns]),
+    ];
+  }
+  await writeFile(prefsPath, `${JSON.stringify(prefs)}\n`);
+}
+
+async function launchExtensionContext(
+  extDir: string,
+  userDataDir: string,
+  baseURL: string,
+) {
+  return chromium.launchPersistentContext(userDataDir, {
+    // Headless shell cannot load MV3 extensions; bundled Chromium can.
+    channel: 'chromium',
+    headless: true,
+    viewport: { width: 1280, height: 720 },
+    baseURL,
+    args: [
+      `--disable-extensions-except=${extDir}`,
+      `--load-extension=${extDir}`,
+      // Optional-host prompts are browser chrome, not DOM. Tests grant the
+      // HTTPS fixture origin through profile prefs after install, then this
+      // flag fails closed if a prompt still appears.
+      '--deny-permission-prompts',
+    ],
+    ignoreDefaultArgs: ['--disable-extensions'],
+  });
 }
 
 async function mockEmployer(context: BrowserContext, expectedName: string) {
@@ -63,22 +122,21 @@ async function launchOperative(baseURL: string) {
     packed.host_permissions.some((rule) => rule.startsWith('https:')),
   ).toBe(false);
   const userDataDir = await mkdtemp(join(tmpdir(), 'relay-operative-profile-'));
-  const context = await chromium.launchPersistentContext(userDataDir, {
-    // Headless shell cannot load MV3 extensions; bundled Chromium can.
-    channel: 'chromium',
-    headless: true,
-    viewport: { width: 1280, height: 720 },
-    baseURL,
-    args: [
-      `--disable-extensions-except=${extDir}`,
-      `--load-extension=${extDir}`,
-    ],
-    ignoreDefaultArgs: ['--disable-extensions'],
-  });
-  let worker = context.serviceWorkers()[0];
+  const warmup = await launchExtensionContext(extDir, userDataDir, baseURL);
+  let worker = warmup.serviceWorkers()[0];
+  if (!worker)
+    worker = await warmup.waitForEvent('serviceworker', { timeout: 20_000 });
+  const extensionId = new URL(worker.url()).host;
+  await warmup.close();
+  // Packed manifest still has no HTTPS hosts. This records the same grant a
+  // user makes with permissions.request on Start for the fictional fixture.
+  await grantOptionalHttpsHosts(userDataDir, extensionId, [
+    'https://employer.example/*',
+  ]);
+  const context = await launchExtensionContext(extDir, userDataDir, baseURL);
+  worker = context.serviceWorkers()[0];
   if (!worker)
     worker = await context.waitForEvent('serviceworker', { timeout: 20_000 });
-  const extensionId = new URL(worker.url()).host;
   return { context, extensionId, extDir, userDataDir };
 }
 

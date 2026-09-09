@@ -97,9 +97,17 @@ export function importedBlocker(n: string | null) {
   const holdNotes = (n || '')
     .replace(/^[\t ]*(?:[-*•]|\d+[.)])[\t ]+/gm, '')
     .trim();
-  return n &&
-    (/do not (?:double-submit|retry|resubmit)|captcha|name.lock|doubled|invalid|clicked, never confirmed/i.test(n) ||
-      /(?:^|[\r\n]|[.!?:]\s+)\s*do not (?:submit|apply)(?:\s+(?:until|before)\b|[.!](?:\s|$)|\s*$)/i.test(holdNotes))
+  if (!holdNotes) return '';
+  const hold =
+    /(?:^|[\r\n]|[.!?:]\s+)\s*do not (?:submit|apply)(?:\s+(?:until|before)\b|[.!](?:\s|$)|\s*$)/i.test(
+      holdNotes,
+    ) ||
+    /(?:^|[\r\n]|[,;.!?:]\s+)\s*do not (?:double-submit|retry|resubmit)\b/i.test(
+      holdNotes,
+    ) ||
+    /clicked, never confirmed/i.test(holdNotes) ||
+    /\bname\.lock\b/i.test(holdNotes);
+  return hold
     ? 'Prior attempt or restriction recorded. Read source history before continuing.'
     : '';
 }

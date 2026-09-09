@@ -387,7 +387,39 @@ void test('explicit submission holds become blockers without overwriting reviewe
       'Do not submit\na cover letter; it is optional.',
       'Do not submit\r\na cover letter; it is optional.',
       '- Do not submit\na cover letter; it is optional.',
+      'Archive listed an invalid URL; keep researching the live board.',
+      'Careers page showed a captcha badge; this is research only.',
+      'The blog says headcount doubled last year.',
     ]) assert.equal(importedBlocker(note), '');
+  } finally {
+    db.close();
+  }
+});
+void test('research notes stay in source history and do not disable exact acceptance', () => {
+  const db = open();
+  try {
+    const owner = 'research-notes';
+    const job = 'https://example.com/jobs/research-notes';
+    const notes =
+      'Archive listed an invalid URL. Careers page showed a captcha badge. Headcount doubled.';
+    importRow(db, owner, source('Held', job, notes));
+    const row = jobOf(db, owner, job);
+    assert.equal(row.blocker, '');
+    assert.equal(observationsOf(db, owner)[0].notes, notes);
+    db.prepare('UPDATE jobs SET draft=?,version=? WHERE owner=?').run(
+      'Exact wording',
+      row.version,
+      owner,
+    );
+    const saved = jobOf(db, owner, job);
+    assert.doesNotThrow(() =>
+      validateEdit(saved, {
+        version: saved.version,
+        status: 'Ready',
+        draft: 'Exact wording',
+        blocker: saved.blocker,
+      }),
+    );
   } finally {
     db.close();
   }

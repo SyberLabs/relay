@@ -17,24 +17,15 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   // Isolation uses production Access JWTs from run-production.mjs.
-  // The operative project runs first so Inspect send still has daily start
-  // capacity on the shared fictional D1 (10 starts/owner/UTC day).
-  projects: [
-    {
-      name: 'operative',
-      testMatch: '**/operative-extension.spec.ts',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'chromium',
-      dependencies: ['operative'],
-      testIgnore: [
-        '**/operative-extension.spec.ts',
-        ...(process.env.RELAY_OWNER_A_JWT && process.env.RELAY_OWNER_B_JWT
-          ? []
-          : ['**/isolation.spec.ts']),
-      ],
-      use: { ...devices['Desktop Chrome'] },
-    },
+  // The full browser job runs the operative spec on a second D1; skip it
+  // here so Inspect send still has daily start capacity on the shared DB.
+  testIgnore: [
+    ...(process.env.RELAY_E2E_SKIP_OPERATIVE
+      ? ['operative-extension.spec.ts']
+      : []),
+    ...(process.env.RELAY_OWNER_A_JWT && process.env.RELAY_OWNER_B_JWT
+      ? []
+      : ['isolation.spec.ts']),
   ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

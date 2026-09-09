@@ -1,0 +1,29 @@
+export function fillFixtureFields(fields) {
+  for (const field of fields) {
+    const labels = [...document.querySelectorAll('label')];
+    const label = labels.find((node) =>
+      (node.textContent || '').includes(field.label),
+    );
+    let input = label?.querySelector('input, textarea, select');
+    if (!input && label?.getAttribute('for'))
+      input = document.getElementById(label.getAttribute('for'));
+    if (!input) return { ok: false, error: `Missing field ${field.label}` };
+    input.value = field.value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+  return { ok: true };
+}
+
+export function clickFixtureSubmit() {
+  const button = [...document.querySelectorAll('button')].find((node) =>
+    /Submit fictional application/i.test(node.textContent || ''),
+  );
+  if (!button) return { ok: false, error: 'Fixture submit control not found.' };
+  button.click();
+  return { ok: true };
+}
+
+export function readFixtureReceipt() {
+  return document.querySelector('h1')?.textContent?.trim() || null;
+}

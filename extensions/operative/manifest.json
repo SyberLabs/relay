@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Relay first-party operative",
+  "version": "0.1.0",
+  "description": "Prepare, arm, and fill a fictional fixture form after Inspect Accept. Relay APIs stay on the signed-in Relay page.",
+  "permissions": ["scripting"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Relay operative",
+    "default_popup": "popup.html"
+  }
+}

@@ -771,3 +771,161 @@ void test('a verified field is not overwritten by a later proposed answer', asyn
     db.sqlite.close();
   }
 });
+
+void test('a discarded field_key is proposed again without an extra row or a profile-version bump', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: '1 June 2027',
+        })
+      ).status,
+      200,
+    );
+    const proposed = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(
+      (
+        await retireProfileFact(
+          db,
+          'alice',
+          { id: proposed.id, claim: proposed.claim },
+          'retire',
+        )
+      ).status,
+      200,
+    );
+    const retired = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(retired.status, 'Retired');
+    assert.equal(retired.id, proposed.id);
+    const versionAfterRetire = db.sqlite
+      .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
+      .get('alice')?.profile_version;
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'decision-2',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: '1 July 2027',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].id, proposed.id);
+    assert.equal(facts[0].status, 'Proposed');
+    assert.equal(facts[0].claim, startDateClaim('1 July 2027'));
+    assert.equal(facts[0].verified, null);
+    assert.equal(facts[0].expires, null);
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
+        .get('alice')?.profile_version,
+      versionAfterRetire,
+    );
+    assert.equal(
+      JSON.parse(
+        db.sqlite.prepare('SELECT detail FROM events ORDER BY rowid DESC').get()
+          .detail,
+      ).save_profile,
+      true,
+    );
+    assert.equal(
+      (
+        await confirmProfileFact(
+          db,
+          'alice',
+          { id: facts[0].id, claim: facts[0].claim },
+          'confirm',
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      db.sqlite.prepare('SELECT status FROM profile_facts').get().status,
+      'Verified',
+    );
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
+        .get('alice').profile_version,
+      versionAfterRetire + 1,
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('a discarded fact with the same wording can be proposed again', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='do not submit until the start date is confirmed.' WHERE id='job'",
+    );
+    const answer = 'Two weeks from a signed offer.';
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer,
+        })
+      ).status,
+      200,
+    );
+    const proposed = db.sqlite.prepare('SELECT * FROM profile_facts').get();
+    assert.equal(
+      (
+        await retireProfileFact(
+          db,
+          'alice',
+          { id: proposed.id, claim: proposed.claim },
+          'retire',
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'decision-2',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer,
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].id, proposed.id);
+    assert.equal(facts[0].status, 'Proposed');
+    assert.equal(facts[0].claim, startDateClaim(answer));
+    assert.equal(facts[0].verified, null);
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT drafting_direction FROM jobs WHERE id=?')
+        .get('job').drafting_direction,
+      answer,
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});

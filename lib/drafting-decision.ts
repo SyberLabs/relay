@@ -221,10 +221,11 @@ export async function saveDraftingDecision(
       SELECT ?,?,?,?,'detail','Proposed',?,?
       WHERE EXISTS (SELECT 1 FROM events WHERE id=? AND owner=? AND job_id=? AND detail=?)
       AND EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner=? AND version=?)
-      AND NOT EXISTS (SELECT 1 FROM profile_facts WHERE owner=? AND claim=?)
+      AND NOT EXISTS (SELECT 1 FROM profile_facts WHERE owner=? AND claim=? AND status!='Retired')
       ON CONFLICT(owner, field_key) DO UPDATE SET claim=excluded.claim,
-        evidence=excluded.evidence, tag=excluded.tag
-      WHERE profile_facts.status='Proposed'`)
+        evidence=excluded.evidence, tag=excluded.tag, status='Proposed',
+        verified=NULL, expires=NULL
+      WHERE profile_facts.status IN ('Proposed','Retired')`)
         .bind(
           crypto.randomUUID(),
           owner,

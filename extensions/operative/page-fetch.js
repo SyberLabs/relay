@@ -26,15 +26,27 @@ export async function relayPageFetch(path, body) {
       status: 403,
       json: { error: 'Invalid request origin.', code: 'cross_origin' },
     };
+  let payload = null;
+  if (typeof body === 'string' && body) {
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      return {
+        ok: false,
+        status: 400,
+        json: { error: 'Invalid request body.', code: 'invalid_body' },
+      };
+    }
+  } else if (body && typeof body === 'object') payload = body;
   const response = await fetch(url.pathname + url.search, {
-    method: body ? 'POST' : 'GET',
+    method: payload ? 'POST' : 'GET',
     credentials: 'same-origin',
     redirect: 'error',
     cache: 'no-store',
-    ...(body
+    ...(payload
       ? {
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify(payload),
         }
       : {}),
   });

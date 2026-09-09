@@ -66,6 +66,40 @@ void test('Relay page fetch uses same-origin cookies on the page origin', async 
   );
 });
 
+void test('Relay page fetch POSTs a stringified body including null revision', async () => {
+  const requests = [];
+  await withGlobals(
+    {
+      origin: 'http://127.0.0.1:4173',
+      fetch: async (url, init) => {
+        requests.push({ url, init });
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ preparation_revision: 'rev-2' }),
+        };
+      },
+    },
+    async () => {
+      const result = await relayPageFetch(
+        '/api/applications',
+        JSON.stringify({
+          action: 'prepare',
+          preparation_revision: null,
+        }),
+      );
+      assert.equal(result.ok, true);
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].init.method, 'POST');
+      assert.equal(requests[0].init.credentials, 'same-origin');
+      assert.deepEqual(JSON.parse(requests[0].init.body), {
+        action: 'prepare',
+        preparation_revision: null,
+      });
+    },
+  );
+});
+
 void test('Relay page fetch refuses a different URL origin', async () => {
   let called = 0;
   await withGlobals(

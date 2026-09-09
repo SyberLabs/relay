@@ -28,10 +28,15 @@ function reply(status, json) {
 }
 
 function ioFrom(handlers) {
-  const calls = { fetch: [], fills: 0, wait: null };
+  const calls = { fetch: [], fills: 0, wait: null, probes: [] };
   const io = {
     calls,
     pageOrigin: () => handlers.origin ?? 'http://127.0.0.1:4173',
+    async probeFixture(destination) {
+      calls.probes.push(destination);
+      if (handlers.probeFixture) return handlers.probeFixture(destination);
+      return { ok: true };
+    },
     async pageFetch(path, body) {
       calls.fetch.push({ path, body: body ?? null });
       const result = await handlers.pageFetch(path, body ?? null, calls);
@@ -42,11 +47,16 @@ function ioFrom(handlers) {
       if (handlers.wait) return handlers.wait(pin);
       return { ...PIN, ...pin, authorized: true };
     },
-    async fillOnce(fields) {
+    async fillOnce(fields, destination) {
       calls.fills += 1;
       calls.fillFields = fields;
-      if (handlers.fillOnce) return handlers.fillOnce(fields);
-      return { submitted: true, receipt: 'Fictional receipt SEND-174' };
+      calls.fillDestination = destination;
+      if (handlers.fillOnce) return handlers.fillOnce(fields, destination);
+      return {
+        submitted: true,
+        receipt: 'Fictional receipt SEND-174',
+        fills: 1,
+      };
     },
   };
   return io;
@@ -79,7 +89,11 @@ function successFetch(path, body) {
         state: 'executing',
       },
     });
-  if (body?.action === 'complete' || body?.action === 'uncertain')
+  if (
+    body?.action === 'complete' ||
+    body?.action === 'uncertain' ||
+    body?.action === 'not-submitted'
+  )
     return reply(200, { ok: true });
   throw new Error(`unexpected fetch ${path} ${JSON.stringify(body)}`);
 }
@@ -152,6 +166,28 @@ void test('other-owner inspect 404 does not prepare or fill', async () => {
   assert.equal(io.calls.fills, 0);
 });
 
+void test('wrong-host fixture never starts prepare or fill', async () => {
+  const io = ioFrom({
+    probeFixture() {
+      return {
+        ok: false,
+        code: 'wrong_host',
+        error: 'Fixture tab URL does not match the armed destination.',
+      };
+    },
+    pageFetch() {
+      throw new Error('must not call Relay before a fixture probe');
+    },
+  });
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, false);
+  assert.equal(result.submitted, false);
+  assert.equal(result.fills, 0);
+  assert.equal(result.code, 'wrong_host');
+  assert.equal(io.calls.fetch.length, 0);
+  assert.equal(io.calls.fills, 0);
+});
+
 void test('unknown fields refuse before prepare and do not fill', async () => {
   const io = ioFrom({
     pageFetch() {
@@ -167,6 +203,27 @@ void test('unknown fields refuse before prepare and do not fill', async () => {
   assert.equal(result.fills, 0);
   assert.equal(result.code, 'incomplete_fields');
   assert.equal(io.calls.fetch.length, 0);
+});
+
+void test('disconnect after authorize does not begin or fill', async () => {
+  const controller = new AbortController();
+  const io = ioFrom({
+    pageFetch: successFetch,
+    wait() {
+      controller.abort();
+      return { ...PIN, authorized: true };
+    },
+  });
+  io.signal = controller.signal;
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, false);
+  assert.equal(result.submitted, false);
+  assert.equal(result.fills, 0);
+  assert.equal(result.code, 'wait_aborted');
+  assert.equal(
+    io.calls.fetch.some((row) => row.body?.action === 'begin'),
+    false,
+  );
 });
 
 void test('wait abort after arm does not begin or fill', async () => {
@@ -224,12 +281,63 @@ void test('second begin while executing does not fill', async () => {
   assert.equal(result.code, 'executing');
 });
 
+void test('missing inspect preparation_revision prepares with null', async () => {
+  const io = ioFrom({
+    pageFetch(path, body) {
+      if (path === '/api/workspace' && !body)
+        return reply(200, { viewer: 'owner-1' });
+      if (path.startsWith('/api/applications?job=') && !body)
+        return reply(200, { viewer: 'owner-1', job_id: JOB });
+      if (body?.action === 'prepare') {
+        assert.equal(body.preparation_revision, null);
+        return reply(200, { preparation_revision: 'rev-2' });
+      }
+      return successFetch(path, body);
+    },
+  });
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, true);
+  assert.equal(result.submitted, true);
+});
+
+void test('wrong-host after begin records not-submitted and does not write', async () => {
+  const io = ioFrom({
+    pageFetch: successFetch,
+    fillOnce() {
+      return {
+        submitted: false,
+        fills: 0,
+        code: 'wrong_host',
+        note: 'Fixture tab URL does not match the armed destination.',
+      };
+    },
+  });
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, false);
+  assert.equal(result.submitted, false);
+  assert.equal(result.fills, 0);
+  assert.equal(result.code, 'wrong_host');
+  assert.equal(
+    io.calls.fetch.some((row) => row.body?.action === 'complete'),
+    false,
+  );
+  const closed = io.calls.fetch.find(
+    (row) => row.body?.action === 'not-submitted',
+  );
+  assert.match(closed.body.receipt, /does not match/);
+});
+
 void test('execute:true fills frozen fields once and completes with the receipt', async () => {
   const io = ioFrom({
     pageFetch: successFetch,
-    fillOnce(fields) {
+    fillOnce(fields, destination) {
       assert.deepEqual(fields, MANIFEST.fields);
-      return { submitted: true, receipt: 'Fictional receipt SEND-174' };
+      assert.equal(destination, DESTINATION);
+      return {
+        submitted: true,
+        receipt: 'Fictional receipt SEND-174',
+        fills: 1,
+      };
     },
   });
   const result = await runFixtureSend(io, {
@@ -259,6 +367,7 @@ void test('fixture no-op records uncertain and does not fill again', async () =>
       return {
         submitted: false,
         receipt: null,
+        fills: 1,
         note: 'Fixture submit no-op; no confirmation heading. Do not submit again.',
       };
     },

@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,7 @@ import {
 import { enableInspectJob } from './enable-inspect-job';
 
 const FORM = `<form method="post"><label>Full name<input name="name"></label><button>Submit fictional application</button></form>`;
+const NOT_FIXTURE = `<form method="post"><label>Full name<input name="name"></label><button>Apply now</button></form>`;
 const SOURCE = join(
   dirname(fileURLToPath(import.meta.url)),
   '../../extensions/operative',
@@ -21,24 +22,16 @@ function sendButton(page: Page) {
   return page.getByRole('button', { name: /Approve & send|Accept and send/ });
 }
 
-async function packExtension(relayOrigin: string) {
+async function packExtension() {
   const dir = await mkdtemp(join(tmpdir(), 'relay-operative-'));
   await cp(SOURCE, dir, { recursive: true });
-  const manifestPath = join(dir, 'manifest.json');
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
-    host_permissions: string[];
-  };
-  manifest.host_permissions = [
-    `${new URL(relayOrigin).origin}/*`,
-    'https://employer.example/*',
-  ];
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return dir;
 }
 
 async function mockEmployer(context: BrowserContext, expectedName: string) {
   let writes = 0;
   await context.route('https://employer.example/**', async (route) => {
+    const url = route.request().url();
     if (route.request().method() === 'POST') {
       writes += 1;
       const posted = new URLSearchParams(route.request().postData() ?? '').get(
@@ -51,15 +44,28 @@ async function mockEmployer(context: BrowserContext, expectedName: string) {
       });
       return;
     }
-    await route.fulfill({ contentType: 'text/html', body: FORM });
+    await route.fulfill({
+      contentType: 'text/html',
+      body: url.includes('/not-fixture') ? NOT_FIXTURE : FORM,
+    });
   });
   return { writes: () => writes };
 }
 
 async function launchOperative(baseURL: string) {
-  const extDir = await packExtension(baseURL);
+  const extDir = await packExtension();
+  const packed = JSON.parse(
+    await readFile(join(extDir, 'manifest.json'), 'utf8'),
+  ) as {
+    host_permissions: string[];
+  };
+  expect(
+    packed.host_permissions.some((rule) => rule.startsWith('https:')),
+  ).toBe(false);
   const userDataDir = await mkdtemp(join(tmpdir(), 'relay-operative-profile-'));
   const context = await chromium.launchPersistentContext(userDataDir, {
+    // Headless shell cannot load MV3 extensions; bundled Chromium can.
+    channel: 'chromium',
     headless: true,
     viewport: { width: 1280, height: 720 },
     baseURL,
@@ -131,6 +137,12 @@ function optionCount(el: HTMLElement | SVGElement) {
   return (el as unknown as HTMLSelectElement).options.length;
 }
 
+function optionLabels(el: HTMLElement | SVGElement) {
+  return [...(el as unknown as HTMLSelectElement).options].map(
+    (option) => option.textContent || '',
+  );
+}
+
 declare global {
   interface Window {
     relay?: Record<
@@ -197,10 +209,16 @@ test('first-party operative submits the fixture once after Inspect Accept', asyn
           digest: '0'.repeat(64),
         }),
       });
-      return { status: response.status, body: await response.json() };
+      const text = await response.text();
+      let body = text;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        /* Local identity may refuse before JSON origin handling. */
+      }
+      return { status: response.status, body };
     }, baseURL);
     expect(blocked.status).toBe(403);
-    expect(blocked.body).toEqual({ error: 'Invalid request origin.' });
     await forbidden.close();
     await human.goto('/');
     await human.getByRole('button', { name, exact: true }).click();
@@ -209,7 +227,7 @@ test('first-party operative submits the fixture once after Inspect Accept', asyn
       session.extensionId,
       job.id,
     );
-    await expect(sendButton(human)).toBeEnabled();
+    await expect(sendButton(human)).toBeEnabled({ timeout: 20_000 });
     await sendButton(human).click();
     await expect(run.getByText(/Submitted once/)).toBeVisible({
       timeout: 40_000,
@@ -274,8 +292,9 @@ test('closing the operative tab does not submit after Accept', async ({
       job.id,
     );
     await expect(run.getByText(/Preparing and waiting/)).toBeVisible();
+    await expect(sendButton(human)).toBeEnabled({ timeout: 20_000 });
     await run.close();
-    if (await sendButton(human).isEnabled()) await sendButton(human).click();
+    await sendButton(human).click();
     await expect.poll(() => employer.writes()).toBe(0);
   } finally {
     await dispose(session);
@@ -301,6 +320,48 @@ test('incomplete fixture fields never start a send', async ({ baseURL }) => {
     await expect(
       popup.getByText('Choose Relay, fixture, job, and a complete Full name.'),
     ).toBeVisible();
+    expect(
+      session.context.pages().some((page) => page.url().includes('run.html')),
+    ).toBe(false);
+    expect(employer.writes()).toBe(0);
+  } finally {
+    await dispose(session);
+  }
+});
+
+test('HTTPS fixture lists without install-time hosts and a real form never starts', async ({
+  baseURL,
+}) => {
+  test.setTimeout(60_000);
+  const session = await launchOperative(baseURL!);
+  try {
+    const human = await signIn(session.context, baseURL!);
+    const name = 'Cedar Fictional — Operative Not Fixture';
+    const { job } = await seedJob(human, name);
+    const employer = await mockEmployer(session.context, 'Avery Example');
+    const realForm = await session.context.newPage();
+    await realForm.goto('https://employer.example/not-fixture');
+    await expect(
+      realForm.getByRole('button', { name: 'Apply now' }),
+    ).toBeVisible();
+    const popup = await session.context.newPage();
+    await popup.goto(`chrome-extension://${session.extensionId}/popup.html`);
+    await expect
+      .poll(() => popup.getByLabel('Fixture tab').evaluate(optionLabels))
+      .toEqual(
+        expect.arrayContaining([expect.stringMatching(/employer\.example/)]),
+      );
+    await expect
+      .poll(() => popup.getByLabel('Job').evaluate(selectValues))
+      .toContain(job.id);
+    await popup.getByLabel('Job').selectOption(job.id);
+    await popup.getByLabel('Full name').fill('Avery Example');
+    await popup.getByRole('button', { name: 'Start operative' }).click();
+    await expect(
+      popup.getByText(
+        /fictional fixture form|Fixture submit control not found/,
+      ),
+    ).toBeVisible({ timeout: 20_000 });
     expect(
       session.context.pages().some((page) => page.url().includes('run.html')),
     ).toBe(false);

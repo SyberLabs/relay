@@ -16,22 +16,28 @@ extension.
    choose this directory (`extensions/operative`).
 3. Open the fictional fixture form in another tab. Click the extension action.
 4. Choose the signed-in Relay tab, the fixture tab, the job, and a complete
-   Full name. **Start operative** opens a run tab. Keep that tab open.
+   Full name. **Start operative** requests host permission for any HTTPS Relay
+   or fixture origin that was not granted at install, probes for **Submit
+   fictional application**, then opens a run tab. Keep that tab open.
 5. In the signed-in workspace, **Accept and send** while the payload is armed.
    The operative begins once, clicks **Submit fictional application** once, and
    records the observed receipt. Closing the run tab aborts wait and does not
    submit.
 
 Local development origins (`http://127.0.0.1`, `http://localhost`) are granted
-at install. A deployed HTTPS Relay origin and the fixture origin are requested
-when you start. The service worker is a mailbox: it does not `fetch` Relay APIs
-and does not use `chrome.cookies`. Those calls run in the signed-in Relay page
-with `credentials: 'same-origin'`. A `chrome-extension://` mutation is 403.
+at install. `tabs` lists HTTPS Relay and fixture tabs; `activeTab` covers the
+tab that opened the action. Deployed HTTPS Relay and fixture origins are
+requested on Start (user gesture, before any `await`). The service worker is a
+mailbox: it does not `fetch` Relay APIs and does not use `chrome.cookies`.
+Those calls run in the signed-in Relay page with `credentials: 'same-origin'`.
+A `chrome-extension://` mutation is 403.
 
 ## Limits
 
-- Fixture fill looks for labeled fields and the **Submit fictional application**
-  control. It does not scrape Greenhouse, Lever, or other employer origins.
+- Isolated fill inspects the tab URL against the armed destination and the
+  **Submit fictional application** control **before** writing any field. A
+  Greenhouse, Lever, or other real form is not a fixture; the operative does
+  not start.
 - One execute permit; never retry `executing`; a no-op submit is `uncertain`.
 - Overlay `/apply` still has no Accept. Policy authorization is not draft
   acceptance. #111 revocable agent credentials are unchanged.

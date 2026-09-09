@@ -1,6 +1,6 @@
 # Applications coordinated by Relay
 
-Owner: Seth. Implementation: #112, #128, #135, #174; authenticated assistant verification: #111.
+Owner: Seth. Implementation: #112, #128, #135, #174, #177; authenticated assistant verification: #111.
 
 For same-tab requests and interruption rules without WebMCP or file
 transfer, use the [direct browser handoff](../integrations/BROWSER-API.md) (#144).

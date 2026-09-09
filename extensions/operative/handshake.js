@@ -52,6 +52,15 @@ export async function runFixtureSend(io, input) {
   const missing = incompleteFields(input.fields);
   if (missing) return missing;
 
+  const probe = await io.probeFixture(input.destination);
+  if (!probe?.ok)
+    return fail({
+      code: probe?.code || 'not_fixture',
+      error:
+        probe?.error ||
+        'This tab is not the fictional fixture form. The operative did not start.',
+    });
+
   const workspace = await io.pageFetch('/api/workspace');
   if (workspace.status === 401 || typeof workspace.json?.viewer !== 'string')
     return fail({
@@ -83,12 +92,16 @@ export async function runFixtureSend(io, input) {
       status: inspect.status,
       error: inspect.json?.error || 'Inspect was refused.',
     });
+  const preparationRevision =
+    inspect.json.preparation_revision === undefined
+      ? null
+      : inspect.json.preparation_revision;
 
   const prepared = await io.pageFetch('/api/applications', {
     action: 'prepare',
     viewer,
     job,
-    preparation_revision: inspect.json.preparation_revision,
+    preparation_revision: preparationRevision,
     actor,
     destination: input.destination,
     fields: input.fields,
@@ -167,8 +180,52 @@ export async function runFixtureSend(io, input) {
       error: begun.json?.error || 'Execute permit was not granted.',
     });
 
-  const manifest = JSON.parse(begun.json.operation.manifest);
-  const filled = await io.fillOnce(manifest.fields);
+  const manifest = begun.json.operation?.manifest;
+  let parsed;
+  try {
+    parsed = JSON.parse(manifest);
+  } catch {
+    parsed = null;
+  }
+  if (
+    !parsed ||
+    typeof parsed.destination !== 'string' ||
+    !Array.isArray(parsed.fields)
+  ) {
+    await io.pageFetch('/api/applications', {
+      action: 'not-submitted',
+      viewer: authorized.viewer || viewer,
+      id: authorized.id,
+      digest: authorized.digest,
+      receipt: 'Begin returned an unreadable manifest. Do not submit.',
+    });
+    return fail({
+      code: 'bad_manifest',
+      error: 'Begin returned an unreadable manifest. Do not submit.',
+    });
+  }
+  const filled = await io.fillOnce(parsed.fields, parsed.destination);
+  if (
+    filled.fills === 0 ||
+    filled.code === 'wrong_host' ||
+    filled.code === 'not_fixture'
+  ) {
+    const note =
+      filled.note ||
+      filled.error ||
+      'Fixture tab was not the fictional form. Do not submit.';
+    await io.pageFetch('/api/applications', {
+      action: 'not-submitted',
+      viewer: authorized.viewer || viewer,
+      id: authorized.id,
+      digest: authorized.digest,
+      receipt: note,
+    });
+    return fail({
+      code: filled.code || 'not_fixture',
+      error: note,
+    });
+  }
   if (filled.submitted && filled.receipt) {
     await io.pageFetch('/api/applications', {
       action: 'complete',

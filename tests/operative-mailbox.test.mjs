@@ -36,13 +36,31 @@ void test('MV3 manifest is a mailbox with scripting, not cookies', () => {
   const manifest = JSON.parse(source('manifest.json'));
   assert.equal(manifest.manifest_version, 3);
   assert.equal(manifest.permissions.includes('scripting'), true);
+  assert.equal(manifest.permissions.includes('tabs'), true);
+  assert.equal(manifest.permissions.includes('activeTab'), true);
   assert.equal(manifest.permissions.includes('cookies'), false);
   assert.equal(manifest.permissions.includes('debugger'), false);
+  assert.equal(
+    manifest.permissions.every((name) =>
+      ['activeTab', 'scripting', 'tabs'].includes(name),
+    ),
+    true,
+  );
   assert.equal(manifest.host_permissions?.includes('<all_urls>'), false);
+  assert.equal(manifest.host_permissions?.some((rule) => rule.startsWith('https:')), false);
+  assert.deepEqual(manifest.optional_host_permissions, ['https://*/*']);
   assert.equal(manifest.externally_connectable, undefined);
   assert.equal(manifest.background?.service_worker, 'background.js');
   const packed = JSON.stringify(manifest);
   assert.equal(/chrome-extension/.test(packed), false);
+});
+
+void test('background inspects the fixture control before writing fields', () => {
+  const text = source('background.js');
+  const fn = text.slice(text.indexOf('async function fillFixtureTab'));
+  const inspectAt = fn.indexOf('inspectOnTab');
+  const fillAt = fn.indexOf('fillFixtureFields');
+  assert.ok(inspectAt >= 0 && fillAt > inspectAt);
 });
 
 void test('extension directory stays first-party and fictional-fixture scoped', () => {

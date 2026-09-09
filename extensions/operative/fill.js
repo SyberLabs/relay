@@ -1,5 +1,30 @@
+export function inspectFixtureTab(destination) {
+  const url = location.href.split('#')[0];
+  if (
+    typeof destination !== 'string' ||
+    destination.length === 0 ||
+    url !== destination
+  )
+    return {
+      ok: false,
+      code: 'wrong_host',
+      error: 'Fixture tab URL does not match the armed destination.',
+    };
+  const button = [...document.querySelectorAll('button')].find((node) =>
+    /Submit fictional application/i.test(node.textContent || ''),
+  );
+  if (!button)
+    return {
+      ok: false,
+      code: 'not_fixture',
+      error: 'Fixture submit control not found.',
+    };
+  return { ok: true };
+}
+
 export function fillFixtureFields(fields) {
-  for (const field of fields) {
+  const list = typeof fields === 'string' ? JSON.parse(fields) : fields;
+  for (const field of list) {
     const labels = [...document.querySelectorAll('label')];
     const label = labels.find((node) =>
       (node.textContent || '').includes(field.label),

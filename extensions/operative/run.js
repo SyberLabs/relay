@@ -19,7 +19,7 @@ async function pageFetch(path, body) {
     target: { tabId: relayTabId },
     world: 'MAIN',
     func: relayPageFetch,
-    args: [path, body ?? null],
+    args: [path, body ? JSON.stringify(body) : null],
   });
   if (!injection?.result)
     return {
@@ -34,7 +34,8 @@ async function wait(pin) {
   const [injection] = await chrome.scripting.executeScript({
     target: { tabId: relayTabId },
     world: 'MAIN',
-    func: async (next) => {
+    func: async (raw) => {
+      const next = JSON.parse(raw);
       const deadline = Date.now() + 15_000;
       while (typeof window.relay?.relay_wait_for_application !== 'function') {
         if (Date.now() > deadline)
@@ -48,16 +49,25 @@ async function wait(pin) {
       }
       return window.relay.relay_wait_for_application(next);
     },
-    args: [pin],
+    args: [JSON.stringify(pin)],
   });
   return injection.result;
 }
 
-async function fillOnce(fields) {
+async function probeFixture(destination) {
+  return chrome.runtime.sendMessage({
+    type: 'probe-fixture',
+    tabId: fixtureTabId,
+    destination,
+  });
+}
+
+async function fillOnce(fields, destination) {
   return chrome.runtime.sendMessage({
     type: 'fill-fixture',
     tabId: fixtureTabId,
     fields,
+    destination,
   });
 }
 
@@ -85,6 +95,7 @@ if (!relayTabId || !fixtureTabId || !params.get('job')) {
     {
       pageOrigin,
       pageFetch,
+      probeFixture,
       wait,
       fillOnce,
       signal: controller.signal,

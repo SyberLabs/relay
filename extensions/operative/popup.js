@@ -1,4 +1,6 @@
 /* global chrome */
+import { isFixtureUrl, isRelayUrl, optionalOriginPatterns } from './tabs.js';
+
 const message = document.getElementById('message');
 const relaySelect = document.getElementById('relay-tab');
 const fixtureSelect = document.getElementById('fixture-tab');
@@ -6,32 +8,16 @@ const jobSelect = document.getElementById('job');
 const nameInput = document.getElementById('full-name');
 const start = document.getElementById('start');
 
-function option(value, label) {
+function option(value, label, url) {
   const node = document.createElement('option');
   node.value = String(value);
   node.textContent = label;
+  node.dataset.url = url;
   return node;
 }
 
-function hostname(url) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
-}
-
-function isRelayUrl(url) {
-  const host = hostname(url);
-  return (
-    host === '127.0.0.1' ||
-    host === 'localhost' ||
-    host.endsWith('.workers.dev')
-  );
-}
-
-function isFixtureUrl(url) {
-  return Boolean(url) && !url.startsWith('chrome') && !isRelayUrl(url);
+function selectedUrl(select) {
+  return select.selectedOptions[0]?.dataset.url || '';
 }
 
 async function loadTabs() {
@@ -41,9 +27,9 @@ async function loadTabs() {
   for (const tab of all) {
     if (!tab.id || !tab.url) continue;
     if (isRelayUrl(tab.url))
-      relaySelect.append(option(tab.id, tab.title || tab.url));
+      relaySelect.append(option(tab.id, tab.title || tab.url, tab.url));
     if (isFixtureUrl(tab.url))
-      fixtureSelect.append(option(tab.id, tab.title || tab.url));
+      fixtureSelect.append(option(tab.id, tab.title || tab.url, tab.url));
   }
   if (!relaySelect.options.length)
     message.textContent = 'Open a signed-in Relay tab first.';
@@ -64,53 +50,85 @@ async function loadJobs() {
     return;
   }
   for (const job of result.json.jobs || [])
-    jobSelect.append(option(job.id, job.name || job.id));
+    jobSelect.append(option(job.id, job.name || job.id, ''));
   message.textContent = jobSelect.options.length
     ? 'Choose the fixture tab and start. Keep the operative tab open.'
     : 'No jobs in this Relay workspace.';
 }
 
-async function ensureFixturePermission(tabId) {
-  const tab = await chrome.tabs.get(tabId);
-  if (!tab.url) return false;
-  const origin = new URL(tab.url).origin;
-  if (
-    origin.startsWith('http://127.0.0.1') ||
-    origin.startsWith('http://localhost')
-  )
-    return true;
-  const pattern = `${origin}/*`;
-  if (await chrome.permissions.contains({ origins: [pattern] })) return true;
-  return chrome.permissions.request({ origins: [pattern] });
-}
-
-start.addEventListener('click', async () => {
-  const relayTabId = Number(relaySelect.value);
-  const fixtureTabId = Number(fixtureSelect.value);
-  const job = jobSelect.value;
-  const value = nameInput.value.trim();
-  if (!relayTabId || !fixtureTabId || !job || !value) {
+async function startRun(relayTabId, fixtureTabId, job, value, fixtureUrl) {
+  const destination = fixtureUrl.split('#')[0];
+  const probe = await chrome.runtime.sendMessage({
+    type: 'probe-fixture',
+    tabId: fixtureTabId,
+    destination,
+  });
+  if (!probe?.ok) {
     message.textContent =
-      'Choose Relay, fixture, job, and a complete Full name.';
+      probe?.error ||
+      'This tab is not the fictional fixture form. The operative did not start.';
     return;
   }
-  if (!(await ensureFixturePermission(fixtureTabId))) {
-    message.textContent =
-      'The operative needs permission for this fixture tab.';
-    return;
-  }
-  const fixture = await chrome.tabs.get(fixtureTabId);
   const url = new URL(chrome.runtime.getURL('run.html'));
   url.searchParams.set('relayTabId', String(relayTabId));
   url.searchParams.set('fixtureTabId', String(fixtureTabId));
   url.searchParams.set('job', job);
-  url.searchParams.set('destination', fixture.url.split('#')[0]);
+  url.searchParams.set('destination', destination);
   url.searchParams.set(
     'fields',
     JSON.stringify([{ label: 'Full name', value, unknown: false }]),
   );
   await chrome.tabs.create({ url: url.href });
+}
+
+start.addEventListener('click', () => {
+  const relayTabId = Number(relaySelect.value);
+  const fixtureTabId = Number(fixtureSelect.value);
+  const job = jobSelect.value;
+  const value = nameInput.value.trim();
+  const relayUrl = selectedUrl(relaySelect);
+  const fixtureUrl = selectedUrl(fixtureSelect);
+  if (
+    !relayTabId ||
+    !fixtureTabId ||
+    !job ||
+    !value ||
+    !relayUrl ||
+    !fixtureUrl
+  ) {
+    message.textContent =
+      'Choose Relay, fixture, job, and a complete Full name.';
+    return;
+  }
+  const origins = optionalOriginPatterns([relayUrl, fixtureUrl]);
+  const afterGrant = (granted) => {
+    if (origins.length && !granted) {
+      message.textContent =
+        'The operative needs permission for the Relay and fixture tabs.';
+      return;
+    }
+    void startRun(relayTabId, fixtureTabId, job, value, fixtureUrl);
+  };
+  if (origins.length === 0) afterGrant(true);
+  else
+    chrome.permissions
+      .request({ origins })
+      .then(afterGrant, () => afterGrant(false));
 });
 
-relaySelect.addEventListener('change', () => void loadJobs());
+relaySelect.addEventListener('change', () => {
+  const relayUrl = selectedUrl(relaySelect);
+  const origins = optionalOriginPatterns([relayUrl]);
+  const load = () => void loadJobs();
+  if (origins.length === 0) load();
+  else
+    chrome.permissions.request({ origins }).then((granted) => {
+      if (!granted) {
+        message.textContent =
+          'The operative needs permission for this Relay tab.';
+        return;
+      }
+      load();
+    }, load);
+});
 void loadTabs().then(loadJobs);

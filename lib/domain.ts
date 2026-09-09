@@ -99,7 +99,10 @@ export function importedBlocker(n: string | null) {
     .trim();
   if (!holdNotes) return '';
   const hold =
-    /(?:^|[\r\n]|[.!?:]\s+)\s*do not (?:submit|apply|double-submit|retry|resubmit)(?:\s+(?:until|before)\b|[.!](?:\s|$)|\s*$)/i.test(
+    /(?:^|[\r\n]|[.!?:]\s+)\s*do not (?:submit|apply)(?:\s+(?:until|before)\b|[.!](?:\s|$)|\s*$)/i.test(
+      holdNotes,
+    ) ||
+    /(?:^|[\r\n]|[.!?:]\s+)\s*do not (?:double-submit|retry|resubmit)\b/i.test(
       holdNotes,
     ) ||
     /clicked, never confirmed/i.test(holdNotes) ||

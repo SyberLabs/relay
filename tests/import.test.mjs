@@ -424,6 +424,41 @@ void test('research notes stay in source history and do not disable exact accept
     db.close();
   }
 });
+void test('retry and resubmit holds with an explanation reject Ready acceptance', () => {
+  const db = open();
+  try {
+    for (const note of [
+      'Do not retry this application.',
+      'Do not resubmit because the first attempt may have succeeded.',
+      'Do not double-submit this job.',
+    ]) {
+      const owner = 'retry-hold-' + note;
+      const job = 'https://example.com/jobs/retry-hold';
+      importRow(db, owner, source('Held', job, note));
+      const row = jobOf(db, owner, job);
+      assert.match(row.blocker, /restriction recorded/);
+      assert.equal(observationsOf(db, owner)[0].notes, note);
+      db.prepare('UPDATE jobs SET draft=?,version=? WHERE owner=?').run(
+        'Exact wording',
+        row.version,
+        owner,
+      );
+      const saved = jobOf(db, owner, job);
+      assert.throws(
+        () =>
+          validateEdit(saved, {
+            version: saved.version,
+            status: 'Ready',
+            draft: 'Exact wording',
+            blocker: saved.blocker,
+          }),
+        /resolve its blocker/,
+      );
+    }
+  } finally {
+    db.close();
+  }
+});
 void test('import that writes a posting field still advances version', () => {
   const db = open();
   const owner = 'company-bump';

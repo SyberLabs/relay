@@ -60,7 +60,11 @@ const early = await call('/api/drafts', {
 assert.equal(early.status, 400);
 assert.match(early.data.error, /not verified or has expired/);
 
-await call('/api/profile', { action: 'verify', id: teamFact.id });
+await call('/api/profile', {
+  action: 'verify',
+  id: teamFact.id,
+  claim: teamFact.claim,
+});
 const afterVerify = (await call('/api/profile')).data;
 assert.equal(afterVerify.usable, 1);
 assert.ok(
@@ -184,7 +188,11 @@ assert.equal(employerYear.status, 400, JSON.stringify(employerYear.data));
 assert.match(employerYear.data.error, /Unsupported claim/);
 
 // Retiring the cited fact must not silently leave graduated autonomy running.
-await call('/api/profile', { action: 'retire', id: teamFact.id });
+await call('/api/profile', {
+  action: 'retire',
+  id: teamFact.id,
+  claim: teamFact.claim,
+});
 const blocked = await call('/api/drafts', {
   action: 'log',
   job_id: job.id,

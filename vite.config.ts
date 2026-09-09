@@ -51,15 +51,26 @@ export default defineConfig(async () => {
 
   return {
     // CI starts Vinext with an ephemeral --port. Never pin 3000 when RELAY_CI_STATE is set.
+    // Integration suites write ignored private-data files; watching those
+    // restarts the worker and closes in-flight fetches (`UND_ERR_SOCKET`).
     server: process.env.RELAY_CI_STATE
-      ? { strictPort: true }
+      ? { strictPort: true, watch: null }
       : {
           host: 'localhost',
           port: DEV_PORT,
           strictPort: true,
-          ...(isCodexSeatbeltSandbox
-            ? { watch: { useFsEvents: false, usePolling: true } }
-            : {}),
+          watch: {
+            ignored: [
+              '**/private-data/**',
+              '**/.wrangler/**',
+              '**/outputs/**',
+              '**/test-results/**',
+              '**/playwright-report/**',
+            ],
+            ...(isCodexSeatbeltSandbox
+              ? { useFsEvents: false, usePolling: true }
+              : {}),
+          },
         },
     preview: process.env.RELAY_CI_STATE
       ? undefined

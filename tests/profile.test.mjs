@@ -17,6 +17,9 @@ import {
   validateDraftLog,
   validateFact,
   validateRule,
+  factFieldKey,
+  factClaimFromAnswer,
+  PROFILE_FACT_CLAIM_MAX,
 } from '../lib/profile.ts';
 import { parseResume } from '../lib/resume.ts';
 const NOW = '2026-09-05T00:00:00.000Z';
@@ -349,6 +352,100 @@ void test('the brief exposes only usable facts and applicable rules', () => {
   );
   assert.deepEqual(brief.style, ['Global rule', 'Backend rule']);
   assert.equal(brief.profile_version, 7);
+});
+
+void test('form questions map to a bounded field_key without using the raw answer', () => {
+  assert.equal(
+    factFieldKey('do not submit until the start date is confirmed.'),
+    'earliest_start',
+  );
+  assert.equal(
+    factFieldKey(
+      'Are you authorized to work in the United States without sponsorship?',
+    ),
+    'work_authorization.us',
+  );
+  assert.equal(
+    factFieldKey('Desired pay or compensation range?'),
+    'desired_pay',
+  );
+  assert.equal(factFieldKey('Are you willing to relocate?'), 'relocation');
+  assert.equal(
+    factFieldKey('Do you hold an active security clearance?'),
+    'security_clearance',
+  );
+  const fallback = factFieldKey(
+    'Required personal answer; keep submission on hold',
+  );
+  assert.match(fallback, /^question\.[a-z0-9_]{1,80}$/);
+  assert.notEqual(
+    fallback,
+    'Required personal answer; keep submission on hold',
+  );
+  assert.ok(fallback.length <= 128);
+});
+
+void test('authorization, sponsorship, and jurisdictions keep distinct field keys', () => {
+  const us = factFieldKey('Are you authorized to work in the United States?');
+  const sponsorship = factFieldKey('Do you require visa sponsorship?');
+  const canada = factFieldKey('Are you authorized to work in Canada?');
+  const unspecified = factFieldKey('Are you authorized to work?');
+  assert.equal(us, 'work_authorization.us');
+  assert.equal(sponsorship, 'visa_sponsorship');
+  assert.equal(canada, 'work_authorization.ca');
+  assert.equal(
+    factFieldKey(
+      'Do you require visa sponsorship for work in the United States?',
+    ),
+    'visa_sponsorship.us',
+  );
+  assert.match(unspecified, /^question\./);
+  assert.notEqual(unspecified, 'work_authorization');
+  assert.notEqual(us, sponsorship);
+  assert.notEqual(us, canada);
+  assert.notEqual(sponsorship, canada);
+});
+
+void test('a short yes-no answer keeps the question in the reusable claim', () => {
+  assert.equal(PROFILE_FACT_CLAIM_MAX, 500);
+  assert.equal(
+    factClaimFromAnswer(
+      'Are you authorized to work in the United States?',
+      'Yes',
+    ),
+    'Are you authorized to work in the United States?: Yes',
+  );
+  const question = 'Q'.repeat(120);
+  const answer = 'A'.repeat(400);
+  assert.ok(`${question}: ${answer}`.length > PROFILE_FACT_CLAIM_MAX);
+  assert.equal(factClaimFromAnswer(question, answer), answer);
+});
+
+void test('the brief exposes field_key on usable facts only', () => {
+  const brief = profileBrief(
+    [
+      fact('f1', 'Verified start', {
+        field_key: 'earliest_start',
+      }),
+      fact('f2', 'Proposed start', {
+        status: 'Proposed',
+        field_key: 'earliest_start',
+      }),
+    ],
+    [],
+    'backend',
+    NOW,
+    7,
+  );
+  assert.deepEqual(brief.facts, [
+    {
+      id: 'f1',
+      claim: 'Verified start',
+      evidence: '',
+      tag: 'detail',
+      field_key: 'earliest_start',
+    },
+  ]);
 });
 
 void test('fact and rule input is bounded', () => {

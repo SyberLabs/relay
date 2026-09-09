@@ -134,6 +134,7 @@ export default function Workspace() {
   const historyDialogRef = useRef<HTMLDialogElement>(null);
   const [autopilot, setAutopilot] = useState(false);
   const [policy, setPolicy] = useState<ApplicationPolicy | null>(null);
+  const [saveProfile, setSaveProfile] = useState(true);
   const [styleCount, setStyleCount] = useState(0);
   const sessionRef = useRef(createWorkspaceSession());
   const policyRef = useRef<ApplicationPolicy | null>(null);
@@ -653,6 +654,7 @@ export default function Workspace() {
     choice: 'delegate' | 'answer' | 'reset',
     remember: boolean,
     answer: string,
+    saveProfileFact = false,
   ) {
     if (
       busy ||
@@ -673,6 +675,11 @@ export default function Workspace() {
       choice,
       remember,
       answer,
+      ...(choice === 'answer'
+        ? {
+            save_profile: saveProfileFact && answer.trim().length <= 500,
+          }
+        : {}),
     };
     const key = JSON.stringify(body);
     if (decisionAttempt.current?.key !== key)
@@ -1714,15 +1721,19 @@ export default function Workspace() {
             save('Skip');
           }}
           onBlockedSubmit={() => {
-            void saveDecision('answer', false, editor?.progressNote ?? '').then(
-              (ok) => {
-                if (ok) setModal(null);
-              },
-            );
+            void saveDecision(
+              'answer',
+              false,
+              editor?.progressNote ?? '',
+              saveProfile,
+            ).then((ok) => {
+              if (ok) setModal(null);
+            });
           }}
           onClose={() => setModal(null)}
           onEdit={() => setModal(null)}
           onNavigate={confirmLeave}
+          onSaveProfile={setSaveProfile}
           onSaveLimits={async (input) => {
             const started = { epoch: sessionRef.current.gate.epoch };
             const ok = await saveLimits(input);
@@ -1736,6 +1747,7 @@ export default function Workspace() {
           }}
           onUnauthorized={applyExpired}
           policy={policy}
+          saveProfile={saveProfile}
           sessionRef={sessionRef}
           sources={sources.filter((s) => s.job_key === current?.job_key)}
           toolStatus={toolStatus}

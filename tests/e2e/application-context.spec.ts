@@ -64,10 +64,15 @@ for (const width of [1280, 390]) {
     const expired = profile.facts.find((f: { claim: string }) =>
       f.claim.startsWith(`Expired context-${width}`),
     );
-    await call('/api/profile', { action: 'verify', id: confirmed.id });
+    await call('/api/profile', {
+      action: 'verify',
+      id: confirmed.id,
+      claim: confirmed.claim,
+    });
     await call('/api/profile', {
       action: 'verify',
       id: expired.id,
+      claim: expired.claim,
       expires: '2000-01-01T00:00:00.000Z',
     });
     await page.reload();

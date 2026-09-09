@@ -155,6 +155,8 @@ export function RuntimeModals({
   onBlockedAnswer,
   onBlockedSubmit,
   onBlockedDrop,
+  saveProfile,
+  onSaveProfile,
   toolStatus,
   policy,
   jobs,
@@ -180,6 +182,8 @@ export function RuntimeModals({
   onBlockedAnswer: (value: string) => void;
   onBlockedSubmit: () => void;
   onBlockedDrop: () => void;
+  saveProfile: boolean;
+  onSaveProfile: (value: boolean) => void;
   toolStatus: RelayToolStatus;
   policy: ApplicationPolicy | null;
   jobs: { id: string; name: string; status: string }[];
@@ -226,6 +230,8 @@ export function RuntimeModals({
         onBlockedAnswer,
         onBlockedSubmit,
         onBlockedDrop,
+        saveProfile,
+        onSaveProfile,
         toolStatus,
         policy,
         jobs,
@@ -256,6 +262,8 @@ function RuntimeModalDialog({
   onBlockedAnswer,
   onBlockedSubmit,
   onBlockedDrop,
+  saveProfile,
+  onSaveProfile,
   toolStatus,
   policy,
   jobs,
@@ -281,6 +289,8 @@ function RuntimeModalDialog({
   onBlockedAnswer: (value: string) => void;
   onBlockedSubmit: () => void;
   onBlockedDrop: () => void;
+  saveProfile: boolean;
+  onSaveProfile: (value: boolean) => void;
   toolStatus: RelayToolStatus;
   policy: ApplicationPolicy | null;
   jobs: { id: string; name: string; status: string }[];
@@ -329,6 +339,7 @@ function RuntimeModalDialog({
       cancelled = true;
     };
   }, [which, onUnauthorized, sessionRef]);
+  const profileAnswerFits = blockedAnswer.trim().length <= 500;
   const verified = profile?.facts?.filter((f) => f.status === 'Verified') ?? [];
   const proposed = profile?.facts?.filter((f) => f.status === 'Proposed') ?? [];
   function clearPrivate() {
@@ -703,11 +714,27 @@ function RuntimeModalDialog({
                   <input
                     aria-label="Your answer"
                     id="runtime-block-answer"
+                    maxLength={2000}
                     onChange={(e) => onBlockedAnswer(e.target.value)}
                     placeholder="Type here"
                     type="text"
                     value={blockedAnswer}
                   />
+                </label>
+                <p className="hint" style={{ paddingLeft: 0, marginTop: 8 }}>
+                  Profile facts are 500 characters. Job answers can be 2,000.
+                </p>
+                <label className="check">
+                  <input
+                    aria-label="Save this to your profile"
+                    checked={saveProfile && profileAnswerFits}
+                    disabled={!profileAnswerFits}
+                    onChange={(e) => onSaveProfile(e.target.checked)}
+                    type="checkbox"
+                  />
+                  {profileAnswerFits
+                    ? 'Save this to your profile so the agent can reuse it after you confirm it on Your facts.'
+                    : 'This answer is saved on this job only. Shorten it to 500 characters to save a profile fact.'}
                 </label>
               </div>
               <div className="sect">

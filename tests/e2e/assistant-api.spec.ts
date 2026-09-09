@@ -87,7 +87,11 @@ test('same-tab API handoff survives independent sessions without WebMCP or conte
       (f: { claim: string }) => f.claim === 'Avery Fictional Handoff',
     )!;
     expect(
-      (await call(owner, '/api/profile', { action: 'verify', id: fact.id }))
+      (await call(owner, '/api/profile', {
+        action: 'verify',
+        id: fact.id,
+        claim: fact.claim,
+      }))
         .status,
     ).toBe(200);
 

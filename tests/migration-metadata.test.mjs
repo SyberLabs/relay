@@ -21,7 +21,7 @@ void test('deployed schema metadata does not regenerate applied migrations', () 
         '--dialect',
         'sqlite',
         '--schema',
-        resolve('db/schema.ts'),
+        resolve('db/schema.ts').replaceAll('\\', '/'),
         '--out',
         './drizzle',
       ],

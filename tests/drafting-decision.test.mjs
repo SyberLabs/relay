@@ -1688,3 +1688,83 @@ void test('a concurrent citizenship re-proposal is not overwritten by a stale au
     db.sqlite.close();
   }
 });
+
+void test('a concurrent discard of verified old-key citizenship is not overwritten by authorization', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    const seeded = seedOldKeyCitizenship(db, {
+      status: 'Verified',
+      verified: 'before',
+    });
+    db.sqlite.exec(
+      "INSERT INTO profile_state(owner,profile_version,updated) VALUES ('alice',7,'before')",
+    );
+    const outerJobBefore = db.sqlite
+      .prepare("SELECT * FROM jobs WHERE id='job'")
+      .get();
+    const batch = db.batch.bind(db);
+    let nested = false;
+    db.batch = async (statements) => {
+      if (!nested) {
+        nested = true;
+        assert.equal(
+          (
+            await retireProfileFact(
+              db,
+              'alice',
+              { id: seeded.id, claim: seeded.claim },
+              'discard',
+            )
+          ).status,
+          200,
+        );
+      }
+      return batch(statements);
+    };
+    const outer = await save(db, {
+      choice: 'answer',
+      remember: false,
+      save_profile: true,
+      answer: 'Yes',
+    });
+    const factsAfterOuter = db.sqlite
+      .prepare(
+        'SELECT id,claim,status,field_key,evidence,verified FROM profile_facts ORDER BY rowid',
+      )
+      .all();
+    assert.equal(outer.status, 409, JSON.stringify(factsAfterOuter));
+    assert.deepEqual(
+      db.sqlite.prepare("SELECT * FROM jobs WHERE id='job'").get(),
+      outerJobBefore,
+    );
+    assert.equal(
+      db.sqlite.prepare("SELECT COUNT(*) n FROM events WHERE job_id='job'").get()
+        .n,
+      0,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].id, seeded.id);
+    assert.equal(facts[0].claim, seeded.claim);
+    assert.equal(facts[0].evidence, seeded.evidence);
+    assert.equal(facts[0].status, 'Retired');
+    assert.equal(facts[0].field_key, 'work_authorization.us');
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
+        .get('alice').profile_version,
+      8,
+    );
+    assert.equal(
+      facts.some((fact) => fact.claim === authorizationClaim('Yes')),
+      false,
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});

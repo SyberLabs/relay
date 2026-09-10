@@ -198,7 +198,7 @@ export async function saveDraftingDecision(
       ? await db
           .prepare(
             `SELECT id,claim,evidence,field_key,status FROM profile_facts
-      WHERE owner=? AND field_key=? AND status IN ('Proposed','Retired')`,
+      WHERE owner=? AND field_key=? AND status IN ('Proposed','Retired','Verified')`,
           )
           .bind(owner, fieldKey)
           .first<{
@@ -303,7 +303,11 @@ export async function saveDraftingDecision(
           claim,
         ),
     );
-    if (protectOccupant && occupying)
+    if (
+      protectOccupant &&
+      occupying &&
+      occupying.status !== 'Verified'
+    )
       statements.push(
         // After re-proposal so changes() adjacency stays intact. Guard with the
         // successful receipt and resulting job version, not changes(): a no-op

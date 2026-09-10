@@ -73,6 +73,37 @@ const save = (db, changes = {}, owner = 'alice') =>
 const startDateQuestion = 'do not submit until the start date is confirmed.';
 const startDateClaim = (answer) =>
   factClaimFromAnswer(startDateQuestion, answer);
+const citizenshipQuestion = 'Do you hold United States citizenship?';
+const authorizationQuestion =
+  'Are you authorized to work in the United States?';
+const citizenshipClaim = (answer) =>
+  factClaimFromAnswer(citizenshipQuestion, answer);
+const authorizationClaim = (answer) =>
+  factClaimFromAnswer(authorizationQuestion, answer);
+const blockedQuestionEvidence = (question, jobId = 'other') =>
+  `Blocked question on job ${jobId}: ${question}`;
+const seedOldKeyCitizenship = (
+  db,
+  {
+    id = 'legacy-citizenship',
+    owner = 'alice',
+    status = 'Retired',
+    answer = 'No',
+    fieldKey = 'work_authorization.us',
+    verified = 'before',
+    expires = 'before',
+  } = {},
+) => {
+  const claim = citizenshipClaim(answer);
+  const evidence = blockedQuestionEvidence(citizenshipQuestion);
+  db.sqlite
+    .prepare(
+      `INSERT INTO profile_facts(id,owner,claim,evidence,tag,status,verified,expires,field_key,created)
+      VALUES (?,?,?,?,'detail',?,?,?,?, 'before')`,
+    )
+    .run(id, owner, claim, evidence, status, verified, expires, fieldKey);
+  return { id, claim, evidence, fieldKey, status };
+};
 
 for (const choice of ['answer', 'delegate', 'reset']) {
   void test(`legacy ${choice} receipt replays without writes or expanded permission`, async () => {
@@ -1133,6 +1164,433 @@ void test('a discarded fact with the same wording can be proposed again', async 
         .prepare('SELECT drafting_direction FROM jobs WHERE id=?')
         .get('job').drafting_direction,
       answer,
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+for (const extra of [0, 499]) {
+  void test(
+    `an equal retired citizenship claim under the old authorization key is re-proposed${extra ? ' at the fact cap' : ''}`,
+    async () => {
+      const db = database();
+      try {
+        db.sqlite
+          .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+          .run(citizenshipQuestion, 'job');
+        const seeded = seedOldKeyCitizenship(db);
+        db.sqlite.exec(
+          "INSERT INTO profile_state(owner,profile_version,updated) VALUES ('alice',7,'before')",
+        );
+        if (extra)
+          db.sqlite.exec(
+            "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<499) INSERT INTO profile_facts(id,owner,claim,tag,status,created) SELECT 'f'||x,'alice','Claim '||x,'detail','Verified','before' FROM n",
+          );
+        const verified = db.sqlite
+          .prepare("SELECT * FROM profile_facts WHERE status='Verified' ORDER BY id")
+          .all();
+        const b = {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'No',
+        };
+        assert.equal((await save(db, b)).status, 200);
+        const facts = db.sqlite
+          .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+          .all();
+        const row = facts.find((fact) => fact.id === seeded.id);
+        assert.equal(facts.filter((fact) => fact.claim === seeded.claim).length, 1);
+        assert.equal(row.status, 'Proposed');
+        assert.equal(row.verified, null);
+        assert.equal(row.expires, null);
+        assert.equal(row.claim, seeded.claim);
+        assert.equal(row.created, 'before');
+        assert.equal(row.field_key, 'work_authorization.us');
+        assert.equal(
+          facts.some((fact) => fact.field_key === 'citizenship.us'),
+          false,
+        );
+        assert.equal(facts.length, extra + 1);
+        assert.equal(
+          db.sqlite.prepare('SELECT COUNT(*) n FROM events').get().n,
+          1,
+        );
+        assert.equal(
+          db.sqlite.prepare("SELECT drafting_direction FROM jobs WHERE id='job'").get()
+            .drafting_direction,
+          'No',
+        );
+        assert.equal(
+          db.sqlite
+            .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
+            .get('alice').profile_version,
+          7,
+        );
+        assert.deepEqual(
+          db.sqlite
+            .prepare("SELECT * FROM profile_facts WHERE status='Verified' ORDER BY id")
+            .all(),
+          verified,
+        );
+        const after = snapshot(db);
+        const factsAfter = db.sqlite
+          .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+          .all();
+        assert.deepEqual((await save(db, b)).data, { ok: true, replayed: true });
+        assert.deepEqual(snapshot(db), after);
+        assert.deepEqual(
+          db.sqlite.prepare('SELECT * FROM profile_facts ORDER BY rowid').all(),
+          factsAfter,
+        );
+      } finally {
+        db.sqlite.close();
+      }
+    },
+  );
+}
+
+void test('a later authorization answer does not overwrite old-key proposed citizenship', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    const seeded = seedOldKeyCitizenship(db, { status: 'Proposed' });
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Yes',
+        })
+      ).status,
+      200,
+    );
+    const afterFirst = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    const citizenship = afterFirst.find((fact) => fact.id === seeded.id);
+    const authorization = afterFirst.find(
+      (fact) => fact.field_key === 'work_authorization.us',
+    );
+    assert.equal(afterFirst.length, 2);
+    assert.equal(citizenship.claim, seeded.claim);
+    assert.equal(citizenship.evidence, seeded.evidence);
+    assert.equal(citizenship.status, 'Proposed');
+    assert.equal(citizenship.created, 'before');
+    assert.equal(citizenship.field_key, null);
+    assert.equal(authorization.claim, authorizationClaim('Yes'));
+    assert.equal(authorization.status, 'Proposed');
+    assert.notEqual(authorization.id, seeded.id);
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'decision-2',
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'No',
+        })
+      ).status,
+      200,
+    );
+    const afterReplace = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(afterReplace.length, 2);
+    const preserved = afterReplace.find((fact) => fact.id === seeded.id);
+    const replaced = afterReplace.find(
+      (fact) => fact.field_key === 'work_authorization.us',
+    );
+    assert.equal(preserved.claim, seeded.claim);
+    assert.equal(preserved.evidence, seeded.evidence);
+    assert.equal(preserved.status, 'Proposed');
+    assert.equal(preserved.field_key, null);
+    assert.equal(replaced.id, authorization.id);
+    assert.equal(replaced.claim, authorizationClaim('No'));
+    assert.equal(replaced.status, 'Proposed');
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('an occupied canonical citizenship key keeps a distinct re-proposed old-key row', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(citizenshipQuestion, 'job');
+    const retainedClaim = citizenshipClaim('Yes');
+    db.sqlite
+      .prepare(
+        `INSERT INTO profile_facts(id,owner,claim,evidence,tag,status,field_key,created)
+        VALUES ('canonical','alice',?,?,'detail','Proposed','citizenship.us','before')`,
+      )
+      .run(retainedClaim, blockedQuestionEvidence(citizenshipQuestion, 'prior'));
+    const seeded = seedOldKeyCitizenship(db, { answer: 'No' });
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'No',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY id')
+      .all();
+    assert.equal(facts.length, 2);
+    const canonical = facts.find((fact) => fact.id === 'canonical');
+    const revived = facts.find((fact) => fact.id === seeded.id);
+    assert.equal(canonical.claim, retainedClaim);
+    assert.equal(canonical.field_key, 'citizenship.us');
+    assert.equal(canonical.status, 'Proposed');
+    assert.equal(revived.status, 'Proposed');
+    assert.equal(revived.claim, seeded.claim);
+    assert.equal(revived.field_key, 'work_authorization.us');
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('job-only answers and remembered delegation leave old-key citizenship attached', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    const seeded = seedOldKeyCitizenship(db, { status: 'Proposed' });
+    const before = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          answer: 'Yes',
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await save(db, {
+          version: 2,
+          operation_id: 'delegate',
+          choice: 'delegate',
+          remember: true,
+        })
+      ).status,
+      200,
+    );
+    assert.deepEqual(
+      db.sqlite.prepare('SELECT * FROM profile_facts ORDER BY rowid').all(),
+      before,
+    );
+    assert.equal(before[0].id, seeded.id);
+    assert.equal(before[0].field_key, 'work_authorization.us');
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('stale job or preference refuses without repairing old-key citizenship', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    seedOldKeyCitizenship(db, { status: 'Proposed' });
+    const beforeFacts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    const before = snapshot(db);
+    for (const change of [{ version: 2 }, { preference_version: 2 }]) {
+      assert.equal(
+        (
+          await save(db, {
+            choice: 'answer',
+            remember: false,
+            save_profile: true,
+            answer: 'Yes',
+            ...change,
+          })
+        ).status,
+        409,
+      );
+    }
+    assert.deepEqual(snapshot(db), before);
+    assert.deepEqual(
+      db.sqlite.prepare('SELECT * FROM profile_facts ORDER BY rowid').all(),
+      beforeFacts,
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('foreign-owner old-key citizenship is not detached by another account', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    const foreign = seedOldKeyCitizenship(db, {
+      id: 'bob-citizenship',
+      owner: 'bob',
+      status: 'Proposed',
+    });
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Yes',
+        })
+      ).status,
+      200,
+    );
+    const bob = db.sqlite
+      .prepare('SELECT * FROM profile_facts WHERE id=?')
+      .get(foreign.id);
+    assert.equal(bob.owner, 'bob');
+    assert.equal(bob.field_key, 'work_authorization.us');
+    assert.equal(bob.claim, foreign.claim);
+    assert.equal(bob.status, 'Proposed');
+    const alice = db.sqlite
+      .prepare("SELECT * FROM profile_facts WHERE owner='alice'")
+      .all();
+    assert.equal(alice.length, 1);
+    assert.equal(alice[0].field_key, 'work_authorization.us');
+    assert.equal(alice[0].claim, authorizationClaim('Yes'));
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('verified old-key citizenship is not detached or replaced', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    const seeded = seedOldKeyCitizenship(db, {
+      status: 'Verified',
+      verified: 'before',
+    });
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'Yes',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite.prepare('SELECT * FROM profile_facts').all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].id, seeded.id);
+    assert.equal(facts[0].status, 'Verified');
+    assert.equal(facts[0].verified, 'before');
+    assert.equal(facts[0].claim, seeded.claim);
+    assert.equal(facts[0].field_key, 'work_authorization.us');
+    assert.equal(
+      db.sqlite.prepare("SELECT drafting_direction FROM jobs WHERE id='job'").get()
+        .drafting_direction,
+      'Yes',
+    );
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('authorization wording that mentions citizenship still replaces a genuine authorization row', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    const claim = authorizationClaim('Yes I hold United States citizenship');
+    const evidence = blockedQuestionEvidence(authorizationQuestion, 'job');
+    db.sqlite
+      .prepare(
+        `INSERT INTO profile_facts(id,owner,claim,evidence,tag,status,field_key,created)
+        VALUES ('auth','alice',?,?,'detail','Proposed','work_authorization.us','before')`,
+      )
+      .run(claim, evidence);
+    assert.equal(
+      (
+        await save(db, {
+          choice: 'answer',
+          remember: false,
+          save_profile: true,
+          answer: 'No',
+        })
+      ).status,
+      200,
+    );
+    const facts = db.sqlite.prepare('SELECT * FROM profile_facts').all();
+    assert.equal(facts.length, 1);
+    assert.equal(facts[0].id, 'auth');
+    assert.equal(facts[0].field_key, 'work_authorization.us');
+    assert.equal(facts[0].claim, authorizationClaim('No'));
+    assert.equal(facts[0].status, 'Proposed');
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+void test('a full ledger refuses a distinct authorization after detaching old-key citizenship', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(authorizationQuestion, 'job');
+    const seeded = seedOldKeyCitizenship(db, { status: 'Proposed' });
+    db.sqlite.exec(
+      "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<499) INSERT INTO profile_facts(id,owner,claim,tag,status,created) SELECT 'f'||x,'alice','Claim '||x,'detail','Verified','before' FROM n",
+    );
+    const before = snapshot(db);
+    const beforeFacts = db.sqlite
+      .prepare('SELECT * FROM profile_facts ORDER BY rowid')
+      .all();
+    await assert.rejects(
+      save(db, {
+        choice: 'answer',
+        remember: false,
+        save_profile: true,
+        answer: 'Yes',
+      }),
+      /storage quota/,
+    );
+    assert.deepEqual(snapshot(db), before);
+    assert.deepEqual(
+      db.sqlite.prepare('SELECT * FROM profile_facts ORDER BY rowid').all(),
+      beforeFacts,
+    );
+    const restored = db.sqlite
+      .prepare('SELECT * FROM profile_facts WHERE id=?')
+      .get(seeded.id);
+    assert.equal(restored.field_key, 'work_authorization.us');
+    assert.equal(restored.claim, seeded.claim);
+    assert.equal(restored.status, 'Proposed');
+    assert.equal(
+      db.sqlite.prepare('SELECT COUNT(*) n FROM profile_facts').get().n,
+      500,
     );
   } finally {
     db.sqlite.close();

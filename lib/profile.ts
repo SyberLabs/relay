@@ -116,7 +116,7 @@ export function usableFact(fact: Fact, now: string): boolean {
 export const PROFILE_FACT_CLAIM_MAX = 500;
 
 const authorizationQuestion =
-  /\b(work authori[sz]|authori[sz]ed to work|eligible to work|citizenship)\b/i;
+  /\b(work authori[sz]|authori[sz]ed to work|eligible to work)\b/i;
 const sponsorshipQuestion = /\b(sponsor(?:ship)?|visa)\b/i;
 
 function workJurisdiction(text: string): string | null {
@@ -147,7 +147,10 @@ const questionFields: [RegExp, string][] = [
 
 export function factFieldKey(question: string): string {
   const text = question.trim();
-  if (authorizationQuestion.test(text)) {
+  if (/\bcitizenship\b/i.test(text)) {
+    const place = workJurisdiction(text);
+    if (place) return `citizenship.${place}`;
+  } else if (authorizationQuestion.test(text)) {
     const place = workJurisdiction(text);
     if (place) return `work_authorization.${place}`;
   } else if (sponsorshipQuestion.test(text)) {
@@ -425,7 +428,8 @@ function exactDisplayedClaim(value: unknown) {
     : null;
 }
 
-function bumpWhenFactMatches(
+// Must immediately follow the guarded fact transition in the same batch.
+function bumpAfterFactChange(
   db: D1Database,
   owner: string,
   now: string,
@@ -437,7 +441,7 @@ function bumpWhenFactMatches(
     .prepare(
       `INSERT INTO profile_state (owner,profile_version,updated)
       SELECT ?,2,?
-      WHERE EXISTS (
+      WHERE changes()=1 AND EXISTS (
         SELECT 1 FROM profile_facts
         WHERE id=? AND owner=? AND claim=? AND status=?
       )
@@ -473,7 +477,7 @@ export async function confirmProfileFact(
         WHERE id=? AND owner=? AND claim=? AND status='Proposed'`,
       )
       .bind(now, expires, id, owner, claim),
-    bumpWhenFactMatches(db, owner, now, id, claim, 'Verified'),
+    bumpAfterFactChange(db, owner, now, id, claim, 'Verified'),
   ]);
   if (result[0].meta.changes) return { status: 200, data: { ok: true } };
   const row = await db
@@ -509,7 +513,7 @@ export async function retireProfileFact(
         WHERE id=? AND owner=? AND claim=? AND status!='Retired'`,
       )
       .bind(id, owner, claim),
-    bumpWhenFactMatches(db, owner, now, id, claim, 'Retired'),
+    bumpAfterFactChange(db, owner, now, id, claim, 'Retired'),
   ]);
   if (result[0].meta.changes) return { status: 200, data: { ok: true } };
   const row = await db

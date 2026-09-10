@@ -130,13 +130,22 @@ export async function saveDraftingDecision(
     save_profile: saveProfile,
     answer: b.answer,
   });
+  const legacyDetail = JSON.stringify({
+    version: b.version,
+    preference_version: b.preference_version,
+    choice: b.choice,
+    remember: b.remember,
+    answer: b.answer,
+  });
   const receipt = () =>
     db
       .prepare('SELECT job_id,detail FROM events WHERE id=? AND owner=?')
       .bind(eventId, owner)
       .first<{ job_id: string; detail: string }>();
   const matches = (prior: Awaited<ReturnType<typeof receipt>>) =>
-    prior?.job_id === b.id && prior.detail === detail;
+    prior?.job_id === b.id &&
+    (prior.detail === detail ||
+      (!b.save_profile && prior.detail === legacyDetail));
   const conflict = {
     status: 409,
     data: {
@@ -216,6 +225,16 @@ export async function saveDraftingDecision(
     );
   if (saveProfile)
     statements.push(
+      // Legacy claims have no field key. Re-propose their exact existing row
+      // before the insert, so the claim index cannot abort a valid answer.
+      db
+        .prepare(`UPDATE profile_facts SET status='Proposed',verified=NULL,expires=NULL,evidence=?
+      WHERE changes()=1 AND owner=? AND claim=? AND status='Retired' AND field_key IS NULL`)
+        .bind(
+          `Blocked question on job ${b.id}: ${job.blocker}`.slice(0, 2000),
+          owner,
+          claim,
+        ),
       db
         .prepare(`INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,field_key,created)
       SELECT ?,?,?,?,'detail','Proposed',?,?

@@ -74,6 +74,215 @@ const startDateQuestion = 'do not submit until the start date is confirmed.';
 const startDateClaim = (answer) =>
   factClaimFromAnswer(startDateQuestion, answer);
 
+for (const choice of ['answer', 'delegate', 'reset']) {
+  void test(`legacy ${choice} receipt replays without writes or expanded permission`, async () => {
+    const db = database();
+    try {
+      const b = input({
+        choice,
+        remember: choice === 'delegate',
+        answer: choice === 'answer' ? 'Two weeks after offer.' : '',
+      });
+      const digest = await crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(JSON.stringify(['alice', b.operation_id])),
+      );
+      const eventId = `decision:${Buffer.from(digest).toString('hex')}`;
+      // Exact serialization written before save_profile was introduced.
+      const detail = JSON.stringify({
+        version: 1,
+        preference_version: 1,
+        choice,
+        remember: b.remember,
+        answer: b.answer,
+      });
+      db.sqlite
+        .prepare(
+          "INSERT INTO events(id,owner,job_id,kind,detail,created) VALUES (?,'alice','job','Drafting decision',?,'before')",
+        )
+        .run(eventId, detail);
+      db.sqlite.exec("UPDATE jobs SET version=2 WHERE id='job'");
+      const before = snapshot(db);
+      assert.deepEqual((await save(db, b)).data, { ok: true, replayed: true });
+      assert.deepEqual((await save(db, { ...b, save_profile: false })).data, {
+        ok: true,
+        replayed: true,
+      });
+      for (const change of [
+        { answer: 'Changed answer', choice: 'answer', remember: false },
+        { preference_version: 2 },
+        { id: 'other' },
+        ...(choice === 'answer' ? [{ save_profile: true }] : []),
+      ]) {
+        assert.equal((await save(db, { ...b, ...change })).status, 409);
+      }
+      assert.deepEqual(snapshot(db), before);
+      assert.equal(
+        db.sqlite.prepare('SELECT COUNT(*) n FROM profile_facts').get().n,
+        0,
+      );
+    } finally {
+      db.sqlite.close();
+    }
+  });
+}
+
+void test('citizenship and authorization answers preserve both distinct proposals', async () => {
+  const db = database();
+  try {
+    db.sqlite.exec(
+      "UPDATE jobs SET blocker='Are you authorized to work in the United States?' WHERE id='job'; UPDATE jobs SET blocker='Do you hold United States citizenship?' WHERE id='other'",
+    );
+    for (const [id, answer] of [
+      ['job', 'Yes'],
+      ['other', 'No'],
+    ]) {
+      assert.equal(
+        (
+          await save(db, {
+            id,
+            operation_id: id,
+            choice: 'answer',
+            remember: false,
+            save_profile: true,
+            answer,
+          })
+        ).status,
+        200,
+      );
+    }
+    const facts = db.sqlite
+      .prepare(
+        'SELECT claim,field_key,status FROM profile_facts ORDER BY field_key',
+      )
+      .all();
+    assert.equal(facts.length, 2);
+    assert.deepEqual(
+      facts.map((f) => f.field_key),
+      ['citizenship.us', 'work_authorization.us'],
+    );
+    assert.ok(
+      facts.some(
+        (f) =>
+          f.claim === 'Are you authorized to work in the United States?: Yes',
+      ),
+    );
+    assert.ok(
+      facts.some(
+        (f) => f.claim === 'Do you hold United States citizenship?: No',
+      ),
+    );
+    assert.ok(facts.every((f) => f.status === 'Proposed'));
+  } finally {
+    db.sqlite.close();
+  }
+});
+
+for (const transition of [confirmProfileFact, retireProfileFact]) {
+  void test(`${transition.name} bumps only on a transition, not replay or refusal`, async () => {
+    const db = database();
+    try {
+      db.sqlite.exec(
+        "INSERT INTO profile_facts(id,owner,claim,tag,status,created) VALUES ('fact','alice','Exact displayed claim','detail','Proposed','before'); INSERT INTO profile_state(owner,profile_version,updated) VALUES ('alice',7,'before')",
+      );
+      const body = {
+        id: 'fact',
+        claim: 'Exact displayed claim',
+        expires: null,
+      };
+      assert.equal(
+        (await transition(db, 'alice', body, 'changed')).status,
+        200,
+      );
+      assert.equal(
+        db.sqlite.prepare('SELECT profile_version FROM profile_state').get()
+          .profile_version,
+        8,
+      );
+      const state = () =>
+        ['profile_facts', 'profile_state'].map((t) =>
+          db.sqlite.prepare(`SELECT * FROM ${t}`).all(),
+        );
+      const after = state();
+      assert.deepEqual((await transition(db, 'alice', body, 'replayed')).data, {
+        ok: true,
+        replayed: true,
+      });
+      assert.equal(
+        (
+          await transition(
+            db,
+            'alice',
+            { ...body, claim: 'Unseen replacement' },
+            'stale',
+          )
+        ).status,
+        409,
+      );
+      assert.equal(
+        (await transition(db, 'bob', body, 'wrong-owner')).status,
+        404,
+      );
+      assert.equal(
+        (await transition(db, 'alice', { id: 'fact' }, 'missing-claim')).status,
+        400,
+      );
+      assert.deepEqual(state(), after);
+    } finally {
+      db.sqlite.close();
+    }
+  });
+}
+
+void test('an equal retired legacy claim without a key can be proposed at the fact cap', async () => {
+  const db = database();
+  try {
+    db.sqlite
+      .prepare('UPDATE jobs SET blocker=? WHERE id=?')
+      .run(startDateQuestion, 'job');
+    db.sqlite
+      .prepare(
+        "INSERT INTO profile_facts(id,owner,claim,evidence,tag,status,verified,created) VALUES ('legacy','alice',?,'prior','detail','Retired','before','before')",
+      )
+      .run(startDateClaim('Two weeks after offer.'));
+    db.sqlite.exec(
+      "WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<499) INSERT INTO profile_facts(id,owner,claim,tag,status,created) SELECT 'f'||x,'alice','Claim '||x,'detail','Verified','before' FROM n",
+    );
+    const verified = db.sqlite
+      .prepare("SELECT * FROM profile_facts WHERE status='Verified'")
+      .all();
+    const b = {
+      choice: 'answer',
+      remember: false,
+      save_profile: true,
+      answer: 'Two weeks after offer.',
+    };
+    assert.equal((await save(db, b)).status, 200);
+    const row = db.sqlite
+      .prepare("SELECT * FROM profile_facts WHERE id='legacy'")
+      .get();
+    assert.equal(row.status, 'Proposed');
+    assert.equal(row.verified, null);
+    assert.equal(row.expires, null);
+    assert.equal(row.claim, startDateClaim(b.answer));
+    assert.equal(
+      db.sqlite.prepare('SELECT COUNT(*) n FROM profile_facts').get().n,
+      500,
+    );
+    assert.deepEqual(
+      db.sqlite
+        .prepare("SELECT * FROM profile_facts WHERE status='Verified'")
+        .all(),
+      verified,
+    );
+    const after = snapshot(db);
+    assert.deepEqual((await save(db, b)).data, { ok: true, replayed: true });
+    assert.deepEqual(snapshot(db), after);
+  } finally {
+    db.sqlite.close();
+  }
+});
+
 void test('delegation remembers a bounded preference without resolving facts, holds or exact acceptance; replay is idempotent', async () => {
   const db = database();
   try {

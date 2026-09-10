@@ -192,13 +192,50 @@ export async function saveDraftingDecision(
       status: 400,
       data: { error: 'There is no saved question to answer. Reload this job.' },
     };
+  const fieldKey = saveProfile ? factFieldKey(job.blocker) : '';
+  const occupying =
+    saveProfile && fieldKey.startsWith('work_authorization.')
+      ? await db
+          .prepare(
+            `SELECT id,claim,evidence,field_key,status FROM profile_facts
+      WHERE owner=? AND field_key=? AND status IN ('Proposed','Retired')`,
+          )
+          .bind(owner, fieldKey)
+          .first<{
+            id: string;
+            claim: string;
+            evidence: string;
+            field_key: string;
+            status: string;
+          }>()
+      : null;
+  const protectOccupant =
+    !!occupying && citizenshipOccupiesAuthorizationKey(occupying, fieldKey);
+  const occupantBinds =
+    occupying && protectOccupant
+      ? [
+          owner,
+          occupying.id,
+          occupying.field_key,
+          occupying.claim,
+          occupying.evidence,
+          occupying.status,
+        ]
+      : [];
   const statements = [
     db
-      .prepare(`INSERT INTO events (id,owner,job_id,kind,detail,created)
+      .prepare(
+        `INSERT INTO events (id,owner,job_id,kind,detail,created)
       SELECT ?,?,?,'Drafting decision',?,?
       WHERE EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner=? AND version=?)
       AND COALESCE((SELECT drafting_version FROM preferences WHERE owner=?),1)=?
-      AND NOT EXISTS (SELECT 1 FROM events WHERE id=?)`)
+      AND NOT EXISTS (SELECT 1 FROM events WHERE id=?)${
+          protectOccupant
+            ? `
+      AND EXISTS (SELECT 1 FROM profile_facts WHERE owner=? AND id=? AND field_key=? AND claim=? AND evidence=? AND status=?)`
+            : ''
+        }`,
+      )
       .bind(
         eventId,
         owner,
@@ -211,6 +248,7 @@ export async function saveDraftingDecision(
         owner,
         b.preference_version,
         eventId,
+        ...occupantBinds,
       ),
     db
       .prepare(`UPDATE jobs SET drafting_direction=?,version=version+1,updated=?
@@ -252,21 +290,6 @@ export async function saveDraftingDecision(
         ),
     );
   if (saveProfile) {
-    const fieldKey = factFieldKey(job.blocker);
-    const occupying = fieldKey.startsWith('work_authorization.')
-      ? await db
-          .prepare(
-            `SELECT id,claim,evidence,field_key FROM profile_facts
-      WHERE owner=? AND field_key=? AND status IN ('Proposed','Retired')`,
-          )
-          .bind(owner, fieldKey)
-          .first<{
-            id: string;
-            claim: string;
-            evidence: string;
-            field_key: string;
-          }>()
-      : null;
     statements.push(
       // Re-propose the owner-scoped exact Retired claim before insert, including
       // rows that still occupy a non-null legacy key. Leave field_key unchanged:
@@ -280,7 +303,7 @@ export async function saveDraftingDecision(
           claim,
         ),
     );
-    if (occupying && citizenshipOccupiesAuthorizationKey(occupying, fieldKey))
+    if (protectOccupant && occupying)
       statements.push(
         // After re-proposal so changes() adjacency stays intact. Guard with the
         // successful receipt and resulting job version, not changes(): a no-op

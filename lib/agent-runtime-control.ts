@@ -69,7 +69,7 @@ type CallRow = {
   call_id: string;
   name: string;
   arguments: string;
-  status: 'pending' | 'returned' | 'uncertain';
+  status: 'pending' | 'returned' | 'uncertain' | 'cancelled';
   result: string;
   side_effect: string;
 };
@@ -82,6 +82,24 @@ function wrapApp(error: unknown): never {
   if (error instanceof ApplicationRefusal)
     throw new AgentRuntimeRefusal(error.message, error.status);
   throw error;
+}
+
+function isPlaceholderProviderSession(id: string) {
+  return id.startsWith('pending_');
+}
+
+async function closePendingCalls(
+  db: D1Database,
+  owner: string,
+  sessionId: string,
+  now: string,
+) {
+  await db
+    .prepare(
+      `UPDATE agent_tool_calls SET status='cancelled', updated=? WHERE owner=? AND session_id=? AND status='pending'`,
+    )
+    .bind(now, owner, sessionId)
+    .run();
 }
 
 function isActiveTurnConflict(error: unknown) {
@@ -679,7 +697,10 @@ async function viewFrom(
   db: D1Database,
   row: SessionRow,
 ): Promise<AgentSessionView> {
-  const pending = await loadPending(db, row.owner, row.id);
+  const pending =
+    row.status === 'cancelled' || row.status === 'failed'
+      ? null
+      : await loadPending(db, row.owner, row.id);
   const args = pending ? parseArguments(pending.arguments) : {};
   const result = pending ? parseArguments(pending.result) : {};
   const park = pending
@@ -835,6 +856,18 @@ export async function startAgentSession(
       text,
       tools: AGENT_FUNCTION_TOOLS,
       provider_session_id: row.provider_session_id,
+      persistCreated: async (created) => {
+        await saveSession(
+          db,
+          row,
+          {
+            ...created,
+            status:
+              created.status === 'queued' ? 'in_progress' : created.status,
+          },
+          now,
+        );
+      },
     });
   } catch (error) {
     await failClaim();
@@ -874,6 +907,7 @@ export async function answerAgentSession(
   const row = await loadLatestSession(db, owner, String(input.job || ''));
   requireAgent(row, 'Agent session is unavailable.', 404);
   requireAgent(row.status !== 'cancelled', 'Agent session was cancelled.', 409);
+  requireAgent(row.status !== 'failed', 'Agent session failed.', 409);
   const pending = await loadPending(db, owner, row.id);
   requireAgent(
     pending && pending.name === 'relay_request_answer',
@@ -970,6 +1004,8 @@ export async function continueAgentSession(
   const admission = admitAgentRuntime(env, true);
   const row = await loadLatestSession(db, owner, String(input.job || ''));
   requireAgent(row, 'Agent session is unavailable.', 404);
+  requireAgent(row.status !== 'cancelled', 'Agent session was cancelled.', 409);
+  requireAgent(row.status !== 'failed', 'Agent session failed.', 409);
   const pending = await loadPending(db, owner, row.id);
   requireAgent(
     pending && pending.name === 'relay_prepare_application',
@@ -1050,6 +1086,9 @@ export async function syncAgentSession(
   if (row.status === 'requires_action' || row.status === 'idle') {
     return viewFrom(db, row);
   }
+  if (isPlaceholderProviderSession(row.provider_session_id)) {
+    return viewFrom(db, row);
+  }
   const runtime = runtimeFor(env, row.job_id, deps);
   if (admission.provider === 'openai')
     await reserveLiveTurn(db, owner, now, env, admission.reserveCents);
@@ -1072,11 +1111,29 @@ export async function cancelAgentSession(
   admitAgentRuntime(env, true);
   const row = await loadLatestSession(db, owner, String(input.job || ''));
   requireAgent(row, 'Agent session is unavailable.', 404);
+  if (isPlaceholderProviderSession(row.provider_session_id)) {
+    await closePendingCalls(db, owner, row.id, now);
+    await saveSession(
+      db,
+      row,
+      {
+        provider: row.provider,
+        provider_session_id: row.provider_session_id,
+        status: 'cancelled',
+        turn_id: row.turn_id,
+        required_actions: [],
+        provider_state: row.provider_state,
+      },
+      now,
+    );
+    return viewFrom(db, await loadSession(db, owner, row.id));
+  }
   const runtime = runtimeFor(env, row.job_id, deps);
   const snap = await runtime.cancel(
     row.provider_session_id,
     row.provider_state,
   );
+  await closePendingCalls(db, owner, row.id, now);
   await saveSession(db, row, { ...snap, status: 'cancelled' }, now);
   return viewFrom(db, await loadSession(db, owner, row.id));
 }

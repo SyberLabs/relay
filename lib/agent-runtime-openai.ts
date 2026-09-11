@@ -238,6 +238,7 @@ export function createOpenAIAgentsRuntime(
           502,
         );
       }
+      if (input.persistCreated) await input.persistCreated(first);
       return waitUntilSettled(first.provider_session_id, first);
     },
     async sendInput(id, text) {

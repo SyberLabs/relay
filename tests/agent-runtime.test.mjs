@@ -595,6 +595,30 @@ void test('cancel stops the session; park copy names human work', () => {
   );
   assert.equal(working.title, 'Agent is working');
   assert.equal(working.action, 'working');
+  const cancelledPark = agentParkCopy(
+    {
+      session_id: 's',
+      job_id: 'alice-0',
+      provider: 'memory',
+      status: 'cancelled',
+      turn_id: 'turn_1',
+      park: {
+        kind: 'authorization',
+        turn_id: 'turn_1',
+        call_id: 'call_3',
+        name: 'relay_prepare_application',
+        arguments: {},
+      },
+      operation_id: 'op',
+      digest: 'abc',
+      authorized: true,
+      begin: false,
+      capabilities: [],
+    },
+    'Fictional role 0',
+  );
+  assert.equal(cancelledPark.title, 'Agent session cancelled');
+  assert.equal(cancelledPark.action, 'start');
 });
 
 void test('cancel is owner-scoped and does not begin', async () => {
@@ -610,6 +634,136 @@ void test('cancel is owner-scoped and does not begin', async () => {
   );
   assert.equal(cancelled.status, 'cancelled');
   assert.equal(begins(db), 0);
+  db.sqlite.close();
+});
+
+void test('cancel closes pending prepare; continue and park copy stay cancelled', async () => {
+  const db = database();
+  await policy(db);
+  await startAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now);
+  const parked = await answerAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0', answer: 'Yes, authorized.' },
+    memoryEnv,
+    now,
+  );
+  const inspect = await inspectApplication(db, 'alice', 'alice-0', now);
+  await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: parked.operation_id,
+      actor: 'Fictional applying agent',
+      preparation_revision: inspect.preparation_revision,
+    },
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    { id: parked.operation_id, digest: parked.digest, action: 'approve' },
+    now,
+  );
+  const cancelled = await cancelAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    memoryEnv,
+    now,
+  );
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(cancelled.park, null);
+  assert.equal(agentParkCopy(cancelled, 'Fictional role 0').action, 'start');
+  assert.equal(
+    db.sqlite
+      .prepare(
+        "SELECT COUNT(*) c FROM agent_tool_calls WHERE session_id=? AND status='pending'",
+      )
+      .get(cancelled.session_id).c,
+    0,
+  );
+  await assert.rejects(
+    () => continueAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now),
+    /cancelled/i,
+  );
+  assert.equal(begins(db), 0);
+  db.sqlite.close();
+});
+
+void test('placeholder live session does not fetch on sync or cancel', async () => {
+  const db = database();
+  await policy(db);
+  db.sqlite
+    .prepare(
+      `INSERT INTO agent_sessions (id,owner,job_id,provider,provider_session_id,status,capabilities,provider_state,turn_id,created,updated)
+       VALUES ('s-pending','alice','alice-0','openai','pending_s-pending','queued','[]','','',?,?)`,
+    )
+    .run(now, now);
+  const live = {
+    RELAY_AGENTS: 'live',
+    RELAY_AGENTS_LIVE: '1',
+    OPENAI_API_KEY: 'sk-fictional-key-1234567890',
+  };
+  let fetches = 0;
+  const fetch = async () => {
+    fetches += 1;
+    return new Response('{}');
+  };
+  const synced = await syncAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    live,
+    now,
+    { fetch },
+  );
+  assert.equal(synced.status, 'queued');
+  assert.equal(fetches, 0);
+  const cancelled = await cancelAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    live,
+    now,
+    { fetch },
+  );
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(fetches, 0);
+  db.sqlite.close();
+});
+
+void test('live create persists the provider id before settle failure', async () => {
+  const db = database();
+  await policy(db);
+  const live = {
+    RELAY_AGENTS: 'live',
+    RELAY_AGENTS_LIVE: '1',
+    OPENAI_API_KEY: 'sk-fictional-key-1234567890',
+  };
+  const fetch = async (url, init) => {
+    assertAgentsUrl(typeof url === 'string' ? url : '');
+    if (String(init?.method || 'GET').toUpperCase() === 'POST') {
+      return new Response(
+        JSON.stringify({ id: 'agt_persist', status: 'in_progress' }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    }
+    return new Response('no', { status: 502 });
+  };
+  await assert.rejects(
+    () =>
+      startAgentSession(db, 'alice', { job: 'alice-0' }, live, now, {
+        fetch,
+      }),
+    /unavailable/i,
+  );
+  const row = db.sqlite
+    .prepare('SELECT provider_session_id,status FROM agent_sessions')
+    .get();
+  assert.equal(row.provider_session_id, 'agt_persist');
+  assert.equal(row.status, 'failed');
   db.sqlite.close();
 });
 

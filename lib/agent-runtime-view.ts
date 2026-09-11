@@ -21,6 +21,21 @@ export type AgentSessionView = {
 
 export function agentParkCopy(view: AgentSessionView | null, jobName: string) {
   if (!view) return { title: '', detail: '', action: 'none' as const };
+  if (view.status === 'cancelled') {
+    return {
+      title: 'Agent session cancelled',
+      detail: 'The agent cannot begin. Start a new session if you need one.',
+      action: 'start' as const,
+    };
+  }
+  if (view.status === 'failed') {
+    return {
+      title: 'Agent session failed',
+      detail:
+        'Inspect saved work. An uncertain Submit stays uncertain; do not retry it.',
+      action: 'start' as const,
+    };
+  }
   if (view.park?.kind === 'answer') {
     const question =
       typeof view.park.arguments.question === 'string'
@@ -46,21 +61,6 @@ export function agentParkCopy(view: AgentSessionView | null, jobName: string) {
       detail:
         'The runtime still owns this turn. Refresh retrieves the session; the workspace poll does not call OpenAI.',
       action: 'working' as const,
-    };
-  }
-  if (view.status === 'cancelled') {
-    return {
-      title: 'Agent session cancelled',
-      detail: 'The agent cannot begin. Start a new session if you need one.',
-      action: 'start' as const,
-    };
-  }
-  if (view.status === 'failed') {
-    return {
-      title: 'Agent session failed',
-      detail:
-        'Inspect saved work. An uncertain Submit stays uncertain; do not retry it.',
-      action: 'start' as const,
     };
   }
   if (view.status === 'idle') {

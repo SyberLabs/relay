@@ -180,11 +180,13 @@ Seth must accept cost, privacy, and provider dependence before `live` is set any
 Matches OpenAI's function-tool guidance and Relay's execution doctrine:
 
 - Retrieve the session (or Relay D1 row) after disconnect.
-- Live turns do **not** stream. After `POST /v1/agents/sessions` or `/events`, Relay GETs the session until it is `requires_action` (with `required_actions`), `idle`, `cancelled`, or `failed`, then stops. The workspace 3s poll reads D1 only. `POST /api/agents` `sync` retrieves OpenAI once when D1 is still `queued`/`in_progress`.
+- Live turns do **not** stream. After `POST /v1/agents/sessions` or `/events`, Relay GETs the session until it is `requires_action` (with `required_actions`), `idle`, `cancelled`, or `failed`, then stops. The workspace 3s poll reads D1 only. `POST /api/agents` `sync` retrieves OpenAI once when D1 is still `queued`/`in_progress` **and** the provider session id is not a `pending_*` placeholder. The real provider id is saved immediately after create, before settle polling. Cancel of a placeholder is local only.
 - Pending work is `required_actions` / our `pending` rows, not a history `function_call` item alone.
 - `environment_connection` is refused. Relay cancels that turn and fails the row. It does not connect a sandbox.
 - If a side effect already ran, replay the **saved** `tool_result`.
 - If execution might have succeeded but no result was saved, mark **uncertain** and do not retry.
+- Cancel is terminal. Pending tool rows close; continue and answer refuse cancelled/failed. UI ranks terminal status before park.
+- A `pending_*` provider session id is not fetched. The real id is saved immediately after create, before settle polling. Cancel of a placeholder is local only.
 
 ## Spike measurement
 

@@ -59,6 +59,7 @@ export type AgentRuntime = {
     text: string;
     tools: FunctionToolDefinition[];
     provider_session_id: string;
+    persistCreated?: (snap: RuntimeSnapshot) => Promise<void>;
   }): Promise<RuntimeSnapshot>;
   sendInput(
     providerSessionId: string,

@@ -50,5 +50,9 @@ export function clickFixtureSubmit() {
 }
 
 export function readFixtureReceipt() {
-  return document.querySelector('h1')?.textContent?.trim() || null;
+  const text =
+    document
+      .querySelector('[data-relay-fixture-receipt]')
+      ?.textContent?.trim() || '';
+  return text || null;
 }

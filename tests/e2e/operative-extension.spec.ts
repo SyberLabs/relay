@@ -11,7 +11,7 @@ import {
 } from '@playwright/test';
 import { enableInspectJob } from './enable-inspect-job';
 
-const FORM = `<form method="post"><label>Full name<input name="name"></label><button>Submit fictional application</button></form>`;
+const FORM = `<h1>Fictional application form</h1><form method="post"><label>Full name<input name="name"></label><button>Submit fictional application</button></form>`;
 const NOT_FIXTURE = `<form method="post"><label>Full name<input name="name"></label><button>Apply now</button></form>`;
 const SOURCE = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -99,7 +99,7 @@ async function mockEmployer(context: BrowserContext, expectedName: string) {
       expect(posted).toBe(expectedName);
       await route.fulfill({
         contentType: 'text/html',
-        body: '<h1>Fictional receipt SEND-174</h1>',
+        body: '<h1 data-relay-fixture-receipt>Fictional receipt SEND-174</h1>',
       });
       return;
     }

@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import {
   fillFixtureFields,
   inspectFixtureTab,
+  readFixtureReceipt,
 } from '../extensions/operative/fill.js';
 
 /* oxlint-disable typescript/no-deprecated -- Node has no page DOM; stubs stand in for Document. */
 
-function withDom({ href, labels, buttons }, work) {
+function withDom({ href, labels, buttons, heading, receipt }, work) {
   const previousLocation = globalThis.location;
   const previousDocument = globalThis.document;
   const previousEvent = globalThis.Event;
@@ -20,7 +21,7 @@ function withDom({ href, labels, buttons }, work) {
     };
   }
   globalThis.location = { href };
-  const nodes = { labels, buttons };
+  const nodes = { labels, buttons, heading, receipt };
   globalThis.document = {
     querySelectorAll: (selector) =>
       selector === 'label'
@@ -29,7 +30,12 @@ function withDom({ href, labels, buttons }, work) {
           ? nodes.buttons
           : [],
     getElementById: () => null,
-    querySelector: () => null,
+    querySelector: (selector) =>
+      selector === '[data-relay-fixture-receipt]'
+        ? nodes.receipt || null
+        : selector === 'h1'
+          ? nodes.heading || null
+          : null,
   };
   try {
     return work();
@@ -107,4 +113,29 @@ void test('fill writes only after a separate inspect of the fictional control', 
   );
   assert.equal(result.ok, true);
   assert.equal(input.value, 'Avery Example');
+});
+
+void test('receipt ignores a pre-submit heading and requires the confirmation marker', () => {
+  const heading = { textContent: '  Fictional application form  ' };
+  const ignored = withDom(
+    {
+      href: 'https://employer.example/jobs/operative',
+      labels: [],
+      buttons: [{ textContent: 'Submit fictional application' }],
+      heading,
+    },
+    () => readFixtureReceipt(),
+  );
+  assert.equal(ignored, null);
+  const receipt = withDom(
+    {
+      href: 'https://employer.example/jobs/operative',
+      labels: [],
+      buttons: [],
+      heading,
+      receipt: { textContent: '  Fictional receipt SEND-174  ' },
+    },
+    () => readFixtureReceipt(),
+  );
+  assert.equal(receipt, 'Fictional receipt SEND-174');
 });

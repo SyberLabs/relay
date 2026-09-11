@@ -109,10 +109,20 @@ if (!relayTabId || !fixtureTabId || !params.get('job')) {
     },
   )
     .then((result) => {
-      if (result.submitted)
+      if (result.ok && result.submitted)
         report(`Submitted once. Receipt: ${result.receipt}`);
-      else if (result.uncertain)
+      else if (result.ok && result.uncertain)
         report('Recorded uncertain. Do not submit again.');
+      else if (result.submitted && result.receipt)
+        report(
+          result.error ||
+            `Submit may have succeeded. Relay did not save the receipt: ${result.receipt}`,
+        );
+      else if (result.uncertain)
+        report(
+          result.error ||
+            'Observed uncertain. Relay did not save the record. Do not submit again.',
+        );
       else report(result.error || 'Operative stopped without submitting.');
     })
     .catch((error) => {

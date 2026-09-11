@@ -1,10 +1,6 @@
 /* global chrome */
-import {
-  clickFixtureSubmit,
-  fillFixtureFields,
-  inspectFixtureTab,
-  readFixtureReceipt,
-} from './fill.js';
+import { inspectFixtureTab } from './fill.js';
+import { fillFixtureTab as runFillFixtureTab } from './fill-run.js';
 import { relayPageFetch } from './page-fetch.js';
 
 async function inspectOnTab(tabId, destination) {
@@ -23,59 +19,28 @@ async function inspectOnTab(tabId, destination) {
   );
 }
 
+async function executeIsolated(tabId, func, args = []) {
+  const [injection] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'ISOLATED',
+    func,
+    args,
+  });
+  return injection;
+}
+
 async function fillFixtureTab(tabId, fields, destination) {
-  const ready = await inspectOnTab(tabId, destination);
-  if (!ready.ok)
-    return {
-      submitted: false,
-      receipt: null,
-      fills: 0,
-      code: ready.code,
-      note: ready.error,
-    };
-  const [filled] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'ISOLATED',
-    func: fillFixtureFields,
-    args: [JSON.stringify(fields ?? [])],
-  });
-  if (!filled?.result?.ok)
-    return {
-      submitted: false,
-      receipt: null,
-      fills: 0,
-      code: 'missing_field',
-      note: filled?.result?.error || 'Fixture form could not be filled.',
-    };
-  const [clicked] = await chrome.scripting.executeScript({
-    target: { tabId },
-    world: 'ISOLATED',
-    func: clickFixtureSubmit,
-  });
-  if (!clicked?.result?.ok)
-    return {
-      submitted: false,
-      receipt: null,
-      fills: 1,
-      note: clicked?.result?.error || 'Fixture submit control not found.',
-    };
-  const deadline = Date.now() + 10_000;
-  while (Date.now() < deadline) {
-    const [read] = await chrome.scripting.executeScript({
-      target: { tabId },
-      world: 'ISOLATED',
-      func: readFixtureReceipt,
-    });
-    if (typeof read?.result === 'string' && read.result)
-      return { submitted: true, receipt: read.result, fills: 1 };
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return {
-    submitted: false,
-    receipt: null,
-    fills: 1,
-    note: 'Fixture submit no-op; no confirmation heading. Do not submit again.',
-  };
+  return runFillFixtureTab(
+    {
+      inspect: inspectOnTab,
+      execute: executeIsolated,
+      now: Date.now,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    },
+    tabId,
+    fields,
+    destination,
+  );
 }
 
 async function pageFetchOnTab(tabId, path, body) {

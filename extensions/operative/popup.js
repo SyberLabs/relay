@@ -1,4 +1,5 @@
 /* global chrome */
+import { admitStartClick } from './popup-start.js';
 import { isFixtureUrl, isRelayUrl, optionalOriginPatterns } from './tabs.js';
 
 const message = document.getElementById('message');
@@ -84,35 +85,46 @@ async function startRun(relayTabId, fixtureTabId, job, value, fixtureUrl) {
 start.addEventListener('click', () => {
   const relayTabId = Number(relaySelect.value);
   const fixtureTabId = Number(fixtureSelect.value);
-  const job = jobSelect.value;
   const value = nameInput.value.trim();
   const relayUrl = selectedUrl(relaySelect);
   const fixtureUrl = selectedUrl(fixtureSelect);
-  if (
-    !relayTabId ||
-    !fixtureTabId ||
-    !job ||
-    !value ||
-    !relayUrl ||
-    !fixtureUrl
-  ) {
-    message.textContent =
-      'Choose Relay, fixture, job, and a complete Full name.';
+  const admitted = admitStartClick({
+    relayTabId,
+    fixtureTabId,
+    value,
+    relayUrl,
+    fixtureUrl,
+  });
+  if (!admitted.ok) {
+    message.textContent = admitted.message;
     return;
   }
-  const origins = optionalOriginPatterns([relayUrl, fixtureUrl]);
   const afterGrant = (granted) => {
-    if (origins.length && !granted) {
+    if (admitted.origins.length && !granted) {
       message.textContent =
         'The operative needs permission for the Relay and fixture tabs.';
       return;
     }
-    void startRun(relayTabId, fixtureTabId, job, value, fixtureUrl);
+    void (async () => {
+      const previousJob = jobSelect.value;
+      await loadJobs();
+      if (
+        previousJob &&
+        [...jobSelect.options].some((option) => option.value === previousJob)
+      )
+        jobSelect.value = previousJob;
+      const job = jobSelect.value;
+      if (!job) {
+        message.textContent = 'Choose a job, then start again.';
+        return;
+      }
+      await startRun(relayTabId, fixtureTabId, job, value, fixtureUrl);
+    })();
   };
-  if (origins.length === 0) afterGrant(true);
+  if (admitted.origins.length === 0) afterGrant(true);
   else
     chrome.permissions
-      .request({ origins })
+      .request({ origins: admitted.origins })
       .then(afterGrant, () => afterGrant(false));
 });
 

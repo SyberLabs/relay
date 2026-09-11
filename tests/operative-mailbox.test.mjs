@@ -5,7 +5,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../extensions/operative/', import.meta.url);
-const mailboxFiles = ['background.js', 'popup.js', 'run.js'];
+const mailboxFiles = [
+  'background.js',
+  'popup.js',
+  'run.js',
+  'fill-run.js',
+  'popup-start.js',
+];
 
 function source(name) {
   return readFileSync(new URL(name, root), 'utf8');
@@ -47,7 +53,10 @@ void test('MV3 manifest is a mailbox with scripting, not cookies', () => {
     true,
   );
   assert.equal(manifest.host_permissions?.includes('<all_urls>'), false);
-  assert.equal(manifest.host_permissions?.some((rule) => rule.startsWith('https:')), false);
+  assert.equal(
+    manifest.host_permissions?.some((rule) => rule.startsWith('https:')),
+    false,
+  );
   assert.deepEqual(manifest.optional_host_permissions, ['https://*/*']);
   assert.equal(manifest.externally_connectable, undefined);
   assert.equal(manifest.background?.service_worker, 'background.js');
@@ -56,11 +65,20 @@ void test('MV3 manifest is a mailbox with scripting, not cookies', () => {
 });
 
 void test('background inspects the fixture control before writing fields', () => {
-  const text = source('background.js');
-  const fn = text.slice(text.indexOf('async function fillFixtureTab'));
-  const inspectAt = fn.indexOf('inspectOnTab');
+  const text = source('fill-run.js');
+  const fn = text.slice(text.indexOf('export async function fillFixtureTab'));
+  const inspectAt = fn.indexOf('io.inspect');
   const fillAt = fn.indexOf('fillFixtureFields');
   assert.ok(inspectAt >= 0 && fillAt > inspectAt);
+});
+
+void test('Start requests origins before requiring a selected job', () => {
+  const text = source('popup.js');
+  assert.match(text, /admitStartClick/);
+  assert.match(text, /permissions\.request/);
+  assert.match(text, /loadJobs\(\)/);
+  const click = text.slice(text.indexOf("start.addEventListener('click'"));
+  assert.ok(click.includes('Choose a job, then start again.'));
 });
 
 void test('extension directory stays first-party and fictional-fixture scoped', () => {

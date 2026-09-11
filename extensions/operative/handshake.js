@@ -18,6 +18,32 @@ function fail(partial) {
   return { ok: false, submitted: false, fills: 0, ...partial };
 }
 
+function recordingFailed(recorded, observed) {
+  return {
+    ok: false,
+    submitted: Boolean(observed.submitted),
+    fills: observed.fills ?? 0,
+    receipt: observed.receipt ?? null,
+    uncertain: Boolean(observed.uncertain),
+    recorded: false,
+    code: 'recording_failed',
+    status: recorded?.status,
+    error:
+      recorded?.json?.error ||
+      'Relay did not save the terminal record. Do not retry Submit.',
+  };
+}
+
+async function recordTerminal(io, action, viewer, id, digest, receipt) {
+  return io.pageFetch('/api/applications', {
+    action,
+    viewer,
+    id,
+    digest,
+    receipt,
+  });
+}
+
 function incompleteFields(fields) {
   if (
     !Array.isArray(fields) ||
@@ -192,19 +218,53 @@ export async function runFixtureSend(io, input) {
     typeof parsed.destination !== 'string' ||
     !Array.isArray(parsed.fields)
   ) {
-    await io.pageFetch('/api/applications', {
-      action: 'not-submitted',
-      viewer: authorized.viewer || viewer,
-      id: authorized.id,
-      digest: authorized.digest,
-      receipt: 'Begin returned an unreadable manifest. Do not submit.',
-    });
+    const recorded = await recordTerminal(
+      io,
+      'not-submitted',
+      authorized.viewer || viewer,
+      authorized.id,
+      authorized.digest,
+      'Begin returned an unreadable manifest. Do not submit.',
+    );
+    if (!recorded.ok)
+      return recordingFailed(recorded, {
+        submitted: false,
+        fills: 0,
+        receipt: 'Begin returned an unreadable manifest. Do not submit.',
+      });
     return fail({
       code: 'bad_manifest',
       error: 'Begin returned an unreadable manifest. Do not submit.',
     });
   }
   const filled = await io.fillOnce(parsed.fields, parsed.destination);
+  if (filled.uncertain) {
+    const note =
+      filled.note ||
+      'Submit may have begun. Outcome is uncertain. Do not submit again.';
+    const recorded = await recordTerminal(
+      io,
+      'uncertain',
+      authorized.viewer || viewer,
+      authorized.id,
+      authorized.digest,
+      note,
+    );
+    if (!recorded.ok)
+      return recordingFailed(recorded, {
+        submitted: false,
+        fills: filled.fills || 1,
+        receipt: note,
+        uncertain: true,
+      });
+    return {
+      ok: true,
+      submitted: false,
+      fills: filled.fills || 1,
+      uncertain: true,
+      receipt: note,
+    };
+  }
   if (
     filled.fills === 0 ||
     filled.code === 'wrong_host' ||
@@ -214,26 +274,40 @@ export async function runFixtureSend(io, input) {
       filled.note ||
       filled.error ||
       'Fixture tab was not the fictional form. Do not submit.';
-    await io.pageFetch('/api/applications', {
-      action: 'not-submitted',
-      viewer: authorized.viewer || viewer,
-      id: authorized.id,
-      digest: authorized.digest,
-      receipt: note,
-    });
+    const recorded = await recordTerminal(
+      io,
+      'not-submitted',
+      authorized.viewer || viewer,
+      authorized.id,
+      authorized.digest,
+      note,
+    );
+    if (!recorded.ok)
+      return recordingFailed(recorded, {
+        submitted: false,
+        fills: 0,
+        receipt: note,
+      });
     return fail({
       code: filled.code || 'not_fixture',
       error: note,
     });
   }
   if (filled.submitted && filled.receipt) {
-    await io.pageFetch('/api/applications', {
-      action: 'complete',
-      viewer: authorized.viewer || viewer,
-      id: authorized.id,
-      digest: authorized.digest,
-      receipt: filled.receipt,
-    });
+    const recorded = await recordTerminal(
+      io,
+      'complete',
+      authorized.viewer || viewer,
+      authorized.id,
+      authorized.digest,
+      filled.receipt,
+    );
+    if (!recorded.ok)
+      return recordingFailed(recorded, {
+        submitted: true,
+        fills: 1,
+        receipt: filled.receipt,
+      });
     return {
       ok: true,
       submitted: true,
@@ -244,12 +318,20 @@ export async function runFixtureSend(io, input) {
   const note =
     filled.note ||
     'Fixture submit no-op; no confirmation heading. Do not submit again.';
-  await io.pageFetch('/api/applications', {
-    action: 'uncertain',
-    viewer: authorized.viewer || viewer,
-    id: authorized.id,
-    digest: authorized.digest,
-    receipt: note,
-  });
+  const recorded = await recordTerminal(
+    io,
+    'uncertain',
+    authorized.viewer || viewer,
+    authorized.id,
+    authorized.digest,
+    note,
+  );
+  if (!recorded.ok)
+    return recordingFailed(recorded, {
+      submitted: false,
+      fills: 1,
+      receipt: note,
+      uncertain: true,
+    });
   return { ok: true, submitted: false, fills: 1, uncertain: true };
 }

@@ -387,3 +387,95 @@ void test('fixture no-op records uncertain and does not fill again', async () =>
   );
   assert.match(uncertain.body.receipt, /Do not submit again/);
 });
+
+void test('error after Submit records uncertain and never not-submitted', async () => {
+  const io = ioFrom({
+    pageFetch: successFetch,
+    fillOnce() {
+      return {
+        submitted: false,
+        receipt: null,
+        fills: 1,
+        uncertain: true,
+        code: 'uncertain',
+        note: 'No tab with id: 42',
+      };
+    },
+  });
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, true);
+  assert.equal(result.submitted, false);
+  assert.equal(result.uncertain, true);
+  assert.equal(
+    io.calls.fetch.some((row) => row.body?.action === 'not-submitted'),
+    false,
+  );
+  assert.equal(
+    io.calls.fetch.some((row) => row.body?.action === 'complete'),
+    false,
+  );
+  const uncertain = io.calls.fetch.filter(
+    (row) => row.body?.action === 'uncertain',
+  );
+  assert.equal(uncertain.length, 1);
+  assert.match(uncertain[0].body.receipt, /No tab with id: 42/);
+});
+
+void test('refused complete is not reported saved and is not retried', async () => {
+  const io = ioFrom({
+    pageFetch(path, body) {
+      if (body?.action === 'complete')
+        return reply(403, {
+          error: 'Complete a verification check.',
+          code: 'verification_required',
+        });
+      return successFetch(path, body);
+    },
+  });
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, false);
+  assert.equal(result.submitted, true);
+  assert.equal(result.recorded, false);
+  assert.equal(result.code, 'recording_failed');
+  assert.equal(result.receipt, 'Fictional receipt SEND-174');
+  assert.equal(result.status, 403);
+  assert.equal(
+    io.calls.fetch.filter((row) => row.body?.action === 'complete').length,
+    1,
+  );
+  assert.equal(
+    io.calls.fetch.some((row) => row.body?.action === 'begin'),
+    true,
+  );
+});
+
+void test('refused uncertain is not reported saved and is not retried', async () => {
+  const io = ioFrom({
+    pageFetch(path, body) {
+      if (body?.action === 'uncertain')
+        return reply(403, {
+          error: 'Complete a verification check.',
+          code: 'verification_required',
+        });
+      return successFetch(path, body);
+    },
+    fillOnce() {
+      return {
+        submitted: false,
+        receipt: null,
+        fills: 1,
+        note: 'Fixture submit no-op; no confirmation heading. Do not submit again.',
+      };
+    },
+  });
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, false);
+  assert.equal(result.uncertain, true);
+  assert.equal(result.recorded, false);
+  assert.equal(result.code, 'recording_failed');
+  assert.match(result.receipt, /Do not submit again/);
+  assert.equal(
+    io.calls.fetch.filter((row) => row.body?.action === 'uncertain').length,
+    1,
+  );
+});

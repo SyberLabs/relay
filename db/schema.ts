@@ -264,6 +264,8 @@ export const agentSessions = sqliteTable(
       t.owner,
       t.provider_session_id,
     ),
+    // Partial unique owner-active index is in drizzle/0014_agent_runtime.sql
+    // (`queued`/`in_progress` only). Drizzle schema cannot express that predicate.
   ],
 );
 export const agentToolCalls = sqliteTable(

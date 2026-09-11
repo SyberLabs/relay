@@ -107,7 +107,7 @@ Registered tools only:
 - `relay_read_job` — verified facts, job identity, missing fields. Immediate.
 - `relay_request_answer` — park until a human answers. Writes **Proposed** facts. Does not verify.
 - `relay_prepare_application` — validate, freeze digest in D1, park until human Accept.
-- `relay_record_progress` — bounded progress note. Cannot change acceptance or send.
+- `relay_record_progress` — bounded progress note. Event-only: does not increment `jobs.version` or overwrite `jobs.blocker`. Cannot change acceptance or send.
 
 Never registered: `verify_fact`, `accept_draft`, `authorize_send`, `approve`, `begin`, `complete`, `execute`.
 
@@ -157,23 +157,23 @@ Seth must accept cost, privacy, and provider dependence before `live` is set any
 
 ## Admission (abuse controls)
 
-| Control            | Spike value                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------- |
-| Kill switch        | `RELAY_AGENTS` empty/`off`; `RELAY_PAUSE=all` still stops work                              |
-| Live opt-in        | `RELAY_AGENTS=live` **and** `RELAY_AGENTS_LIVE=1`                                           |
-| Model allowlist    | `gpt-6-astra` for live; `relay-memory` for memory                                           |
-| Environment        | `none` only. No `openai_hosted`, no `self_hosted`                                           |
-| Input              | 32,000 UTF-8 characters                                                                     |
-| Tools              | 4 named functions; arguments ≤ 16,000 bytes                                                 |
-| Output reservation | 50 USD cents maximum per live turn, reserved **before** fetch                               |
-| Currency           | $1/user/UTC day, $10 global/day, $50 global/month; env may only lower                       |
-| Attempts           | 3 HTTP attempts, 60s timeout                                                                |
-| Settle             | After create/events, bounded GET retrieve (15 × 2s). No `stream: true`. No webhooks.        |
-| Concurrency        | 1 `queued`/`in_progress` turn per owner; same-job start of those statuses is 409            |
-| Idempotency        | parked/idle start returns the existing session; tool results keyed by owner+turn_id+call_id |
-| Storage            | 50 sessions and 500 tool-call rows per owner                                                |
-| Retry              | Never refund. Uncertain retains the reservation and **does not** replay side effects        |
-| Worker ATS POST    | Still absent. Fetch, if any, is only `https://api.openai.com/v1/agents/`                    |
+| Control            | Spike value                                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Kill switch        | `RELAY_AGENTS` empty/`off`; `RELAY_PAUSE=all` still stops work                                                      |
+| Live opt-in        | `RELAY_AGENTS=live` **and** `RELAY_AGENTS_LIVE=1`                                                                   |
+| Model allowlist    | `gpt-6-astra` for live; `relay-memory` for memory                                                                   |
+| Environment        | `none` only. No `openai_hosted`, no `self_hosted`                                                                   |
+| Input              | 32,000 UTF-8 characters                                                                                             |
+| Tools              | 4 named functions; arguments ≤ 16,000 bytes                                                                         |
+| Output reservation | 50 USD cents maximum per live turn, reserved **before** fetch                                                       |
+| Currency           | $1/user/UTC day, $10 global/day, $50 global/month; env may only lower                                               |
+| Attempts           | GET retrieve: 3 attempts, 60s timeout. POST create/events: one attempt, no automatic replay                         |
+| Settle             | After create/events, bounded GET retrieve (15 × 2s). No `stream: true`. No webhooks.                                |
+| Concurrency        | 1 `queued`/`in_progress` turn per owner, claimed in the INSERT; unique active-owner index                           |
+| Idempotency        | parked/idle start returns the existing session; tool results keyed by owner+turn_id+call_id                         |
+| Storage            | 50 sessions and 500 tool-call rows per owner                                                                        |
+| Retry              | Never refund. Uncertain retains the reservation and **does not** replay POST create/events. GET retrieve may retry. |
+| Worker ATS POST    | Still absent. Fetch, if any, is only `https://api.openai.com/v1/agents/`                                            |
 
 ## Recovery doctrine
 

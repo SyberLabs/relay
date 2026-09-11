@@ -6,7 +6,7 @@ import {
   upsertPreparation,
   type InspectView,
 } from './application-automation.ts';
-import { saveProgress } from './application-progress.ts';
+import { recordAgentProgress } from './application-progress.ts';
 import {
   AgentRuntimeRefusal,
   requireAgent,
@@ -82,6 +82,13 @@ function wrapApp(error: unknown): never {
   if (error instanceof ApplicationRefusal)
     throw new AgentRuntimeRefusal(error.message, error.status);
   throw error;
+}
+
+function isActiveTurnConflict(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /UNIQUE constraint failed/i.test(message) && /agent_sessions/i.test(message)
+  );
 }
 
 function runtimeFor(
@@ -522,25 +529,18 @@ async function executeImmediate(
     };
   }
   if (action.name === 'relay_record_progress') {
-    const job = await jobOwned(db, owner, jobId);
+    await jobOwned(db, owner, jobId);
     const note =
       typeof action.arguments.note === 'string'
         ? action.arguments.note
         : 'Agent progress';
-    const blocker =
-      typeof action.arguments.blocker === 'string'
-        ? action.arguments.blocker
-        : '';
-    const saved = await saveProgress(
+    const saved = await recordAgentProgress(
       db,
       owner,
       {
-        action: 'progress',
         id: jobId,
-        version: job.version,
         operation_id: `agent:${sessionId}`.slice(0, 128),
         note,
-        blocker,
       },
       now,
     );
@@ -765,35 +765,67 @@ export async function startAgentSession(
   if (existing && ['requires_action', 'idle'].includes(existing.status)) {
     return viewFrom(db, existing);
   }
-  const busy = await db
-    .prepare(
-      `SELECT id FROM agent_sessions WHERE owner=? AND status IN ('queued','in_progress') LIMIT 1`,
-    )
-    .bind(owner)
-    .first();
-  requireAgent(!busy, 'Another agent turn is already in progress.', 409);
-  if (admission.provider === 'openai')
-    await reserveLiveTurn(db, owner, now, env, admission.reserveCents);
   const id = crypto.randomUUID();
-  const providerSessionId = admission.provider === 'memory' ? `mem_${id}` : '';
-  await db
-    .prepare(
-      `INSERT INTO agent_sessions (id,owner,job_id,provider,provider_session_id,status,capabilities,provider_state,turn_id,created,updated)
-       VALUES (?,?,?,?,?,'queued',?,?,?,?,?)`,
-    )
-    .bind(
-      id,
-      owner,
-      jobId,
-      admission.provider,
-      providerSessionId || `pending_${id}`,
-      JSON.stringify(DEFAULT_AGENT_CAPABILITIES),
-      '',
-      '',
-      now,
-      now,
-    )
-    .run();
+  const providerSessionId =
+    admission.provider === 'memory' ? `mem_${id}` : `pending_${id}`;
+  try {
+    const claimed = await db
+      .prepare(
+        `INSERT INTO agent_sessions (id,owner,job_id,provider,provider_session_id,status,capabilities,provider_state,turn_id,created,updated)
+         SELECT ?,?,?,?,?,'queued',?,?,?,?,?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM agent_sessions WHERE owner=? AND status IN ('queued','in_progress')
+         )`,
+      )
+      .bind(
+        id,
+        owner,
+        jobId,
+        admission.provider,
+        providerSessionId,
+        JSON.stringify(DEFAULT_AGENT_CAPABILITIES),
+        '',
+        '',
+        now,
+        now,
+        owner,
+      )
+      .run();
+    requireAgent(
+      claimed.meta.changes === 1,
+      'Another agent turn is already in progress.',
+      409,
+    );
+  } catch (error) {
+    if (isActiveTurnConflict(error)) {
+      throw new AgentRuntimeRefusal(
+        'Another agent turn is already in progress.',
+        409,
+      );
+    }
+    throw error;
+  }
+  const failClaim = async () => {
+    await db
+      .prepare(
+        `UPDATE agent_sessions SET status='failed', updated=? WHERE owner=? AND id=?`,
+      )
+      .bind(now, owner, id)
+      .run();
+  };
+  if (admission.provider === 'openai') {
+    try {
+      await reserveLiveTurn(db, owner, now, env, admission.reserveCents);
+    } catch (error) {
+      await db
+        .prepare(
+          `DELETE FROM agent_sessions WHERE owner=? AND id=? AND status='queued'`,
+        )
+        .bind(owner, id)
+        .run();
+      wrapApp(error);
+    }
+  }
   const row = await loadSession(db, owner, id);
   const runtime = runtimeFor(env, jobId, deps);
   let snap: RuntimeSnapshot;
@@ -805,12 +837,7 @@ export async function startAgentSession(
       provider_session_id: row.provider_session_id,
     });
   } catch (error) {
-    await db
-      .prepare(
-        `UPDATE agent_sessions SET status='failed', updated=? WHERE owner=? AND id=?`,
-      )
-      .bind(now, owner, id)
-      .run();
+    await failClaim();
     wrapApp(error);
   }
   await processActions(db, row, runtime, snap, now);

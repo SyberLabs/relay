@@ -336,7 +336,7 @@ void test('disconnect then human answer resumes the same turn and does not verif
   db.sqlite.close();
 });
 
-void test('prepare freezes a digest in D1; continue without Accept is refused; begin stays 0', async () => {
+void test('prepare freezes a digest; continue after Accept does not invalidate begin', async () => {
   const db = database();
   await policy(db);
   await startAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now);
@@ -385,6 +385,11 @@ void test('prepare freezes a digest in D1; continue without Accept is refused; b
     memoryEnv,
     now,
   );
+  const job = db.sqlite
+    .prepare("SELECT version,blocker FROM jobs WHERE id='alice-0'")
+    .get();
+  assert.equal(job.version, 1);
+  assert.equal(job.blocker, '');
   assert.equal(continued.begin, false);
   assert.equal(continued.park, null);
   assert.equal(continued.status, 'idle');
@@ -392,11 +397,93 @@ void test('prepare freezes a digest in D1; continue without Accept is refused; b
   assert.equal(
     db.sqlite
       .prepare(
-        "SELECT COUNT(*) c FROM events WHERE owner='alice' AND kind='Progress saved'",
+        "SELECT COUNT(*) c FROM events WHERE owner='alice' AND kind='Agent progress'",
       )
       .get().c,
     1,
   );
+  assert.equal(
+    db.sqlite
+      .prepare(
+        "SELECT COUNT(*) c FROM events WHERE owner='alice' AND kind='Progress saved'",
+      )
+      .get().c,
+    0,
+  );
+  const began = await actOnApplication(
+    db,
+    'alice',
+    { id: parked.operation_id, digest: parked.digest, action: 'begin' },
+    now,
+  );
+  assert.equal(began.operation.state, 'executing');
+  assert.equal(began.execute, true);
+  assert.equal(begins(db), 1);
+  await assert.rejects(
+    () =>
+      actOnApplication(
+        db,
+        'alice',
+        { id: parked.operation_id, digest: parked.digest, action: 'begin' },
+        now,
+      ),
+    /permission|cannot|already/i,
+  );
+  assert.equal(begins(db), 1);
+  db.sqlite.close();
+});
+
+void test('agent progress preserves an existing job blocker', async () => {
+  const db = database();
+  await policy(db);
+  await startAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now);
+  const parked = await answerAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0', answer: 'Yes, authorized.' },
+    memoryEnv,
+    now,
+  );
+  const inspect = await inspectApplication(db, 'alice', 'alice-0', now);
+  await armPreparation(
+    db,
+    'alice',
+    {
+      job: 'alice-0',
+      id: parked.operation_id,
+      actor: 'Fictional applying agent',
+      preparation_revision: inspect.preparation_revision,
+    },
+    now,
+  );
+  await actOnApplication(
+    db,
+    'alice',
+    { id: parked.operation_id, digest: parked.digest, action: 'approve' },
+    now,
+  );
+  db.sqlite
+    .prepare(
+      "UPDATE jobs SET blocker='Waiting on a transcript' WHERE id='alice-0'",
+    )
+    .run();
+  await continueAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now);
+  const job = db.sqlite
+    .prepare("SELECT version,blocker FROM jobs WHERE id='alice-0'")
+    .get();
+  assert.equal(job.version, 1);
+  assert.equal(job.blocker, 'Waiting on a transcript');
+  await assert.rejects(
+    () =>
+      actOnApplication(
+        db,
+        'alice',
+        { id: parked.operation_id, digest: parked.digest, action: 'begin' },
+        now,
+      ),
+    /permission/i,
+  );
+  assert.equal(begins(db), 0);
   db.sqlite.close();
 });
 
@@ -550,6 +637,25 @@ void test('session and tool-call storage caps abort extra inserts', () => {
   db.sqlite.close();
 });
 
+void test('one active owner turn is unique; overlapping starts insert once', async () => {
+  const db = database();
+  const insertQueued = db.sqlite.prepare(
+    `INSERT INTO agent_sessions (id,owner,job_id,provider,provider_session_id,status,capabilities,provider_state,turn_id,created,updated)
+     VALUES (?,?,?,'memory',?,'queued','[]','','',?,?)`,
+  );
+  insertQueued.run('q1', 'alice', 'alice-0', 'mem-q1', now, now);
+  assert.throws(
+    () => insertQueued.run('q2', 'alice', 'alice-1', 'mem-q2', now, now),
+    /UNIQUE constraint failed/i,
+  );
+  insertQueued.run('q-bob', 'bob', 'bob-0', 'mem-bob', now, now);
+  db.sqlite
+    .prepare("UPDATE agent_sessions SET status='idle' WHERE id='q1'")
+    .run();
+  insertQueued.run('q3', 'alice', 'alice-1', 'mem-q3', now, now);
+  db.sqlite.close();
+});
+
 void test('live start reserves maximum cents before fetch; exhausted budget does not fetch', async () => {
   const db = database();
   await policy(db);
@@ -599,6 +705,10 @@ void test('live start reserves maximum cents before fetch; exhausted budget does
     /cost limit/i,
   );
   assert.equal(blocked, 0);
+  assert.equal(
+    db2.sqlite.prepare('SELECT COUNT(*) c FROM agent_sessions').get().c,
+    0,
+  );
   db.sqlite.close();
   db2.sqlite.close();
 });
@@ -680,6 +790,59 @@ void test('queued start is refused; parked start is idempotent', async () => {
     now,
   );
   assert.equal(parked.session_id, 'queued-1');
+  db.sqlite.close();
+});
+
+void test('concurrent starts claim at most one active owner turn', async () => {
+  const db = database();
+  await policy(db);
+  const original = db.prepare.bind(db);
+  let waiting = 0;
+  let release;
+  const go = new Promise((resolve) => {
+    release = resolve;
+  });
+  db.prepare = (sql) => {
+    const stmt = original(sql);
+    if (!String(sql).includes('INSERT INTO agent_sessions')) return stmt;
+    return {
+      bind(...args) {
+        const bound = stmt.bind(...args);
+        return {
+          async first() {
+            return bound.first();
+          },
+          async all() {
+            return bound.all();
+          },
+          async run() {
+            waiting += 1;
+            if (waiting >= 2) release();
+            await go;
+            return bound.run();
+          },
+        };
+      },
+    };
+  };
+  const results = await Promise.allSettled([
+    startAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now),
+    startAgentSession(db, 'alice', { job: 'alice-1' }, memoryEnv, now),
+  ]);
+  const fulfilled = results.filter((row) => row.status === 'fulfilled');
+  const rejected = results.filter((row) => row.status === 'rejected');
+  assert.equal(fulfilled.length, 1);
+  assert.equal(rejected.length, 1);
+  assert.match(String(rejected[0].reason), /already in progress/i);
+  assert.equal(
+    db.sqlite
+      .prepare(
+        "SELECT COUNT(*) c FROM agent_sessions WHERE owner='alice' AND status IN ('queued','in_progress','requires_action','idle')",
+      )
+      .get().c,
+    1,
+  );
+  assert.equal(waiting, 2);
   db.sqlite.close();
 });
 

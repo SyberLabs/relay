@@ -46,6 +46,108 @@ export function validateProgress(value: unknown): ApplicationProgress {
   return b as ApplicationProgress;
 }
 
+async function progressEventId(
+  prefix: string,
+  owner: string,
+  operationId: string,
+) {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(JSON.stringify([owner, operationId])),
+  );
+  return (
+    prefix +
+    Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('')
+  );
+}
+
+export async function recordAgentProgress(
+  db: D1Database,
+  owner: string,
+  input: { id: string; operation_id: string; note: string },
+  now: string,
+) {
+  const note = input.note.trim();
+  if (
+    !/^[\w.:-]{1,128}$/.test(input.id) ||
+    !/^[\w.:-]{1,128}$/.test(input.operation_id) ||
+    !note ||
+    note.length > 4000
+  ) {
+    return {
+      status: 400,
+      data: {
+        error: 'Agent progress requires a job ID, operation ID, and note.',
+      },
+    };
+  }
+  const job = await db
+    .prepare('SELECT version,blocker FROM jobs WHERE id=? AND owner=?')
+    .bind(input.id, owner)
+    .first<{ version: number; blocker: string }>();
+  if (!job) return { status: 404, data: { error: 'Record not found.' } };
+  const eventId = await progressEventId(
+    'agent-progress:',
+    owner,
+    input.operation_id,
+  );
+  const detail = JSON.stringify({
+    operation_id: input.operation_id,
+    note,
+  });
+  const readReceipt = () =>
+    db
+      .prepare('SELECT job_id,kind,detail FROM events WHERE id=? AND owner=?')
+      .bind(eventId, owner)
+      .first<{ job_id: string; kind: string; detail: string }>();
+  const matches = (event: Awaited<ReturnType<typeof readReceipt>>) =>
+    event?.job_id === input.id &&
+    event.kind === 'Agent progress' &&
+    event.detail === detail;
+  const conflict = {
+    status: 409,
+    data: { error: 'Agent progress operation ID was reused.' },
+  };
+  const prior = await readReceipt();
+  if (prior)
+    return matches(prior)
+      ? { status: 200, data: { ok: true, replayed: true } }
+      : conflict;
+  const result = await db
+    .prepare(
+      `INSERT INTO events (id,owner,job_id,kind,detail,created)
+      SELECT ?,?,?,'Agent progress',?,?
+      WHERE EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner=? AND version=? AND blocker=?)
+      AND NOT EXISTS (SELECT 1 FROM events WHERE id=?)`,
+    )
+    .bind(
+      eventId,
+      owner,
+      input.id,
+      detail,
+      now,
+      input.id,
+      owner,
+      job.version,
+      job.blocker,
+      eventId,
+    )
+    .run();
+  if (result.meta.changes)
+    return { status: 200, data: { ok: true, replayed: false } };
+  return matches(await readReceipt())
+    ? { status: 200, data: { ok: true, replayed: true } }
+    : {
+        status: 409,
+        data: {
+          error:
+            'Record changed during agent progress. Reload before recording a new note.',
+        },
+      };
+}
+
 export async function saveProgress(
   db: D1Database,
   owner: string,
@@ -59,15 +161,7 @@ export async function saveProgress(
   if (!job) return { status: 404, data: { error: 'Record not found.' } };
   // A fixed owner-scoped primary key makes replay lookup bounded and collisions
   // serializable in the same transaction as the saved progress.
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(JSON.stringify([owner, b.operation_id])),
-  );
-  const eventId =
-    'progress:' +
-    Array.from(new Uint8Array(digest), (byte) =>
-      byte.toString(16).padStart(2, '0'),
-    ).join('');
+  const eventId = await progressEventId('progress:', owner, b.operation_id);
   const detail = JSON.stringify({
     version: b.version,
     operation_id: b.operation_id,

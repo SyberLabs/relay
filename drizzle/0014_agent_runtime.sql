@@ -14,6 +14,7 @@ CREATE TABLE `agent_sessions` (
 CREATE INDEX `agent_sessions_owner_job` ON `agent_sessions` (`owner`,`job_id`);--> statement-breakpoint
 CREATE INDEX `agent_sessions_owner_status` ON `agent_sessions` (`owner`,`status`);--> statement-breakpoint
 CREATE UNIQUE INDEX `agent_sessions_owner_provider_session` ON `agent_sessions` (`owner`,`provider_session_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `agent_sessions_owner_active` ON `agent_sessions` (`owner`) WHERE `status` IN ('queued','in_progress');--> statement-breakpoint
 CREATE TABLE `agent_tool_calls` (
 	`id` text PRIMARY KEY NOT NULL,
 	`owner` text NOT NULL,

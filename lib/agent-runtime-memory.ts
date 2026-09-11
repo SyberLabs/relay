@@ -210,7 +210,6 @@ export function memoryReturnToolResult(
     return snapshot(next, providerSessionId, [
       call(next, 'relay_record_progress', {
         note: 'Digest frozen. Waiting for the browser operative. Agent cannot begin.',
-        blocker: '',
       }),
     ]);
   }
@@ -256,7 +255,6 @@ export function createMemoryRuntime(jobId: string): AgentRuntime {
         return snapshot(parsed, id, [
           call(parsed, 'relay_record_progress', {
             note: 'Digest frozen. Waiting for the browser operative. Agent cannot begin.',
-            blocker: '',
           }),
         ]);
       }

@@ -152,8 +152,11 @@ export function createOpenAIAgentsRuntime(
     init: RequestInit,
   ): Promise<Record<string, unknown>> {
     assertAgentsUrl(url);
+    const method = String(init.method || 'GET').toUpperCase();
+    const retryable = method === 'GET';
+    const attempts = retryable ? AGENT_HTTP_ATTEMPTS : 1;
     let lastError: unknown;
-    for (let attempt = 1; attempt <= AGENT_HTTP_ATTEMPTS; attempt += 1) {
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
       try {
@@ -181,12 +184,14 @@ export function createOpenAIAgentsRuntime(
             'Agents API is unavailable.',
             502,
           );
+          if (!retryable) break;
           continue;
         }
         return body;
       } catch (error) {
         lastError = error;
         if (error instanceof AgentRuntimeRefusal) throw error;
+        if (!retryable) break;
       } finally {
         clearTimeout(timer);
       }

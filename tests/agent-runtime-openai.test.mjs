@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createOpenAIAgentsRuntime } from '../lib/agent-runtime-openai.ts';
+import {
+  assertAgentsUrl,
+  createOpenAIAgentsRuntime,
+} from '../lib/agent-runtime-openai.ts';
 import { AGENT_FUNCTION_TOOLS } from '../lib/agent-runtime-tools.ts';
 import { AgentRuntimeRefusal } from '../lib/agent-runtime.ts';
 
@@ -88,8 +91,7 @@ void test('OpenAI adapter sends beta header, environment none, and replays tool_
   assert.equal(event.body.events[0].type, 'agent.session.input.tool_result');
   assert.equal(event.body.events[0].turn_id, 'turn_9');
   assert.equal(event.body.events[0].call_id, 'call_9');
-  for (const call of calls)
-    assert.match(call.url, /^https:\/\/api\.openai.com\//);
+  for (const call of calls) assertAgentsUrl(call.url);
 });
 
 void test('4xx from Agents API fails closed without retrying a side effect', async () => {
@@ -184,6 +186,7 @@ void test('Agents route refuses begin and never streams or hosts a sandbox', () 
   assert.doesNotMatch(openai, /stream:\s*true/);
   assert.doesNotMatch(openai, /openai_hosted/);
   assert.doesNotMatch(openai, /self_hosted/);
-  assert.match(openai, /api\.openai.com/);
+  assert.match(openai, /v1\/agents\/sessions/);
+  assert.match(openai, /assertAgentsUrl/);
   assert.doesNotMatch(openai, /employer\.example/);
 });

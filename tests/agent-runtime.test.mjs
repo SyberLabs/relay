@@ -144,6 +144,11 @@ void test('forbidden authority tools are never registered', () => {
     () => assertAgentsUrl('https://employer.example/apply'),
     /not allowed/,
   );
+  assert.throws(
+    () =>
+      assertAgentsUrl('https://api.openai.com.evil.example/v1/agents/sessions'),
+    /not allowed/,
+  );
 });
 
 void test('kill switch, pause, and live-without-opt-in never call upstream', async () => {
@@ -556,7 +561,7 @@ void test('live start reserves maximum cents before fetch; exhausted budget does
   let fetches = 0;
   const fetch = async (url) => {
     fetches += 1;
-    assert.match(String(url), /^https:\/\/api\.openai.com\//);
+    assertAgentsUrl(typeof url === 'string' ? url : '');
     return new Response(
       JSON.stringify({ id: 'agt_fictional', status: 'idle' }),
       { headers: { 'content-type': 'application/json' } },
@@ -621,10 +626,7 @@ void test('sync retrieves a live in_progress session without beginning', async (
     {
       fetch: async (url) => {
         fetches += 1;
-        assert.match(
-          typeof url === 'string' ? url : '',
-          /^https:\/\/api\.openai.com\/v1\/agents\//,
-        );
+        assertAgentsUrl(typeof url === 'string' ? url : '');
         return new Response(
           JSON.stringify({
             id: 'agt_sync',

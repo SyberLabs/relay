@@ -40,11 +40,34 @@ export function agentParkCopy(view: AgentSessionView | null, jobName: string) {
       action: 'authorize' as const,
     };
   }
+  if (view.status === 'queued' || view.status === 'in_progress') {
+    return {
+      title: 'Agent is working',
+      detail:
+        'The runtime still owns this turn. Refresh retrieves the session; the workspace poll does not call OpenAI.',
+      action: 'working' as const,
+    };
+  }
+  if (view.status === 'cancelled') {
+    return {
+      title: 'Agent session cancelled',
+      detail: 'The agent cannot begin. Start a new session if you need one.',
+      action: 'start' as const,
+    };
+  }
+  if (view.status === 'failed') {
+    return {
+      title: 'Agent session failed',
+      detail:
+        'Inspect saved work. An uncertain Submit stays uncertain; do not retry it.',
+      action: 'start' as const,
+    };
+  }
   if (view.status === 'idle') {
     return {
-      title: 'Agent is waiting for the browser operative',
+      title: 'Agent is idle',
       detail:
-        'Human acceptance is recorded. The agent cannot click Submit or call begin.',
+        'The agent cannot click Submit or call begin. The browser operative remains the effector.',
       action: 'idle' as const,
     };
   }

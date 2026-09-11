@@ -21,11 +21,12 @@ export type AgentRuntimeStatus = (typeof AGENT_RUNTIME_STATUSES)[number];
 export type AgentRuntimeProvider = 'memory' | 'openai';
 
 export type RequiredAction = {
-  type: 'function_call';
+  type: 'function_call' | 'environment_connection';
   turn_id: string;
   call_id: string;
   name: string;
   arguments: Record<string, unknown>;
+  environment_id?: string;
 };
 
 export type ToolResultInput = {

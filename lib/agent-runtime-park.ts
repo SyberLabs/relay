@@ -11,6 +11,7 @@ export type ParkedCall = {
 };
 
 export function parkFromAction(action: RequiredAction): ParkedCall | null {
+  if (action.type !== 'function_call') return null;
   if (action.name === 'relay_request_answer') {
     return {
       kind: 'answer',

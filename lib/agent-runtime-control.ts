@@ -583,6 +583,17 @@ async function processActions(
     if (current.status !== 'requires_action' || !current.required_actions[0])
       return current;
     const action = current.required_actions[0];
+    if (action.type === 'environment_connection') {
+      current = await runtime.cancel(
+        row.provider_session_id,
+        current.provider_state,
+      );
+      await saveSession(db, row, { ...current, status: 'failed' }, now);
+      throw new AgentRuntimeRefusal(
+        'Hosted environment connections are refused.',
+        403,
+      );
+    }
     if (isForbiddenAgentTool(action.name) || !isAllowedAgentTool(action.name)) {
       current = await runtime.returnToolResult(
         row.provider_session_id,
@@ -745,12 +756,13 @@ export async function startAgentSession(
   const text = boundAgentText(input.text ?? START_TEXT, AGENT_INPUT_MAX);
   const admission = admitAgentRuntime(env, true);
   const existing = await loadLatestSession(db, owner, jobId);
-  if (
-    existing &&
-    ['queued', 'in_progress', 'requires_action', 'idle'].includes(
-      existing.status,
-    )
-  ) {
+  if (existing && ['queued', 'in_progress'].includes(existing.status)) {
+    throw new AgentRuntimeRefusal(
+      'Another agent turn is already in progress.',
+      409,
+    );
+  }
+  if (existing && ['requires_action', 'idle'].includes(existing.status)) {
     return viewFrom(db, existing);
   }
   const busy = await db
@@ -989,6 +1001,33 @@ export async function continueAgentSession(
       success: true,
       output,
     },
+    row.provider_state,
+  );
+  await processActions(db, row, runtime, snap, now);
+  return viewFrom(db, await loadSession(db, owner, row.id));
+}
+
+export async function syncAgentSession(
+  db: D1Database,
+  owner: string,
+  input: { job: string },
+  env: AgentAdmissionEnv,
+  now: string,
+  deps: AgentControlDeps = {},
+) {
+  const admission = admitAgentRuntime(env, true);
+  const row = await loadLatestSession(db, owner, String(input.job || ''));
+  requireAgent(row, 'Agent session is unavailable.', 404);
+  requireAgent(row.status !== 'cancelled', 'Agent session was cancelled.', 409);
+  if (row.status === 'failed') return viewFrom(db, row);
+  if (row.status === 'requires_action' || row.status === 'idle') {
+    return viewFrom(db, row);
+  }
+  const runtime = runtimeFor(env, row.job_id, deps);
+  if (admission.provider === 'openai')
+    await reserveLiveTurn(db, owner, now, env, admission.reserveCents);
+  const snap = await runtime.getState(
+    row.provider_session_id,
     row.provider_state,
   );
   await processActions(db, row, runtime, snap, now);

@@ -18,8 +18,12 @@ import {
   continueAgentSession,
   getAgentSession,
   startAgentSession,
+  syncAgentSession,
 } from '../lib/agent-runtime-control.ts';
-import { openaiSessionBody } from '../lib/agent-runtime-openai.ts';
+import {
+  assertAgentsUrl,
+  openaiSessionBody,
+} from '../lib/agent-runtime-openai.ts';
 import { agentParkCopy } from '../lib/agent-runtime-view.ts';
 
 const now = '2026-09-11T12:00:00.000Z';
@@ -128,9 +132,17 @@ void test('forbidden authority tools are never registered', () => {
     tools: AGENT_FUNCTION_TOOLS,
   });
   assert.equal(body.environment.type, 'none');
+  assert.equal(Object.hasOwn(body, 'stream'), false);
   assert.ok(!JSON.stringify(body).includes('openai_hosted'));
+  assert.ok(!JSON.stringify(body).includes('self_hosted'));
+  assert.ok(!JSON.stringify(body).includes('web_search'));
+  assert.ok(!JSON.stringify(body).includes('"mcp"'));
   assert.ok(
     !body.agent.tools.some((tool) => FORBIDDEN_AGENT_TOOLS.includes(tool.name)),
+  );
+  assert.throws(
+    () => assertAgentsUrl('https://employer.example/apply'),
+    /not allowed/,
   );
 });
 
@@ -472,6 +484,24 @@ void test('cancel stops the session; park copy names human work', () => {
     'Fictional role 0',
   );
   assert.match(ready.title, /Ready to submit/);
+  const working = agentParkCopy(
+    {
+      session_id: 's',
+      job_id: 'alice-0',
+      provider: 'openai',
+      status: 'in_progress',
+      turn_id: 'turn_1',
+      park: null,
+      operation_id: null,
+      digest: null,
+      authorized: false,
+      begin: false,
+      capabilities: [],
+    },
+    'Fictional role 0',
+  );
+  assert.equal(working.title, 'Agent is working');
+  assert.equal(working.action, 'working');
 });
 
 void test('cancel is owner-scoped and does not begin', async () => {
@@ -566,4 +596,233 @@ void test('live start reserves maximum cents before fetch; exhausted budget does
   assert.equal(blocked, 0);
   db.sqlite.close();
   db2.sqlite.close();
+});
+
+void test('sync retrieves a live in_progress session without beginning', async () => {
+  const db = database();
+  await policy(db);
+  db.sqlite
+    .prepare(
+      `INSERT INTO agent_sessions (id,owner,job_id,provider,provider_session_id,status,capabilities,provider_state,turn_id,created,updated)
+       VALUES ('s-live','alice','alice-0','openai','agt_sync','in_progress','[]','','',?,?)`,
+    )
+    .run(now, now);
+  let fetches = 0;
+  const view = await syncAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    {
+      RELAY_AGENTS: 'live',
+      RELAY_AGENTS_LIVE: '1',
+      OPENAI_API_KEY: 'sk-fictional-key-1234567890',
+    },
+    now,
+    {
+      fetch: async (url) => {
+        fetches += 1;
+        assert.match(
+          typeof url === 'string' ? url : '',
+          /^https:\/\/api\.openai.com\/v1\/agents\//,
+        );
+        return new Response(
+          JSON.stringify({
+            id: 'agt_sync',
+            status: 'requires_action',
+            required_actions: [
+              {
+                type: 'function_call',
+                turn_id: 'turn_s',
+                call_id: 'call_s',
+                name: 'relay_request_answer',
+                arguments: { question: 'Work authorization?' },
+              },
+            ],
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        );
+      },
+    },
+  );
+  assert.equal(view.park?.kind, 'answer');
+  assert.equal(view.park?.call_id, 'call_s');
+  assert.equal(view.begin, false);
+  assert.equal(fetches, 1);
+  assert.equal(begins(db), 0);
+  db.sqlite.close();
+});
+
+void test('queued start is refused; parked start is idempotent', async () => {
+  const db = database();
+  await policy(db);
+  db.sqlite
+    .prepare(
+      `INSERT INTO agent_sessions (id,owner,job_id,provider,provider_session_id,status,capabilities,provider_state,turn_id,created,updated)
+       VALUES ('queued-1','alice','alice-0','memory','mem-q','queued','[]','','',?,?)`,
+    )
+    .run(now, now);
+  await assert.rejects(
+    () => startAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now),
+    /already in progress/i,
+  );
+  db.sqlite
+    .prepare(
+      "UPDATE agent_sessions SET status='requires_action' WHERE id='queued-1'",
+    )
+    .run();
+  const parked = await startAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    memoryEnv,
+    now,
+  );
+  assert.equal(parked.session_id, 'queued-1');
+  db.sqlite.close();
+});
+
+void test('sync on a parked session does not call OpenAI', async () => {
+  const db = database();
+  await policy(db);
+  await startAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now);
+  let fetches = 0;
+  const fetched = await syncAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    { RELAY_AGENTS: 'memory', OPENAI_API_KEY: 'sk-fictional-key-1234567890' },
+    now,
+    {
+      fetch: async () => {
+        fetches += 1;
+        return new Response('{}');
+      },
+    },
+  );
+  assert.equal(fetched.park?.kind, 'answer');
+  assert.equal(fetches, 0);
+  db.sqlite.close();
+});
+
+void test('live forbidden begin tool is returned as an error and does not begin', async () => {
+  const db = database();
+  await policy(db);
+  const live = {
+    RELAY_AGENTS: 'live',
+    RELAY_AGENTS_LIVE: '1',
+    OPENAI_API_KEY: 'sk-fictional-key-1234567890',
+  };
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push({
+      url: String(url),
+      method: init.method,
+      body: init.body ? JSON.parse(init.body) : null,
+    });
+    if (String(url).endsWith('/agents/sessions') && init.method === 'POST') {
+      return new Response(
+        JSON.stringify({
+          id: 'agt_begin',
+          status: 'requires_action',
+          required_actions: [
+            {
+              type: 'function_call',
+              turn_id: 'turn_b',
+              call_id: 'call_b',
+              name: 'begin',
+              arguments: { execute: true },
+            },
+          ],
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    }
+    if (String(url).includes('/events')) {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    return new Response(JSON.stringify({ id: 'agt_begin', status: 'idle' }), {
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  const view = await startAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    live,
+    now,
+    { fetch },
+  );
+  assert.equal(view.begin, false);
+  assert.equal(begins(db), 0);
+  const result = calls.find((c) => String(c.url).includes('/events'));
+  assert.equal(result.body.events[0].success, false);
+  assert.match(result.body.events[0].error, /not allowed/i);
+  db.sqlite.close();
+});
+
+void test('live environment_connection is refused without connecting a sandbox', async () => {
+  const db = database();
+  await policy(db);
+  const live = {
+    RELAY_AGENTS: 'live',
+    RELAY_AGENTS_LIVE: '1',
+    OPENAI_API_KEY: 'sk-fictional-key-1234567890',
+  };
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push({
+      url: String(url),
+      method: init.method,
+      body: init.body ? JSON.parse(init.body) : null,
+    });
+    if (String(url).endsWith('/agents/sessions') && init.method === 'POST') {
+      return new Response(
+        JSON.stringify({
+          id: 'agt_env',
+          status: 'requires_action',
+          required_actions: [
+            {
+              type: 'environment_connection',
+              turn_id: 'turn_e',
+              call_id: 'call_e',
+              environment_id: 'env_hosted',
+            },
+          ],
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    }
+    if (String(url).includes('/events')) {
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    return new Response(
+      JSON.stringify({ id: 'agt_env', status: 'cancelled' }),
+      { headers: { 'content-type': 'application/json' } },
+    );
+  };
+  await assert.rejects(
+    () =>
+      startAgentSession(db, 'alice', { job: 'alice-0' }, live, now, {
+        fetch,
+      }),
+    /environment connections are refused/i,
+  );
+  assert.equal(begins(db), 0);
+  const cancel = calls.find(
+    (c) =>
+      String(c.url).includes('/events') &&
+      c.body?.events?.[0]?.type === 'agent.session.input.cancel',
+  );
+  assert.ok(cancel);
+  assert.equal(
+    db.sqlite
+      .prepare("SELECT status FROM agent_sessions WHERE owner='alice'")
+      .get().status,
+    'failed',
+  );
+  db.sqlite.close();
 });

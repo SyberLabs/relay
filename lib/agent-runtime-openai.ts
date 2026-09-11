@@ -9,11 +9,15 @@ import {
 import {
   AGENT_HTTP_ATTEMPTS,
   AGENT_HTTP_TIMEOUT_MS,
+  AGENT_SETTLE_DELAY_MS,
+  AGENT_SETTLE_POLLS,
 } from './agent-runtime-admission.ts';
 import { AGENT_INSTRUCTIONS } from './agent-runtime-tools.ts';
-import { parseArguments } from './agent-runtime-park.ts';
+import { parseArguments, toolResultPayload } from './agent-runtime-park.ts';
 
 const SESSIONS = 'https://api.openai.com/v1/agents/sessions';
+const AGENTS_ORIGIN = 'https://api.openai.com';
+const AGENTS_PATH = '/v1/agents/';
 
 export type OpenAIAgentsOptions = {
   apiKey: string;
@@ -21,6 +25,9 @@ export type OpenAIAgentsOptions = {
   fetch?: typeof fetch;
   now?: () => number;
   timeoutMs?: number;
+  settleDelayMs?: number;
+  settlePolls?: number;
+  sleep?: (ms: number) => Promise<void>;
 };
 
 export function openaiSessionBody(input: {
@@ -34,9 +41,65 @@ export function openaiSessionBody(input: {
       instructions: AGENT_INSTRUCTIONS,
       tools: input.tools,
     },
-    environment: { type: 'none' },
+    environment: { type: 'none' as const },
     input: input.text,
   };
+}
+
+export function assertAgentsUrl(url: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new AgentRuntimeRefusal(
+      'Agents API destination is not allowed.',
+      502,
+    );
+  }
+  if (
+    parsed.origin !== AGENTS_ORIGIN ||
+    parsed.protocol !== 'https:' ||
+    parsed.username ||
+    parsed.password ||
+    parsed.port !== '' ||
+    !parsed.pathname.startsWith(AGENTS_PATH)
+  ) {
+    throw new AgentRuntimeRefusal(
+      'Agents API destination is not allowed.',
+      502,
+    );
+  }
+}
+
+export function mapRequiredAction(action: unknown): RequiredAction {
+  const row =
+    action && typeof action === 'object'
+      ? (action as Record<string, unknown>)
+      : {};
+  const type =
+    row.type === 'environment_connection'
+      ? ('environment_connection' as const)
+      : ('function_call' as const);
+  return {
+    type,
+    turn_id: typeof row.turn_id === 'string' ? row.turn_id : '',
+    call_id: typeof row.call_id === 'string' ? row.call_id : '',
+    name: typeof row.name === 'string' ? row.name : '',
+    arguments: parseArguments(row.arguments),
+    ...(typeof row.environment_id === 'string'
+      ? { environment_id: row.environment_id }
+      : {}),
+  };
+}
+
+export function isActionableSnapshot(snap: RuntimeSnapshot) {
+  if (
+    snap.status === 'idle' ||
+    snap.status === 'cancelled' ||
+    snap.status === 'failed'
+  )
+    return true;
+  return snap.status === 'requires_action' && snap.required_actions.length > 0;
 }
 
 function snapshotFromSession(
@@ -44,13 +107,7 @@ function snapshotFromSession(
   provider_state = '',
 ): RuntimeSnapshot {
   const required = Array.isArray(session.required_actions)
-    ? (session.required_actions as RequiredAction[]).map((action) => ({
-        type: 'function_call' as const,
-        turn_id: String(action.turn_id || ''),
-        call_id: String(action.call_id || ''),
-        name: String(action.name || ''),
-        arguments: parseArguments(action.arguments),
-      }))
+    ? session.required_actions.map(mapRequiredAction)
     : [];
   const statusRaw =
     typeof session.status === 'string' ? session.status : 'in_progress';
@@ -76,15 +133,25 @@ function snapshotFromSession(
   };
 }
 
+function sleepFor(ms: number) {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 export function createOpenAIAgentsRuntime(
   options: OpenAIAgentsOptions,
 ): AgentRuntime {
   const send = options.fetch ?? fetch;
   const timeout = options.timeoutMs ?? AGENT_HTTP_TIMEOUT_MS;
+  const settleDelay = options.settleDelayMs ?? AGENT_SETTLE_DELAY_MS;
+  const settlePolls = options.settlePolls ?? AGENT_SETTLE_POLLS;
+  const sleep = options.sleep ?? sleepFor;
+
   async function openai(
     url: string,
     init: RequestInit,
   ): Promise<Record<string, unknown>> {
+    assertAgentsUrl(url);
     let lastError: unknown;
     for (let attempt = 1; attempt <= AGENT_HTTP_ATTEMPTS; attempt += 1) {
       const controller = new AbortController();
@@ -133,6 +200,20 @@ export function createOpenAIAgentsRuntime(
     return snapshotFromSession(session);
   }
 
+  async function waitUntilSettled(
+    id: string,
+    initial?: RuntimeSnapshot,
+  ): Promise<RuntimeSnapshot> {
+    let snap = initial ?? (await retrieve(id));
+    if (isActionableSnapshot(snap)) return snap;
+    for (let attempt = 0; attempt < settlePolls; attempt += 1) {
+      await sleep(settleDelay);
+      snap = await retrieve(id);
+      if (isActionableSnapshot(snap)) return snap;
+    }
+    return snap;
+  }
+
   return {
     async start(input) {
       const session = await openai(SESSIONS, {
@@ -145,7 +226,14 @@ export function createOpenAIAgentsRuntime(
           }),
         ),
       });
-      return snapshotFromSession(session);
+      const first = snapshotFromSession(session);
+      if (!first.provider_session_id) {
+        throw new AgentRuntimeRefusal(
+          'Agents API did not return a session.',
+          502,
+        );
+      }
+      return waitUntilSettled(first.provider_session_id, first);
     },
     async sendInput(id, text) {
       await openai(`${SESSIONS}/${id}/events`, {
@@ -164,7 +252,7 @@ export function createOpenAIAgentsRuntime(
           ],
         }),
       });
-      return retrieve(id);
+      return waitUntilSettled(id);
     },
     async getState(id) {
       return retrieve(id);
@@ -176,7 +264,7 @@ export function createOpenAIAgentsRuntime(
           events: [{ type: 'agent.session.input.cancel' }],
         }),
       });
-      return retrieve(id);
+      return waitUntilSettled(id);
     },
     async returnToolResult(id, result: ToolResultInput) {
       await openai(`${SESSIONS}/${id}/events`, {
@@ -185,16 +273,12 @@ export function createOpenAIAgentsRuntime(
           events: [
             {
               type: 'agent.session.input.tool_result',
-              turn_id: result.turn_id,
-              call_id: result.call_id,
-              ...(result.success
-                ? { success: true, output: result.output ?? '' }
-                : { success: false, error: result.error || 'Tool failed.' }),
+              ...toolResultPayload(result),
             },
           ],
         }),
       });
-      return retrieve(id);
+      return waitUntilSettled(id);
     },
   };
 }

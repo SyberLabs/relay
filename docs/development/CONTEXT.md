@@ -16,7 +16,7 @@ Find the affected symbol with `rg` in the relevant area, then read its callers, 
 | Concern                          | Start here                                                                                                 |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | Job state, acceptance, imports   | `lib/domain.ts`, `lib/import-upsert.ts`, `lib/editor.ts`, `tests/domain.test.mjs`, `tests/import.test.mjs` |
-| Cognitive runtime                | `lib/agent-runtime-control.ts`, `tests/agent-runtime.test.mjs`                                             |
+| Cognitive runtime                | `lib/agent-runtime-control.ts`, `lib/agent-runtime-openai.ts`, `tests/agent-runtime.test.mjs`              |
 | Assistant packets and connectors | `lib/assistant-handoff.ts`, `integrations/README.md`, `tests/connectors.test.mjs`                          |
 | Identity, quotas, CAPTCHA        | `deploy/worker.mjs`, `docs/threat-model.md`, `tests/security.test.mjs`, `tests/auth.test.mjs`              |
 | Data, ownership, migrations      | `db/schema.ts`, `lib/store.ts`, `drizzle/`, `tests/api.test.mjs`                                           |

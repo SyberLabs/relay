@@ -8,6 +8,7 @@ import {
   continueAgentSession,
   getAgentSession,
   startAgentSession,
+  syncAgentSession,
   agentPublicMode,
 } from '../../../lib/agent-runtime-control';
 import { env } from 'cloudflare:workers';
@@ -90,6 +91,12 @@ export async function POST(request: Request) {
         viewer,
         mode: agentPublicMode(envVars),
         session: await continueAgentSession(db, viewer, b, envVars, now),
+      });
+    if (b.action === 'sync')
+      return reply({
+        viewer,
+        mode: agentPublicMode(envVars),
+        session: await syncAgentSession(db, viewer, b, envVars, now),
       });
     if (b.action === 'cancel')
       return reply({

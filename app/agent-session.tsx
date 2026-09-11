@@ -43,9 +43,14 @@ export function AgentSessionPanel({
     setSession(data.session ?? null);
     if (data.viewer) setViewer(data.viewer);
   }, [jobId]);
+  const poll =
+    Boolean(jobId) && (mode !== 'off' || Boolean(session?.session_id));
   useEffect(() => {
     if (!jobId) return;
     void Promise.resolve().then(() => load());
+  }, [jobId, load]);
+  useEffect(() => {
+    if (!poll) return;
     const timer = window.setInterval(() => void load(), 3000);
     function onVisibility() {
       if (document.visibilityState === 'visible') void load();
@@ -55,7 +60,7 @@ export function AgentSessionPanel({
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [jobId, load]);
+  }, [load, poll]);
   async function mutate(body: Record<string, unknown>) {
     if (!viewer) return;
     setBusy(true);
@@ -80,6 +85,10 @@ export function AgentSessionPanel({
   }
   if (mode === 'off' && !session) return null;
   const copy = agentParkCopy(session, jobName);
+  const canWrite = mode !== 'off';
+  const canStart =
+    canWrite &&
+    (!session || session.status === 'cancelled' || session.status === 'failed');
   return (
     <section className="agent-session" aria-label="Agent session">
       <h3>Cognitive runtime</h3>
@@ -87,7 +96,7 @@ export function AgentSessionPanel({
       {error ? <p className="notice">{error}</p> : null}
       {copy.title ? <p>{copy.title}</p> : null}
       {copy.detail ? <p className="muted">{copy.detail}</p> : null}
-      {copy.action === 'answer' ? (
+      {copy.action === 'answer' && canWrite ? (
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -119,7 +128,7 @@ export function AgentSessionPanel({
           <p className="muted">
             Accept & send stays on Inspect. It is not an agent tool.
           </p>
-          {session?.authorized ? (
+          {canWrite && session?.authorized ? (
             <button
               className="btn"
               disabled={busy}
@@ -131,7 +140,17 @@ export function AgentSessionPanel({
           ) : null}
         </div>
       ) : null}
-      {mode !== 'off' && !session ? (
+      {copy.action === 'working' && canWrite ? (
+        <button
+          className="secondary"
+          disabled={busy}
+          onClick={() => void mutate({ action: 'sync' })}
+          type="button"
+        >
+          Refresh runtime
+        </button>
+      ) : null}
+      {canStart ? (
         <button
           className="secondary"
           disabled={busy}
@@ -139,6 +158,16 @@ export function AgentSessionPanel({
           type="button"
         >
           Start a runtime session
+        </button>
+      ) : null}
+      {canWrite && session && session.status !== 'cancelled' ? (
+        <button
+          className="textbtn"
+          disabled={busy}
+          onClick={() => void mutate({ action: 'cancel' })}
+          type="button"
+        >
+          Cancel agent turn
         </button>
       ) : null}
     </section>

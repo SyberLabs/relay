@@ -157,29 +157,32 @@ Seth must accept cost, privacy, and provider dependence before `live` is set any
 
 ## Admission (abuse controls)
 
-| Control            | Spike value                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| Kill switch        | `RELAY_AGENTS` empty/`off`; `RELAY_PAUSE=all` still stops work                            |
-| Live opt-in        | `RELAY_AGENTS=live` **and** `RELAY_AGENTS_LIVE=1`                                         |
-| Model allowlist    | `gpt-6-astra` for live; `relay-memory` for memory                                         |
-| Environment        | `none` only. No `openai_hosted`, no `self_hosted`                                         |
-| Input              | 32,000 UTF-8 characters                                                                   |
-| Tools              | 4 named functions; arguments ≤ 16,000 bytes                                               |
-| Output reservation | 50 USD cents maximum per live turn, reserved **before** fetch                             |
-| Currency           | $1/user/UTC day, $10 global/day, $50 global/month; env may only lower                     |
-| Attempts           | 3 HTTP attempts, 60s timeout                                                              |
-| Concurrency        | 1 `in_progress` turn per owner                                                            |
-| Idempotency        | owner+job start returns the existing session; tool results keyed by owner+turn_id+call_id |
-| Storage            | 50 sessions and 500 tool-call rows per owner                                              |
-| Retry              | Never refund. Uncertain retains the reservation and **does not** replay side effects      |
-| Worker ATS POST    | Still absent. Fetch, if any, is only `https://api.openai.com/`                            |
+| Control            | Spike value                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| Kill switch        | `RELAY_AGENTS` empty/`off`; `RELAY_PAUSE=all` still stops work                              |
+| Live opt-in        | `RELAY_AGENTS=live` **and** `RELAY_AGENTS_LIVE=1`                                           |
+| Model allowlist    | `gpt-6-astra` for live; `relay-memory` for memory                                           |
+| Environment        | `none` only. No `openai_hosted`, no `self_hosted`                                           |
+| Input              | 32,000 UTF-8 characters                                                                     |
+| Tools              | 4 named functions; arguments ≤ 16,000 bytes                                                 |
+| Output reservation | 50 USD cents maximum per live turn, reserved **before** fetch                               |
+| Currency           | $1/user/UTC day, $10 global/day, $50 global/month; env may only lower                       |
+| Attempts           | 3 HTTP attempts, 60s timeout                                                                |
+| Settle             | After create/events, bounded GET retrieve (15 × 2s). No `stream: true`. No webhooks.        |
+| Concurrency        | 1 `queued`/`in_progress` turn per owner; same-job start of those statuses is 409            |
+| Idempotency        | parked/idle start returns the existing session; tool results keyed by owner+turn_id+call_id |
+| Storage            | 50 sessions and 500 tool-call rows per owner                                                |
+| Retry              | Never refund. Uncertain retains the reservation and **does not** replay side effects        |
+| Worker ATS POST    | Still absent. Fetch, if any, is only `https://api.openai.com/v1/agents/`                    |
 
 ## Recovery doctrine
 
 Matches OpenAI's function-tool guidance and Relay's execution doctrine:
 
 - Retrieve the session (or Relay D1 row) after disconnect.
+- Live turns do **not** stream. After `POST /v1/agents/sessions` or `/events`, Relay GETs the session until it is `requires_action` (with `required_actions`), `idle`, `cancelled`, or `failed`, then stops. The workspace 3s poll reads D1 only. `POST /api/agents` `sync` retrieves OpenAI once when D1 is still `queued`/`in_progress`.
 - Pending work is `required_actions` / our `pending` rows, not a history `function_call` item alone.
+- `environment_connection` is refused. Relay cancels that turn and fails the row. It does not connect a sandbox.
 - If a side effect already ran, replay the **saved** `tool_result`.
 - If execution might have succeeded but no result was saved, mark **uncertain** and do not retry.
 
@@ -194,7 +197,7 @@ Measure only:
 
 ## Out of scope
 
-T2 grant-then-load on [#179](https://github.com/SyberLabs/relay/pull/179). T4–T6. Real ATS adapters. Worker POST. Autopilot. Chrome store. Wrapping the whole OpenAI API. Hosted sandbox. Enabling `live` in staging/production. Paying OpenAI in CI. Merging #179 or #182. Webhooks. Subagents. MCP on the OpenAI session.
+T2 grant-then-load on [#179](https://github.com/SyberLabs/relay/pull/179). T4–T6. Real ATS adapters. Worker POST. Autopilot. Chrome store. Wrapping the whole OpenAI API. Hosted sandbox. Enabling `live` in staging/production. Paying OpenAI in CI. Merging #179 or #182. Webhooks. Streaming. Subagents. MCP on the OpenAI session.
 
 ## Sources
 

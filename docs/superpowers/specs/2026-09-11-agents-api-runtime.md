@@ -185,7 +185,7 @@ Matches OpenAI's function-tool guidance and Relay's execution doctrine:
 - `environment_connection` is refused. Relay cancels that turn and fails the row. It does not connect a sandbox.
 - If a side effect already ran, replay the **saved** `tool_result`.
 - If execution might have succeeded but no result was saved, mark **uncertain** and do not retry.
-- Cancel is terminal. Pending tool rows close; continue and answer refuse cancelled/failed. UI ranks terminal status before park.
+- Cancel is terminal. Pending tool rows close; continue and answer refuse cancelled/failed. UI ranks terminal status before park. persist/process/fail writes cannot revive cancelled or failed; a late real provider id is stored and cancelled without changing terminal status.
 - A `pending_*` provider session id is not fetched. The real id is saved immediately after create, before settle polling. Cancel of a placeholder is local only.
 
 ## Spike measurement

@@ -188,13 +188,31 @@ async function saveSession(
   snap: RuntimeSnapshot,
   now: string,
 ) {
+  const realId =
+    snap.provider_session_id &&
+    !isPlaceholderProviderSession(snap.provider_session_id)
+      ? snap.provider_session_id
+      : '';
   await db
     .prepare(
-      `UPDATE agent_sessions SET status=?, provider_session_id=?, provider_state=?, turn_id=?, updated=? WHERE owner=? AND id=?`,
+      `UPDATE agent_sessions SET
+        status = CASE WHEN status IN ('cancelled','failed') THEN status ELSE ? END,
+        provider_session_id = CASE
+          WHEN ? != '' AND (
+            provider_session_id GLOB 'pending_*' OR
+            status NOT IN ('cancelled','failed')
+          ) THEN ?
+          ELSE provider_session_id
+        END,
+        provider_state = CASE WHEN status IN ('cancelled','failed') THEN provider_state ELSE ? END,
+        turn_id = CASE WHEN status IN ('cancelled','failed') THEN turn_id ELSE ? END,
+        updated = ?
+       WHERE owner=? AND id=?`,
     )
     .bind(
       snap.status,
-      snap.provider_session_id || row.provider_session_id,
+      realId,
+      realId,
       snap.provider_state || row.provider_state,
       snap.turn_id || row.turn_id,
       now,
@@ -202,11 +220,12 @@ async function saveSession(
       row.id,
     )
     .run();
-  row.status = snap.status;
-  row.provider_session_id = snap.provider_session_id || row.provider_session_id;
-  row.provider_state = snap.provider_state || row.provider_state;
-  row.turn_id = snap.turn_id || row.turn_id;
-  row.updated = now;
+  const written = await loadSession(db, row.owner, row.id);
+  row.status = written.status;
+  row.provider_session_id = written.provider_session_id;
+  row.provider_state = written.provider_state;
+  row.turn_id = written.turn_id;
+  row.updated = written.updated;
 }
 
 async function upsertCall(
@@ -598,6 +617,7 @@ async function processActions(
   let current = snap;
   for (let step = 0; step < AGENT_INLINE_STEPS; step += 1) {
     await saveSession(db, row, current, now);
+    if (row.status === 'cancelled' || row.status === 'failed') return current;
     if (current.status !== 'requires_action' || !current.required_actions[0])
       return current;
     const action = current.required_actions[0];
@@ -829,7 +849,7 @@ export async function startAgentSession(
   const failClaim = async () => {
     await db
       .prepare(
-        `UPDATE agent_sessions SET status='failed', updated=? WHERE owner=? AND id=?`,
+        `UPDATE agent_sessions SET status='failed', updated=? WHERE owner=? AND id=? AND status NOT IN ('cancelled','failed')`,
       )
       .bind(now, owner, id)
       .run();
@@ -867,9 +887,34 @@ export async function startAgentSession(
           },
           now,
         );
+        if (row.status === 'cancelled' || row.status === 'failed') {
+          if (
+            created.provider_session_id &&
+            !isPlaceholderProviderSession(created.provider_session_id)
+          ) {
+            try {
+              await runtime.cancel(
+                created.provider_session_id,
+                created.provider_state || '',
+              );
+            } catch {
+              /* Best-effort; the row stays terminal. */
+            }
+          }
+          throw new AgentRuntimeRefusal(
+            row.status === 'cancelled'
+              ? 'Agent session was cancelled.'
+              : 'Agent session failed.',
+            409,
+          );
+        }
       },
     });
   } catch (error) {
+    const current = await loadSession(db, owner, id);
+    if (current.status === 'cancelled') {
+      return viewFrom(db, current);
+    }
     await failClaim();
     wrapApp(error);
   }

@@ -767,6 +767,99 @@ void test('live create persists the provider id before settle failure', async ()
   db.sqlite.close();
 });
 
+void test('placeholder cancel survives a late create response', async () => {
+  const db = database();
+  await policy(db);
+  const live = {
+    RELAY_AGENTS: 'live',
+    RELAY_AGENTS_LIVE: '1',
+    OPENAI_API_KEY: 'sk-fictional-key-1234567890',
+  };
+  let releaseCreate;
+  const createHeld = new Promise((resolve) => {
+    releaseCreate = resolve;
+  });
+  let signalCreate;
+  const createStarted = new Promise((resolve) => {
+    signalCreate = resolve;
+  });
+  const calls = [];
+  const fetch = async (url, init) => {
+    const target = String(url);
+    const method = String(init?.method || 'GET').toUpperCase();
+    assertAgentsUrl(target);
+    calls.push({
+      url: target,
+      method,
+      body: init?.body ? JSON.parse(init.body) : null,
+    });
+    if (method === 'POST' && target.endsWith('/agents/sessions')) {
+      signalCreate();
+      await createHeld;
+      return new Response(JSON.stringify({ id: 'agt_late', status: 'idle' }), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (method === 'POST' && target.includes('/events')) {
+      return new Response(
+        JSON.stringify({ id: 'agt_late', status: 'cancelled' }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    }
+    return new Response(
+      JSON.stringify({ id: 'agt_late', status: 'cancelled' }),
+      { headers: { 'content-type': 'application/json' } },
+    );
+  };
+  const started = startAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    live,
+    now,
+    { fetch },
+  );
+  await createStarted;
+  const pending = db.sqlite
+    .prepare('SELECT status,provider_session_id FROM agent_sessions')
+    .get();
+  assert.equal(pending.status, 'queued');
+  assert.match(pending.provider_session_id, /^pending_/);
+  const cancelled = await cancelAgentSession(
+    db,
+    'alice',
+    { job: 'alice-0' },
+    live,
+    now,
+    { fetch },
+  );
+  assert.equal(cancelled.status, 'cancelled');
+  releaseCreate();
+  const finished = await started;
+  assert.equal(finished.status, 'cancelled');
+  const row = db.sqlite
+    .prepare('SELECT status,provider_session_id FROM agent_sessions')
+    .get();
+  assert.equal(row.status, 'cancelled');
+  assert.equal(row.provider_session_id, 'agt_late');
+  assert.equal(
+    db.sqlite
+      .prepare(
+        "SELECT COUNT(*) c FROM agent_sessions WHERE owner='alice' AND status IN ('queued','in_progress')",
+      )
+      .get().c,
+    0,
+  );
+  const lateCancel = calls.find(
+    (c) =>
+      c.method === 'POST' &&
+      String(c.url).includes('/sessions/agt_late/events') &&
+      c.body?.events?.[0]?.type === 'agent.session.input.cancel',
+  );
+  assert.ok(lateCancel);
+  db.sqlite.close();
+});
+
 void test('session and tool-call storage caps abort extra inserts', () => {
   const db = database();
   const insertSession = db.sqlite.prepare(

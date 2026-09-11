@@ -16,6 +16,7 @@ import { defaultDraftingPreference } from '../lib/drafting-decision';
 import { RuntimeShell } from './runtime-shell';
 import { RuntimeModals, type RuntimeModal } from './runtime-modals';
 import { WorkbenchQueue } from './workbench-queue';
+import { AgentSessionPanel } from './agent-session';
 import type { ApplicationPolicy } from '../lib/application-automation';
 import {
   applicationReviewCopy,
@@ -1304,6 +1305,11 @@ export default function Workspace() {
                       </div>
                     )}
                     {inspect.review}
+                    <AgentSessionPanel
+                      jobId={current.id}
+                      jobName={current.name}
+                      onInspect={() => setModal('inspect')}
+                    />
                   </div>
                   <footer className="foot">
                     <div className="foot-copy">

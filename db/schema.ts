@@ -242,6 +242,55 @@ export const outcomes = sqliteTable(
   },
   (t) => [index('outcomes_owner_job').on(t.owner, t.job_id)],
 );
+export const agentSessions = sqliteTable(
+  'agent_sessions',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    job_id: text('job_id').notNull(),
+    provider: text('provider').notNull(),
+    provider_session_id: text('provider_session_id').notNull(),
+    status: text('status').notNull(),
+    capabilities: text('capabilities').notNull(),
+    provider_state: text('provider_state').notNull().default(''),
+    turn_id: text('turn_id').notNull().default(''),
+    created: text('created').notNull(),
+    updated: text('updated').notNull(),
+  },
+  (t) => [
+    index('agent_sessions_owner_job').on(t.owner, t.job_id),
+    index('agent_sessions_owner_status').on(t.owner, t.status),
+    uniqueIndex('agent_sessions_owner_provider_session').on(
+      t.owner,
+      t.provider_session_id,
+    ),
+  ],
+);
+export const agentToolCalls = sqliteTable(
+  'agent_tool_calls',
+  {
+    id: text('id').primaryKey(),
+    owner: text('owner').notNull(),
+    session_id: text('session_id').notNull(),
+    turn_id: text('turn_id').notNull(),
+    call_id: text('call_id').notNull(),
+    name: text('name').notNull(),
+    arguments: text('arguments').notNull(),
+    status: text('status').notNull(),
+    result: text('result').notNull().default(''),
+    side_effect: text('side_effect').notNull().default('none'),
+    created: text('created').notNull(),
+    updated: text('updated').notNull(),
+  },
+  (t) => [
+    uniqueIndex('agent_tool_calls_owner_turn_call').on(
+      t.owner,
+      t.turn_id,
+      t.call_id,
+    ),
+    index('agent_tool_calls_owner_session').on(t.owner, t.session_id),
+  ],
+);
 // A refusal record is not a draft. It never enters the review queue, is never
 // citable and never counts toward graduation.
 //

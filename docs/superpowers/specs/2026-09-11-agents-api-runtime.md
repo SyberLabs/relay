@@ -165,7 +165,7 @@ Seth must accept cost, privacy, and provider dependence before `live` is set any
 | Environment        | `none` only. No `openai_hosted`, no `self_hosted`                                                                   |
 | Input              | 32,000 UTF-8 characters                                                                                             |
 | Tools              | 4 named functions; arguments ≤ 16,000 bytes                                                                         |
-| Output reservation | 50 USD cents maximum per live turn, reserved **before** fetch                                                       |
+| Output reservation | 50 USD cents maximum per live turn, reserved **before** fetch. Non-positive live reservation is refused (no fetch). |
 | Currency           | $1/user/UTC day, $10 global/day, $50 global/month; env may only lower                                               |
 | Attempts           | GET retrieve: 3 attempts, 60s timeout. POST create/events: one attempt, no automatic replay                         |
 | Settle             | After create/events, bounded GET retrieve (15 × 2s). No `stream: true`. No webhooks.                                |

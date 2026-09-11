@@ -115,7 +115,12 @@ export async function reserveLiveTurn(
   env: AgentAdmissionEnv,
   cents: number,
 ) {
-  if (cents <= 0) return;
+  if (cents <= 0) {
+    throw new AgentRuntimeRefusal(
+      'Agent runtime reservation is unavailable.',
+      503,
+    );
+  }
   const user = await hashedOwner(owner);
   const day = Math.floor(Date.parse(now) / 86_400_000);
   const month = now.slice(0, 7);

@@ -12,6 +12,7 @@ import {
   AGENT_FUNCTION_TOOLS,
   FORBIDDEN_AGENT_TOOLS,
 } from '../lib/agent-runtime-tools.ts';
+import { AgentRuntimeRefusal } from '../lib/agent-runtime.ts';
 import {
   answerAgentSession,
   cancelAgentSession,
@@ -709,6 +710,57 @@ void test('live start reserves maximum cents before fetch; exhausted budget does
     db2.sqlite.prepare('SELECT COUNT(*) c FROM agent_sessions').get().c,
     0,
   );
+  db.sqlite.close();
+  db2.sqlite.close();
+});
+
+void test('zero live reservation refuses start and resume without fetch', async () => {
+  const db = database();
+  await policy(db);
+  const liveZero = {
+    RELAY_AGENTS: 'live',
+    RELAY_AGENTS_LIVE: '1',
+    OPENAI_API_KEY: 'sk-fictional-key-1234567890',
+    RELAY_AGENTS_RESERVE_CENTS: '0',
+  };
+  let fetches = 0;
+  const fetch = async () => {
+    fetches += 1;
+    return new Response('{}');
+  };
+  await assert.rejects(
+    () =>
+      startAgentSession(db, 'alice', { job: 'alice-0' }, liveZero, now, {
+        fetch,
+      }),
+    (err) =>
+      err instanceof AgentRuntimeRefusal &&
+      /reservation/i.test(err.message) &&
+      err.status === 503,
+  );
+  assert.equal(fetches, 0);
+  assert.equal(
+    db.sqlite.prepare('SELECT COUNT(*) c FROM agent_sessions').get().c,
+    0,
+  );
+  const db2 = database();
+  db2.sqlite
+    .prepare(
+      `INSERT INTO agent_sessions (id,owner,job_id,provider,provider_session_id,status,capabilities,provider_state,turn_id,created,updated)
+       VALUES ('s-zero','alice','alice-0','openai','agt_zero','in_progress','[]','','',?,?)`,
+    )
+    .run(now, now);
+  await assert.rejects(
+    () =>
+      syncAgentSession(db2, 'alice', { job: 'alice-0' }, liveZero, now, {
+        fetch,
+      }),
+    (err) =>
+      err instanceof AgentRuntimeRefusal &&
+      /reservation/i.test(err.message) &&
+      err.status === 503,
+  );
+  assert.equal(fetches, 0);
   db.sqlite.close();
   db2.sqlite.close();
 });

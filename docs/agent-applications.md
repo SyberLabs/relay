@@ -29,23 +29,23 @@ Scout imports still use Held and cannot grant approval. Existing jobs are dedupl
 
 This is the current contract, not a planned Autopilot path. Actor strings are reported provenance, not revocable scoped credentials (#111). Default policy remains `review: all`.
 
-| Action | Who | Review | Notes |
-| --- | --- | --- | --- |
-| prepare / arm | operative | none | not send permission |
-| relay_wait_for_application | operative host, while invocation is still running | none | not send permission; cannot wake a terminated host |
-| Inspect Accept | human in workspace | required for send | overlay `/apply` has no Accept |
-| begin execute:true | operative after Accept | consumed once | never retry `executing` |
-| employer Submit | operative browser | one permit | Relay does not POST |
-| complete / uncertain / not-submitted | operative | uncertain retains lock | captcha/no-op → uncertain, no second permit |
-| stage draft / progress | assistant | not acceptance | |
-| confirm facts / enable policy | human | required | agent must not self-enable |
-| fully automated unattended send | **not implemented** | — | blocked on #111 transport + explicit future contract |
+| Action                               | Who                                               | Review                 | Notes                                                |
+| ------------------------------------ | ------------------------------------------------- | ---------------------- | ---------------------------------------------------- |
+| prepare / arm                        | operative                                         | none                   | not send permission                                  |
+| relay_wait_for_application           | operative host, while invocation is still running | none                   | not send permission; cannot wake a terminated host   |
+| Inspect Accept                       | human in workspace                                | required for send      | overlay `/apply` has no Accept                       |
+| begin execute:true                   | operative after Accept                            | consumed once          | never retry `executing`                              |
+| employer Submit                      | operative browser                                 | one permit             | Relay does not POST                                  |
+| complete / uncertain / not-submitted | operative                                         | uncertain retains lock | captcha/no-op → uncertain, no second permit          |
+| stage draft / progress               | assistant                                         | not acceptance         |                                                      |
+| confirm facts / enable policy        | human                                             | required               | agent must not self-enable                           |
+| fully automated unattended send      | **not implemented**                               | —                      | blocked on #111 transport + explicit future contract |
 
 ## Trust and limits
 
 The initial transport uses the owner's authenticated browser session. Agent names are reported provenance, not independently authenticated identities or scoped credentials. This does not yet establish revocable per-agent access (#111); closing sessions and account access remain the identity controls. Browser agents have the same account capabilities as their owner. Relay cannot prevent an external agent from independently opening an employer site or verify an agent-reported receipt with no employer integration. Those limitations must remain visible in the release evidence.
 
-No new scheduler, provider catalog, chat frontend, paid model call, or hosted crawler is needed. Recurring scouting runs on the external assistant's existing scheduling and resources, after the direct workflow passes. No Relay-funded background work is introduced.
+No new scheduler, provider catalog, chat frontend, or hosted crawler is needed for the existing file/CLI/browser handoff. Recurring scouting runs on the external assistant's existing scheduling and resources. Relay-funded model work is **off by default**. Issue #183 spikes OpenAI Agents API as an interchangeable cognitive runtime behind `start` / `sendInput` / `getState` / `cancel` / `returnToolResult`. Durable waiting for a missing fact or send authorization is `requires_action`, not a Relay-owned `resume(run_id, answer)`. `relay_wait_for_application` remains only for a still-running same-tab host. Custom T3 orchestration is not implemented. Live Agents API is not enabled in this release.
 
 All routes inherit gateway authentication, owner/global work quotas, body bounds, CAPTCHA, and kill switch. Owner isolation on every read/write: no other owner's preparation or operation is visible. One mutation weighs ten work units; `arm` is presence weight 1, 6 per user per minute. `relay_wait_for_application` is a client helper on the existing inspect GET and arm routes: one wait per tab, inspect about every 3 seconds, same-arm renew no faster than about 12 seconds, default `wait_ms` 40000, hard ceiling five minutes and 126 requests. Cursor MCP times out around 60 seconds; five minutes is not a Cursor-host claim. A clean timeout may be followed by a new explicit wait; refusals are not auto-retried. It adds no scheduler, provider, or paid work. Proposals are bounded to 100 fields, two files, and 240,000 serialized UTF-8 bytes. Up to 500 immutable proposals and 500 preparation rows per owner; never prune history to admit work. Listing returns at most 20 manifests with cursor pagination. One policy per owner; at most 100 allowed jobs, expiration at most 30 days, maximum 10 submissions per UTC day and 100 per policy. Submission starts use atomic database predicates; failures and uncertainty retain consumed capacity.
 

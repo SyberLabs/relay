@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
-import { saveProgress, validateProgress } from '../lib/application-progress.ts';
+import {
+  saveProgress,
+  validateProgress,
+  recordAgentProgress,
+} from '../lib/application-progress.ts';
 
 function database() {
   const sqlite = new DatabaseSync(':memory:');
@@ -245,4 +249,48 @@ void test('progress validates strict bounded fields and refuses attempts to chan
       Error,
       JSON.stringify(change),
     );
+});
+
+void test('agent progress records a note without changing job version or blocker', async () => {
+  const db = database();
+  addJob(db);
+  const before = snapshot(db).jobs[0];
+  const result = await recordAgentProgress(
+    db,
+    'alice',
+    {
+      id: 'job-a',
+      operation_id: 'agent:session-1',
+      note: 'Digest frozen. Waiting for the browser operative.',
+    },
+    'after',
+  );
+  assert.deepEqual(result, {
+    status: 200,
+    data: { ok: true, replayed: false },
+  });
+  const after = snapshot(db).jobs[0];
+  assert.equal(after.version, before.version);
+  assert.equal(after.blocker, 'Old next action');
+  assert.equal(after.updated, before.updated);
+  const event = snapshot(db).events[0];
+  assert.equal(event.kind, 'Agent progress');
+  assert.equal(event.owner, 'alice');
+  assert.match(event.detail, /Digest frozen/);
+  const replayed = await recordAgentProgress(
+    db,
+    'alice',
+    {
+      id: 'job-a',
+      operation_id: 'agent:session-1',
+      note: 'Digest frozen. Waiting for the browser operative.',
+    },
+    'later',
+  );
+  assert.deepEqual(replayed, {
+    status: 200,
+    data: { ok: true, replayed: true },
+  });
+  assert.equal(snapshot(db).jobs[0].version, before.version);
+  assert.equal(snapshot(db).events.length, 1);
 });

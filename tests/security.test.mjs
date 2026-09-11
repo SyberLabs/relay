@@ -456,7 +456,18 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
     },
     { path: '/api/workspace', headers: {}, config: env, status: 401 },
     { path: '/api/workspace', headers: {}, config: {}, status: 503 },
-    { path: '/api/applications', headers: {}, config: env, status: 401 },
+    {
+      path: '/api/applications',
+      headers: {},
+      config: env,
+      status: 401,
+    },
+    {
+      path: '/api/agents',
+      headers: {},
+      config: env,
+      status: 401,
+    },
     {
       path: '/api/applications',
       headers: { 'Cf-Access-Jwt-Assertion': jwt },
@@ -635,6 +646,7 @@ void test('successful arm, mutation and planner retain exact work weights after 
   for (const [method, path, body, weight, specific] of [
     ['POST', '/api/applications', '{"action":"arm"}', 1, 'arm-minute'],
     ['POST', '/api/applications', '{"action":"prepare"}', 10, 'write-minute'],
+    ['POST', '/api/agents', '{"action":"start"}', 10, 'write-minute'],
     ['POST', '/api/applications', '{invalid', 10, 'write-minute'],
     ['GET', '/api/plan', undefined, 10, 'plan-minute'],
   ]) {

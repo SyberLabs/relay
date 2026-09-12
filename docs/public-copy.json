@@ -22,7 +22,8 @@
     "Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.",
     "An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.",
     "Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. When WebMCP is missing, the same owner-session tools are available as window.relay for JavaScript evaluation in the signed-in tab. Exact acceptance remains in the signed-in workspace. This is not a hosted MCP connection.",
-    "A human Inspect Accept on a complete armed payload authorizes the waiting operative to send once. Relay does not POST the employer form."
+    "A human Inspect Accept on a complete armed payload authorizes the waiting operative to send once. Relay does not POST the employer form.",
+    "An unpacked Chrome MV3 first-party operative is the recommended send surface: it prepares and arms from a signed-in Relay tab, waits for Inspect Accept, begins once, clicks a fictional fixture Submit once, and records the observed receipt. It does not fetch Relay APIs from chrome-extension://, export cookies, or POST the employer form from Relay. Same-tab window.relay remains when the extension cannot load."
   ],
   "integrations": [
     {
@@ -56,6 +57,11 @@
       "guide": "integrations/GROK_BOT.md"
     },
     {
+      "name": "Chrome operative",
+      "description": "Unpacked MV3 extension that fills a fictional fixture form after Inspect Accept. Not a store listing, Autopilot, or real ATS adapter.",
+      "guide": "extensions/operative/README.md"
+    },
+    {
       "name": "Tracker CSV",
       "description": "Map columns, preview rows, and import a local tracker file as research.",
       "guide": "integrations/README.md"
@@ -71,6 +77,6 @@
       "guide": "integrations/README.md"
     }
   ],
-  "boundary": "Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs, browser tools where WebMCP is supported, or window.relay in the signed-in tab; Relay does not POST the employer form, host an MCP connection, or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.",
+  "boundary": "Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs, browser tools where WebMCP is supported, window.relay in the signed-in tab, or the unpacked first-party Chrome operative for a fictional fixture send; Relay does not POST the employer form, host an MCP connection, or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.",
   "openaiBoundary": "ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection."
 }

@@ -1,5 +1,9 @@
 /* global chrome */
-import { OPERATIVE_ACTOR, runFixtureSend } from './handshake.js';
+import {
+  OPERATIVE_ACTOR,
+  runFixtureSend,
+  runOutcomeCopy,
+} from './handshake.js';
 import { relayPageFetch } from './page-fetch.js';
 
 const message = document.getElementById('message');
@@ -109,21 +113,7 @@ if (!relayTabId || !fixtureTabId || !params.get('job')) {
     },
   )
     .then((result) => {
-      if (result.ok && result.submitted)
-        report(`Submitted once. Receipt: ${result.receipt}`);
-      else if (result.ok && result.uncertain)
-        report('Recorded uncertain. Do not submit again.');
-      else if (result.submitted && result.receipt)
-        report(
-          result.error ||
-            `Submit may have succeeded. Relay did not save the receipt: ${result.receipt}`,
-        );
-      else if (result.uncertain)
-        report(
-          result.error ||
-            'Observed uncertain. Relay did not save the record. Do not submit again.',
-        );
-      else report(result.error || 'Operative stopped without submitting.');
+      report(runOutcomeCopy(result));
     })
     .catch((error) => {
       report(error instanceof Error ? error.message : String(error));

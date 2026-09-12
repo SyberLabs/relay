@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   OPERATIVE_ACTOR,
   runFixtureSend,
+  runOutcomeCopy,
 } from '../extensions/operative/handshake.js';
 
 const JOB = 'job-fictional-1';
@@ -447,6 +448,39 @@ void test('refused complete is not reported saved and is not retried', async () 
     io.calls.fetch.some((row) => row.body?.action === 'begin'),
     true,
   );
+  const copy = runOutcomeCopy(result);
+  assert.match(copy, /Fictional receipt SEND-174/);
+  assert.match(copy, /Complete a verification check/);
+  assert.match(copy, /Do not submit again/);
+});
+
+void test('thrown complete keeps the observed receipt and is not retried', async () => {
+  const io = ioFrom({
+    pageFetch(path, body) {
+      if (body?.action === 'complete') throw new Error('No tab with id: 7');
+      return successFetch(path, body);
+    },
+  });
+  const result = await runFixtureSend(io, input);
+  assert.equal(result.ok, false);
+  assert.equal(result.submitted, true);
+  assert.equal(result.recorded, false);
+  assert.equal(result.code, 'recording_failed');
+  assert.equal(result.receipt, 'Fictional receipt SEND-174');
+  assert.match(result.error, /No tab with id: 7/);
+  assert.equal(io.calls.fills, 1);
+  assert.equal(
+    io.calls.fetch.filter((row) => row.body?.action === 'complete').length,
+    1,
+  );
+  assert.equal(
+    io.calls.fetch.filter((row) => row.body?.action === 'begin').length,
+    1,
+  );
+  const copy = runOutcomeCopy(result);
+  assert.match(copy, /Fictional receipt SEND-174/);
+  assert.match(copy, /No tab with id: 7/);
+  assert.match(copy, /Do not submit again/);
 });
 
 void test('refused uncertain is not reported saved and is not retried', async () => {
@@ -478,4 +512,8 @@ void test('refused uncertain is not reported saved and is not retried', async ()
     io.calls.fetch.filter((row) => row.body?.action === 'uncertain').length,
     1,
   );
+  const copy = runOutcomeCopy(result);
+  assert.match(copy, /no confirmation heading/);
+  assert.match(copy, /Complete a verification check/);
+  assert.match(copy, /Do not submit again/);
 });

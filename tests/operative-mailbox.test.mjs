@@ -72,6 +72,12 @@ void test('background inspects the fixture control before writing fields', () =>
   assert.ok(inspectAt >= 0 && fillAt > inspectAt);
 });
 
+void test('run tab renders unsaved outcomes through runOutcomeCopy', () => {
+  const text = source('run.js');
+  assert.match(text, /runOutcomeCopy\(result\)/);
+  assert.equal(text.includes('result.error ||'), false);
+});
+
 void test('Start requests origins before requiring a selected job', () => {
   const text = source('popup.js');
   assert.match(text, /admitStartClick/);

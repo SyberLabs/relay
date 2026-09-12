@@ -43,9 +43,10 @@ A `chrome-extension://` mutation is 403.
   not start.
 - One execute permit; never retry `executing`; a no-op submit is `uncertain`.
   An error at or after the Submit click stays `uncertain`, not `not-submitted`.
-  Terminal `complete`/`uncertain` writes that Relay refuses are not reported as
-  saved and are not retried. Receipts require the fixture confirmation marker,
-  not a pre-submit heading.
+  Terminal `complete`/`uncertain` writes that Relay refuses or cannot save are
+  not reported as saved and are not retried. The run tab still shows the
+  observed receipt with the recording error. Receipts require the fixture
+  confirmation marker, not a pre-submit heading.
 - Overlay `/apply` still has no Accept. Policy authorization is not draft
   acceptance. #111 revocable agent credentials are unchanged.
 - Do not export session cookies, add service-token access, or inject the Relay

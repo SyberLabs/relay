@@ -34,14 +34,55 @@ function recordingFailed(recorded, observed) {
   };
 }
 
+function mentionsNoResubmit(text) {
+  return /do not (?:retry(?: submit)?|submit again)/i.test(text);
+}
+
+function withNoResubmit(parts) {
+  const text = parts.filter(Boolean).join('\n');
+  if (mentionsNoResubmit(text)) return text;
+  return `${text}\nRelay did not save the record. Do not submit again.`;
+}
+
+export function runOutcomeCopy(result) {
+  if (result?.ok && result.submitted)
+    return `Submitted once. Receipt: ${result.receipt}`;
+  if (result?.ok && result.uncertain)
+    return 'Recorded uncertain. Do not submit again.';
+  if (result?.submitted && result.receipt)
+    return withNoResubmit([
+      `Submit may have succeeded. Observed receipt: ${result.receipt}`,
+      result.error,
+    ]);
+  if (result?.uncertain)
+    return withNoResubmit([
+      result.receipt
+        ? `Observed uncertain. ${result.receipt}`
+        : 'Observed uncertain.',
+      result.error,
+    ]);
+  return result?.error || 'Operative stopped without submitting.';
+}
+
 async function recordTerminal(io, action, viewer, id, digest, receipt) {
-  return io.pageFetch('/api/applications', {
-    action,
-    viewer,
-    id,
-    digest,
-    receipt,
-  });
+  try {
+    return await io.pageFetch('/api/applications', {
+      action,
+      viewer,
+      id,
+      digest,
+      receipt,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      ok: false,
+      status: 0,
+      json: {
+        error: message || 'Relay did not save the terminal record.',
+      },
+    };
+  }
 }
 
 function incompleteFields(fields) {

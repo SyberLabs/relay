@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Relay operative run</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 24px;
+        max-width: 40rem;
+      }
+      .status {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Relay first-party operative</h1>
+    <p>
+      Keep this tab open. Accept the payload in the signed-in workspace. Closing
+      this tab aborts wait and does not submit.
+    </p>
+    <p class="status" id="message">Starting…</p>
+    <script type="module" src="run.js"></script>
+  </body>
+</html>

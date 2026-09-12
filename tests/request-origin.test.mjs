@@ -41,6 +41,20 @@ void test('same-origin and missing origin leave the body for the handler', async
   }
 });
 
+void test('chrome-extension origin refuses mutations like any other foreign origin', async () => {
+  const request = post(
+    'http://127.0.0.1:8787/api/applications',
+    'chrome-extension://abcdefghijklmnopqrstuvwxyzabcdef',
+    '{"action":"begin"}',
+  );
+  const response = await refuseUntrustedOrigin(request);
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), {
+    error: 'Invalid request origin.',
+  });
+  assert.equal(request.bodyUsed, true);
+});
+
 void test('untrusted origin refuses without granting the write and consumes the body', async () => {
   let pulls = 0;
   const payload = new TextEncoder().encode('{"action":"save"}');

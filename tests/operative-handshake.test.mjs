@@ -451,6 +451,7 @@ void test('refused complete is not reported saved and is not retried', async () 
   const copy = runOutcomeCopy(result);
   assert.match(copy, /Fictional receipt SEND-174/);
   assert.match(copy, /Complete a verification check/);
+  assert.match(copy, /Relay did not save/);
   assert.match(copy, /Do not submit again/);
 });
 
@@ -480,6 +481,7 @@ void test('thrown complete keeps the observed receipt and is not retried', async
   const copy = runOutcomeCopy(result);
   assert.match(copy, /Fictional receipt SEND-174/);
   assert.match(copy, /No tab with id: 7/);
+  assert.match(copy, /Relay did not save/);
   assert.match(copy, /Do not submit again/);
 });
 
@@ -515,5 +517,6 @@ void test('refused uncertain is not reported saved and is not retried', async ()
   const copy = runOutcomeCopy(result);
   assert.match(copy, /no confirmation heading/);
   assert.match(copy, /Complete a verification check/);
+  assert.match(copy, /Relay did not save/);
   assert.match(copy, /Do not submit again/);
 });

@@ -38,10 +38,20 @@ function mentionsNoResubmit(text) {
   return /do not (?:retry(?: submit)?|submit again)/i.test(text);
 }
 
-function withNoResubmit(parts) {
-  const text = parts.filter(Boolean).join('\n');
-  if (mentionsNoResubmit(text)) return text;
-  return `${text}\nRelay did not save the record. Do not submit again.`;
+function mentionsPersistenceFailure(text) {
+  return /relay did not save/i.test(text);
+}
+
+function unsavedOutcomeCopy(parts) {
+  const lines = parts.filter(Boolean);
+  const text = lines.join('\n');
+  const needPersistence = !mentionsPersistenceFailure(text);
+  const needNoResubmit = !mentionsNoResubmit(text);
+  if (needPersistence && needNoResubmit)
+    lines.push('Relay did not save the record. Do not submit again.');
+  else if (needPersistence) lines.push('Relay did not save the record.');
+  else if (needNoResubmit) lines.push('Do not submit again.');
+  return lines.join('\n');
 }
 
 export function runOutcomeCopy(result) {
@@ -50,12 +60,12 @@ export function runOutcomeCopy(result) {
   if (result?.ok && result.uncertain)
     return 'Recorded uncertain. Do not submit again.';
   if (result?.submitted && result.receipt)
-    return withNoResubmit([
+    return unsavedOutcomeCopy([
       `Submit may have succeeded. Observed receipt: ${result.receipt}`,
       result.error,
     ]);
   if (result?.uncertain)
-    return withNoResubmit([
+    return unsavedOutcomeCopy([
       result.receipt
         ? `Observed uncertain. ${result.receipt}`
         : 'Observed uncertain.',

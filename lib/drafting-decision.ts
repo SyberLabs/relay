@@ -84,6 +84,34 @@ export function validateDraftingDecision(
   return value as Decision;
 }
 
+function storedQuestionIdentity(
+  claim: string,
+  evidence: string | null | undefined,
+): string | null {
+  const prefix = 'Blocked question on job ';
+  const text = evidence?.trim() ?? '';
+  if (text.startsWith(prefix)) {
+    const split = text.indexOf(': ');
+    if (split > prefix.length) {
+      const jobId = text.slice(prefix.length, split);
+      if (/^[\w.:-]{1,128}$/.test(jobId)) return text.slice(split + 2);
+    }
+  }
+  const sep = claim.indexOf(': ');
+  if (sep <= 0) return null;
+  const asked = claim.slice(0, sep);
+  return asked.includes('?') ? asked : null;
+}
+
+function citizenshipOccupiesAuthorizationKey(
+  row: { claim: string; evidence: string | null } | null | undefined,
+  incomingKey: string,
+): boolean {
+  if (!row || !incomingKey.startsWith('work_authorization.')) return false;
+  const question = storedQuestionIdentity(row.claim, row.evidence);
+  return !!question && factFieldKey(question).startsWith('citizenship.');
+}
+
 // One bounded transaction: preserve the concern and exact wording while giving
 // the assistant direction. A delegation cannot itself resolve a required fact.
 export async function saveDraftingDecision(
@@ -130,13 +158,22 @@ export async function saveDraftingDecision(
     save_profile: saveProfile,
     answer: b.answer,
   });
+  const legacyDetail = JSON.stringify({
+    version: b.version,
+    preference_version: b.preference_version,
+    choice: b.choice,
+    remember: b.remember,
+    answer: b.answer,
+  });
   const receipt = () =>
     db
       .prepare('SELECT job_id,detail FROM events WHERE id=? AND owner=?')
       .bind(eventId, owner)
       .first<{ job_id: string; detail: string }>();
   const matches = (prior: Awaited<ReturnType<typeof receipt>>) =>
-    prior?.job_id === b.id && prior.detail === detail;
+    prior?.job_id === b.id &&
+    (prior.detail === detail ||
+      (!b.save_profile && prior.detail === legacyDetail));
   const conflict = {
     status: 409,
     data: {
@@ -155,13 +192,50 @@ export async function saveDraftingDecision(
       status: 400,
       data: { error: 'There is no saved question to answer. Reload this job.' },
     };
+  const fieldKey = saveProfile ? factFieldKey(job.blocker) : '';
+  const occupying =
+    saveProfile && fieldKey.startsWith('work_authorization.')
+      ? await db
+          .prepare(
+            `SELECT id,claim,evidence,field_key,status FROM profile_facts
+      WHERE owner=? AND field_key=? AND status IN ('Proposed','Retired','Verified')`,
+          )
+          .bind(owner, fieldKey)
+          .first<{
+            id: string;
+            claim: string;
+            evidence: string;
+            field_key: string;
+            status: string;
+          }>()
+      : null;
+  const protectOccupant =
+    !!occupying && citizenshipOccupiesAuthorizationKey(occupying, fieldKey);
+  const occupantBinds =
+    occupying && protectOccupant
+      ? [
+          owner,
+          occupying.id,
+          occupying.field_key,
+          occupying.claim,
+          occupying.evidence,
+          occupying.status,
+        ]
+      : [];
   const statements = [
     db
-      .prepare(`INSERT INTO events (id,owner,job_id,kind,detail,created)
+      .prepare(
+        `INSERT INTO events (id,owner,job_id,kind,detail,created)
       SELECT ?,?,?,'Drafting decision',?,?
       WHERE EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner=? AND version=?)
       AND COALESCE((SELECT drafting_version FROM preferences WHERE owner=?),1)=?
-      AND NOT EXISTS (SELECT 1 FROM events WHERE id=?)`)
+      AND NOT EXISTS (SELECT 1 FROM events WHERE id=?)${
+          protectOccupant
+            ? `
+      AND EXISTS (SELECT 1 FROM profile_facts WHERE owner=? AND id=? AND field_key=? AND claim=? AND evidence=? AND status=?)`
+            : ''
+        }`,
+      )
       .bind(
         eventId,
         owner,
@@ -174,6 +248,7 @@ export async function saveDraftingDecision(
         owner,
         b.preference_version,
         eventId,
+        ...occupantBinds,
       ),
     db
       .prepare(`UPDATE jobs SET drafting_direction=?,version=version+1,updated=?
@@ -214,7 +289,52 @@ export async function saveDraftingDecision(
           b.preference_version,
         ),
     );
-  if (saveProfile)
+  if (saveProfile) {
+    statements.push(
+      // Re-propose the owner-scoped exact Retired claim before insert, including
+      // rows that still occupy a non-null legacy key. Leave field_key unchanged:
+      // another retained row may already own the canonical destination.
+      db
+        .prepare(`UPDATE profile_facts SET status='Proposed',verified=NULL,expires=NULL,evidence=?
+      WHERE changes()=1 AND owner=? AND claim=? AND status='Retired'`)
+        .bind(
+          `Blocked question on job ${b.id}: ${job.blocker}`.slice(0, 2000),
+          owner,
+          claim,
+        ),
+    );
+    if (
+      protectOccupant &&
+      occupying &&
+      occupying.status !== 'Verified'
+    )
+      statements.push(
+        // After re-proposal so changes() adjacency stays intact. Guard with the
+        // successful receipt and resulting job version, not changes(): a no-op
+        // re-proposal must still free the authorization key.
+        db
+          .prepare(
+            `UPDATE profile_facts SET field_key=NULL
+      WHERE owner=? AND id=? AND field_key=? AND claim=? AND evidence=?
+      AND status IN ('Proposed','Retired')
+      AND EXISTS (SELECT 1 FROM events WHERE id=? AND owner=? AND job_id=? AND detail=?)
+      AND EXISTS (SELECT 1 FROM jobs WHERE id=? AND owner=? AND version=?)`,
+          )
+          .bind(
+            owner,
+            occupying.id,
+            occupying.field_key,
+            occupying.claim,
+            occupying.evidence,
+            eventId,
+            owner,
+            b.id,
+            detail,
+            b.id,
+            owner,
+            b.version + 1,
+          ),
+      );
     statements.push(
       db
         .prepare(`INSERT INTO profile_facts (id,owner,claim,evidence,tag,status,field_key,created)
@@ -231,7 +351,7 @@ export async function saveDraftingDecision(
           owner,
           claim,
           `Blocked question on job ${b.id}: ${job.blocker}`.slice(0, 2000),
-          factFieldKey(job.blocker),
+          fieldKey,
           now,
           eventId,
           owner,
@@ -244,6 +364,7 @@ export async function saveDraftingDecision(
           claim,
         ),
     );
+  }
   const result = await db.batch(statements);
   return result[0].meta.changes || matches(await receipt())
     ? { status: 200, data: { ok: true, replayed: !result[0].meta.changes } }

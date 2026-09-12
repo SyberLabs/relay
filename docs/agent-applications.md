@@ -1,11 +1,11 @@
 # Applications coordinated by Relay
 
-Owner: Seth. Implementation: #112, #128, #135, #174; authenticated assistant verification: #111.
+Owner: Seth. Implementation: #112, #128, #135, #174, #177; authenticated assistant verification: #111.
 
 For same-tab requests and interruption rules without WebMCP or file
 transfer, use the [direct browser handoff](../integrations/BROWSER-API.md) (#144).
 
-Relay coordinates an external operative filling an employer form while the human authorizes send from Inspect. Relay owns durable evidence and authorization. It does not POST the employer form. The existing peer merge review and production environment approval remain required.
+Relay coordinates an operative filling an employer form while the human authorizes send from Inspect. Relay owns durable evidence and authorization. It does not POST the employer form. The recommended execution surface is the unpacked [first-party Chrome MV3 operative](../extensions/operative/README.md) (#177): it calls Relay APIs from a signed-in Relay tab, fills a fictional fixture form after `begin execute:true`, and records the observed receipt. Same-tab `window.relay` / WebMCP remains for hosts that cannot load the extension. The existing peer merge review and production environment approval remain required.
 
 ## Handshake
 
@@ -21,7 +21,7 @@ prepare → arm → relay_wait_for_application → human Inspect Accept → begi
 4. The waiting operative’s still-running host receives the authorized operation and calls `begin`. A true `execute` is the one permit to click the employer Submit control once after the frozen manifest matches the prepared form. Relay does not POST the form. A lost `begin` response is inspected on GET; `executing` is not permission to submit again. Never retry `executing`. Uncertain outcomes stay uncertain.
 5. The operative records the observed receipt with `complete` (Submitted), `uncertain` (do not retry), or `not-submitted` (evidence no send occurred). Cancellation cannot recall data already sent. Inspect projects `recorded_result` and `recorded_receipt` from that agent-observed record; Relay does not independently verify the employer.
 
-Each assistant signs into Relay through its own supported browser and the existing Cloudflare Access flow. A desktop login does not sign in a remote agent. Use `/apply?job=` in the operative VM next to the employer page when WebMCP is available. Do not export session cookies, add service-token access, inject into the employer origin, or expose the development application.
+Each assistant signs into Relay through its own supported browser and the existing Cloudflare Access flow. A desktop login does not sign in a remote agent. Prefer the first-party extension when Chromium can load it; otherwise use `/apply?job=` in the operative VM next to the employer page when WebMCP or `window.relay` is available. The extension service worker is a mailbox only: it does not `fetch` `/api/applications` from `chrome-extension://`, use `chrome.cookies`, or retry `executing`. Do not export session cookies, add service-token access, inject into the employer origin, or expose the development application.
 
 Scout imports still use Held and cannot grant approval. Existing jobs are deduplicated by posting identity. Imports add evidence; they cannot authorize send.
 
@@ -52,7 +52,7 @@ All routes inherit gateway authentication, owner/global work quotas, body bounds
 ## Verification and release
 
 - Database tests: competing agents, duplicate/ambiguous requests, owner isolation, policy revocation, stale content, capacity, immutable evidence, arm window, approve-requires-arm, and no changes after refusal.
-- Browser tests: prepare exact fields/files, Inspect Accept only while armed, consume once, resume uncertainty, inspect receipt and archived payload, compact `/apply` overlay without Accept. Wait-tool unit tests cover pin changes, viewer change, expiry/refusals, duplicate waiter, unmount, cancellation, lost begin, and terminal outcomes. The Playwright send harness is simulated continuation. Cursor Grok 4.6 Extra High, local fictional HTTPS fixture: one MCP invocation waited, began with `execute: true` once, submitted once, and recorded Submitted 1.209 seconds after authorization reached the host (exactly one POST). That Accept was root-automated fixture approval, not human Inspect, staging, or production.
+- Browser tests: prepare exact fields/files, Inspect Accept only while armed, consume once, resume uncertainty, inspect receipt and archived payload, compact `/apply` overlay without Accept. Wait-tool unit tests cover pin changes, viewer change, expiry/refusals, duplicate waiter, unmount, cancellation, lost begin, and terminal outcomes. The Playwright send harness is simulated continuation. The first-party extension uses a separate persistent Chromium context with `--load-extension`: one fictional fixture Submit after Inspect Accept, `chrome-extension://` POST 403, disconnect without submit, and incomplete fields that never start. Cursor Grok 4.6 Extra High, local fictional HTTPS fixture: one MCP invocation waited, began with `execute: true` once, submitted once, and recorded Submitted 1.209 seconds after authorization reached the host (exactly one POST). That Accept was root-automated fixture approval, not human Inspect, staging, or production.
 - Required delivery checks and final peer review precede merge. Pin the staged artifact; obtain separate production approval.
 - Real pilot: use Seth's confirmed profile, constraints, and prior application history; select ten unsubmitted roles. Record each agent handoff, exact manifest, interventions, employer receipt, and final Relay state privately. Ten fictional fixtures are not ten real applications. Do not claim complete until ten employer confirmations and matching Relay records exist.
 

@@ -15,7 +15,7 @@ If WebMCP is missing, prefer `window.relay` in the signed-in tab before a file h
 
 ## Operative send loop
 
-**Accept exact draft** still only approves wording. Sending uses Inspect **Accept and send** after the operative has filled the employer form. There is no `relay_approve_application`; the assistant must not click Accept.
+**Accept exact draft** still only approves wording. Sending uses Inspect **Accept and send** after the operative has filled the employer form. Prefer the unpacked [first-party Chrome operative](../extensions/operative/README.md) for that send on a fictional fixture form. There is no `relay_approve_application`; the assistant must not click Accept. `window.relay` remains when the extension cannot load.
 
 Read `relay_inspect_application` first and retain its opaque `preparation_revision` (null if no preparation exists). Pass that exact token to prepare and arm; each successful prepare or human answer changes it. A stale-token refusal requires reconsidering the new snapshot, never automatic token refresh/replay.
 

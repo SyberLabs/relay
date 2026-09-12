@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Relay first-party operative</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 12px;
+        width: 360px;
+      }
+      label,
+      .status {
+        display: block;
+        margin: 8px 0 4px;
+      }
+      select,
+      input {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      button {
+        margin-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="status" id="message">
+      Sign in to Relay, open the fixture form, then start. Keep the operative
+      tab open until send finishes.
+    </p>
+    <label for="relay-tab">Relay tab</label>
+    <select id="relay-tab"></select>
+    <label for="fixture-tab">Fixture tab</label>
+    <select id="fixture-tab"></select>
+    <label for="job">Job</label>
+    <select id="job"></select>
+    <label for="full-name">Full name</label>
+    <input id="full-name" maxlength="300" />
+    <button id="start" type="button">Start operative</button>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

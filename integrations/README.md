@@ -2,7 +2,7 @@
 
 ## External-agent applications
 
-The [application coordination contract](../docs/agent-applications.md) adds `/applications`: configure allowed jobs, expiration and review, save exact field/file proposals, obtain one execution permit, then record the observed employer result. Both assistants use their own authenticated browser through the existing gateway. Grok imports research as Held; an applying assistant uses the proposal and history page. Agent names and receipts are reported provenance. This browser path does not establish scoped per-agent credentials or a remotely authenticated CLI; #111 remains open. No recurring scouting or application submission starts merely by enabling the page.
+The [application coordination contract](../docs/agent-applications.md) adds `/applications`: configure allowed jobs, expiration and review, save exact field/file proposals, obtain one execution permit, then record the observed employer result. The recommended send surface is the unpacked [first-party Chrome MV3 operative](../extensions/operative/README.md): it talks to Relay from a signed-in tab, fills a fictional fixture form after Inspect Accept, and does not POST from Relay or `chrome-extension://`. Same-tab `window.relay` / WebMCP remains. Both assistants can still use their own authenticated browser through the existing gateway. Grok imports research as Held; an applying assistant uses the proposal and history page. Agent names and receipts are reported provenance. This browser path does not establish scoped per-agent credentials or a remotely authenticated CLI; #111 remains open. No recurring scouting or application submission starts merely by enabling the page.
 
 An agent must stop on unknown answers, existing blockers, authentication/CAPTCHA refusal, changed content or ambiguous execution. Never click an approval control on behalf of the user without their exact approval. Never infer permission from an import, a draft acceptance, or an existing Submitted source status. Before entering data at the employer, verify the full manifest, acquire its single execution permit, and perform it once in the same still-running host invocation as wait. After a lost response inspect the saved operation; an executing or uncertain operation is not permission to retry. Record only an observed employer confirmation, with a clear uncertainty explanation otherwise. Human browser review and policy authorization remain distinct. The [assistant send recipe](ASSISTANT-WORKFLOW.md#one-invocation-through-send) keeps wait, begin, one Submit and receipt on one Cursor MCP call (`wait_ms: 20000` combined; default 40000 wait-only).
 
@@ -116,14 +116,14 @@ node integrations/relay.mjs outcome <job_id> submitted --receipt "confirmation #
 
 An unattended agent relies on these. The distinction that matters is 3 against 4.
 
-| Code | Meaning                      | What to do                                |
-| ---- | ---------------------------- | ----------------------------------------- |
-| 0    | Success                      | Continue                                  |
-| 1    | Usage or configuration error | Stop; a human misconfigured it            |
-| 2    | Not signed in                | Run `login`, once                         |
-| 3    | Refused by a domain rule     | **Fix the input. Never retry unchanged.** |
+| Code | Meaning                      | What to do                                                 |
+| ---- | ---------------------------- | ---------------------------------------------------------- |
+| 0    | Success                      | Continue                                                   |
+| 1    | Usage or configuration error | Stop; a human misconfigured it                             |
+| 2    | Not signed in                | Run `login`, once                                          |
+| 3    | Refused by a domain rule     | **Fix the input. Never retry unchanged.**                  |
 | 4    | Server or network failure    | Preserve input; inspect state before deliberately retrying |
-| 5    | Nothing to do                | Stop cleanly                              |
+| 5    | Nothing to do                | Stop cleanly                                               |
 
 A citation-refused `log` or `draft` prints the offending sentence and writes no draft, including `--out`. `relay draft --out` writes that file only after the draft is logged. An existing file is left untouched unless `--force` is passed. `stage` is a separate explicit workspace save for human review; it preserves its input file on all outcomes, never accepts text, and does not change ledger trust or automatic-staging rules.
 
@@ -141,7 +141,7 @@ Recording an outcome sends the current job `version`. A stale version is a refus
 node integrations/relay.mjs hunt --readiness
 ```
 
-Four gates decide it: a closed review session, a graduated cluster, twenty receipted submissions, and a citation refusal rate under 10% over at least ten attempts. Readiness does not decide *whether* a run happens, only how many drafts it may write:
+Four gates decide it: a closed review session, a graduated cluster, twenty receipted submissions, and a citation refusal rate under 10% over at least ten attempts. Readiness does not decide _whether_ a run happens, only how many drafts it may write:
 
 ```
 allowance = min(attention budget, drafts you have reviewed, --max-drafts)
@@ -155,7 +155,7 @@ The governing rule is that Relay never generates more unreviewed work than you h
 
 A refusal records that it happened, its reason, and a one-way summary of the clause that failed: which rule fired, how many figures the clause carried, its length in words, and whether an employer possessive governed it. No text from the draft is written anywhere.
 
-That distinction matters because for a single-sentence draft the failing clause *is* the whole body, so storing the clause would have stored the draft. The summary answers whether the gate is too strict, and in which direction, while leaving the clause unreconstructable.
+That distinction matters because for a single-sentence draft the failing clause _is_ the whole body, so storing the clause would have stored the draft. The summary answers whether the gate is too strict, and in which direction, while leaving the clause unreconstructable.
 
 Without any of this Relay could not tell an appropriately strict citation gate from one that is unusable on real prose, and the refusal-rate gate above would have nothing to read.
 

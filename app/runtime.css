@@ -1018,6 +1018,27 @@
     min-height: 0;
   }
 }
+.agent-session {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.agent-session h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.agent-session .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
 @media (prefers-reduced-motion: reduce) {
   .runtime * {
     animation: none !important;

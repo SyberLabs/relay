@@ -1,11 +1,18 @@
 'use client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type RefObject } from 'react';
 import {
   agentModeCopy,
   agentParkCopy,
   type AgentSessionView,
 } from '../lib/agent-runtime-view';
 import type { AgentRuntimeMode } from '../lib/agent-runtime-admission';
+import {
+  beginMutation,
+  expireSession,
+  processAuthorizedGet,
+  type MutationStart,
+  type WorkspaceSession,
+} from '../lib/workspace-refresh';
 
 type Reply = {
   viewer?: string;
@@ -18,31 +25,57 @@ export function AgentSessionPanel({
   jobId,
   jobName,
   onInspect,
+  sessionRef,
+  onExpired,
 }: {
   jobId: string;
   jobName: string;
   onInspect: () => void;
+  sessionRef: RefObject<WorkspaceSession>;
+  onExpired: () => void;
 }) {
   const [mode, setMode] = useState<AgentRuntimeMode>('off');
   const [session, setSession] = useState<AgentSessionView | null>(null);
-  const [viewer, setViewer] = useState('');
   const [answer, setAnswer] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const readReply = useCallback(
+    async (response: Response, started: MutationStart) => {
+      const outcome = await processAuthorizedGet<Reply>(
+        sessionRef.current,
+        started,
+        response,
+      );
+      if (outcome.type === 'expire') {
+        onExpired();
+        return;
+      }
+      if (outcome.type === 'ignore') return;
+      if (outcome.type === 'error') {
+        setError(outcome.error);
+        return;
+      }
+      if (outcome.switched) {
+        expireSession(sessionRef.current);
+        onExpired();
+        return;
+      }
+      setError('');
+      return outcome.body;
+    },
+    [sessionRef, onExpired],
+  );
   const load = useCallback(async () => {
+    if (!sessionRef.current.viewer) return;
+    const started = beginMutation(sessionRef.current.gate);
     const response = await fetch(
       `/api/agents?job=${encodeURIComponent(jobId)}`,
     );
-    const data = (await response.json()) as Reply;
-    if (!response.ok) {
-      setError(data.error || 'Agent session is unavailable.');
-      return;
-    }
-    setError('');
+    const data = await readReply(response, started);
+    if (!data) return;
     setMode(data.mode || 'off');
     setSession(data.session ?? null);
-    if (data.viewer) setViewer(data.viewer);
-  }, [jobId]);
+  }, [jobId, sessionRef, readReply]);
   const poll =
     Boolean(jobId) && (mode !== 'off' || Boolean(session?.session_id));
   useEffect(() => {
@@ -62,7 +95,9 @@ export function AgentSessionPanel({
     };
   }, [load, poll]);
   async function mutate(body: Record<string, unknown>) {
+    const viewer = sessionRef.current.viewer;
     if (!viewer) return;
+    const started = beginMutation(sessionRef.current.gate);
     setBusy(true);
     try {
       const response = await fetch('/api/agents', {
@@ -70,12 +105,8 @@ export function AgentSessionPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...body, viewer, job: jobId }),
       });
-      const data = (await response.json()) as Reply;
-      if (!response.ok) {
-        setError(data.error || 'Agent session is unavailable.');
-        return;
-      }
-      setError('');
+      const data = await readReply(response, started);
+      if (!data) return;
       setMode(data.mode || mode);
       setSession(data.session ?? null);
       if (body.action === 'answer') setAnswer('');

@@ -25,6 +25,7 @@ import {
   assertAgentsUrl,
   openaiSessionBody,
 } from '../lib/agent-runtime-openai.ts';
+import { createMemoryRuntime } from '../lib/agent-runtime-memory.ts';
 import { agentParkCopy } from '../lib/agent-runtime-view.ts';
 
 const now = '2026-09-11T12:00:00.000Z';
@@ -1289,4 +1290,200 @@ void test('live environment_connection is refused without connecting a sandbox',
     'failed',
   );
   db.sqlite.close();
+});
+
+for (const sameJob of [false, true]) {
+  void test(`memory sessions isolate prior tool results for ${sameJob ? 'the same' : 'different'} jobs`, async () => {
+    const db = database();
+    await policy(db);
+    const first = await startAgentSession(
+      db,
+      'alice',
+      { job: 'alice-0' },
+      memoryEnv,
+      now,
+    );
+    await answerAgentSession(
+      db,
+      'alice',
+      { job: 'alice-0', answer: 'First fictional answer.' },
+      memoryEnv,
+      now,
+    );
+    await cancelAgentSession(db, 'alice', { job: 'alice-0' }, memoryEnv, now);
+    const firstCalls = db.sqlite
+      .prepare(
+        'SELECT * FROM agent_tool_calls WHERE session_id=? ORDER BY call_id',
+      )
+      .all(first.session_id);
+    const secondJob = sameJob ? 'alice-0' : 'alice-1';
+    const destination = 'https://employer.example/jobs/second-session';
+    db.sqlite
+      .prepare('UPDATE jobs SET url=? WHERE id=?')
+      .run(destination, secondJob);
+    const later = '2026-09-11T12:01:00.000Z';
+    const second = await startAgentSession(
+      db,
+      'alice',
+      { job: secondJob },
+      memoryEnv,
+      later,
+    );
+    assert.equal(second.park?.kind, 'answer');
+    assert.notEqual(second.session_id, first.session_id);
+    assert.notEqual(second.turn_id, first.turn_id);
+    assert.equal(second.job_id, secondJob);
+    assert.equal(second.begin, false);
+    const read = db.sqlite
+      .prepare(
+        "SELECT result FROM agent_tool_calls WHERE session_id=? AND name='relay_read_job'",
+      )
+      .get(second.session_id);
+    const payload = JSON.parse(JSON.parse(read.result).output);
+    assert.equal(payload.job_id, secondJob);
+    assert.equal(payload.url, destination);
+    const reloaded = await getAgentSession(
+      db,
+      'alice',
+      secondJob,
+      memoryEnv,
+      later,
+    );
+    assert.deepEqual(reloaded.session, second);
+    assert.deepEqual(
+      await startAgentSession(
+        db,
+        'alice',
+        { job: secondJob },
+        memoryEnv,
+        later,
+      ),
+      second,
+    );
+    const answered = await answerAgentSession(
+      db,
+      'alice',
+      { job: secondJob, answer: 'Second fictional answer.' },
+      memoryEnv,
+      later,
+    );
+    assert.equal(answered.park?.kind, 'authorization');
+    assert.equal(answered.turn_id, second.turn_id);
+    assert.equal(answered.authorized, false);
+    assert.equal(answered.begin, false);
+    const answerCall = db.sqlite
+      .prepare(
+        "SELECT turn_id,call_id,result FROM agent_tool_calls WHERE session_id=? AND name='relay_request_answer'",
+      )
+      .get(second.session_id);
+    assert.equal(answerCall.turn_id, second.park.turn_id);
+    assert.equal(answerCall.call_id, second.park.call_id);
+    assert.equal(
+      JSON.parse(JSON.parse(answerCall.result).output).answer,
+      'Second fictional answer.',
+    );
+    const operation = db.sqlite
+      .prepare(
+        'SELECT manifest,state,started FROM application_operations WHERE id=?',
+      )
+      .get(answered.operation_id);
+    const manifest = JSON.parse(operation.manifest);
+    assert.equal(manifest.destination, destination);
+    assert.equal(
+      manifest.fields.find((f) => f.label === 'Work authorization').value,
+      'Second fictional answer.',
+    );
+    assert.equal(operation.state, 'proposed');
+    assert.equal(operation.started, null);
+    assert.deepEqual(
+      db.sqlite
+        .prepare(
+          'SELECT * FROM agent_tool_calls WHERE session_id=? ORDER BY call_id',
+        )
+        .all(first.session_id),
+      firstCalls,
+    );
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT COUNT(*) c FROM agent_tool_calls WHERE session_id=?')
+        .get(second.session_id).c,
+      3,
+    );
+    assert.equal(
+      db.sqlite
+        .prepare("SELECT COUNT(*) c FROM profile_facts WHERE status='Verified'")
+        .get().c,
+      0,
+    );
+    assert.equal(
+      db.sqlite
+        .prepare('SELECT COUNT(*) c FROM jobs WHERE accepted_draft IS NOT NULL')
+        .get().c,
+      0,
+    );
+    assert.equal(begins(db), 0);
+    db.sqlite.close();
+  });
+}
+
+void test('memory reload preserves legacy serialized turn and call identities', async () => {
+  const runtime = createMemoryRuntime('alice-0');
+  const fresh = await runtime.start({
+    job_id: 'alice-0',
+    provider_session_id: 'mem_fresh',
+    text: 'Prepare this fictional job.',
+    tools: AGENT_FUNCTION_TOOLS,
+  });
+  assert.deepEqual(await runtime.getState('mem_fresh', ''), fresh);
+  assert.deepEqual(
+    await runtime.getState('mem_fresh', fresh.provider_state),
+    fresh,
+  );
+  const legacy = {
+    job_id: 'alice-0',
+    turn_id: 'turn_1',
+    seq: 1,
+    phase: 'await_read',
+  };
+  const recovered = await runtime.getState(
+    'mem_legacy',
+    JSON.stringify(legacy),
+  );
+  assert.equal(recovered.turn_id, legacy.turn_id);
+  assert.equal(recovered.required_actions[0].turn_id, legacy.turn_id);
+  assert.equal(recovered.required_actions[0].call_id, 'call_1');
+  const parked = await runtime.returnToolResult(
+    'mem_legacy',
+    {
+      turn_id: 'turn_1',
+      call_id: 'call_1',
+      success: true,
+      output: JSON.stringify({
+        url: 'https://employer.example/legacy',
+        facts: [],
+      }),
+    },
+    recovered.provider_state,
+  );
+  assert.equal(parked.turn_id, 'turn_1');
+  assert.deepEqual(
+    await runtime.getState('mem_legacy', parked.provider_state),
+    parked,
+  );
+  const prepared = await runtime.returnToolResult(
+    'mem_legacy',
+    {
+      turn_id: 'turn_1',
+      call_id: 'call_2',
+      success: true,
+      output: JSON.stringify({ answer: 'Legacy fictional answer.' }),
+    },
+    parked.provider_state,
+  );
+  assert.equal(prepared.turn_id, 'turn_1');
+  assert.equal(prepared.required_actions[0].call_id, 'call_3');
+  assert.deepEqual(
+    await runtime.getState('mem_legacy', prepared.provider_state),
+    prepared,
+  );
 });

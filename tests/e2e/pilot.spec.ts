@@ -18,7 +18,14 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Tracker' })).toBeVisible();
   await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
-  for (const href of ['/review', '/preferences', '/plan'])
+  for (const href of [
+    '/review',
+    '/preferences',
+    '/plan',
+    '/advanced/review',
+    '/advanced/preferences',
+    '/advanced/plan',
+  ])
     await expect(sidebar.locator(`a[href="${href}"]`)).toHaveCount(0);
 
   const profileLoaded = page.waitForResponse(
@@ -50,7 +57,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(
     page.getByText('Confirmed by you. The agent may now cite this fact.'),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'Runtime', exact: true }).click();
+  await sidebar.getByRole('link', { name: 'Runtime', exact: true }).click();
   await page
     .getByRole('button', { name: 'Import research', exact: true })
     .click();

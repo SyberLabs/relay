@@ -421,7 +421,7 @@ const pages = [
   },
   {
     label: 'preferences',
-    file: 'app/preferences/page.tsx',
+    file: 'app/advanced/preferences/page.tsx',
     keys: preferencesKeys,
     seed: loadedPreferences,
     mutation: 'post',
@@ -429,7 +429,7 @@ const pages = [
   },
   {
     label: 'review',
-    file: 'app/review/page.tsx',
+    file: 'app/advanced/review/page.tsx',
     keys: reviewKeys,
     seed: loadedReview,
     mutation: 'run',
@@ -782,7 +782,7 @@ void test('profile extract does not apply candidates after helper returns ok', a
 });
 
 void test('review profile sibling 401 expires while drafts GET is held', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
+  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
   const state = loadedReview();
   const drafts = deferred();
   const profile = deferred();
@@ -808,7 +808,7 @@ void test('review profile sibling 401 expires while drafts GET is held', async (
 });
 
 void test('review drafts sibling 401 expires while profile GET is held', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
+  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
   const state = loadedReview();
   const drafts = deferred();
   const profile = deferred();
@@ -1001,7 +1001,7 @@ for (const sibling401 of trackSibling401s) {
 }
 
 void test('review Save correction does not stage proposals after expiry', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
+  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
   const state = loadedReview();
   const post = deferred();
   let gets = 0;
@@ -1037,7 +1037,7 @@ void test('review Save correction does not stage proposals after expiry', async 
 });
 
 void test('review addRule is refused after expiry', () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
+  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
   const state = loadedReview();
   state.basket = [];
   const { session, deps } = pageDeps(state, reviewKeys, async () => {
@@ -1072,7 +1072,7 @@ void test('GET JSON parse that expires mid-read cannot restore profile facts', a
 });
 
 void test('successful mutation refresh 401 does not return private proposals', async () => {
-  const source = readFileSync('app/review/page.tsx', 'utf8');
+  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
   const state = loadedReview();
   const { session, deps } = pageDeps(state, reviewKeys, async (_url, init) => {
     if (init?.method === 'POST')

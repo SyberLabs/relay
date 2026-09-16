@@ -14,7 +14,7 @@ export default function Advanced() {
       </p>
       <section className="import">
         <h2>
-          <Link href="/review">Batch review</Link>
+          <Link href="/advanced/review">Batch review</Link>
         </h2>
         <p>
           Review logged agent drafts and save style corrections. Staged drafts
@@ -23,13 +23,13 @@ export default function Advanced() {
       </section>
       <section className="import">
         <h2>
-          <Link href="/preferences">Preferences</Link>
+          <Link href="/advanced/preferences">Preferences</Link>
         </h2>
         <p>Compare postings to fit experimental preference weights.</p>
       </section>
       <section className="import">
         <h2>
-          <Link href="/plan">This week</Link>
+          <Link href="/advanced/plan">This week</Link>
         </h2>
         <p>
           Explore a plan using your time budget and estimated reply rates.

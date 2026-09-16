@@ -110,7 +110,7 @@ A writing agent can log drafts through `relay_log_draft`. Cited IDs must identif
 
 Browser draft loading separately checks format, job identity and version. It does not check citations or factual accuracy. Workspace saves do not run the agent draft-log check. Human acceptance records approval of exact wording; changed text needs fresh acceptance.
 
-Logged drafts accumulate for batch review (`/review`). A session opens on the first draft in an unseen role cluster, style drift, enough low-confidence drafts, or a full batch. It groups repeated openings, flags near-identical letters and proposes style rules from corrections. Review each claim and correction; batch review is separate from exact-text acceptance in the workspace.
+Logged drafts accumulate for batch review (`/advanced/review`). A session opens on the first draft in an unseen role cluster, style drift, enough low-confidence drafts, or a full batch. It groups repeated openings, flags near-identical letters and proposes style rules from corrections. Review each claim and correction; batch review is separate from exact-text acceptance in Runtime. `/review` redirects to the same page.
 
 Automatic staging is enabled per role cluster from recent edit sizes. After enough reviewed drafts come back close to unchanged, later drafts can be placed into the matching job record. This measures editing history, not factual accuracy. Staging leaves status untouched and does not set `accepted_draft`; accepting exact text remains a human action. Changed review history or expired facts can return a cluster to batch review.
 
@@ -166,9 +166,9 @@ The Sites plugin on `pnpm dev` strips caller-supplied `oai-authenticated-user-*`
 
 Preferences and weekly planning remain available under **Advanced**. They are experimental aids, with no established qualification assessment or hiring benefit. Outcome history stays accessible from the workspace.
 
-**Preferences** (`/preferences`) fit weights from choices between saved postings. Twelve comparisons is the interface's target, not a validated accuracy threshold. With no choices, postings receive the same preference score.
+**Preferences** (`/advanced/preferences`) fit weights from choices between saved postings. Twelve comparisons is the interface's target, not a validated accuracy threshold. With no choices, postings receive the same preference score. `/preferences` redirects here. `/api/preferences` is unchanged.
 
-**The plan** (`/plan`) uses estimated reply rates, posting age, preference scores and effort estimates in an expected-maximum calculation. Greedy selection adds model score per minute within your budget. A reply is not an offer, so the result is presented as an experimental plan score, not an expected best offer or measured outcome improvement. The underlying API fields and records are preserved.
+**The plan** (`/advanced/plan`) uses estimated reply rates, posting age, preference scores and effort estimates in an expected-maximum calculation. Greedy selection adds model score per minute within your budget. A reply is not an offer, so the result is presented as an experimental plan score, not an expected best offer or measured outcome improvement. `/plan` redirects here. The underlying `/api/plan` fields and records are preserved.
 
 **The read plane** pulls public Greenhouse and Lever boards through `board-pull`, normalising onto the same `jobKey` identity the workspace already uses. It reads only, needs no credentials and no account, and every posting arrives Held — discovery never implies a decision.
 
@@ -209,7 +209,7 @@ The project, organization, personal profile, and website share one [maintained p
 
 For an existing local database, apply every migration after the one it is already on, in order, up to the highest number in `drizzle/`. Enumerating per-version paths goes stale the moment a migration is added, so follow the rule rather than a list. Migration 0002 rebuilds the observation index. Migration 0003 adds the fact ledger, style rules and draft-review tables. Migration 0004 adds preference, choice and outcome tables and defaulted posting columns on `jobs`; existing rows stay. Migration 0005 adds the refusals table and changes no existing row. Skipping 0005 leaves `/api/readiness` and every citation refusal hitting a missing table. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
 
-Domain, import, editor, profile, selection, and API tests cover status preservation, duplicate matching, exact acceptance, citation refusal, terminal outcomes that cannot be reopened by import, stale edits, and authentication rejection. A 401 on `/profile`, `/preferences`, `/review`, or `/track` expires that mounted page session before the response body is read, clears private state and edit controls, and shows the existing signed-out screen. Older in-flight reads and mutations cannot restore it. Sign-in is top-level navigation; these pages do not reauthenticate in place. Workspace expiry is unchanged.
+Domain, import, editor, profile, selection, and API tests cover status preservation, duplicate matching, exact acceptance, citation refusal, terminal outcomes that cannot be reopened by import, stale edits, and authentication rejection. A 401 on `/profile`, `/advanced/preferences`, `/advanced/review`, or `/track` expires that mounted page session before the response body is read, clears private state and edit controls, and shows the existing signed-out screen. Older in-flight reads and mutations cannot restore it. Sign-in is top-level navigation; these pages do not reauthenticate in place. Workspace expiry is unchanged. `/preferences` and `/review` still reach those pages.
 
 ## Hosting and privacy
 

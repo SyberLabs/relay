@@ -347,9 +347,10 @@ void test('markdown requirements headings still extract bullets', () => {
 void test('the selected job labels heuristic evidence without judging qualifications', () => {
   const src = readWorkspaceUiSource();
   const fit = readFileSync(new URL('../lib/fit.ts', import.meta.url), 'utf8');
-  assert.match(src, /Evidence matches/);
+  assert.match(src, /Posting comparison/);
   assert.match(src, /Heuristic word and number matches/);
-  assert.match(src, /These do not assess your qualifications/);
+  assert.match(src, /These do not pick this job/);
+  assert.match(src, /Drafting, Accept, and Inspect do not consult them/);
   assert.match(src, /No matching evidence found/);
   assert.match(src, /assessJob/);
   assert.match(

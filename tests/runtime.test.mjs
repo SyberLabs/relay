@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   applicationReviewCopy,
   applicationReviewKind,
@@ -371,18 +372,31 @@ void test('workbench queue keeps Ready jobs as draft-only waiting rows', () => {
   );
 });
 
-void test('whyPicked prefers evidence overlap then notes', () => {
-  assert.match(
-    whyPicked([], {
-      gates: [{ text: 'Kubernetes', status: 'hit', factId: 'f1' }],
-    }),
-    /1 required line/,
-  );
+void test('whyPicked shows posting notes as research, not overlap hits', () => {
   assert.equal(
-    whyPicked([{ notes: 'Fictional posting notes.' }], { gates: [] }),
+    whyPicked([{ notes: 'Fictional posting notes.' }]),
     'Fictional posting notes.',
   );
-  assert.match(whyPicked([], null), /Import posting text/);
+  assert.doesNotMatch(
+    whyPicked([{ notes: 'Fictional posting notes.' }]),
+    /required line|overlap your confirmed facts|qualification score|ATS score|picked/i,
+  );
+  assert.match(whyPicked([]), /Add posting research/);
+  assert.match(whyPicked([]), /not a qualification score/);
+  assert.doesNotMatch(
+    whyPicked([]),
+    /required line|overlap your confirmed facts/,
+  );
+  const long = 'x'.repeat(400);
+  assert.equal(whyPicked([{ notes: long }]).length, 320);
+  assert.match(whyPicked([{ notes: long }]), /…$/);
+  const source = readFileSync(new URL('../lib/runtime.ts', import.meta.url), 'utf8');
+  assert.match(
+    source,
+    /export function whyPicked\(sources: \{ notes: string \}\[\]\): string/,
+  );
+  assert.doesNotMatch(source, /required line\(s\) overlap/);
+  assert.doesNotMatch(source, /overlap your confirmed facts/);
   assert.equal(ctxTally(2, 1), '2 facts · 1 style rule');
   assert.equal(ctxTally(0, 0), 'no saved context yet');
 });

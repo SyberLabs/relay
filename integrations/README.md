@@ -169,7 +169,7 @@ It can do anything except exercise taste or authorise an irreversible act. It ca
 
 ## Profile, drafts and review
 
-The fact ledger and style card live at `/profile`; experimental batch review is at `/review`, linked from `/advanced` alongside preferences and planning. Relay processes pasted resume text into proposed lines without calling an external assistant. You confirm facts yourself; the stored `Verified` status records that confirmation, not independent verification.
+The fact ledger and style card live at `/profile`; experimental batch review is at `/advanced/review`, linked from `/advanced` alongside preferences and planning. `/review`, `/preferences`, and `/plan` redirect under Advanced. Relay processes pasted resume text into proposed lines without calling an external assistant. You confirm facts yourself; the stored `Verified` status records that confirmation, not independent verification.
 
 A browser exposing WebMCP gives an assistant `relay_read_profile`, `relay_log_draft` and `relay_review_status` alongside the existing workspace tools. Logging requires cited facts to be user-confirmed and unexpired, then checks selected claim patterns using word overlap and numbers pooled across citations. This can miss unsupported claims; passing is not factual verification. Browser draft loading checks format, job identity and version, and workspace saves do not run this citation check. Exact-text acceptance still requires human review. This WebMCP path has not been tested in a Grok Bot session.
 

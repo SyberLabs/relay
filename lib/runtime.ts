@@ -1,5 +1,4 @@
 import { displayName } from './domain.ts';
-import type { Gate } from './fit.ts';
 import { isTerminal } from './outcomes.ts';
 
 export type RuntimeJob = {
@@ -307,16 +306,10 @@ export function asSheetJobs(jobs: unknown): SheetJob[] {
   return rows;
 }
 
-export function whyPicked(
-  sources: { notes: string }[],
-  fit: { gates: Gate[] } | null,
-): string {
-  const hits = fit?.gates.filter((gate) => gate.status === 'hit').length ?? 0;
-  if (hits)
-    return `${hits} required line(s) overlap your confirmed facts. This is a heuristic word and number match, not a qualification score.`;
+export function whyPicked(sources: { notes: string }[]): string {
   const notes = sources.find((source) => source.notes.trim())?.notes.trim();
   if (notes) return notes.length > 320 ? notes.slice(0, 317) + '…' : notes;
-  return 'This job is in your workspace. Import posting text to compare requirements with your facts.';
+  return 'Add posting research for this job. Notes are not a qualification score and do not explain why the job is in Runtime.';
 }
 
 export function ctxTally(facts: number, rules: number) {

@@ -57,7 +57,7 @@ test('imported holds refuse acceptance and About You qualifications remain visib
   await expect(
     page.getByRole('button', { name: 'Accept exact draft' }),
   ).toBeDisabled();
-  await openDraftNested(page, 'Evidence matches');
+  await openDraftNested(page, 'Posting comparison');
   const evidence = page
     .getByRole('list')
     .filter({ hasText: 'Practical Node.js service development' });

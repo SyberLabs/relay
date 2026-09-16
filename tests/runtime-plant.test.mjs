@@ -55,11 +55,20 @@ void test('the home workbench keeps existing acceptance and import contracts', (
     /disabled=\{blocked\}\s+onClick=\{\(\) => save\('Skip'\)\}/,
   );
   assert.match(workspace, /Heuristic word and number matches/);
+  assert.match(workspace, /Drafting, Accept, and Inspect do not consult them/);
   assert.doesNotMatch(workspace, /evidenceFitPercent|fitPct/);
   assert.doesNotMatch(workspace, /match percentage|ATS score/i);
+  assert.doesNotMatch(workspace, /required line\(s\) overlap/);
   assert.doesNotMatch(modals, /match percentage|ATS score/i);
+  assert.doesNotMatch(modals, /required line\(s\) overlap/);
+  assert.doesNotMatch(inspectUi, /fit\.gates|whyPicked/);
   assert.match(workspace, /Accept exact draft/);
   assert.match(workspace, /Save draft/);
+  assert.match(
+    workspace,
+    /acceptDisabled=\{\s*blocked \|\| acceptedExact \|\| !draft\.trim\(\) \|\| !!blocker\.trim\(\)\s*\}/,
+  );
+  assert.doesNotMatch(workspace, /acceptDisabled=\{[^}]*fit/);
 });
 
 void test('workbench is full-width with a persistent Approve & send control', () => {
@@ -189,7 +198,14 @@ void test('stuck cards select the job without opening a dialog', () => {
   assert.match(queueUi, /id="workspace-queue"/);
   assert.match(queueUi, /onClick=\{\(\) => onChoose\(job\)\}/);
   assert.doesNotMatch(queueUi, /setModal\('blocked'\)/);
-  assert.match(modals, /Fit is a heuristic word and number match/);
+  assert.match(modals, /Posting research/);
+  assert.match(modals, /whyPicked\(sources\)/);
+  assert.doesNotMatch(modals, /Why this job is in core/);
+  assert.doesNotMatch(modals, /required line\(s\) overlap/);
+  assert.match(
+    modals,
+    /does not pick the job, change status, or\s+gate Accept or Inspect/,
+  );
 });
 
 void test('tools name Relay connectors instead of job-board OAuth', () => {

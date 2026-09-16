@@ -112,6 +112,7 @@ for (const [format, payload] of Object.entries(unauthorized)) {
       await route.fulfill({ status: 401, ...payload });
     });
     await page.goto('/preferences');
+    await expect(page).toHaveURL(/\/advanced\/preferences/);
     await expect(page.getByText('PRIVATE_PREF_JOB_A')).toBeVisible();
     const url = page.url();
     await page.getByRole('button', { name: 'Save budget' }).click();
@@ -178,6 +179,7 @@ for (const [format, payload] of Object.entries(unauthorized)) {
       await route.fallback();
     });
     await page.goto('/review');
+    await expect(page).toHaveURL(/\/advanced\/review/);
     await expect(page.getByText('PRIVATE_REVIEW_REASON')).toBeVisible();
     const url = page.url();
     await page.getByRole('button', { name: 'Open review session' }).click();

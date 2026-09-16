@@ -50,7 +50,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(
     page.getByText('Confirmed by you. The agent may now cite this fact.'),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'Runtime', exact: true }).click();
+  await sidebar.getByRole('link', { name: 'Runtime', exact: true }).click();
   await page
     .getByRole('button', { name: 'Import research', exact: true })
     .click();

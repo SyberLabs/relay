@@ -5,6 +5,10 @@ import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/workspace-refresh.ts';
 import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
 import {
+  readWorkspaceRuntimeSource,
+  readWorkspaceUiSource,
+} from './workspace-ui-source.mjs';
+import {
   emptyRuntimeModalPrivate,
   postRuntimeModalProfile,
   readRuntimeModalProfile,
@@ -79,7 +83,7 @@ function modalProfileThenBody() {
 }
 
 function workspaceExpiry(deps) {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const token = 'const applyExpired = useCallback(';
   const start = src.indexOf(token);
   const after = start + token.length;
@@ -445,7 +449,7 @@ void test('modal profile POST 502 HTML becomes an error instead of rejecting', a
 });
 
 void test('compiled plant blocked submit posts an answer without remember', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceUiSource();
   const saveSrc = src.slice(
     src.indexOf('async function saveDecision'),
     src.indexOf('\n  function openAddJob'),
@@ -511,7 +515,7 @@ void test('compiled plant blocked submit posts an answer without remember', asyn
 });
 
 void test('compiled plant blocked submit posts job-only save_profile for a long answer', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceUiSource();
   const saveSrc = src.slice(
     src.indexOf('async function saveDecision'),
     src.indexOf('\n  function openAddJob'),

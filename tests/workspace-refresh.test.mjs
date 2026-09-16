@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { loadEditor } from '../lib/editor.ts';
 import * as helper from '../lib/workspace-refresh.ts';
 import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
+import { readWorkspaceRuntimeSource } from './workspace-ui-source.mjs';
 import {
   beginMutation,
   beginRefresh,
@@ -313,7 +313,7 @@ void test('external version bump without an own save still conflicts', async () 
 });
 
 void test('pre-expiry mutation must not start a refresh in the new epoch', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8');
+  const src = readWorkspaceRuntimeSource();
   const compile = (s) =>
     stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
   const expiry = src.match(
@@ -429,7 +429,7 @@ void test('pre-expiry mutation must not start a refresh in the new epoch', async
 });
 
 void test('delayed history JSON cannot restore events after session expiry', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8');
+  const src = readWorkspaceRuntimeSource();
   const compile = (s) =>
     stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
   const expiry = src.match(
@@ -519,7 +519,7 @@ void test('delayed history JSON cannot restore events after session expiry', asy
 });
 
 void test('history JSON that expires during parse cannot restore events', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8');
+  const src = readWorkspaceRuntimeSource();
   const compile = (s) =>
     stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
   const expiry = src.match(
@@ -738,7 +738,7 @@ void test('expiry forgets the bound viewer so the next account can load', async 
 });
 
 void test('compiled refresh keeps B selection after a stale older A GET', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const compile = (s) =>
     stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
   const expiry = src.match(

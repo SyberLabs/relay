@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/workspace-refresh.ts';
 import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
+import { readWorkspaceRuntimeSource } from './workspace-ui-source.mjs';
 
 void test('a refresh cannot restore records after a synchronous expiry callback', async () => {
-  const source = readFileSync('app/workspace.tsx', 'utf8');
+  const source = readWorkspaceRuntimeSource();
   const expirySource = source.match(
     /const applyExpired = useCallback\(([\s\S]*?), \[\]\);/,
   )[1];

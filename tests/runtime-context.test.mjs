@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/workspace-refresh.ts';
 import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
@@ -10,6 +9,7 @@ import {
   policyExpiryIso,
   policyJobIds,
 } from '../lib/runtime.ts';
+import { readWorkspaceRuntimeSource } from './workspace-ui-source.mjs';
 
 function compile(text) {
   return stripTypeScriptTypes(text, { mode: 'transform' })
@@ -76,7 +76,7 @@ function expireKeys(state, deps) {
 }
 
 void test('policy and profile 401s expire before JSON and delayed 200s cannot restore counts', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
   const session = helper.createWorkspaceSession();
@@ -131,7 +131,7 @@ void test('policy and profile 401s expire before JSON and delayed 200s cannot re
 });
 
 void test('policy POST 401 expires without parsing and a delayed 200 cannot restore it', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const saveSrc = src.slice(
     src.indexOf('async function saveLimits'),
@@ -189,7 +189,7 @@ void test('policy POST 401 expires without parsing and a delayed 200 cannot rest
 });
 
 void test('runtime context waits for a bound workspace viewer', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
   const session = helper.createWorkspaceSession();
   let fetches = 0;
@@ -213,7 +213,7 @@ void test('runtime context waits for a bound workspace viewer', async () => {
 });
 
 void test('policy GET 401 expires without parsing JSON', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
   const session = helper.createWorkspaceSession();
@@ -253,7 +253,7 @@ void test('policy GET 401 expires without parsing JSON', async () => {
 });
 
 void test('successful workspace refresh loads plant context after records bind', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   assert.equal(
     src.split('const loadRuntimeContext = useCallback(').length - 1,
     1,
@@ -303,7 +303,7 @@ void test('successful workspace refresh loads plant context after records bind',
 });
 
 void test('expired workspace refresh does not load plant context', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const refreshSrc = src.match(
     /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,
@@ -353,7 +353,7 @@ void test('expired workspace refresh does not load plant context', async () => {
 });
 
 void test('applications 401 expires before a hanging profile fetch settles', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
   const session = helper.createWorkspaceSession();
@@ -402,7 +402,7 @@ void test('applications 401 expires before a hanging profile fetch settles', asy
 });
 
 void test('applications 401 expires when the profile fetch rejects', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
   const session = helper.createWorkspaceSession();
@@ -439,7 +439,7 @@ void test('applications 401 expires when the profile fetch rejects', async () =>
 });
 
 void test('a policy GET from a new viewer clears prior private fields and reloads', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const loadSrc = useCallbackBody(src, 'loadRuntimeContext');
   const session = helper.createWorkspaceSession();
@@ -497,7 +497,7 @@ void test('a policy GET from a new viewer clears prior private fields and reload
 });
 
 void test('saveLimits catch after expiry does not write a message', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const saveSrc = src.slice(
     src.indexOf('async function saveLimits'),
@@ -547,7 +547,7 @@ void test('saveLimits catch after expiry does not write a message', async () => 
 });
 
 void test('saveLimits finally after a viewer switch keeps a newer busy lock', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const saveSrc = src.slice(
     src.indexOf('async function saveLimits'),
@@ -615,11 +615,11 @@ void test('saveLimits finally after a viewer switch keeps a newer busy lock', as
 });
 
 void test('toggleAutopilot does not open Tools after a viewer switch', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const slice = src.slice(
     src.indexOf('async function saveLimits'),
-    src.indexOf('\n  return ('),
+    src.indexOf('\n  return {'),
   );
   const session = helper.createWorkspaceSession();
   helper.bindViewer(session, 'owner-a');
@@ -680,7 +680,7 @@ void test('toggleAutopilot does not open Tools after a viewer switch', async () 
 });
 
 void test('disabling autopilot with 101 held jobs posts the saved bounded job list', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const saveSrc = src.slice(
     src.indexOf('async function saveLimits'),
@@ -751,7 +751,7 @@ void test('disabling autopilot with 101 held jobs posts the saved bounded job li
 });
 
 void test('enabling autopilot with 101 held jobs fails closed without a policy POST', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const saveSrc = src.slice(
     src.indexOf('async function saveLimits'),
@@ -805,7 +805,7 @@ void test('enabling autopilot with 101 held jobs fails closed without a policy P
 });
 
 void test('enabling autopilot with a saved two-job list does not expand to 101 held jobs', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const saveSrc = src.slice(
     src.indexOf('async function saveLimits'),
@@ -880,7 +880,7 @@ void test('enabling autopilot with a saved two-job list does not expand to 101 h
 });
 
 void test('workspace viewer switch unmounts an open resume modal', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const expiry = useCallbackBody(src, 'applyExpired');
   const refreshSrc = src.match(
     /const refresh = useCallback\(([\s\S]*?),\s*\[applyExpired(?:,[^\]]*)?\],\s*\);/,

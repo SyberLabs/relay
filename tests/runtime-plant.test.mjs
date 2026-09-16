@@ -1,8 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import {
+  readWorkspaceRuntimeSource,
+  readWorkspaceUiSource,
+} from './workspace-ui-source.mjs';
 
-const workspace = readFileSync('app/workspace.tsx', 'utf8');
+const workspace = readWorkspaceUiSource();
+const runtime = readWorkspaceRuntimeSource();
 const inspectUi = readFileSync('app/inspect.tsx', 'utf8');
 const modals = readFileSync('app/runtime-modals.tsx', 'utf8');
 const shell = readFileSync('app/runtime-shell.tsx', 'utf8');
@@ -113,9 +118,9 @@ void test('inspect copy stays truthful and never claims a disconnected wake', ()
 });
 
 void test('expiry clears runtime policy and context tiles', () => {
-  const start = workspace.indexOf('const applyExpired = useCallback');
-  const end = workspace.indexOf('const researchRows', start);
-  const body = workspace.slice(start, end);
+  const start = runtime.indexOf('const applyExpired = useCallback');
+  const end = runtime.indexOf('const researchRows', start);
+  const body = runtime.slice(start, end);
   assert.match(body, /setPolicy\(null\)/);
   assert.match(body, /setAutopilot\(false\)/);
   assert.match(body, /setStyleCount\(0\)/);
@@ -189,11 +194,11 @@ void test('tools name Relay connectors instead of job-board OAuth', () => {
 });
 
 void test('autopilot writes policy and never begins or accepts a draft', () => {
-  const start = workspace.indexOf('async function saveLimits');
-  const end = workspace.indexOf('\n  return (', start);
+  const start = runtime.indexOf('async function saveLimits');
+  const end = runtime.indexOf('\n  return {', start);
   assert.notEqual(start, -1);
   assert.notEqual(end, -1);
-  const body = workspace.slice(start, end);
+  const body = runtime.slice(start, end);
   assert.match(body, /action: 'policy'/);
   assert.match(body, /review: 'all'/);
   assert.match(body, /saved\.length\s*\?\s*saved\s*:\s*eligible/);

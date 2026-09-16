@@ -164,7 +164,8 @@ export function memoryStart(
 ): RuntimeSnapshot {
   const state: MemoryState = {
     job_id: jobId,
-    turn_id: 'turn_1',
+    // The control plane deduplicates by owner/turn/call across sessions.
+    turn_id: `${providerSessionId}:turn_1`,
     seq: 1,
     phase: 'await_read',
   };
@@ -235,8 +236,13 @@ export function createMemoryRuntime(jobId: string): AgentRuntime {
       return snapshot(parseMemoryState(state, jobId), id);
     },
     async getState(id, state) {
+      if (!state) return memoryStart(jobId, id);
       const parsed = parseMemoryState(state, jobId);
-      if (parsed.phase === 'await_read') return memoryStart(jobId, id);
+      if (parsed.phase === 'await_read') {
+        return snapshot(parsed, id, [
+          call(parsed, 'relay_read_job', { job_id: jobId }),
+        ]);
+      }
       if (parsed.phase === 'await_answer') {
         return snapshot(parsed, id, [
           call(parsed, 'relay_request_answer', {

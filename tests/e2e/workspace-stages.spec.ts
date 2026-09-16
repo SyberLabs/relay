@@ -27,7 +27,7 @@ test('held job primary control is accept, not Advanced or add job', async ({
     page
       .locator('header.bar')
       .getByText(
-        'Select a job to continue its review. Adding or importing is between jobs.',
+        'Select a job to continue in Runtime. Adding or importing is between jobs.',
       ),
   ).toBeVisible();
   await expect(

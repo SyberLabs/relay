@@ -28,8 +28,8 @@ export function TrackJobSheet({
     <section aria-labelledby="job-sheet-title" className="import">
       <h2 id="job-sheet-title">Jobs</h2>
       <p>
-        Filter the sheet by status, then open a row to continue that job in the
-        workspace.
+        Filter the sheet by status, then open a row to continue that job in
+        Runtime.
       </p>
       <fieldset className="sheet-filters">
         <legend className="sheet-filter-label">Filter by</legend>
@@ -54,7 +54,7 @@ export function TrackJobSheet({
       </fieldset>
       {!loaded ? null : !jobs.length ? (
         <p className="empty">
-          No jobs yet. Add a job from the workspace, then return here to scan
+          No jobs yet. Add a job from Runtime, then return here to scan
           the list.
         </p>
       ) : !rows.length ? (

@@ -112,6 +112,27 @@ void test('profile and advanced are optional context, track is portfolio', () =>
   assert.equal(workspaceStage({ ...signedIn, page: 'track' }), 'portfolio');
 });
 
+void test('portfolio copy names Tracker and Runtime', () => {
+  assert.match(
+    stageLead({
+      page: 'workspace',
+      signedOut: false,
+      jobCount: 2,
+      selectedStatus: null,
+    }),
+    /continue in Runtime/i,
+  );
+  assert.match(
+    stageLead({
+      page: 'track',
+      signedOut: false,
+      jobCount: 2,
+      selectedStatus: 'Held',
+    }),
+    /Tracker holds the portfolio/i,
+  );
+});
+
 void test('context is not required before adding a job', () => {
   assert.match(
     stageLead({

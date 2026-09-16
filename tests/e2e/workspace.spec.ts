@@ -260,7 +260,7 @@ test('a dirty editor asks before opening the saved facts screen', async ({
   page,
 }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Runtime' })).toBeVisible();
   const explore = page.getByRole('button', { name: 'Explore example jobs' });
   if (await explore.isVisible()) {
     await explore.click();
@@ -273,13 +273,13 @@ test('a dirty editor asks before opening the saved facts screen', async ({
     .getByRole('textbox', { name: 'Application answer or outreach draft' })
     .fill(draft);
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await expect(page).not.toHaveURL(/\/track/);
   await expect(
     page.getByRole('textbox', { name: 'Application answer or outreach draft' }),
   ).toHaveValue(draft);
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await expect(page).toHaveURL(/\/track/);
   await page.getByRole('link', { name: 'Your facts' }).click();
   await expect(
@@ -289,9 +289,9 @@ test('a dirty editor asks before opening the saved facts screen', async ({
 
 test('controls act on the adjacent panel they name', async ({ page }) => {
   await page.goto('/signin-with-chatgpt?return_to=/');
-  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Runtime' })).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'Track jobs', exact: true }),
+    page.getByRole('link', { name: 'Tracker', exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   await expect(
@@ -343,8 +343,8 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
     }),
   ).toBe(true);
 
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Track' })).toBeVisible();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Tracker' })).toBeVisible();
   const sidebar = page.locator('aside.sidebar');
   await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   await expect(sidebar.getByRole('group', { name: 'Outcomes' })).toBeVisible();
@@ -372,11 +372,11 @@ test('controls act on the adjacent panel they name', async ({ page }) => {
   ).toHaveAttribute('aria-current', 'page');
   await page
     .locator('aside.sidebar')
-    .getByRole('group', { name: 'Job list' })
+    .getByRole('group', { name: 'Tracker lists' })
     .getByRole('link', { name: /Review queue/ })
     .click();
   await expect(page).toHaveURL(/\/track\?queue=Held/);
-  await expect(page.getByRole('heading', { name: 'Track' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tracker' })).toBeVisible();
 });
 
 test('tracker import actions stay inside the window after a long preview', async ({
@@ -420,7 +420,7 @@ async function openImportDock(
   page: import('@playwright/test').Page,
   how: 'pointer' | 'keyboard' = 'pointer',
 ) {
-  await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Runtime' })).toBeVisible();
   await expect(page.getByText('Opening your workspace…')).toHaveCount(0);
   const importBtn = page.getByRole('button', {
     name: 'Import research',

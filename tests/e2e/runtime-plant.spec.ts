@@ -7,7 +7,7 @@ test('the workspace workbench shows a full-width queue and review without sendin
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Workspace', exact: true }),
+    page.getByRole('heading', { name: 'Runtime', exact: true }),
   ).toBeVisible();
   await expect(page.locator('#workspace-queue')).toBeVisible();
   await expect(
@@ -18,7 +18,7 @@ test('the workspace workbench shows a full-width queue and review without sendin
   ).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Autopilot' })).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'Track jobs', exact: true }),
+    page.getByRole('link', { name: 'Tracker', exact: true }),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Profile' })).toBeVisible();
   await expect(
@@ -58,7 +58,7 @@ test('the workspace workbench shows a full-width queue and review without sendin
   await expect(page.locator('#workspace-queue button.job')).toHaveCount(
     saved.jobs.length,
   );
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   const allOpportunities = page.getByRole('button', {
     name: `All opportunities ${saved.jobs.length}`,
     exact: true,
@@ -72,7 +72,7 @@ test('the workspace workbench shows a full-width queue and review without sendin
     page.getByRole('heading', { name: 'Jobs', exact: true }),
   ).toBeVisible();
   await page
-    .getByRole('link', { name: 'Workspace', exact: true })
+    .getByRole('link', { name: 'Runtime', exact: true })
     .last()
     .click();
   await expect(
@@ -618,10 +618,10 @@ test('dirty editor asks before leaving to Your facts', async ({ page }) => {
   ).toBeVisible();
   await draft.fill('Unsaved plant draft before Track.');
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await expect(page).not.toHaveURL(/\/track/);
   await expect(draft).toHaveValue('Unsaved plant draft before Track.');
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await expect(page).toHaveURL(/\/track/);
 });

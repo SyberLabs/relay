@@ -72,7 +72,7 @@ export default function Workspace() {
             ? 'Working…'
             : current
               ? `${current.name}.`
-              : 'Workbench ready. Select an application.'
+              : 'Runtime ready. Select an application.'
       }
       logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
       onAddJob={openAddJob}

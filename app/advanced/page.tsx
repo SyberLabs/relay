@@ -5,12 +5,12 @@ export default function Advanced() {
   return (
     <ProductShell current="advanced">
       <Link className="backlink" href="/">
-        ← Workspace
+        ← Runtime
       </Link>
       <h1>Advanced</h1>
       <p className="lead">
         Experimental tools for planning and agent batches across your job search.
-        Review and accept each job’s exact wording in the workspace.
+        Review and accept each job’s exact wording in Runtime.
       </p>
       <section className="import">
         <h2>
@@ -18,7 +18,7 @@ export default function Advanced() {
         </h2>
         <p>
           Review logged agent drafts and save style corrections. Staged drafts
-          still need your exact-text acceptance in the workspace.
+          still need your exact-text acceptance in Runtime.
         </p>
       </section>
       <section className="import">

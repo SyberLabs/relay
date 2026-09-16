@@ -4,6 +4,7 @@ import {
   PAGE_LINKS,
   PORTFOLIO_PAGE_LINKS,
   CONTEXT_PAGE_LINKS,
+  PRIMARY_PAGE_LINKS,
   isAdvancedSection,
   jobFromSearch,
   pageIsCurrent,
@@ -25,7 +26,7 @@ void test('queueFromSearch reads a known filter and keeps caller fallbacks', () 
   assert.equal(queueFromSearch('?queue=Unknown', 'All'), 'All');
 });
 
-void test('queue labels and hrefs open Track instead of the plant', () => {
+void test('queue labels and hrefs open Tracker instead of Runtime', () => {
   assert.equal(queueTitle('Held'), 'Review queue');
   assert.equal(queueTitle('All'), 'All opportunities');
   assert.equal(queueHref('All'), '/track');
@@ -71,18 +72,25 @@ void test('job query params stay bound and plant queue queries leave the plant',
   });
 });
 
-void test('page links expose applications, facts, jobs and advanced', () => {
+void test('page links keep applications, facts and advanced secondary', () => {
+  assert.deepEqual(
+    PRIMARY_PAGE_LINKS.map((item) => [item.href, item.label]),
+    [
+      ['/', 'Runtime'],
+      ['/track', 'Tracker'],
+    ],
+  );
   assert.deepEqual(
     PAGE_LINKS.map((item) => item.href),
-    ['/applications', '/profile', '/track', '/advanced'],
+    ['/applications', '/profile', '/advanced'],
   );
   assert.deepEqual(
     PAGE_LINKS.map((item) => item.label),
-    ['Applications', 'Your facts', 'Track jobs', 'Advanced'],
+    ['Applications', 'Your facts', 'Advanced'],
   );
   assert.deepEqual(
     PORTFOLIO_PAGE_LINKS.map((item) => item.page),
-    ['applications', 'track'],
+    ['applications'],
   );
   assert.deepEqual(
     CONTEXT_PAGE_LINKS.map((item) => item.page),
@@ -90,6 +98,9 @@ void test('page links expose applications, facts, jobs and advanced', () => {
   );
   assert.equal(pageIsCurrent('profile', 'profile'), true);
   assert.equal(pageIsCurrent('workspace', 'profile'), false);
+  assert.equal(pageIsCurrent('workspace', 'workspace'), true);
+  assert.equal(pageIsCurrent('track', 'track'), true);
+  assert.equal(pageIsCurrent('workspace', 'track'), false);
   assert.equal(isAdvancedSection('plan'), true);
   assert.equal(pageIsCurrent('review', 'advanced'), true);
   assert.equal(pageIsCurrent('track', 'advanced'), false);

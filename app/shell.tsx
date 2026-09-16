@@ -19,6 +19,7 @@ import {
 import {
   CONTEXT_PAGE_LINKS,
   PORTFOLIO_PAGE_LINKS,
+  PRIMARY_PAGE_LINKS,
   QUEUE_FILTERS,
   pageIsCurrent,
   queueHref,
@@ -38,6 +39,7 @@ const queueIcons = {
 } as const;
 
 const pageIcons = {
+  '/': Inbox,
   '/applications': BriefcaseBusiness,
   '/profile': FileText,
   '/track': Activity,
@@ -53,6 +55,7 @@ export function ShellNav({
 }) {
   const pageLink = (
     item:
+      | (typeof PRIMARY_PAGE_LINKS)[number]
       | (typeof PORTFOLIO_PAGE_LINKS)[number]
       | (typeof CONTEXT_PAGE_LINKS)[number],
   ) => {
@@ -74,13 +77,22 @@ export function ShellNav({
   };
   return (
     <>
+      <fieldset aria-describedby="nav-screens-hint" className="navset">
+        <legend className="navlabel" id="nav-screens-label">
+          Screens
+        </legend>
+        <p className="navhint" id="nav-screens-hint">
+          Runtime is the selected-job loop. Tracker is the portfolio.
+        </p>
+        {PRIMARY_PAGE_LINKS.map(pageLink)}
+      </fieldset>
       {current !== 'track' ? (
         <fieldset aria-describedby="nav-queue-hint" className="navset">
           <legend className="navlabel" id="nav-queue-label">
-            Job list
+            Tracker lists
           </legend>
           <p className="navhint" id="nav-queue-hint">
-            Opens Track and shows that job list.
+            Opens Tracker and shows that job list.
           </p>
           {QUEUE_FILTERS.map((item) => {
             const Icon = queueIcons[item.value];
@@ -104,8 +116,8 @@ export function ShellNav({
           Outcomes
         </legend>
         <p className="navhint" id="nav-outcomes-hint">
-          Track every job and record what happened after you submitted. This is
-          not the draft review step.
+          Applications is a Runtime exit. Record what happened after you
+          submitted. This is not the draft review step.
         </p>
         {PORTFOLIO_PAGE_LINKS.map(pageLink)}
       </fieldset>
@@ -138,7 +150,7 @@ export function AppShell({
       </a>
       <aside className="sidebar">
         <Link className="brand" href="/" onClick={onNavigate}>
-          Relay <span>workspace</span>
+          Relay <span>runtime</span>
         </Link>
         <ShellNav current={current} onNavigate={onNavigate} />
         <div className="sidebottom">

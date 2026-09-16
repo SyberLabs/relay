@@ -63,7 +63,9 @@ export function stageLead(view: StageView): string {
   if (stage === 'onboarding')
     return 'Add a job to start. Your facts and Advanced tools are optional.';
   if (stage === 'portfolio')
-    return 'Select a job to continue its review. Adding or importing is between jobs.';
+    return view.page === 'track'
+      ? 'Tracker holds the portfolio. Open a job to continue it in Runtime.'
+      : 'Select a job to continue in Runtime. Adding or importing is between jobs.';
   if (stage === 'context')
     return 'Reusable context for later jobs. It is not required to draft or accept.';
   return loopStepLead(view.selectedStatus);

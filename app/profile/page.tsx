@@ -180,7 +180,7 @@ export default function Profile() {
   return (
     <ProductShell current="profile">
       <Link className="backlink" href="/">
-        <ArrowLeft size={15} /> Workspace
+        <ArrowLeft size={15} /> Runtime
       </Link>
       <h1>Your profile</h1>
       <p className="lead">

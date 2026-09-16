@@ -181,9 +181,9 @@ export default function Track() {
   return (
     <ProductShell current="track">
       <Link className="backlink" href="/">
-        <ArrowLeft size={15} /> Workspace
+        <ArrowLeft size={15} /> Runtime
       </Link>
-      <h1>Track</h1>
+      <h1>Tracker</h1>
       <p className="lead">
         Scan every saved job, then record what happened after you applied and
         the claims that submission committed you to.
@@ -243,7 +243,7 @@ export default function Track() {
         <h2>Live applications</h2>
         {!data?.prep.length && (
           <p className="empty">
-            Nothing submitted yet. Accept an exact draft in the workspace, then
+            Nothing submitted yet. Accept an exact draft in Runtime, then
             record the submission with its receipt.
           </p>
         )}

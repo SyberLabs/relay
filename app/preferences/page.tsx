@@ -151,7 +151,7 @@ export default function Preferences() {
   return (
     <ProductShell current="preferences">
       <Link className="backlink" href="/">
-        <ArrowLeft size={15} /> Workspace
+        <ArrowLeft size={15} /> Runtime
       </Link>
       <Link className="backlink" href="/advanced">
         Advanced

@@ -157,7 +157,7 @@ export default function Applications() {
       <div className="applications-page">
         <Link className="applications-back" href="/">
           <ArrowLeft size={16} aria-hidden="true" />
-          Workspace
+          Runtime
         </Link>
         <header className="applications-header">
           <div>

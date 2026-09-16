@@ -12,19 +12,27 @@ export const QUEUE_FILTERS = [
 
 export type QueueFilter = (typeof QUEUE_FILTERS)[number]['value'];
 
+export const PRIMARY_PAGE_LINKS = [
+  { href: '/', label: 'Runtime', page: 'workspace' },
+  { href: '/track', label: 'Tracker', page: 'track' },
+] as const;
+
 export const PAGE_LINKS = [
   { href: '/applications', label: 'Applications', page: 'applications' },
   { href: '/profile', label: 'Your facts', page: 'profile' },
-  { href: '/track', label: 'Track jobs', page: 'track' },
   { href: '/advanced', label: 'Advanced', page: 'advanced' },
 ] as const;
 
 export const PORTFOLIO_PAGE_LINKS = PAGE_LINKS.filter(
-  (item) => item.page === 'track' || item.page === 'applications',
+  (item) => item.page === 'applications',
 );
 export const CONTEXT_PAGE_LINKS = PAGE_LINKS.filter(
   (item) => item.page === 'profile' || item.page === 'advanced',
 );
+
+export type NavLinkPage =
+  | (typeof PRIMARY_PAGE_LINKS)[number]['page']
+  | (typeof PAGE_LINKS)[number]['page'];
 
 export type ShellPage =
   | 'applications'
@@ -105,10 +113,7 @@ export function isAdvancedSection(page: ShellPage): boolean {
   );
 }
 
-export function pageIsCurrent(
-  page: ShellPage,
-  linkPage: (typeof PAGE_LINKS)[number]['page'],
-): boolean {
+export function pageIsCurrent(page: ShellPage, linkPage: NavLinkPage): boolean {
   if (linkPage === 'advanced') return isAdvancedSection(page);
   return page === linkPage;
 }

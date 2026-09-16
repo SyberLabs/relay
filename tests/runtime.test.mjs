@@ -388,8 +388,7 @@ void test('whyPicked shows posting notes as research, not overlap hits', () => {
     /required line|overlap your confirmed facts/,
   );
   const long = 'x'.repeat(400);
-  assert.equal(whyPicked([{ notes: long }]).length, 320);
-  assert.match(whyPicked([{ notes: long }]), /…$/);
+  assert.equal(whyPicked([{ notes: long }]), long.slice(0, 317) + '…');
   const source = readFileSync(new URL('../lib/runtime.ts', import.meta.url), 'utf8');
   assert.match(
     source,

@@ -57,9 +57,13 @@ void test('the home workbench keeps existing acceptance and import contracts', (
   assert.match(workspace, /Heuristic word and number matches/);
   assert.match(workspace, /Drafting, Accept, and Inspect do not consult them/);
   assert.doesNotMatch(workspace, /evidenceFitPercent|fitPct/);
-  assert.doesNotMatch(workspace, /match percentage|ATS score/i);
+  assert.doesNotMatch(workspace, /match percentage/i);
   assert.doesNotMatch(workspace, /required line\(s\) overlap/);
-  assert.doesNotMatch(modals, /match percentage|ATS score/i);
+  assert.doesNotMatch(modals, /match percentage/i);
+  assert.match(
+    modals,
+    /Research notes are not a reason Relay picked this job[\s\S]*or an ATS score/,
+  );
   assert.doesNotMatch(modals, /required line\(s\) overlap/);
   assert.doesNotMatch(inspectUi, /fit\.gates|whyPicked/);
   assert.match(workspace, /Accept exact draft/);

@@ -357,7 +357,7 @@ void test('the selected job labels heuristic evidence without judging qualificat
     src,
     /disabled=\{blocked\}\s+onClick=\{\(\) => save\('Skip'\)\}/,
   );
-  assert.doesNotMatch(src, /match percentage|ATS score/i);
+  assert.doesNotMatch(src, /match percentage/i);
   assert.doesNotMatch(src, /assessPosting|postingText/);
   assert.doesNotMatch(fit, /export function postingText/);
   assert.doesNotMatch(fit, /export function assessPosting/);

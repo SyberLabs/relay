@@ -1306,9 +1306,12 @@ export default function Workspace() {
                     )}
                     {inspect.review}
                     <AgentSessionPanel
+                      key={current.id}
                       jobId={current.id}
                       jobName={current.name}
                       onInspect={() => setModal('inspect')}
+                      sessionRef={sessionRef}
+                      onExpired={applyExpired}
                     />
                   </div>
                   <footer className="foot">

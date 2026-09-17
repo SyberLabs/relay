@@ -60,7 +60,7 @@ test('empty workspace adds one job through ordinary fields and keeps it selected
     ),
   ).toHaveCount(1);
   await expect(
-    page.getByRole('link', { name: 'Track jobs', exact: true }),
+    page.getByRole('link', { name: 'Tracker', exact: true }),
   ).toBeVisible();
   await expect(
     page.locator('aside.sidebar').getByRole('group', { name: 'Job list' }),

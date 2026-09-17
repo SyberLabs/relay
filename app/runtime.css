@@ -113,6 +113,13 @@
   text-decoration: none;
   border-bottom: 1px solid transparent;
 }
+.bar-nav a + a {
+  margin-left: 12px;
+}
+.bar-nav a[aria-current='page'] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
 .bar-nav a:hover {
   color: var(--ink);
 }

@@ -107,7 +107,7 @@ export default function PlanPage() {
   return (
     <ProductShell current="plan">
       <Link className="backlink" href="/">
-        <ArrowLeft size={15} /> Workspace
+        <ArrowLeft size={15} /> Runtime
       </Link>
       <Link className="backlink" href="/advanced">
         Advanced

@@ -7,16 +7,16 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await page.goto('/');
   await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
   await expect(
-    page.getByRole('link', { name: 'Track jobs', exact: true }),
+    page.getByRole('link', { name: 'Tracker', exact: true }),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   const sidebar = page.locator('aside.sidebar');
   await expect(sidebar.getByRole('group', { name: 'Outcomes' })).toBeVisible();
   await expect(
     sidebar.getByRole('group', { name: 'Reusable context' }),
   ).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
-  await expect(sidebar.getByRole('link', { name: 'Track jobs' })).toBeVisible();
+  await expect(sidebar.getByRole('link', { name: 'Tracker' })).toBeVisible();
   await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
   for (const href of ['/review', '/preferences', '/plan'])
     await expect(sidebar.locator(`a[href="${href}"]`)).toHaveCount(0);
@@ -50,7 +50,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(
     page.getByText('Confirmed by you. The agent may now cite this fact.'),
   ).toBeVisible();
-  await page.getByRole('link', { name: 'Workspace', exact: true }).click();
+  await sidebar.getByRole('link', { name: 'Runtime', exact: true }).click();
   await page
     .getByRole('button', { name: 'Import research', exact: true })
     .click();
@@ -100,7 +100,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
     page.getByText(/Saving here does not run the agent citation check/),
   ).toBeVisible();
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await expect(editor).toHaveValue(draft);
   await page.getByRole('button', { name: 'Accept exact draft' }).click();
   await expect(
@@ -132,20 +132,20 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(editor).toHaveValue(
     draft + ' Thank you for considering my application.',
   );
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await sidebar.getByRole('link', { name: 'Your facts' }).click();
   await expect(
     page.locator('article.factrow').filter({ hasText: claim }),
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole('link', { name: 'Workspace', exact: true }).click();
+  await page.locator('a.backlink').filter({ hasText: 'Runtime' }).click();
   await expect(page).toHaveURL(/\/(\?.*)?$/);
   await expect(
-    page.locator('aside.bar-nav').getByRole('link', { name: 'Track jobs' }),
+    page.locator('aside.bar-nav').getByRole('link', { name: 'Tracker' }),
   ).toBeVisible();
   await page
     .locator('aside.bar-nav')
-    .getByRole('link', { name: 'Track jobs' })
+    .getByRole('link', { name: 'Tracker' })
     .click();
   await expect(page).toHaveURL(/\/track/);
   await sidebar.getByRole('link', { name: 'Advanced', exact: true }).click();
@@ -198,7 +198,7 @@ test('advanced navigation preserves planning, preferences and logged batch revie
     },
   });
   expect(logged.ok()).toBe(true);
-  await page.getByRole('link', { name: 'Track jobs', exact: true }).click();
+  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await page
     .locator('aside.sidebar')
     .getByRole('link', { name: 'Advanced', exact: true })
@@ -265,8 +265,8 @@ test('advanced navigation preserves planning, preferences and logged batch revie
   await expect(
     page.getByText('Expected best offer', { exact: true }),
   ).toHaveCount(0);
-  await page.getByRole('link', { name: 'Workspace', exact: true }).click();
+  await page.locator('a.backlink').filter({ hasText: 'Runtime' }).click();
   await expect(
-    page.getByRole('heading', { name: 'Workspace', exact: true }),
+    page.getByRole('heading', { name: 'Runtime', exact: true }),
   ).toBeVisible();
 });

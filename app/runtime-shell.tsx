@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Upload } from 'lucide-react';
+import { PRIMARY_PAGE_LINKS, pageIsCurrent } from '../lib/nav';
 import './runtime.css';
 
 export function RuntimeShell({
@@ -60,9 +61,9 @@ export function RuntimeShell({
       <header className="bar">
         <div>
           <p className="wordmark" aria-hidden="true">
-            Relay <span>/ workbench</span>
+            Relay <span>/ runtime</span>
           </p>
-          <h1 className="sr-only">Workspace</h1>
+          <h1 className="sr-only">Runtime</h1>
           <p>{lead}</p>
         </div>
         <div
@@ -74,10 +75,19 @@ export function RuntimeShell({
           <span className="lamp" />
           <span>{stateText}</span>
         </div>
-        <aside className="bar-nav">
-          <Link href="/track" onClick={onNavigate}>
-            Track jobs
-          </Link>
+        <aside className="bar-nav" aria-label="Primary screens">
+          {PRIMARY_PAGE_LINKS.map((item) => (
+            <Link
+              aria-current={
+                pageIsCurrent('workspace', item.page) ? 'page' : undefined
+              }
+              href={item.href}
+              key={item.href}
+              onClick={onNavigate}
+            >
+              {item.label}
+            </Link>
+          ))}
         </aside>
         <div className="bar-right">
           {showAddJob ? (

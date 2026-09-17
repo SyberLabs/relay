@@ -213,7 +213,7 @@ export default function Review() {
   return (
     <ProductShell current="review">
       <Link className="backlink" href="/">
-        <ArrowLeft size={15} /> Workspace
+        <ArrowLeft size={15} /> Runtime
       </Link>
       <Link className="backlink" href="/advanced">
         Advanced

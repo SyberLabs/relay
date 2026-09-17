@@ -6,6 +6,10 @@
 **Implementation:** this change
 **Cites:** [#134](https://github.com/SyberLabs/relay/issues/134) plant vs overlay, [#103](https://github.com/SyberLabs/relay/issues/103)/[#109](https://github.com/SyberLabs/relay/issues/109) stages, [#112](https://github.com/SyberLabs/relay/issues/112)/[#128](https://github.com/SyberLabs/relay/issues/128) application ledger
 
+## Status (2026-09-17)
+
+T5 ([#196](https://github.com/SyberLabs/relay/issues/196) / [#199](https://github.com/SyberLabs/relay/pull/199)) replaced the nine-filter dashboard chrome with **Runtime** (`/`) and **Tracker** (`/track`). T6 ([#197](https://github.com/SyberLabs/relay/issues/197) / [#200](https://github.com/SyberLabs/relay/pull/200)) retired overlap-as-pick: Inspect `whyPicked` and **Posting comparison** are research notes, not a qualification score or Accept gate. Compile tests that parse `applyExpired` / `refresh` / `saveFirstJob` now read `app/workspace-runtime.tsx`; `app/workspace.tsx` is composition. Autopilot remains the existing policy toggle and does not `begin`. The 2026-09-07 “Existing behavior” and mock-reconciliation table below are historical. Do not restore fit-as-pick or first-class `/plan` `/preferences` `/review`.
+
 ## Problem
 
 A returning person cannot see Relay as a processing unit. Jobs, facts, tools, the editor, Applications, Track, and handoff compete as peer sidebar chrome. The agreed interface is the Application Runtime plant: one core application, inbound queue, sent receipts, blocked questions, context the agent writes with, live state, and an autopilot control.
@@ -68,7 +72,7 @@ Every read/write is the authenticated owner. Imports cannot set Ready or reopen 
 ## Tests
 
 - Unit: `lib/runtime.ts` lane membership, pay/location/source formatting, fit percent (null when nothing compared), draft progress, hold/skip do not mark Submitted.
-- Existing workspace compile tests still parse `applyExpired` / `refresh` / `saveFirstJob` in `app/workspace.tsx`.
+- Existing workspace compile tests still parse `applyExpired` / `refresh` / `saveFirstJob` in `app/workspace-runtime.tsx`.
 - Browser: empty add-job; import; accept exact draft; blocked review; dirty navigation; plant plates visible; autopilot does not create an application operation.
 
 ## Public copy

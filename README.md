@@ -50,14 +50,14 @@ ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter.
 
 People already use ChatGPT, Claude, Grok, Notion, and Obsidian to hunt for jobs. The work still falls apart in the gaps: a new chat forgets the last draft, a tracker overwrites a decision, an interview note resets application status.
 
-Relay is the workspace that remembers. Import research as evidence. Review the actual words. Accept a specific draft. Keep follow-ups on submitted jobs without losing what you already did.
+Relay is the record that remembers. **Runtime** (`/`) is the selected-job loop. **Tracker** (`/track`) is the queue and outcomes. Import research as evidence. Review the actual words. Accept a specific draft. Keep follow-ups on submitted jobs without losing what you already did.
 
 - **Research keeps its history.** Matching posting URLs join the existing opportunity; changed source notes remain separate observations. Rediscovery preserves an existing interview or submitted status.
 - **Acceptance belongs to the text.** An imported Ready label does not approve a new draft. Accept it in Relay; changing the accepted text requires another review.
 - **Handoffs belong to a job and version.** Draft packets and editor checks reject stale work instead of silently replacing a newer review.
 - **Bring the tools you already use.** ChatGPT, Codex, Claude, Grok Bot, Notion, Obsidian, a tracker CSV, and public Greenhouse or Lever boards can supply research and drafts. Relay keeps the review record across those handoffs.
 
-Relay records acceptance inside its workspace. It does not POST the employer form, verify every claim, or prove which words were submitted to an employer. URL matching cannot identify every repost across different job boards.
+Relay records acceptance on the selected job in Runtime. It does not POST the employer form, verify every claim, or prove which words were submitted to an employer. URL matching cannot identify every repost across different job boards. Applications, facts, and Advanced stay secondary.
 
 ## Team
 
@@ -164,7 +164,7 @@ The Sites plugin on `pnpm dev` strips caller-supplied `oai-authenticated-user-*`
 
 ## Advanced planning and outcome history
 
-Preferences and weekly planning remain available under **Advanced**. They are experimental aids, with no established qualification assessment or hiring benefit. Outcome history stays accessible from the workspace.
+Preferences and weekly planning remain available under **Advanced**. They are experimental aids, with no established qualification assessment or hiring benefit. Outcome history stays on **Tracker** (`/track`).
 
 **Preferences** (`/advanced/preferences`) fit weights from choices between saved postings. Twelve comparisons is the interface's target, not a validated accuracy threshold. With no choices, postings receive the same preference score. `/preferences` redirects here. `/api/preferences` is unchanged.
 

@@ -4,6 +4,10 @@ This records progress on the provisional loop in [issue #5](https://github.com/S
 
 Source inspected: `fe91bb3bd2faa087680eacae246d31d7b7eb27d1` (2026-09-07). Recheck current main before implementation to avoid duplicating another owner's work. Fact gating and outcomes (#47/#48) remain independent critical product work. Existing delivery/release checks still apply.
 
+## Status (2026-09-17)
+
+T5/T6 did not close Task 2. Runtime + Tracker is the current chrome; implement any saved-fact picker on Connections in Runtime, not by restoring a dashboard. Product-trust still names this the profile-handoff follow-up.
+
 ## Task 1: add one real job through ordinary fields — done
 
 Shipped in [PR #86](https://github.com/SyberLabs/relay/pull/86), closing [issue #85](https://github.com/SyberLabs/relay/issues/85). Do not create another ordinary Add job ticket from this brief. [`app/first-job.tsx`](../../app/first-job.tsx) and [`lib/first-job.ts`](../../lib/first-job.ts) provide role title, HTTP(S) posting URL, and optional notes, with the 500-character title and 20,000-character notes limits. They create a Held source row through the existing owner-scoped import path; normalized URLs join the existing job while preserving its application state and history.

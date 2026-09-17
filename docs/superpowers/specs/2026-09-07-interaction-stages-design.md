@@ -5,6 +5,10 @@
 **Decision owner:** Seth Carlson
 **Research partner:** Mateo Robles
 
+## Status (2026-09-17)
+
+T5 ([#196](https://github.com/SyberLabs/relay/issues/196) / [#199](https://github.com/SyberLabs/relay/pull/199)) shipped the two-screen model: **Runtime** (`/`) and **Tracker** (`/track`) are the primary screens. Applications, facts, and Advanced are secondary. T6 ([#197](https://github.com/SyberLabs/relay/issues/197) / [#200](https://github.com/SyberLabs/relay/pull/200)) folded `/plan`, `/preferences`, and `/review` under Advanced with redirects. The 2026-09-07 problem statement below is the original diagnosis, not a description of current chrome. Do not restore a generic dashboard or first-class Advanced routes.
+
 ## Problem
 
 Relay currently presents a **generic dashboard**: job-list filters, add/import, Your facts, Track outcomes, Advanced, the selected-job editor, posting-fit labels, and assistant handoff all appear as peer capabilities. A returning person has to reconstruct what they came to do. Rare setup and frequent job work compete for the same attention.

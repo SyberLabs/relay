@@ -6,7 +6,7 @@ Relay helps job seekers manage applications across their preferred AI tools. Kee
 
 Import research from Notion or a tracker CSV, exchange packets with ChatGPT, Codex, Grok Bot, or Claude, and review the actual words before using them. Keep interview notes without resetting your application status.
 
-Available now: the application workspace and local command integrations. Account connections require setup. Autonomous hunting and application sending are not included in this release.
+Available now: Runtime and Tracker, plus local command integrations. Account connections require setup. Autonomous hunting and Relay POSTing an employer form are not included in this release.
 
 Explore the code and setup guide: https://github.com/SyberLabs/relay
 

@@ -20,7 +20,7 @@ Find the affected symbol with `rg` in the relevant area, then read its callers, 
 | Assistant packets and connectors | `lib/assistant-handoff.ts`, `integrations/README.md`, `tests/connectors.test.mjs`                          |
 | Identity, quotas, CAPTCHA        | `deploy/worker.mjs`, `docs/threat-model.md`, `tests/security.test.mjs`, `tests/auth.test.mjs`              |
 | Data, ownership, migrations      | `db/schema.ts`, `lib/store.ts`, `drizzle/`, `tests/api.test.mjs`                                           |
-| UI and public copy               | `app/`, `docs/PUBLIC-COPY.md`, `tests/e2e/`                                                                |
+| UI and public copy               | `app/workspace.tsx`, `app/workspace-runtime.tsx`, `lib/nav.ts`, `app/track/page.tsx`, `docs/PUBLIC-COPY.md`, `tests/e2e/` |
 | CI and releases                  | `.github/workflows/`, `scripts/ci/`, `scripts/release/`, `tests/deployment.test.mjs`                       |
 
 Use the [checkpoint](checkpoint.md) on interruption, compaction, or handoff. Keep working notes in ignored `private-data/development/<issue>/`; use fictional data even there when possible. GitHub remains authoritative for issue state and approvals. See [design and evaluation](README.md) only when changing this workflow.

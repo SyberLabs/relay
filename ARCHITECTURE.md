@@ -1,6 +1,6 @@
 # Relay architecture
 
-Relay is a review workspace for job research and drafts. It stores opportunity history and records approval of exact text. Discovery, note writing, external AI generation and submission remain separate activities. SyberLabs maintains the application.
+Relay is a supervised application runtime for job research and drafts. **Runtime** (`/`) is the selected-job loop. **Tracker** (`/track`) is the queue and outcome history. Applications, facts, and Advanced are secondary. It stores opportunity history and records approval of exact text. Discovery, note writing, external AI generation and employer Submit remain separate activities. SyberLabs maintains the application.
 
 ## Runtime and persistence
 
@@ -37,9 +37,9 @@ Obsidian research notes own their editable source text. Relay owns the imported 
 
 All Obsidian research rows enter with source status Held regardless of status-like properties. Existing job status, draft and exact acceptance are preserved by the established import rules. New jobs start Held. Import advances the job version only when the upsert would change that row (merged status, blocker, accepted text, or posting fields). Exact-repeat research and new observations alone do not invalidate an outstanding draft packet. Rediscovery does not replace a stored effort estimate.
 
-The selected job derives heuristic hit/miss/unknown matches between required lines in source notes and user-confirmed, unexpired facts. These internal values display as Possible evidence / No matching evidence found / Not compared. Word and number overlap does not establish meaning or qualifications. The comparison is not stored and does not change status or acceptance.
+The selected job derives heuristic hit/miss/unknown matches between required lines in source notes and user-confirmed, unexpired facts. These internal values display as Possible evidence / No matching evidence found / Not compared under **Posting comparison**. Inspect `whyPicked` quotes posting research notes. Word and number overlap does not establish meaning or qualifications, does not pick the job, and is not an Accept gate. The comparison is not stored and does not change status or acceptance.
 
-The pilot workspace keeps individual job review, candidate facts and history visible. `/advanced` links to the preserved `/review`, `/preferences` and `/plan` routes. Their records and behavior remain unchanged. Planning uses estimated reply rates in an expected-maximum calculation; the UI calls its output an experimental plan score, not an expected offer.
+Runtime keeps the selected-job editor, Inspect, source history, and review history. Tracker keeps queue filters and recorded outcomes. `/advanced` links to `/advanced/review`, `/advanced/preferences`, and `/advanced/plan`. Bookmarks to `/review`, `/preferences`, and `/plan` redirect there. Those APIs and records are unchanged. Planning uses estimated reply rates in an expected-maximum calculation; the UI calls its output an experimental plan score, not an expected offer.
 
 `lib/profile.ts` checks selected claim patterns and vocabulary overlap with cited facts, with numbers pooled across those facts. This is a heuristic, not semantic entailment. The stored `Verified` fact status records human confirmation, not independent verification. This draft-log gate is distinct from browser format/identity/version checks and from `/api/workspace` saves, which do not run it. See [product trust boundaries and follow-ups](docs/product-trust.md).
 
@@ -55,7 +55,7 @@ Draft imports stage proposed text, without persisting or accepting it. `lib/edit
 
 `lib/integration-files.ts` shares the browser and command file-loading contract. It bounds file count and aggregate size before reading, supports Markdown research batches or a single draft/JSON result, and validates draft results against the selected editor target. Linked notes, embeds, directories and attachments are never traversed.
 
-`app/connections.tsx` owns file selection and downloads. It captures the editor target before asynchronous reads and hands validated research to the preview form or proposed text to the guarded editor callback. `app/workspace.tsx` renders readable research and requires a preview of the current import data before enabling its import action. The server validates and classifies again at import time. This UI preview gate is not an API authorization mechanism; authenticated callers can invoke the existing validated import endpoint directly.
+`app/connections.tsx` owns file selection and downloads. It captures the editor target before asynchronous reads and hands validated research to the preview form or proposed text to the guarded editor callback. `app/workspace-import-dock.tsx` renders readable research and requires a preview of the current import data before enabling its import action. `app/workspace.tsx` composes Runtime; session callbacks live in `app/workspace-runtime.tsx`. The server validates and classifies again at import time. This UI preview gate is not an API authorization mechanism; authenticated callers can invoke the existing validated import endpoint directly.
 
 `integrations/relay.mjs` exposes `obsidian-pull` and `obsidian-draft` alongside existing Notion, Claude and Grok Bot commands. It reads only named input files, writes with exclusive creation, and makes no network calls for Obsidian. Normal YAML values are parsed, not executed. Note content is untrusted evidence and never changes application instructions or grants approval.
 

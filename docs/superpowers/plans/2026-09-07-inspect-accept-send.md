@@ -10,6 +10,10 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-07-inspect-accept-send-design.md` (issue #135).
 
+## Status (2026-09-17)
+
+Handshake B/C shipped on main (Inspect Accept, `/apply` overlay without Accept, T2 fixture operative). Leave the original checkboxes as the 2026-09-07 implementation plan. Do not re-execute this plan as current work. [#135](https://github.com/SyberLabs/relay/issues/135) remains the design issue. Live ATS Submit still needs a named adapter. Do not Worker-POST. GitHub closed [#174](https://github.com/SyberLabs/relay/issues/174) via T5; do not reopen it from this plan.
+
 ## Global Constraints
 
 - Node 24, pnpm 11.19.0, `pnpm install --frozen-lockfile`.

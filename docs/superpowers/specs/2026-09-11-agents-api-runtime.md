@@ -6,6 +6,10 @@
 **Contract owner:** Seth Carlson
 **Not approval.** This is the spike and architecture record. GitHub issues, [application coordination](../../agent-applications.md), and [abuse controls](../../abuse-controls.md) remain authoritative. This file is not public copy and does not enable live OpenAI in staging or production.
 
+## Status (2026-09-17)
+
+T3 ([#183](https://github.com/SyberLabs/relay/issues/183) / [#184](https://github.com/SyberLabs/relay/pull/184)) shipped the `memory` runtime; `live` stays off. T4–T6 are on `main`. The Out of scope list below is the 2026-09-11 spike boundary, not a claim that T4–T6 are unfinished. Do not enable `live` from this file.
+
 ## Problem
 
 Relay was about to build commodity agent lifecycle machinery: keep the invocation alive, park, `resume(run_id, answer)`, reconstruct prompts, recover after disconnect. OpenAI's Agents API (public beta, 2026-09-10) now owns sessions, orchestration, context compaction, waiting (`requires_action`), and recovery. Building a second copy of that inside Relay is the wrong object.

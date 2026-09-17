@@ -4,6 +4,10 @@
 
 **Goal:** Make the workspace home the legal next action for the current stage, so returning users continue a job loop instead of a generic dashboard.
 
+## Status (2026-09-17)
+
+Implemented in [#115](https://github.com/SyberLabs/relay/pull/115) (`49eddd1`): `lib/workspace-stage.ts`, `tests/workspace-stage.test.mjs`, and `tests/e2e/workspace-stages.spec.ts`. Current main still uses `primaryAction` / `stageLead` from `app/workspace-runtime.tsx` and `handoffIntro` from `app/connections.tsx`. T5 ([#196](https://github.com/SyberLabs/relay/issues/196) / [#199](https://github.com/SyberLabs/relay/pull/199)) changed that shipped behavior’s vocabulary and navigation to Runtime + Tracker; it did not unship the stage helpers. T6 folded Advanced routes. The checkboxes below are the original 2026-09-07 plan text and were not kept in sync with #115. Do not re-execute Task 1–5 as if they were still next work.
+
 **Architecture:** Pure helpers in `lib/workspace-stage.ts` derive stage and primary action from existing page, auth, job count, and selected status. The shell and workspace chrome consume those helpers. No new statuses, tables, or workflow router.
 
 **Tech Stack:** TypeScript, React (Vinext), Node test runner, Playwright Chromium.

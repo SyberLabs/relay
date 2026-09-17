@@ -4,6 +4,10 @@
 **Date:** 2026-09-07
 **Decision owner:** Mateo Robles
 
+## Status (2026-09-17)
+
+Handshake B/C shipped: Inspect Accept is send authorization; overlay `/apply` has no Accept; the unpacked Chrome MV3 fixture operative is the recommended execution surface. [#135](https://github.com/SyberLabs/relay/issues/135) remains open as the design issue. T5 replaced the dense dashboard with Runtime + Tracker. Do not read the 2026-09-07 “currently” paragraph as current chrome. One-step send to a live ATS still needs a named adapter. GitHub closed [#174](https://github.com/SyberLabs/relay/issues/174) via T5 [#199](https://github.com/SyberLabs/relay/pull/199); that close is not product completion of one-step send, and this file does not reopen #174.
+
 ## Problem
 
 The human and the operative currently share a dense dashboard and a separate `/applications` ledger. The human cannot see a single **Inspect** cell that fills in as the operative types. **Accept** still means “these exact draft words are approved,” not “send this application now.” The operative cannot wait in a ready state for that click, then submit at the employer.

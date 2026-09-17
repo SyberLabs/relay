@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { jobKey } from '../lib/domain.ts';
 import { editorIsDirty, loadEditor } from '../lib/editor.ts';
 import { firstJobShouldSelectSaved } from '../lib/first-job.ts';
 import * as helper from '../lib/workspace-refresh.ts';
 import { defaultDraftingPreference } from '../lib/drafting-decision.ts';
+import { readWorkspaceRuntimeSource } from './workspace-ui-source.mjs';
 
 function deferred() {
   let resolve;
@@ -17,7 +17,7 @@ function deferred() {
 }
 
 function compileSaveFirstJob(deps) {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const compile = (s) =>
     stripTypeScriptTypes(s, { mode: 'transform' }).trim().replace(/;$/, '');
   const expiry = src.match(

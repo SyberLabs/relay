@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
+import { readWorkspaceRuntimeSource } from './workspace-ui-source.mjs';
 
 function compile(text) {
   return stripTypeScriptTypes(text, { mode: 'transform' })
@@ -64,7 +64,7 @@ function setup(src, extra = {}) {
 }
 
 void test('a failed terminal workspace refresh is retried once and only then marked seen', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   let calls = 0;
   const { state, deps, effect } = setup(src, {
     refreshRef: {
@@ -85,7 +85,7 @@ void test('a failed terminal workspace refresh is retried once and only then mar
 });
 
 void test('a single terminal refresh rejection does not suppress a later live refresh', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   let calls = 0;
   const { state, deps, effect } = setup(src, {
     refreshRef: {
@@ -113,7 +113,7 @@ void test('a single terminal refresh rejection does not suppress a later live re
 });
 
 void test('overlapping terminal refresh is skipped and a stale ignore is not marked seen', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   const first = deferred();
   let calls = 0;
   const { deps, effect } = setup(src, {
@@ -137,7 +137,7 @@ void test('overlapping terminal refresh is skipped and a stale ignore is not mar
 });
 
 void test('terminal refresh stays honest when the job is not selected', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   let calls = 0;
   const { deps, effect } = setup(src, {
     selectedRef: { current: '' },
@@ -155,7 +155,7 @@ void test('terminal refresh stays honest when the job is not selected', async ()
 });
 
 void test('non-terminal inspect does not refresh the workspace', async () => {
-  const src = readFileSync('app/workspace.tsx', 'utf8').replace(/\r\n/g, '\n');
+  const src = readWorkspaceRuntimeSource();
   let calls = 0;
   const { deps, effect } = setup(src, {
     inspectRecorded: null,

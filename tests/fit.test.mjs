@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readWorkspaceUiSource } from './workspace-ui-source.mjs';
 import {
   assessJob,
   extractRequirements,
@@ -344,7 +345,7 @@ void test('markdown requirements headings still extract bullets', () => {
 });
 
 void test('the selected job labels heuristic evidence without judging qualifications', () => {
-  const src = readFileSync(new URL('../app/workspace.tsx', import.meta.url), 'utf8');
+  const src = readWorkspaceUiSource();
   const fit = readFileSync(new URL('../lib/fit.ts', import.meta.url), 'utf8');
   assert.match(src, /Evidence matches/);
   assert.match(src, /Heuristic word and number matches/);

@@ -102,6 +102,10 @@ void test('page links keep applications, facts and advanced secondary', () => {
   assert.equal(pageIsCurrent('track', 'track'), true);
   assert.equal(pageIsCurrent('workspace', 'track'), false);
   assert.equal(isAdvancedSection('plan'), true);
+  assert.equal(isAdvancedSection('preferences'), true);
+  assert.equal(isAdvancedSection('review'), true);
   assert.equal(pageIsCurrent('review', 'advanced'), true);
+  assert.equal(pageIsCurrent('plan', 'advanced'), true);
+  assert.equal(pageIsCurrent('preferences', 'advanced'), true);
   assert.equal(pageIsCurrent('track', 'advanced'), false);
 });

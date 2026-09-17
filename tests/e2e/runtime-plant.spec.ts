@@ -104,12 +104,10 @@ test('the workspace workbench shows a full-width queue and review without sendin
     .getByRole('button', { name: 'Inspect what the agent wrote' })
     .click();
   await expect(
-    page.getByRole('heading', { name: 'Why this job is in core' }),
+    page.getByRole('heading', { name: 'Posting research' }),
   ).toBeVisible();
   await expect(
-    page.getByText(
-      /heuristic word and number match, not a qualification score/i,
-    ),
+    page.getByText(/Research notes are not a reason Relay picked this job/i),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
 

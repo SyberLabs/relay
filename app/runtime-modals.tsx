@@ -633,11 +633,11 @@ function RuntimeModalDialog({
           {which === 'inspect' && (
             <>
               <div className="sect">
-                <h4>Why this job is in core</h4>
-                <div className="quote">{whyPicked(sources, fit)}</div>
+                <h4>Posting research</h4>
+                <div className="quote">{whyPicked(sources)}</div>
                 <p className="hint" style={{ paddingLeft: 0, marginTop: 8 }}>
-                  Fit is a heuristic word and number match, not a qualification
-                  score.
+                  Research notes are not a reason Relay picked this job, a
+                  qualification score, or an ATS score.
                 </p>
               </div>
               <div className="sect">
@@ -671,7 +671,12 @@ function RuntimeModalDialog({
               </div>
               {fit && fit.gates.length > 0 && (
                 <div className="sect">
-                  <h4>Evidence matches</h4>
+                  <h4>Heuristic posting comparison</h4>
+                  <p className="hint" style={{ paddingLeft: 0 }}>
+                    Word and number overlap with confirmed facts. This is
+                    research only. It does not pick the job, change status, or
+                    gate Accept or Inspect.
+                  </p>
                   <div className="map">
                     {fit.gates.map((gate) => (
                       <div className="row" key={gate.text}>

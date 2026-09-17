@@ -18,7 +18,14 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Tracker' })).toBeVisible();
   await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
-  for (const href of ['/review', '/preferences', '/plan'])
+  for (const href of [
+    '/review',
+    '/preferences',
+    '/plan',
+    '/advanced/review',
+    '/advanced/preferences',
+    '/advanced/plan',
+  ])
     await expect(sidebar.locator(`a[href="${href}"]`)).toHaveCount(0);
 
   const profileLoaded = page.waitForResponse(
@@ -76,9 +83,9 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
     .getByRole('button', { name: /Larch Example — Pilot Engineer/ })
     .click();
   await openDraftTools(page);
-  await openDraftNested(page, 'Evidence matches');
+  await openDraftNested(page, 'Posting comparison');
   await expect(
-    page.getByText('Evidence matches', { exact: true }),
+    page.getByText('Posting comparison', { exact: true }),
   ).toBeVisible();
   await expect(
     page.locator('.gates').getByText('Possible evidence', { exact: true }),
@@ -89,7 +96,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
       .getByText('No matching evidence found', { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText(/These do not assess your qualifications/),
+    page.getByText(/These do not pick this job/),
   ).toBeVisible();
   const editor = page.getByRole('textbox', {
     name: 'Application answer or outreach draft',
@@ -207,6 +214,7 @@ test('advanced navigation preserves planning, preferences and logged batch revie
     page.getByText(/Experimental tools for planning and agent batches/),
   ).toBeVisible();
   await page.getByRole('link', { name: 'Batch review', exact: true }).click();
+  await expect(page).toHaveURL(/\/advanced\/review$/);
   await expect(
     page.getByRole('heading', { name: 'Batch review', exact: true }),
   ).toBeVisible();
@@ -239,6 +247,7 @@ test('advanced navigation preserves planning, preferences and logged batch revie
       response.request().method() === 'GET',
   );
   await page.getByRole('link', { name: 'Preferences', exact: true }).click();
+  await expect(page).toHaveURL(/\/advanced\/preferences$/);
   const preferences = await (await preferencesLoaded).json();
   await expect(
     page.locator('.stats > div').nth(1).locator('strong'),
@@ -257,6 +266,7 @@ test('advanced navigation preserves planning, preferences and logged batch revie
     .getByRole('link', { name: 'Advanced', exact: true })
     .click();
   await page.getByRole('link', { name: 'This week', exact: true }).click();
+  await expect(page).toHaveURL(/\/advanced\/plan$/);
   await expect(
     page.getByText('Experimental plan score', { exact: true }),
   ).toBeVisible();

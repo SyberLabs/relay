@@ -74,7 +74,7 @@ stateDiagram-v2
 | Stage | What it is for | Existing states that belong here | Primary surface today |
 | --- | --- | --- | --- |
 | **Onboarding** | Become a person with at least one job | Signed out; signed in with zero jobs | Sign-in; empty workspace `FirstJob` |
-| **Context establishment** | Make reusable evidence available | Profile facts (none / proposed / verified / expired); preference weights unset; no assistant packet habit | `/profile`, `/preferences`, import dock, Advanced |
+| **Context establishment** | Make reusable evidence available | Profile facts (none / proposed / verified / expired); preference weights unset; no assistant packet habit | `/profile`, `/advanced/preferences`, import dock, Advanced |
 | **Job action loop** | Move **one** selected job through review without losing exact text | Job `Held`, `Ready`, `Submitted`, `Live loop`; editor clean / dirty / conflict | Workspace editor, Connections handoff, source history |
 | **Portfolio** | Choose which job is next | Queue filter; `Skip`; counts; add-another-job | Job list filters; Add job; Import research |
 

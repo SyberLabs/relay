@@ -316,10 +316,10 @@ export function WorkspaceJobPanel({ rt }: { rt: WorkspaceRuntime }) {
                     </section>
                     {connections}
                     <details>
-                      <summary>Evidence matches</summary>
+                      <summary>Posting comparison</summary>
                       <small className="muted">
                         {
-                          'Heuristic word and number matches against your confirmed, unexpired facts. These do not assess your qualifications or change this job’s status.'
+                          'Heuristic word and number matches against your confirmed, unexpired facts. These do not pick this job, assess your qualifications, or change this job’s status. Drafting, Accept, and Inspect do not consult them.'
                         }
                       </small>
                       {fit?.reason === 'notes' && (

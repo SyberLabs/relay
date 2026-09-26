@@ -318,35 +318,3 @@ export function ctxTally(facts: number, rules: number) {
   if (rules) parts.push(`${rules} style rule${rules === 1 ? '' : 's'}`);
   return parts.length ? parts.join(' · ') : 'no saved context yet';
 }
-
-export function policyExpiryIso(
-  current: string | undefined,
-  enabled: boolean,
-  now = Date.now(),
-) {
-  const week = new Date(now + 7 * 86400000).toISOString();
-  if (!enabled) return current || week;
-  const stamp = current ? Date.parse(current) : Number.NaN;
-  if (Number.isFinite(stamp) && stamp > now && stamp <= now + 30 * 86400000)
-    return new Date(stamp).toISOString();
-  return week;
-}
-
-export function boundedPolicyMaximum(value: number) {
-  const n = Math.trunc(Number(value));
-  if (!Number.isInteger(n)) return 8;
-  return Math.min(100, Math.max(1, n));
-}
-
-export function policyJobIds(policy: { jobs?: string } | null | undefined) {
-  if (!policy?.jobs) return [];
-  try {
-    const parsed = JSON.parse(policy.jobs) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((id): id is string => typeof id === 'string')
-      .slice(0, 100);
-  } catch {
-    return [];
-  }
-}

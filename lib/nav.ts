@@ -20,14 +20,13 @@ export const PRIMARY_PAGE_LINKS = [
 export const PAGE_LINKS = [
   { href: '/applications', label: 'Applications', page: 'applications' },
   { href: '/profile', label: 'Your facts', page: 'profile' },
-  { href: '/advanced', label: 'Advanced', page: 'advanced' },
 ] as const;
 
 export const PORTFOLIO_PAGE_LINKS = PAGE_LINKS.filter(
   (item) => item.page === 'applications',
 );
 export const CONTEXT_PAGE_LINKS = PAGE_LINKS.filter(
-  (item) => item.page === 'profile' || item.page === 'advanced',
+  (item) => item.page === 'profile',
 );
 
 export type NavLinkPage =
@@ -38,11 +37,7 @@ export type ShellPage =
   | 'applications'
   | 'workspace'
   | 'profile'
-  | 'track'
-  | 'advanced'
-  | 'review'
-  | 'preferences'
-  | 'plan';
+  | 'track';
 
 export function isQueueFilter(value: string): value is QueueFilter {
   return QUEUE_FILTERS.some((item) => item.value === value);
@@ -104,16 +99,6 @@ export function plantSearchAction(search: string): {
   return { redirectTo: null, stripTo: null, jobId };
 }
 
-export function isAdvancedSection(page: ShellPage): boolean {
-  return (
-    page === 'advanced' ||
-    page === 'review' ||
-    page === 'preferences' ||
-    page === 'plan'
-  );
-}
-
 export function pageIsCurrent(page: ShellPage, linkPage: NavLinkPage): boolean {
-  if (linkPage === 'advanced') return isAdvancedSection(page);
   return page === linkPage;
 }

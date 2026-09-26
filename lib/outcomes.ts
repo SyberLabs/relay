@@ -32,30 +32,14 @@ const resulting: Record<OutcomeKind, string | null> = {
   ghosted: 'Closed',
   withdrawn: 'Closed',
 };
-// Which kinds count as the employer having replied. Used for the response rate
-// posterior, so a submission with no reply is evidence too.
-const responded = new Set<OutcomeKind>([
-  'response',
-  'screen',
-  'onsite',
-  'offer',
-  'accepted',
-  'rejected',
-]);
 export function isTerminal(status: string): boolean {
   return (terminalStates as readonly string[]).includes(status);
 }
 export function statusAfter(kind: OutcomeKind): string | null {
   return resulting[kind];
 }
-export function countsAsResponse(kind: string): boolean {
-  return responded.has(kind as OutcomeKind);
-}
-// The receipt invariant. A submission recorded here must carry proof, because a
-// false "submitted" is doubly corrupting: deduplication stops you ever applying
-// to a job you never actually applied to, and the response-rate posterior
-// counts a send that never happened. Imported submissions are kept, but they
-// arrive without a receipt and are excluded from learning.
+// A receipt distinguishes a manually recorded submission from an unverified
+// status label. Keep the event auditable and owner/version bound.
 export function validateOutcome(
   job: { status: string },
   body: {
@@ -106,35 +90,4 @@ export function validateOutcome(
     receipt: receipt || null,
     detail,
   };
-}
-export type OutcomeRow = {
-  job_id: string;
-  kind: string;
-  receipt: string | null;
-};
-// Evidence for the response-rate posterior, counted only over submissions we
-// can prove happened.
-export function evidence(
-  outcomes: OutcomeRow[],
-  clusterOfJob: (jobId: string) => string,
-): Record<string, { sent: number; responses: number }> {
-  const out: Record<string, { sent: number; responses: number }> = {};
-  const sentJobs = new Set<string>();
-  for (const o of outcomes)
-    if (o.kind === 'submitted' && o.receipt) sentJobs.add(o.job_id);
-  for (const jobId of sentJobs) {
-    const cluster = clusterOfJob(jobId);
-    out[cluster] ??= { sent: 0, responses: 0 };
-    out[cluster].sent++;
-  }
-  const replied = new Set<string>();
-  for (const o of outcomes)
-    if (sentJobs.has(o.job_id) && countsAsResponse(o.kind))
-      replied.add(o.job_id);
-  for (const jobId of replied) {
-    const cluster = clusterOfJob(jobId);
-    out[cluster] ??= { sent: 0, responses: 0 };
-    out[cluster].responses++;
-  }
-  return out;
 }

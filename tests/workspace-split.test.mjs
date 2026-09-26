@@ -18,12 +18,12 @@ void test('Runtime workspace composition stays split across focused modules', ()
   assert.doesNotMatch(workspace, /async function saveFirstJob/);
   assert.match(runtime, /const applyExpired = useCallback/);
   assert.match(runtime, /async function saveFirstJob/);
-  assert.match(runtime, /async function saveLimits/);
+  assert.doesNotMatch(runtime, /saveLimits|toggleAutopilot/);
   assert.match(ui, /id="import-dock"/);
   assert.match(ui, /id="application-inspect"/);
   assert.match(ui, /id="history-title"/);
-  assert.match(ui, /key=\{current\.id\}/);
-  assert.match(ui, /sessionRef=\{sessionRef\}/);
-  assert.match(ui, /onExpired=\{applyExpired\}/);
+  assert.match(runtime, /key=\{`connections-/);
+  assert.match(workspace, /sessionRef=\{sessionRef\}/);
+  assert.match(workspace, /onUnauthorized=\{applyExpired\}/);
   assert.ok(workspace.split('\n').length < 250, workspace.split('\n').length);
 });

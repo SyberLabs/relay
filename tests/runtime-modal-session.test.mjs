@@ -55,8 +55,6 @@ function expireKeys(state, deps) {
     'busy',
     'message',
     'historyNext',
-    'policy',
-    'autopilot',
     'styleCount',
     'modal',
     'historyOpen',

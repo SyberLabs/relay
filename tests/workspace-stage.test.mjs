@@ -98,17 +98,13 @@ void test('selected job status picks the loop action', () => {
   );
 });
 
-void test('profile and advanced are optional context, track is portfolio', () => {
+void test('profile is optional context and track is portfolio', () => {
   const signedIn = {
     signedOut: false,
     jobCount: 3,
     selectedStatus: 'Held',
   };
   assert.equal(workspaceStage({ ...signedIn, page: 'profile' }), 'context');
-  assert.equal(workspaceStage({ ...signedIn, page: 'advanced' }), 'context');
-  assert.equal(workspaceStage({ ...signedIn, page: 'review' }), 'context');
-  assert.equal(workspaceStage({ ...signedIn, page: 'preferences' }), 'context');
-  assert.equal(workspaceStage({ ...signedIn, page: 'plan' }), 'context');
   assert.equal(workspaceStage({ ...signedIn, page: 'track' }), 'portfolio');
 });
 

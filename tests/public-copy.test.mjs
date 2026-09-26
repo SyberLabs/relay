@@ -78,17 +78,15 @@ void test('website product data is escaped before rendering', () => {
 });
 
 void test('shipped copy names Inspect Accept send without claiming Relay POSTs the employer form', () => {
-  const capability = copy.capabilities.find(
-    (item) =>
-      /human Inspect Accept on a complete armed payload authorizes the waiting operative to send once/i.test(
-        item,
-      ) && /does not POST the employer form/i.test(item),
-  );
-  assert.ok(capability);
-  assert.match(copy.boundary, /does not POST the employer form/);
-  assert.match(copy.boundary, /Inspect Accept/);
-  assert.match(copy.boundary, /execute:true/);
+  const send = copy.capabilities.at(-1);
+  assert.match(send, /human Inspect approval/);
+  assert.match(send, /one-use permit/);
+  assert.match(send, /does not POST the employer form/);
+  assert.match(copy.boundary, /cannot confirm facts, accept wording/);
+  assert.match(copy.boundary, /grants no permission to submit/);
   assert.doesNotMatch(copy.boundary, /Relay does not send applications/);
+  const project = render(copy, 'project');
+  assert.equal(project.match(/one-use permit/g)?.length, 1);
   for (const target of ['project', 'organization', 'profile', 'website']) {
     const content = render(copy, target);
     assert.doesNotMatch(content, /Relay does not send applications/);

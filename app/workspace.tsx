@@ -3,7 +3,6 @@ import { ArrowRight } from 'lucide-react';
 import { FirstJob } from './first-job';
 import { RuntimeShell } from './runtime-shell';
 import { RuntimeModals } from './runtime-modals';
-import { mutationIsLive } from '../lib/workspace-refresh';
 import { useWorkspaceRuntime } from './workspace-runtime';
 import { WorkspaceImportDock } from './workspace-import-dock';
 import { WorkspaceJobPanel } from './workspace-job-panel';
@@ -15,7 +14,6 @@ export default function Workspace() {
     action,
     addJobPrimary,
     applyExpired,
-    autopilot,
     acceptedExact,
     blocked,
     blocker,
@@ -35,17 +33,14 @@ export default function Workspace() {
     message,
     modal,
     openAddJob,
-    policy,
     reviewKind,
     save,
     saveDecision,
     saveFirstJob,
-    saveLimits,
     saveProfile,
     sessionRef,
     setEditor,
     setHistoryOpen,
-    setMessage,
     setModal,
     setSaveProfile,
     setShowAddJob,
@@ -53,12 +48,10 @@ export default function Workspace() {
     signedOut,
     sources,
     toolStatus,
-    toggleAutopilot,
   } = rt;
   return (
     <RuntimeShell
       addJobPrimary={addJobPrimary}
-      autopilot={autopilot}
       historyDisabled={!current}
       historyOpen={historyOpen}
       importOpen={rt.showImport}
@@ -76,7 +69,6 @@ export default function Workspace() {
       }
       logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
       onAddJob={openAddJob}
-      onAutopilot={() => void toggleAutopilot()}
       onHistory={() => {
         if (!current) return;
         if (historyOpen) closeHistory();
@@ -169,11 +161,9 @@ export default function Workspace() {
           blockedAnswer={editor?.progressNote ?? ''}
           blockedNote=""
           blockedQuestion={current?.blocker || ''}
-          busy={busy}
           draft={draft}
           fit={fit}
           job={current}
-          jobs={jobs}
           onAccept={() => {
             setModal(null);
             save('Ready');
@@ -199,19 +189,11 @@ export default function Workspace() {
           onEdit={() => setModal(null)}
           onNavigate={confirmLeave}
           onSaveProfile={setSaveProfile}
-          onSaveLimits={async (input) => {
-            const started = { epoch: sessionRef.current.gate.epoch };
-            const ok = await saveLimits(input);
-            if (!mutationIsLive(sessionRef.current.gate, started)) return false;
-            if (ok === true) setMessage('Limits saved.');
-            return ok === true;
-          }}
           onSkip={() => {
             setModal(null);
             save('Skip');
           }}
           onUnauthorized={applyExpired}
-          policy={policy}
           saveProfile={saveProfile}
           sessionRef={sessionRef}
           sources={sources.filter((s) => s.job_key === current?.job_key)}

@@ -9,24 +9,6 @@ export function releaseConfig(env, build, { bundled = true } = {}) {
   }
   if (!['', 'writes', 'all'].includes(env.RELAY_PAUSE ?? ''))
     throw new Error('Invalid RELAY_PAUSE');
-  if (!['', 'off', 'memory', 'live'].includes(env.RELAY_AGENTS ?? '')) {
-    throw new Error('Invalid RELAY_AGENTS');
-  }
-  if ((env.RELAY_AGENTS ?? '') === 'live' && env.RELAY_AGENTS_LIVE !== '1') {
-    throw new Error('RELAY_AGENTS=live requires RELAY_AGENTS_LIVE=1');
-  }
-  if (
-    env.RELAY_AGENTS_MODEL &&
-    !['gpt-6-astra', 'relay-memory'].includes(env.RELAY_AGENTS_MODEL)
-  ) {
-    throw new Error('Invalid RELAY_AGENTS_MODEL');
-  }
-  if (
-    (env.RELAY_AGENTS ?? '') === 'live' &&
-    (env.RELAY_AGENTS_MODEL ?? 'gpt-6-astra') !== 'gpt-6-astra'
-  ) {
-    throw new Error('Live Agents API allows only gpt-6-astra');
-  }
   for (const [name, expression] of Object.entries({
     CLOUDFLARE_ACCOUNT_ID: /^[a-f0-9]{32}$/,
     D1_DATABASE_ID:
@@ -106,9 +88,6 @@ export function releaseConfig(env, build, { bundled = true } = {}) {
       TURNSTILE_SITE_KEY: env.TURNSTILE_SITE_KEY ?? '',
       TURNSTILE_HOSTNAME: hostname,
       RELAY_PAUSE: env.RELAY_PAUSE ?? '',
-      RELAY_AGENTS: env.RELAY_AGENTS ?? '',
-      RELAY_AGENTS_LIVE: env.RELAY_AGENTS_LIVE ?? '',
-      RELAY_AGENTS_MODEL: env.RELAY_AGENTS_MODEL ?? 'gpt-6-astra',
     },
     observability: { enabled: true, head_sampling_rate: 0.1 },
   };

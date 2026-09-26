@@ -97,7 +97,7 @@ export function useRelayTools(
       {
         name: 'relay_read_application',
         description:
-          'Read one application: job id/version, research, saved candidate facts, saved and accepted wording, and a page of action history. Start here before drafting; reuse saved context and the user’s drafting preference/direction instead of asking again. Choose grounded wording and omit optional unsupported claims. Ask one short question only for a required missing answer. Facts are user-confirmed, not automatically selected for relevance. No writes or approval. Pass history.next as before for older events.',
+          'Read one application: job id/version, research, user-confirmed candidate facts, saved and accepted wording, and a page of action history. Start here before drafting. Choose grounded wording and omit unsupported claims. Ask one short question only for a required missing answer. Facts are not automatically selected for relevance. No writes or approval. Pass history.next as before for older events.',
         readOnly: true,
         schema: object({ id: { type: 'string' }, before: { type: 'string' } }, [
           'id',
@@ -112,7 +112,7 @@ export function useRelayTools(
       {
         name: 'relay_read_workspace',
         description:
-          'Read opportunities, blockers, saved drafting preferences and per-job drafting_direction alongside exact saved drafts. Use relay_read_application before drafting or asking the user another question. Does not modify records.',
+          'Read jobs, blockers, manually saved drafting guidance and exact saved drafts. Use relay_read_application before drafting or asking the user another question. Does not modify records.',
         readOnly: true,
         schema: object({}),
         run: async () => ({
@@ -125,21 +125,10 @@ export function useRelayTools(
       {
         name: 'relay_read_profile',
         description:
-          'Read the verified fact ledger and learned style rules that drafts must follow. Cite these fact ids when writing. Does not modify the profile.',
+          'Read the verified fact ledger and saved style rules. Use confirmed facts as the source for claims. Does not modify the profile.',
         readOnly: true,
         schema: object({}),
         run: () => call('/api/profile'),
-      },
-      {
-        name: 'relay_review_status',
-        description:
-          'Read per-cluster trust, pending draft counts and whether a human review is due. Does not modify records.',
-        readOnly: true,
-        schema: object({}),
-        run: async () => {
-          const d = (await call('/api/drafts')) as Json;
-          return { trust: d.trust, trigger: d.trigger, batches: d.batches };
-        },
       },
       {
         name: 'relay_preview_import',
@@ -150,27 +139,6 @@ export function useRelayTools(
           'rows',
         ]),
         run: (input) => call('/api/workspace', { ...input, action: 'preview' }),
-      },
-      // Draft logging remains subject to gateway quotas and human review.
-      {
-        name: 'relay_log_draft',
-        description:
-          'Log a written draft for later batch review. Every sentence making a factual claim must be supported by a cited verified fact id from relay_read_profile; unsupported claims are rejected. Set confidence "low" when a needed fact is missing instead of guessing. Never accepts or submits.',
-        readOnly: false,
-        schema: object(
-          {
-            job_id: { type: 'string' },
-            body: { type: 'string' },
-            cited: { type: 'array', items: { type: 'string' } },
-            confidence: { type: 'string', enum: ['high', 'low'] },
-          },
-          ['job_id', 'body', 'cited'],
-        ),
-        run: async (input) => {
-          const result = await call('/api/drafts', { ...input, action: 'log' });
-          await refresh();
-          return result;
-        },
       },
       {
         name: 'relay_save_progress',

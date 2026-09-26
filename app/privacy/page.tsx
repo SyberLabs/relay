@@ -9,78 +9,58 @@ export default function Privacy() {
       <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
       <h1>How Relay uses your data</h1>
       <p className="lead">
-        This page describes current shipped behavior for the invited pilot. It
-        is not a warranty of hiring outcomes.
+        This page describes the current invited-pilot workflow. Relay does not
+        claim hiring outcomes or guarantee a result.
       </p>
-      <h2>Who operates Relay</h2>
+      <h2>Identity and access</h2>
       <p>
-        SyberLabs maintainers operate Relay. Seth Carlson owns the production
-        Cloudflare account. Mateo Robles is the peer reviewer.
-      </p>
-      <h2>Identity</h2>
-      <p>
-        Cloudflare Access authenticates invited people before Relay runs.
-        Workspace records belong to that authenticated Access subject. Access
-        also supplies an email so Relay can require a human identity. Relay does
-        not keep a separate email table. Cloudflare Access may keep its own
-        session cookies and logs.
+        Cloudflare Access authenticates invited people before Relay runs. Each
+        workspace read and write is scoped to that authenticated owner. Relay
+        does not keep a separate email table. Hosting operators with Cloudflare
+        and database access can reach records for maintenance and recovery.
       </p>
       <h2>What Relay stores</h2>
       <p>
-        Only the signed-in owner’s records: jobs, research observations, drafts,
-        accepted wording, blockers, review events, candidate facts, style rules,
-        preferences, choices, outcomes, application policies, prepared
-        application fields and files, and immutable submission manifests. Quota
-        counters use a hash of the owner identifier. After repeated writes,
-        Turnstile may confirm a person; Relay stores a clearance expiry, not the
-        token. Citation refusals store why a draft was blocked, not the refused
-        text.
+        Relay stores job records, research observations, drafts, accepted text,
+        blockers, review events, candidate facts and rules, application state,
+        manually recorded outcomes, receipts, and the operation data needed to
+        enforce human authorization. Existing databases may also contain
+        historical records from retired pilot tools; those records and their
+        migration tables are preserved rather than silently deleted. Quota
+        counters use a hash of the owner identifier. Relay does not sell your
+        data.
       </p>
       <p>
-        Relay does not store assistant API keys. Local CLI tools read keys from
-        your environment.
+        Relay does not store assistant API keys. Local commands read keys from
+        your environment. Keep private packets and responses out of Git and
+        public issues.
       </p>
-      <h2>Who can read it</h2>
+      <h2>External services</h2>
       <p>
-        Every database read and write belongs to the authenticated user. Hosting
-        operators with Cloudflare and D1 access can reach the database for
-        recovery. Do not put applicant records in public issues.
-      </p>
-      <h2>Processors</h2>
-      <p>
-        Cloudflare provides Access, Workers, D1, Turnstile, connecting-IP rate
-        limits, and optional request observability that must stay content-free.
+        Cloudflare provides Access, Workers, D1, Turnstile, and rate limiting.
         Relay pages, including the workspace, serve their fonts from Relay
-        itself and do not request Google Fonts. Assistants and vaults you use
-        (ChatGPT, Codex, Claude, Grok Bot, Notion, Obsidian) receive only what
-        you export or run under your own accounts and their policies. Public
-        Greenhouse and Lever board pulls fetch job listings, not your profile.
+        itself and do not request Google Fonts. External assistants, Notion,
+        and Obsidian receive data only through handoffs or access you initiate,
+        under the accounts and policies you choose. Relay does not sync those
+        accounts in the background.
       </p>
+      <h2>Application actions</h2>
       <p>
-        Relay does not POST the employer form. Inspect Accept on a complete
-        armed payload authorizes a waiting operative to submit once at the
-        employer.
+        Accepting a draft records approval of its exact wording. It does not by
+        itself authorize an application submission. Any application operation
+        requires its separate, explicit human authorization in Inspect. Relay
+        issues a one-use permit to an external browser; Relay itself does not
+        POST the employer form. The included Chrome operative is demonstrated
+        only against a fictional fixture.
       </p>
-      <h2>Cookies, ads, and sale</h2>
+      <h2>Retention and requests</h2>
       <p>
-        Relay does not set advertising or analytics cookies and does not sell
-        your records. Cloudflare Access may set its own session cookies.
-      </p>
-      <h2>Retention</h2>
-      <p>
-        History stays until an operator removes that owner’s records. This
-        invited pilot has no self-service delete. Storage caps refuse new
-        inserts; they do not auto-delete history.
-      </p>
-      <h2>Requests</h2>
-      <p>
-        Contact the maintainer who invited you. Report security issues through
-        GitHub private vulnerability reporting. Do not include resumes, drafts,
-        or credentials in public issues.
-      </p>
-      <h2>Changes</h2>
-      <p>
-        If shipped data practices change, this page changes in the same release.
+        History stays until an operator removes that owner’s records. The pilot
+        has no self-service delete. Storage caps refuse new inserts; they do
+        not auto-delete history. Contact the maintainer who invited you for
+        data requests. Report security issues through GitHub private
+        vulnerability reporting; do not include resumes, drafts, or credentials
+        in public issues.
       </p>
       <div className="actions">
         <Link href="/" className="primary">

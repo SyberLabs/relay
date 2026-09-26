@@ -14,7 +14,7 @@ Preserve the fixed five-person cohort, at least 3/5 independent core completions
 
 Confirm the participant's build, tools, task and assistance; do not infer these from the current release. Ask them to show what happened after jobs were added and whether any output was used. If they used agents to add jobs, establish whether those agents used the UI, imports, APIs or direct file/database edits, and whether that was their normal approach or a workaround. Normal self-directed assistant use is allowed under protocol v1; developer help is recorded separately. Praise is not completion or payment evidence.
 
-For a first real task, observe entry/import, context preparation, actual external-assistant transfer, returned wording, review, persisted exact acceptance and retrieval for the participant's intended destination. Record help, retries, confusion and any blocked stage. Application submission remains the user's action and is not required for core completion.
+For a first real task, observe entry/import, context preparation, actual external-assistant transfer, returned wording, review, persisted exact acceptance and retrieval for the participant's intended destination. Record help, retries, confusion and any blocked stage. Submission is not required for core completion; a separate application operation still requires explicit human authorization and an observed receipt.
 
 ## Optional second-job comparison
 
@@ -32,7 +32,7 @@ Effort saved is comparable baseline active minutes minus Relay active minutes. I
 
 ## Capability and release boundaries
 
-Users can add individual postings, import multiple tracker rows and access experimental agent batch review under Advanced. These operations do not send applications or accept drafts in bulk. The browser handoff still uses a separate unsaved facts box, not automatic selection from the saved profile. Measure that repeated effort rather than claiming it is eliminated. Existing active-job follow-up acceptance limitations remain as defined in protocol v1; do not reset application status to force completion.
+The pilot measures one job record, candidate facts deliberately selected for an external handoff, exact wording acceptance, and retrieval or manual outcome history. Observe which facts the participant chooses, how they make that choice, what they transfer, and any repeated typing or copying. Do not assume profile facts were included because they exist in Relay. Do not reset an active or terminal application to force acceptance; record any blocked stage under protocol v1.
 
 Throughput is a product goal, not permission to increase traffic or remove review. Preserve [abuse controls](abuse-controls.md), quotas, bounded inputs/storage/work, CAPTCHA, fail-closed behavior, exact acceptance and owner isolation. No new background or paid upstream operation is authorized by this positioning change.
 

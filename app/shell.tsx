@@ -13,7 +13,6 @@ import {
   FileText,
   History,
   Inbox,
-  Settings2,
   ShieldCheck,
 } from 'lucide-react';
 import {
@@ -43,7 +42,6 @@ const pageIcons = {
   '/applications': BriefcaseBusiness,
   '/profile': FileText,
   '/track': Activity,
-  '/advanced': Settings2,
 } as const;
 
 export function ShellNav({
@@ -126,7 +124,7 @@ export function ShellNav({
           Reusable context
         </legend>
         <p className="navhint" id="nav-context-hint">
-          Optional facts and experimental tools. Not required to add a job.
+          User-confirmed facts are reusable context, optional for a job record.
         </p>
         {CONTEXT_PAGE_LINKS.map(pageLink)}
       </fieldset>
@@ -154,7 +152,7 @@ export function AppShell({
         </Link>
         <ShellNav current={current} onNavigate={onNavigate} />
         <div className="sidebottom">
-          <p>External agents apply under your permissions.</p>
+          <p>Assistants prepare drafts; you control acceptance and application actions.</p>
           <p>
             <Link href="/privacy" onClick={onNavigate}>
               How Relay uses your data

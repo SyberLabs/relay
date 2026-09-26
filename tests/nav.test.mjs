@@ -5,7 +5,6 @@ import {
   PORTFOLIO_PAGE_LINKS,
   CONTEXT_PAGE_LINKS,
   PRIMARY_PAGE_LINKS,
-  isAdvancedSection,
   jobFromSearch,
   pageIsCurrent,
   plantSearchAction,
@@ -72,7 +71,7 @@ void test('job query params stay bound and plant queue queries leave the plant',
   });
 });
 
-void test('page links keep applications, facts and advanced secondary', () => {
+void test('page links keep applications and reusable facts secondary', () => {
   assert.deepEqual(
     PRIMARY_PAGE_LINKS.map((item) => [item.href, item.label]),
     [
@@ -82,11 +81,11 @@ void test('page links keep applications, facts and advanced secondary', () => {
   );
   assert.deepEqual(
     PAGE_LINKS.map((item) => item.href),
-    ['/applications', '/profile', '/advanced'],
+    ['/applications', '/profile'],
   );
   assert.deepEqual(
     PAGE_LINKS.map((item) => item.label),
-    ['Applications', 'Your facts', 'Advanced'],
+    ['Applications', 'Your facts'],
   );
   assert.deepEqual(
     PORTFOLIO_PAGE_LINKS.map((item) => item.page),
@@ -94,18 +93,13 @@ void test('page links keep applications, facts and advanced secondary', () => {
   );
   assert.deepEqual(
     CONTEXT_PAGE_LINKS.map((item) => item.page),
-    ['profile', 'advanced'],
+    ['profile'],
   );
   assert.equal(pageIsCurrent('profile', 'profile'), true);
   assert.equal(pageIsCurrent('workspace', 'profile'), false);
   assert.equal(pageIsCurrent('workspace', 'workspace'), true);
   assert.equal(pageIsCurrent('track', 'track'), true);
   assert.equal(pageIsCurrent('workspace', 'track'), false);
-  assert.equal(isAdvancedSection('plan'), true);
-  assert.equal(isAdvancedSection('preferences'), true);
-  assert.equal(isAdvancedSection('review'), true);
-  assert.equal(pageIsCurrent('review', 'advanced'), true);
-  assert.equal(pageIsCurrent('plan', 'advanced'), true);
-  assert.equal(pageIsCurrent('preferences', 'advanced'), true);
-  assert.equal(pageIsCurrent('track', 'advanced'), false);
+  assert.equal(pageIsCurrent('applications', 'applications'), true);
+  assert.equal(pageIsCurrent('track', 'applications'), false);
 });

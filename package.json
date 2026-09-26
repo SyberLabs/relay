@@ -17,7 +17,6 @@
     "context:check": "node scripts/agent-context.mjs --check",
     "typecheck": "tsc --noEmit",
     "test:api": "node scripts/ci/run-integration.mjs api",
-    "test:calibration": "node scripts/ci/run-integration.mjs calibration",
     "test:orchestration": "node scripts/ci/run-integration.mjs orchestration",
     "test:cli": "node scripts/ci/run-integration.mjs cli",
     "test:e2e": "node scripts/ci/run-integration.mjs browser",

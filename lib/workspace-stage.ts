@@ -30,14 +30,7 @@ export type StageView = {
 };
 
 export function workspaceStage(view: StageView): WorkspaceStage {
-  if (
-    view.page === 'profile' ||
-    view.page === 'advanced' ||
-    view.page === 'review' ||
-    view.page === 'preferences' ||
-    view.page === 'plan'
-  )
-    return 'context';
+  if (view.page === 'profile') return 'context';
   if (view.page === 'track') return 'portfolio';
   if (view.signedOut || view.jobCount === 0) return 'onboarding';
   if (!view.selectedStatus) return 'portfolio';
@@ -67,7 +60,7 @@ export function stageLead(view: StageView): string {
       ? 'Tracker holds the portfolio. Open a job to continue it in Runtime.'
       : 'Select a job to continue in Runtime. Adding or importing is between jobs.';
   if (stage === 'context')
-    return 'Reusable context for later jobs. It is not required to draft or accept.';
+    return 'Confirmed facts and style rules are available for later jobs.';
   return loopStepLead(view.selectedStatus);
 }
 

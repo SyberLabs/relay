@@ -1,226 +1,87 @@
 # Relay by SyberLabs
 
 <!-- relay:public:start -->
-**Keep your application work moving.**
+**Keep each application’s facts, wording, and history together.**
 
-Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.
+Relay is a private, human-reviewed workspace for carrying job context between assistants and keeping an application record current.
 
 **Relay lead engineer: [Seth Carlson](https://github.com/sdcarlson).** **Product: [Mateo Robles](https://github.com/sykosyber).**
 
 ## Available in this early release
 
-- One history per job: matching posting URLs join the same record, and earlier research stays visible.
-- Add a job from a role title, HTTP(S) posting URL, and optional notes. Matching URLs join that existing record without resetting status or accepted drafts.
-- Exact draft acceptance: you approve specific wording; changing it requires review again.
-- A focused question review lets you delegate routine writing choices, remember that preference, or share a short answer. Your assistant receives the direction on its next context read; required facts and exact draft acceptance remain separate.
-- Interview notes and follow-ups that do not reset a submitted or live-loop application.
-- Import a tracker CSV through column mapping and a record preview. Imported statuses stay research; existing Relay status and accepted drafts are preserved.
-- A reusable candidate fact ledger: you confirm accuracy. Agent draft logs check selected claim patterns using word and number overlap with cited facts; unsupported claims can still pass.
-- Browser draft loading checks format, job identity and version. It does not check citations or factual accuracy; workspace saves do not run the agent citation check.
-- Advanced tools preserve experimental agent batch review, preference fitting and weekly planning. Planning uses estimated reply rates, not offer probabilities. Staging never accepts or sends a draft.
-- Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.
-- Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.
-- An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.
-- Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. When WebMCP is missing, the same owner-session tools are available as window.relay for JavaScript evaluation in the signed-in tab. Exact acceptance remains in the signed-in workspace. This is not a hosted MCP connection.
-- A human Inspect Accept on a complete armed payload authorizes the waiting operative to send once. Relay does not POST the employer form.
-- An unpacked Chrome MV3 first-party operative is the recommended send surface: it prepares and arms from a signed-in Relay tab, waits for Inspect Accept, begins once, clicks a fictional fixture Submit once, and records the observed receipt. It does not fetch Relay APIs from chrome-extension://, export cookies, or POST the employer form from Relay. Same-tab window.relay remains when the extension cannot load.
+- Keep one owner-scoped record per job, with research and application history kept together.
+- Import selected tracker rows or job research as evidence; imports do not accept wording or overwrite current application state.
+- Maintain candidate facts that you confirm yourself. For a prompt or file handoff, include only facts relevant to that job.
+- Return assistant-written wording to the same job. Relay checks the job version and refuses stale saves.
+- Review and accept exact wording yourself. Editing accepted text requires fresh acceptance.
+- Update application state yourself. In the fictional fixture, the included Chrome operative can record Submitted when it reports a receipt. Relay does not independently verify what the employer received.
+- A separate application action requires human Inspect approval before an external browser receives a one-use permit. Relay itself does not POST the employer form.
 - Explore fictional example records; no real applicant data is included.
 
 ## Integrations
 
-- **[ChatGPT](integrations/OPENAI.md)**: Prepare a job packet and prompt, then bring a JSON draft back for review.
-- **[Codex](integrations/OPENAI.md)**: The same packet, plus optional local drafting through the signed-in Codex CLI.
-- **[Obsidian](integrations/OBSIDIAN.md)**: Selected research notes, version-bound draft edits, and job-context exports from your vault.
-- **[Notion](integrations/README.md)**: Read-only research import through a local command you run with your own credentials.
-- **[Claude](integrations/README.md)**: Draft preparation from facts you supply through the Claude API, using your own key. The local relay CLI can log drafts against saved, user-confirmed facts with heuristic citation checks.
-- **[Grok Bot](integrations/GROK_BOT.md)**: Validated research and draft file exchange inside the Bot's VM. In a signed-in Relay tab without WebMCP, prefer window.relay; do not export cookies.
-- **[Chrome operative](extensions/operative/README.md)**: Unpacked MV3 extension that fills a fictional fixture form after Inspect Accept. Not a store listing, Autopilot, or real ATS adapter.
-- **[Tracker CSV](integrations/README.md)**: Map columns, preview rows, and import a local tracker file as research.
-- **[Greenhouse](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
-- **[Lever](integrations/README.md)**: Read-only public board pull onto existing job identity. No credentials and no application sending.
+- **[ChatGPT](integrations/OPENAI.md)**: Prepare a selected-job handoff, then return the assistant's draft for review.
+- **[Codex](integrations/OPENAI.md)**: Use the same handoff or the local CLI adapter with a signed-in Codex CLI.
+- **[Obsidian](integrations/OBSIDIAN.md)**: Exchange selected job research and version-bound draft files.
+- **[Notion](integrations/README.md)**: Import selected research through a local read-only command.
+- **[Claude](integrations/README.md)**: Prepare an external draft with your own API credentials.
+- **[Grok Bot](integrations/GROK_BOT.md)**: Exchange research and drafts through explicit file or local command handoffs.
+- **[Tracker CSV](integrations/README.md)**: Map columns, preview selected rows, then import them as research.
+- **[Chrome operative](extensions/operative/README.md)**: Optional unpacked extension for the fictional fixture; not a real ATS adapter.
 
-Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs, browser tools where WebMCP is supported, window.relay in the signed-in tab, or the unpacked first-party Chrome operative for a fictional fixture send; Relay does not POST the employer form, host an MCP connection, or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.
+Assistants can prepare drafts from context the person chooses to share. They cannot confirm facts, accept wording, or infer permission to act. Accepting wording records approval of that exact text; it grants no permission to submit. Relay does not independently verify draft claims or assess qualifications.
 
-ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection.
+ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. Relay does not provide a hosted ChatGPT app or hosted MCP connection.
 
 [Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)
 <!-- relay:public:end -->
 
-## Why Relay
+## Pilot status
 
-People already use ChatGPT, Claude, Grok, Notion, and Obsidian to hunt for jobs. The work still falls apart in the gaps: a new chat forgets the last draft, a tracker overwrites a decision, an interview note resets application status.
-
-Relay is the record that remembers. **Runtime** (`/`) is the selected-job loop. **Tracker** (`/track`) is the queue and outcomes. Import research as evidence. Review the actual words. Accept a specific draft. Keep follow-ups on submitted jobs without losing what you already did.
-
-- **Research keeps its history.** Matching posting URLs join the existing opportunity; changed source notes remain separate observations. Rediscovery preserves an existing interview or submitted status.
-- **Acceptance belongs to the text.** An imported Ready label does not approve a new draft. Accept it in Relay; changing the accepted text requires another review.
-- **Handoffs belong to a job and version.** Draft packets and editor checks reject stale work instead of silently replacing a newer review.
-- **Bring the tools you already use.** ChatGPT, Codex, Claude, Grok Bot, Notion, Obsidian, a tracker CSV, and public Greenhouse or Lever boards can supply research and drafts. Relay keeps the review record across those handoffs.
-
-Relay records acceptance on the selected job in Runtime. It does not POST the employer form, verify every claim, or prove which words were submitted to an employer. URL matching cannot identify every repost across different job boards. Applications, facts, and Advanced stay secondary.
-
-## Team
-
-Relay is built at [SyberLabs](https://github.com/SyberLabs) by a two-person team:
-
-- **[Seth Carlson](https://github.com/sdcarlson)** - Relay lead engineer
-- **[Mateo Robles](https://github.com/sykosyber)** - product
-
-Every database read and write belongs to the authenticated user. Exact accepted text is versioned. Imports add evidence; they cannot grant approval. A stale editor or assistant packet cannot overwrite newer work.
-
-[Development workflow](CONTRIBUTING.md) · [Delivery and review](docs/delivery.md) · [Team board](https://github.com/orgs/SyberLabs/projects/1)
+Relay is in an invited pilot. No hiring outcomes or time savings have been established.
+See the app’s Privacy page for current data handling.
 
 ## Stack
 
-React 19 and Vinext on Cloudflare Workers, with D1 persistence and Drizzle migrations. TypeScript throughout. Local development uses Sites authentication; production uses a verified Cloudflare Access gateway and separate staging and production databases.
+React and Vinext on Cloudflare Workers, with D1 persistence and Drizzle migrations. Local development uses a mock sign-in on the Vite development server; production uses the verified Cloudflare Access gateway.
 
-See [architecture and data ownership](ARCHITECTURE.md) and [hosting and recovery](docs/hosting.md).
-
-## Using Relay with the tools you already have
-
-Use your preferred discovery and application tools alongside Relay. [Simplify](https://simplify.jobs/) already offers job matching, autofill, resume tailoring, and tracking. Relay's focus is preserving research and exact draft decisions across those handoffs.
-
-**First compatibility path: tracker CSV to Relay preview.** In Relay, open **Import a tracker CSV**, choose your file, confirm the company, role, and employer posting URL columns, and preview before saving. Optional status and notes columns are preserved as research. Every new job starts Held; source statuses never approve a draft. This is a file importer, not a tracker account connection or partnership. See the [CSV setup guide](integrations/README.md#tracker-csv--relay) and [fictional example](tests/fixtures/tracker-example.csv).
-
-### Obsidian
-
-Select a job, open **Prepare this job for an assistant**, choose the note purpose, and **Create note for selected job**. Edit the downloaded note in your vault, then load it in Relay and preview matches before importing. Use **Edit draft in Obsidian** for a version-bound draft, and **Download job context** for a source-history snapshot. No plugin, vault scanning, or background sync.
-
-[Complete Obsidian guide](integrations/OBSIDIAN.md)
-
-### ChatGPT and Codex
-
-Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Prepare this job for an assistant**, share the selected prompt, and return the JSON result for review. Codex can also prepare drafts through its signed-in CLI.
-
-[Complete setup and boundaries](integrations/OPENAI.md)
-
-### GrokCell research templates
-
-The [GrokCell project](https://github.com/sdcarlson/grokcell) publishes the First Principles, Product Ideation, Red Flag, and Garbage Collector templates. They do not connect to Relay or grant access to application records. The [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts. See also [context management](context-management/README.md).
-
-## Candidate facts and advanced batch review
-
-Add a posting through ordinary fields or import multiple jobs from a tracker CSV. Select a job to prepare a handoff, review the returned wording and accept exact text. Facts, source history and review history remain available as you move between applications. Experimental batch tools are under **Advanced** (`/advanced`). The [pilot reuse comparison](docs/pilot-throughput.md) tests whether that reuse reduces effort; a single-job walkthrough is a usability check, not a product limit.
-
-The **fact ledger** (`/profile`, **Your facts**) holds claims you confirm yourself. Stored `Verified` means user-confirmed, not independently verified by Relay. Paste resume text to propose candidates; extraction does not save or confirm them. A fact can carry an expiry for information that goes stale. The browser handoff currently uses a separate unsaved facts box; it does not select saved ledger entries.
-
-The **style card** holds the voice rules learned from your corrections. The agent reads both through `relay_read_profile` and never writes either.
-
-A writing agent can log drafts through `relay_log_draft`. Cited IDs must identify user-confirmed, unexpired facts. Selected claim patterns then undergo word-overlap checks, with numbers pooled across cited facts. A detected failure refuses the draft; passing does not establish that the evidence supports its meaning. Unsupported claims can still reach review. An agent short of a fact should use `confidence: "low"` rather than guess; this does not bypass the check. [Fictional examples and trust boundaries](docs/product-trust.md) document the limits.
-
-Browser draft loading separately checks format, job identity and version. It does not check citations or factual accuracy. Workspace saves do not run the agent draft-log check. Human acceptance records approval of exact wording; changed text needs fresh acceptance.
-
-Logged drafts accumulate for batch review (`/advanced/review`). A session opens on the first draft in an unseen role cluster, style drift, enough low-confidence drafts, or a full batch. It groups repeated openings, flags near-identical letters and proposes style rules from corrections. Review each claim and correction; batch review is separate from exact-text acceptance in Runtime. `/review` redirects to the same page.
-
-Automatic staging is enabled per role cluster from recent edit sizes. After enough reviewed drafts come back close to unchanged, later drafts can be placed into the matching job record. This measures editing history, not factual accuracy. Staging leaves status untouched and does not set `accepted_draft`; accepting exact text remains a human action. Changed review history or expired facts can return a cluster to batch review.
-
-Relay does not POST the employer form. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.
+See [architecture and data ownership](ARCHITECTURE.md), [hosting and recovery](docs/hosting.md), and [delivery checks](docs/delivery.md).
 
 ## Run locally
 
-Node 24 and pnpm are required. From the repository root:
+Use Node 24 and pnpm from the repository root:
 
 ```sh
-# .nvmrc / .node-version are `24`
-nvm install && nvm use          # or: fnm install && fnm use
-# mise use node@24
-# asdf install nodejs 24 && asdf set nodejs 24
-
-node scripts/ensure-node.mjs    # checks the running Node version; no Bash required
-node -v                         # must be >= 24
+node scripts/ensure-node.mjs
 pnpm install --frozen-lockfile
 pnpm build
-pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0000_sticky_robbie_robertson.sql
-pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0001_careless_leader.sql
-pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0002_job_key_observations.sql
-pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0003_profile_calibration.sql
-pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0004_selection_and_outcomes.sql
-pnpm exec wrangler d1 execute DB --local --config dist/server/wrangler.json --persist-to .wrangler/state --file drizzle/0005_record_refusals.sql
+```
+
+Apply every migration in order to the local D1 database, then start the app:
+
+```sh
+pnpm exec wrangler d1 migrations apply DB --local --config dist/server/wrangler.json --persist-to .wrangler/state
 pnpm dev
 ```
 
-`pnpm dev` binds **http://localhost:3000/** (Vite `strictPort`). Use that URL. Miniflare/workerd may also print an internal `127.0.0.1:NNNN` bind - ignore it for the browser and curl.
-
-`pnpm start` (after `pnpm build`) binds the built Worker at **http://127.0.0.1:8787/**.
-
-Do not expose either server to the internet. Load fictional examples or import your own records. The product introduction is at `/about`.
-
-### Local sign-in
-
-On `pnpm dev`, the Sites Vite plugin mocks ChatGPT sign-in on the Vite URL only:
-
-- Browser: **Sign in with ChatGPT** → `/signin-with-chatgpt?return_to=/`
-- Mock identity: `local_seedy` / `seedy@sites.test`
-
-`/signin-with-chatgpt` is not a Worker route. `pnpm start` and any workerd-only port return 404 for it. Send Sites identity headers instead (fictional values only):
-
-```sh
-curl -sS http://127.0.0.1:8787/api/workspace \
-  -H 'oai-authenticated-user-id: local-dev' \
-  -H 'oai-authenticated-user-email: local@example.com'
-```
-
-The Sites plugin on `pnpm dev` strips caller-supplied `oai-authenticated-user-*` headers and injects the mock user only after the sign-in cookie. Header mock is for the built Worker. Production must use the Access gateway from the delivery foundation.
-
-## Advanced planning and outcome history
-
-Preferences and weekly planning remain available under **Advanced**. They are experimental aids, with no established qualification assessment or hiring benefit. Outcome history stays on **Tracker** (`/track`).
-
-**Preferences** (`/advanced/preferences`) fit weights from choices between saved postings. Twelve comparisons is the interface's target, not a validated accuracy threshold. With no choices, postings receive the same preference score. `/preferences` redirects here. `/api/preferences` is unchanged.
-
-**The plan** (`/advanced/plan`) uses estimated reply rates, posting age, preference scores and effort estimates in an expected-maximum calculation. Greedy selection adds model score per minute within your budget. A reply is not an offer, so the result is presented as an experimental plan score, not an expected best offer or measured outcome improvement. `/plan` redirects here. The underlying `/api/plan` fields and records are preserved.
-
-**The read plane** pulls public Greenhouse and Lever boards through `board-pull`, normalising onto the same `jobKey` identity the workspace already uses. It reads only, needs no credentials and no account, and every posting arrives Held — discovery never implies a decision.
-
-**Outcomes** (`/track`) close the loop. Terminal states are local records of what actually happened and are deliberately not valid import statuses, so the existing import behaviour is unchanged and rediscovery can never reopen an application that has ended. A submission recorded here requires a receipt: the confirmation URL, reference or email subject. Imported submissions are kept and shown, but they arrive without a receipt and are excluded from the reply rates, because counting a send that may never have happened would corrupt every estimate built on it.
-
-Reply estimates use recorded outcomes and prior assumptions. The API includes intervals and evidence counts. These estimates do not establish that a change caused an outcome.
-
-**Interview preparation** can reuse recorded facts and reviewed wording. Citation records cover agent draft logs; they are not a complete or verified account of every claim in an application.
-
-Relay still does not submit applications. There are no write-plane adapters in this release: nothing here fills in a form, sends an email, or messages anyone, and recording a submission is you telling Relay what you already did.
-
-## Integration boundaries
-
-Connectors are local commands and explicit file import/export. Notion and Claude use your credentials. ChatGPT is a prompt/file handoff; Codex also supports a local CLI adapter; Grok Bot uses a documented command/file adapter. Agents may log and, for a graduated cluster, stage drafts; they cannot accept one. Board pulls read public endpoints only and use no account identity. A recorded submission is your own report of something you did elsewhere and needs a receipt. Citation checks are heuristic and specific to agent draft logging; every returned draft still requires human review. There is no automatic background sync, autonomous hunting, application sending, or LinkedIn messaging. Production deployment and independent user adoption remain separate from this local workflow.
-
-See [Local assisted browser trial](REVIEW.md#local-assisted-browser-trial) for the earlier `3b1efd7` read-only Notion, hand-transcribed Bot file, and browser acceptance, reload, and reimport evidence, still shown on a read-only reopen at `59ec7ac`.
-
-On `7cfec262`, a later fictional trial copied a Relay packet into the installed Grok Bot and manually pasted the returned JSON into Relay. Paste staged the draft without saving; an explicit save and reload preserved its exact text while the record remained Held and unaccepted. Automatic Bot file transfer and the Bot VM command environment remain unverified.
-
-On `e9e6030`, a later three-record trial imported three distinct Held jobs from historical Notion research through the connected Notion tool (read-only) into isolated local browser storage. Three actual context packets were copied into the installed native Grok Bot; the three observed JSON replies were transcribed by hand and loaded as files. Load staged drafts without persistence; an explicit save and reload preserved the exact text; stale original replies were rejected; a repeat import deduplicated. All three jobs stayed Held with no accepted draft. This is connected Notion read-only plus manually returned installed-Bot JSON, not automatic transfer or the standalone Notion command connector. See [Three-record Notion and native Bot trial](REVIEW.md#three-record-notion-and-native-bot-trial-2026-09-06).
+The Vite server uses `http://localhost:3000/`. Use fictional records during development. Do not expose the local server to the internet; its sign-in is a development mock. The SQL history tables remain in migrations to preserve existing data, even where the pilot no longer exposes their former screens or APIs.
 
 ## Checks
 
 ```sh
 pnpm test
-pnpm exec tsc --noEmit
+pnpm typecheck
 pnpm lint
 pnpm public-copy:check
-node tests/api.test.mjs
-pnpm test:calibration
+pnpm test:api
 pnpm test:orchestration
 pnpm test:cli
+pnpm test:e2e
+pnpm test:production
 ```
 
-The project, organization, personal profile, and website share one [maintained product description](docs/public-copy.json). [Public-copy process](docs/PUBLIC-COPY.md) explains generation, checks, and automatic refreshes.
-
-`pnpm test` is the unit gate. The API, calibration, orchestration, and CLI live suites each get a dedicated freshly migrated database via `pnpm test:api`, `pnpm test:calibration`, `pnpm test:orchestration`, and `pnpm test:cli`. Do not run those live suites against the same D1: calibration graduates clusters and retires facts. Connector tests mock vendor responses; they do not prove live account access.
-
-For an existing local database, apply every migration after the one it is already on, in order, up to the highest number in `drizzle/`. Enumerating per-version paths goes stale the moment a migration is added, so follow the rule rather than a list. Migration 0002 rebuilds the observation index. Migration 0003 adds the fact ledger, style rules and draft-review tables. Migration 0004 adds preference, choice and outcome tables and defaulted posting columns on `jobs`; existing rows stay. Migration 0005 adds the refusals table and changes no existing row. Skipping 0005 leaves `/api/readiness` and every citation refusal hitting a missing table. Imported Ready is research evidence; a new record stays Held until its exact draft is accepted in Relay.
-
-Domain, import, editor, profile, selection, and API tests cover status preservation, duplicate matching, exact acceptance, citation refusal, terminal outcomes that cannot be reopened by import, stale edits, and authentication rejection. A 401 on `/profile`, `/advanced/preferences`, `/advanced/review`, or `/track` expires that mounted page session before the response body is read, clears private state and edit controls, and shows the existing signed-out screen. Older in-flight reads and mutations cannot restore it. Sign-in is top-level navigation; these pages do not reauthenticate in place. Workspace expiry is unchanged. `/preferences` and `/review` still reach those pages.
-
-## Hosting and privacy
-
-Keep real imports, packets, and draft results in ignored `private-data/`. Keep API keys in environment variables. Local databases, build output, credentials, and personal records stay out of Git. The invited-pilot product describes current data practices at `/privacy`; that page is a disclosure of shipped behavior, not a waiver or hiring warranty.
-
-Deploy only the verified release artifact through the protected workflows. An invited pilot may use workers.dev without purchasing a domain; a custom domain remains optional. Account provisioning, live authentication, and the first production release still require verification before inviting users.
-
-Early release: no hiring outcomes, reliability targets, or throughput improvements have been established.
+The integration runners create separate local databases. Do not run them against the same D1 state concurrently. Connector tests use mocked vendor responses; they do not prove live account access.
 
 ## License
 
-Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). Third-party dependencies retain their respective licenses.
-
-When redistributing Relay or derivative works, include the license, mark modified files, retain applicable notices in distributed source, and reproduce the attribution in [NOTICE](NOTICE) as required by Section 4 of the license. Commercial use and forks are permitted under those terms. The license does not require a prominent product badge or grant ownership of the underlying idea.
+Copyright 2026 SyberLabs. Relay is licensed under the [Apache License, Version 2.0](LICENSE). Third-party dependencies retain their respective licenses. See [NOTICE](NOTICE) for required attribution.

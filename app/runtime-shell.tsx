@@ -12,8 +12,6 @@ export function RuntimeShell({
   live,
   stateText,
   stateKind,
-  autopilot,
-  onAutopilot,
   showAddJob,
   addJobPrimary,
   onAddJob,
@@ -35,8 +33,6 @@ export function RuntimeShell({
   live: boolean;
   stateText: string;
   stateKind?: 'live' | 'off' | 'idle';
-  autopilot: boolean;
-  onAutopilot: () => void;
   showAddJob: boolean;
   addJobPrimary: boolean;
   onAddJob: () => void;
@@ -128,17 +124,6 @@ export function RuntimeShell({
             type="button"
           >
             History
-          </button>
-          <button
-            aria-pressed={autopilot}
-            className="toggle"
-            onClick={onAutopilot}
-            type="button"
-          >
-            <span className="track">
-              <span className="knob" />
-            </span>
-            Autopilot
           </button>
         </div>
       </header>

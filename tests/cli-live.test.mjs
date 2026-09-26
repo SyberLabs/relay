@@ -122,9 +122,7 @@ assert.deepEqual(context.history, { events: [], next: null });
 r = relay('brief', 'no-such-job');
 assert.equal(r.code, EXIT.refused, 'an unknown id is a refusal, not a crash');
 
-/* -- log: the refusal must write nothing ---------------------------------- */
-// Explicit staging is a versioned workspace save, independent of the ledger's
-// Probation automatic-staging policy. Keep this fixture separate from log tests.
+/* -- versioned staging and exact acceptance ------------------------------- */
 await api('/api/workspace', {
   action: 'import',
   rows: [
@@ -143,7 +141,6 @@ const stagedJob = (await api('/api/workspace')).data.jobs.find((j) =>
 const stageFile = 'private-data/cli-stage.txt';
 const exact = ' Original fictional words.\r\n';
 writeFileSync(stageFile, exact);
-const ledgerBeforeStage = (await api('/api/drafts')).data.drafts;
 const stage = (version, blocker = '') =>
   relay(
     'stage',
@@ -222,79 +219,11 @@ assert.ok(
   ),
 );
 assert.deepEqual(
-  (await api('/api/drafts')).data.drafts,
-  ledgerBeforeStage,
-  'stage does not change the separate ledger',
-);
-assert.equal(
-  JSON.parse(relay('status', '--json').out).trust.backend?.state ?? 'Probation',
-  'Probation',
-);
-assert.deepEqual(
   stageContext(),
   saved,
   'fresh retrieval preserves exact state and history',
 );
 rmSync(stageFile);
-
-const before = (await api('/api/drafts')).data.drafts.length;
-writeFileSync(
-  'private-data/cli-bad.txt',
-  'I led a team of 6 engineers. I also cut infrastructure spend by 40%.',
-);
-r = relay('log', job.id, 'private-data/cli-bad.txt', '--cite', verified.id);
-assert.equal(r.code, EXIT.refused, r.err);
-assert.match(r.err, /refused — no draft stored, no text kept/);
-assert.match(r.err, /cut infrastructure spend by 40%/, 'names the sentence');
-assert.equal(
-  (await api('/api/drafts')).data.drafts.length,
-  before,
-  'a refused draft is not stored — a gate that records anyway is worse than none',
-);
-
-/* -- log: citing an unverified fact is refused too ------------------------ */
-writeFileSync('private-data/cli-ok.txt', 'Your storage work is why I write.');
-r = relay('log', job.id, 'private-data/cli-ok.txt', '--cite', unverified.id);
-assert.equal(r.code, EXIT.refused);
-assert.match(r.err, /not verified or has expired/);
-
-/* -- log: employer years still need a citation on current main ------------ */
-writeFileSync(
-  'private-data/cli-year.txt',
-  'I read your 2024 post on storage engines.',
-);
-r = relay('log', job.id, 'private-data/cli-year.txt', '--cite', verified.id);
-assert.equal(r.code, EXIT.refused, r.err);
-assert.match(r.err, /2024/);
-assert.equal(
-  (await api('/api/drafts')).data.drafts.length,
-  before,
-  'an employer year without a cited fact is not stored',
-);
-
-/* -- log: a supported claim is stored exactly once ------------------------ */
-writeFileSync('private-data/cli-good.txt', 'I led a team of 6 engineers.');
-r = relay('log', job.id, 'private-data/cli-good.txt', '--cite', verified.id);
-assert.equal(r.code, EXIT.ok, r.err);
-assert.match(r.out, /logged · cluster backend/);
-assert.equal(
-  (await api('/api/drafts')).data.drafts.length,
-  before + 1,
-  'the accepted draft is stored exactly once',
-);
-
-/* -- status and plan ------------------------------------------------------ */
-r = relay('status', '--json');
-assert.equal(r.code, EXIT.ok, r.err);
-const status = JSON.parse(r.out);
-assert.ok(status.pending >= 1, 'the logged draft is pending review');
-assert.ok(status.review, 'and review is reported as due');
-assert.equal(status.trust.backend.state, 'Probation');
-
-r = relay('plan', '--json');
-assert.equal(r.code, EXIT.ok, r.err);
-const plan = JSON.parse(r.out);
-assert.ok(plan.spent <= plan.minutes, 'the budget is never overspent');
 
 /* -- outcome: terminal kinds are never a silent side effect ---------------- */
 r = relay('outcome', job.id, 'rejected');
@@ -313,59 +242,9 @@ assert.equal(
 );
 assert.match(r.err, /Accept the exact draft/);
 
-/* -- a refusal is now counted, while the draft still is not --------------- */
-function readinessNow() {
-  const res = relay('hunt', '--readiness', '--json');
-  assert.equal(res.code, EXIT.ok, res.err);
-  return JSON.parse(res.out);
-}
-const counted = readinessNow();
-assert.ok(counted.refusals.refused >= 1, 'the earlier refusals were recorded');
-assert.ok(
-  counted.refusals.attempts > counted.refusals.refused,
-  'accepted drafts count as attempts too',
-);
-const beforeRefusal = readinessNow().refusals.refused;
-const draftsBefore = (await api('/api/drafts')).data.drafts.length;
-writeFileSync(
-  'private-data/cli-bad2.txt',
-  'I led a team of 6 engineers. I also raised revenue by 80%.',
-);
-r = relay('log', job.id, 'private-data/cli-bad2.txt', '--cite', verified.id);
-assert.equal(r.code, EXIT.refused, r.err);
-assert.equal(
-  readinessNow().refusals.refused,
-  beforeRefusal + 1,
-  'the refusal is counted so the gate can be measured',
-);
-assert.equal(
-  (await api('/api/drafts')).data.drafts.length,
-  draftsBefore,
-  'and the refused draft is still not stored',
-);
-rmSync('private-data/cli-bad2.txt', { force: true });
-
-/* -- readiness reports gates without running anything --------------------- */
-const gates = readinessNow();
-assert.equal(gates.gates.length, 4);
-assert.deepEqual(
-  gates.gates.map((g) => g.id),
-  ['supervised_run', 'graduated_cluster', 'receipted_outcomes', 'refusal_rate'],
-);
-assert.equal(gates.ready, false, 'a fresh workspace is not ready');
-assert.ok(gates.allowance >= 1, 'but is still allowed a supervised draft');
-
-r = relay('hunt');
-assert.equal(r.code, EXIT.usage, 'the driver is not implemented yet');
-assert.match(r.err, /not implemented yet/);
-
 /* -- usage errors are distinguishable from refusals ------------------------ */
-assert.equal(relay('log', job.id).code, EXIT.usage);
+assert.equal(relay('stage', job.id).code, EXIT.usage);
 assert.equal(relay('brief').code, EXIT.usage);
 assert.equal(relay('nonsense').code, EXIT.usage);
 
-rmSync('private-data/cli-bad.txt', { force: true });
-rmSync('private-data/cli-ok.txt', { force: true });
-rmSync('private-data/cli-year.txt', { force: true });
-rmSync('private-data/cli-good.txt', { force: true });
 console.log('CLI live checks passed.');

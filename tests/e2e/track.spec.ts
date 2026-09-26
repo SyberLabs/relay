@@ -17,14 +17,14 @@ test('a Ready job records an already completed submission with its receipt', asy
       await route.fulfill({
         json: {
           outcomes: [],
-          prep: [
+          applications: [
             {
               ...job,
               status,
               receipt: posted ? String(posted.receipt) : null,
+              accepted_draft: null,
             },
           ],
-          rates: {},
         },
       });
       return;

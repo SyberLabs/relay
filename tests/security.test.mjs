@@ -75,26 +75,17 @@ void test('migrations apply once; atomic reservations never exceed a shared cap 
   db.sqlite.close();
 });
 
-void test('all routes share user throttles, users stay isolated, and expensive planning has a tighter limit', async () => {
+void test('all routes share user throttles and users stay isolated', async () => {
   const db = database(),
     env = { DB: db };
-  for (let i = 0; i < 6; i++)
-    assert.equal(await usageGuard(request('GET', '/api/plan'), env, now), null);
+  for (let i = 0; i < 120; i++)
+    assert.equal(await usageGuard(request('GET', '/api/workspace'), env, now), null);
+  assert.equal((await usageGuard(request('GET', '/api/workspace'), env, now)).status, 429);
   assert.equal(
-    (await usageGuard(request('GET', '/api/plan'), env, now)).status,
-    429,
-  );
-  assert.equal(
-    await usageGuard(request('GET', '/api/plan', 'cloudflare:bob'), env, now),
+    await usageGuard(request('GET', '/api/workspace', 'cloudflare:bob'), env, now),
     null,
   );
-  for (let i = 0; i < 113; i++)
-    assert.equal(
-      await usageGuard(request('GET', '/future/route'), env, now),
-      null,
-    );
-  assert.equal((await usageGuard(request(), env, now)).status, 429);
-  assert.equal(await usageGuard(request(), env, now + 60_000), null);
+  assert.equal(await usageGuard(request('GET', '/api/workspace'), env, now + 60_000), null);
   db.sqlite.close();
 });
 
@@ -463,12 +454,6 @@ void test('real gateway protects anonymous, static, dynamic, and future routes; 
       status: 401,
     },
     {
-      path: '/api/agents',
-      headers: {},
-      config: env,
-      status: 401,
-    },
-    {
       path: '/api/applications',
       headers: { 'Cf-Access-Jwt-Assertion': jwt },
       config: { ...env, RELAY_PAUSE: 'writes' },
@@ -642,13 +627,11 @@ void test(
   },
 );
 
-void test('successful arm, mutation and planner retain exact work weights after admission', async () => {
+void test('successful application arm and writes retain exact work weights after admission', async () => {
   for (const [method, path, body, weight, specific] of [
     ['POST', '/api/applications', '{"action":"arm"}', 1, 'arm-minute'],
     ['POST', '/api/applications', '{"action":"prepare"}', 10, 'write-minute'],
-    ['POST', '/api/agents', '{"action":"start"}', 10, 'write-minute'],
     ['POST', '/api/applications', '{invalid', 10, 'write-minute'],
-    ['GET', '/api/plan', undefined, 10, 'plan-minute'],
   ]) {
     const db = database();
     const req = request(method, path, 'cloudflare:alice', body);
@@ -720,22 +703,6 @@ void test('application arm is presence weight 1 and six per minute, not a mutati
     assert.equal(await usageGuard(arm(), env, now), null);
   assert.equal((await usageGuard(arm(), env, now)).status, 429);
   assert.equal(await usageGuard(arm(), env, now + 60_000), null);
-  db.sqlite.close();
-});
-
-void test('encoded and trailing-slash planner routes share the same expensive throttle', async () => {
-  const db = database();
-  for (let i = 0; i < 6; i++)
-    assert.equal(
-      await usageGuard(request('GET', '/api/plan'), { DB: db }, now),
-      null,
-    );
-  for (const path of ['/api/plan/', '/api/%70lan', '/api//plan']) {
-    assert.equal(
-      (await usageGuard(request('GET', path), { DB: db }, now)).status,
-      429,
-    );
-  }
   db.sqlite.close();
 });
 

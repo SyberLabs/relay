@@ -43,7 +43,7 @@ function handler(route, signedIn = true) {
   return { POST, calls };
 }
 
-for (const route of ['outcomes', 'preferences']) {
+for (const route of ['outcomes']) {
   void test(`${route} refuses a large declared body before reading or parsing`, async () => {
     const { POST, calls } = handler(route);
     const request = new Request(`https://relay.example/api/${route}`, {

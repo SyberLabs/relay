@@ -13,7 +13,7 @@ void test('the data notice states current shipped practices and is linked', asyn
     'cloudflare access',
     'authenticated',
     'd1',
-    'does not sell',
+    'does not sell your data',
     'does not post the employer form',
     'turnstile',
     'self-service',
@@ -42,7 +42,7 @@ void test('the data notice states current shipped practices and is linked', asyn
     await readFile('app/shell.tsx', 'utf8'),
     /href="\/privacy"[\s\S]{0,80}onClick=\{onNavigate\}/,
   );
-  assert.match(await source('README.md'), /\/privacy/);
+  assert.match(await source('README.md'), /privacy.{0,10}page/);
 });
 
 void test('the data notice is not a gateway static-asset bypass', async () => {

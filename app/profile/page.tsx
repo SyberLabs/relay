@@ -166,7 +166,7 @@ export default function Profile() {
     return (
       <ProductShell current="profile">
         <h1>Your profile</h1>
-        <p className="lead">Sign in to load your fact ledger and style card.</p>
+        <p className="lead">Sign in to load your confirmed facts and writing preferences.</p>
         {/* oxlint-disable-next-line next/no-html-link-for-pages -- Sites authentication requires top-level navigation. */}
         <a
           className="primary"
@@ -191,7 +191,7 @@ export default function Profile() {
         <div>
           <span>Confirmed and unexpired</span>
           <strong>{usable.toString().padStart(2, '0')}</strong>
-          <small>Available for agent citations</small>
+          <small>Available to include in assistant handoffs</small>
         </div>
         <div>
           <span>Awaiting your check</span>
@@ -201,12 +201,12 @@ export default function Profile() {
         <div>
           <span>Style rules</span>
           <strong>{rules.length.toString().padStart(2, '0')}</strong>
-          <small>Learned from review</small>
+          <small>Added by you</small>
         </div>
         <div>
           <span>Profile version</span>
           <strong>{version.toString().padStart(2, '0')}</strong>
-          <small>Recorded on agent draft logs</small>
+          <small>Changes make older handoffs stale</small>
         </div>
       </section>
       {message && (
@@ -246,7 +246,7 @@ export default function Profile() {
                     action: 'propose',
                     facts: candidates.filter((_, i) => chosen.has(i)),
                   },
-                  `${chosen.size} facts added. Confirm each one before the agent can cite it.`,
+                  `${chosen.size} facts added. Confirm each one before sharing it in a handoff.`,
                 );
                 if (sessionRef.current.expired) return;
                 setCandidates([]);
@@ -284,9 +284,9 @@ export default function Profile() {
             <CircleAlert size={18} /> Confirm before use ({proposed.length})
           </h2>
           <p>
-            Check the wording and evidence before confirming. Agent draft logs
-            require confirmed, unexpired citations. Add an expiry for a current
-            title or a headcount.
+            Check the wording and evidence before confirming. Only confirmed
+            facts are available to include in assistant handoffs. Add an expiry
+            for information that may change.
           </p>
           {proposed.map((f) => (
             <article className="factrow" key={f.id}>
@@ -313,7 +313,7 @@ export default function Profile() {
                         claim: f.claim,
                         expires: expiry[f.id] || null,
                       },
-                      'Confirmed by you. The agent may now cite this fact.',
+                      'Confirmed by you. This fact may now be included in an assistant handoff.',
                     )
                   }
                 >
@@ -363,7 +363,7 @@ export default function Profile() {
                 onClick={() =>
                   run(
                     { action: 'retire', id: f.id, claim: f.claim },
-                    'Fact retired. New agent draft logs cannot cite it.',
+                    'Fact retired. New assistant handoffs will not include it.',
                   )
                 }
               >
@@ -376,9 +376,8 @@ export default function Profile() {
       <section className="import">
         <h2>Style card ({rules.length})</h2>
         <p>
-          Rules are usually added during a review session rather than typed
-          here. Scope a rule to a role cluster when it should not apply to every
-          application.
+          Add writing preferences for future assistant handoffs. Scope a rule
+          to a role type when it should not apply to every application.
         </p>
         {rules.map((r) => (
           <article className="factrow" key={r.id}>

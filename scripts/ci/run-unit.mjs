@@ -1,7 +1,7 @@
 import { readdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 
-// Live suites (api, calibration, orchestration, cli) need a running, freshly
+// Live suites (api, orchestration, cli) need a running, freshly
 // migrated application and a dedicated workspace. Required CI runs each of
 // those via scripts/ci/run-integration.mjs on its own D1. Every other
 // top-level test is automatically part of the unit gate.
@@ -10,7 +10,6 @@ const files = (await readdir('tests'))
     (name) =>
       name.endsWith('.test.mjs') &&
       name !== 'api.test.mjs' &&
-      name !== 'calibration.test.mjs' &&
       name !== 'orchestration.test.mjs' &&
       name !== 'cli-live.test.mjs',
   )

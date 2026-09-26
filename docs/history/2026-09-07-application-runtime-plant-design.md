@@ -1,4 +1,6 @@
-# Application runtime plant UI
+# Superseded historical design: Application runtime plant UI
+
+> Historical design record. This preserves a 2026-09-07 proposal and a 2026-09-17 code snapshot; it is not current implementation guidance. The Autopilot toggle described below has since been removed. Current submission authorization requires one-use, payload-bound Inspect Accept. See the [current README](../../README.md) and [architecture](../../ARCHITECTURE.md) for the pilot scope.
 
 **Issue:** [#137](https://github.com/SyberLabs/relay/issues/137)
 **Date:** 2026-09-07
@@ -8,7 +10,7 @@
 
 ## Status (2026-09-17)
 
-T5 ([#196](https://github.com/SyberLabs/relay/issues/196) / [#199](https://github.com/SyberLabs/relay/pull/199)) replaced the nine-filter dashboard chrome with **Runtime** (`/`) and **Tracker** (`/track`). T6 ([#197](https://github.com/SyberLabs/relay/issues/197) / [#200](https://github.com/SyberLabs/relay/pull/200)) retired overlap-as-pick: Inspect `whyPicked` and **Posting comparison** are research notes, not a qualification score or Accept gate. Compile tests that parse `applyExpired` / `refresh` / `saveFirstJob` now read `app/workspace-runtime.tsx`; `app/workspace.tsx` is composition. Autopilot remains the existing policy toggle and does not `begin`. The 2026-09-07 “Existing behavior” and mock-reconciliation table below are historical. Do not restore fit-as-pick or first-class `/plan` `/preferences` `/review`.
+This status describes the repository as of 2026-09-17. T5 ([#196](https://github.com/SyberLabs/relay/issues/196) / [#199](https://github.com/SyberLabs/relay/pull/199)) replaced the nine-filter dashboard chrome with **Runtime** (`/`) and **Tracker** (`/track`). T6 ([#197](https://github.com/SyberLabs/relay/issues/197) / [#200](https://github.com/SyberLabs/relay/pull/200)) retired overlap-as-pick: Inspect `whyPicked` and **Posting comparison** are research notes, not a qualification score or Accept gate. Compile tests that parse `applyExpired` / `refresh` / `saveFirstJob` read `app/workspace-runtime.tsx`; `app/workspace.tsx` is composition. The Autopilot UI toggle from that revision has since been removed; one-use Inspect Accept remains the human authorization path. The 2026-09-07 “Existing behavior” and mock-reconciliation table below are historical. Do not restore fit-as-pick or first-class `/plan` `/preferences` `/review`.
 
 ## Problem
 

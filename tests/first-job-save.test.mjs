@@ -56,7 +56,6 @@ function baseDeps(state, session, fetcher) {
     fetch: fetcher,
     sessionRef: { current: session },
     selectedRef: { current: state.selected },
-    policyRef: { current: state.policy ?? null },
     editorRef: { current: state.editor },
     addJobViewerRef: { current: session.viewer },
     loadJobHistory: async (id) => {
@@ -82,8 +81,6 @@ function baseDeps(state, session, fetcher) {
     'busy',
     'message',
     'historyNext',
-    'policy',
-    'autopilot',
     'styleCount',
     'modal',
     'filter',

@@ -4,14 +4,11 @@ import { readFileSync } from 'node:fs';
 import {
   applicationReviewCopy,
   applicationReviewKind,
-  boundedPolicyMaximum,
-  policyJobIds,
   ctxTally,
   formatLocation,
   formatPay,
   isBlockedJob,
   isSentJob,
-  policyExpiryIso,
   queueRowHint,
   runtimeLanes,
   asSheetJobs,
@@ -398,39 +395,4 @@ void test('whyPicked shows posting notes as research, not overlap hits', () => {
   assert.doesNotMatch(source, /overlap your confirmed facts/);
   assert.equal(ctxTally(2, 1), '2 facts · 1 style rule');
   assert.equal(ctxTally(0, 0), 'no saved context yet');
-});
-
-void test('enabling autopilot refreshes an expired policy window', () => {
-  const now = Date.parse('2026-09-07T12:00:00.000Z');
-  assert.equal(
-    policyExpiryIso('2026-08-01T00:00:00.000Z', true, now),
-    '2026-09-14T12:00:00.000Z',
-  );
-  assert.equal(
-    policyExpiryIso('2026-09-10T00:00:00.000Z', true, now),
-    '2026-09-10T00:00:00.000Z',
-  );
-  assert.equal(
-    policyExpiryIso('2026-08-01T00:00:00.000Z', false, now),
-    '2026-08-01T00:00:00.000Z',
-  );
-  assert.equal(boundedPolicyMaximum(8.9), 8);
-  assert.equal(boundedPolicyMaximum(0), 1);
-  assert.equal(boundedPolicyMaximum(400), 100);
-});
-
-void test('policy job ids stay at the saved bounded scope', () => {
-  assert.deepEqual(policyJobIds(null), []);
-  assert.deepEqual(policyJobIds({ jobs: 'not-json' }), []);
-  assert.deepEqual(policyJobIds({ jobs: '{"id":"x"}' }), []);
-  assert.deepEqual(policyJobIds({ jobs: '["job-a","job-b"]' }), [
-    'job-a',
-    'job-b',
-  ]);
-  assert.equal(
-    policyJobIds({
-      jobs: JSON.stringify(Array.from({ length: 101 }, (_, i) => 'job-' + i)),
-    }).length,
-    100,
-  );
 });

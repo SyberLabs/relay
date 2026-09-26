@@ -110,11 +110,11 @@ test('assistant prompts and returned files preserve explicit draft review', asyn
     await expect(editor).toHaveValue(result.draft);
     await expect(
       page.getByText(
-        /Draft format, job identity and version checked; claims were not citation-checked/,
+        /Draft format, job identity and version checked; claims were not independently verified/,
       ),
     ).toBeVisible();
     await expect(
-      page.getByText(/Saving here does not run the agent citation check/),
+      page.getByText(/Check each claim against your evidence/),
     ).toBeVisible();
     let workspace = await (await page.request.get('/api/workspace')).json();
     const original = workspace.jobs.find(

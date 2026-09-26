@@ -1,4 +1,5 @@
 import Link from 'next/link';
+
 export default function About() {
   return (
     <main className="productpage">
@@ -7,14 +8,13 @@ export default function About() {
       </Link>
       <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
       <h1>
-        Keep your application
+        Keep each application’s
         <br />
-        work moving.
+        facts, wording, and history.
       </h1>
       <p className="lead">
-        Manage applications across your preferred AI tools. Keep candidate facts
-        available for reuse and preserve job research, reviewed drafts and
-        application history as you move between opportunities.
+        Relay keeps one private job record as work moves between you and the
+        assistants you already use.
       </p>
       <div className="actions">
         <Link href="/" className="primary">
@@ -26,67 +26,41 @@ export default function About() {
       </div>
       <section className="stats">
         <div>
-          <b>Keep the history</b>
-          <p>
-            Repeated postings join the same record. Earlier submissions stay
-            visible.
-          </p>
+          <b>Keep one record</b>
+          <p>Research, wording, status, and outcomes stay with the job.</p>
         </div>
         <div>
-          <b>Review the actual words</b>
-          <p>
-            Edit drafts, resolve missing facts and accept a specific version.
-          </p>
+          <b>Review exact wording</b>
+          <p>Relay refuses stale saves. You accept the text you reviewed.</p>
         </div>
         <div>
-          <b>Bring your assistant</b>
-          <p>
-            Import Obsidian or Notion research and exchange draft packets with
-            ChatGPT, Codex, Grok Bot or Claude.
-          </p>
+          <b>Carry context between tools</b>
+          <p>Prepare a job handoff for an external assistant, then review its draft in Relay.</p>
         </div>
       </section>
-      <h2>Bring your applications together.</h2>
+      <h2>How it works</h2>
       <p>
-        Add a posting with its title, URL and notes, or import multiple jobs
-        from a tracker CSV. Select a job to prepare, review and accept its
-        wording. Keep each application’s research and decisions available as you
-        move to the next. Already interviewing? Save notes and follow-ups
-        without resetting your application status.
+        Add a job or import selected research as evidence. Confirm candidate
+        facts yourself and include the facts needed for a draft in its assistant
+        handoff. Save returned wording against the current job version, review
+        it, then accept the exact text. Update application state yourself. In
+        the fictional fixture, the included Chrome operative can record
+        Submitted when it reports a receipt. Relay does not independently
+        verify what the employer received.
       </p>
-      <h2>What’s available today</h2>
+      <h2>Boundaries</h2>
       <p>
-        Bring a tracker CSV into Relay: match the company, role and posting URL
-        columns, preview the records, then import them as research. Original
-        statuses remain in the notes; existing Relay status and accepted drafts
-        are preserved. No tracker account connection is required.
-      </p>
-      <p>
-        A working review workspace, duplicate detection, source history, and
-        local command integrations. Obsidian notes can be selected for import,
-        and job snapshots downloaded into your vault. Notion imports are
-        read-only. Claude uses your API credentials. Grok Bot uses a documented
-        file handoff in its VM. ChatGPT uses a prepared prompt and JSON file
-        handoff. Codex supports the same handoff or a local command using your
-        signed-in Codex CLI. Every returned draft requires review.
+        Relay does not independently verify draft claims or POST an employer
+        form. A separate application action requires human Inspect approval
+        before an external browser receives a one-use permit. The included
+        Chrome operative is demonstrated only against a fictional fixture. No
+        hiring outcomes or time savings have been established.
       </p>
       <p>
-        Relay does not POST the employer form. A human Inspect Accept on a
-        complete armed payload authorizes the waiting operative to send once.
-        Live provider connections require setup. This early release has no
-        claimed hiring outcomes or proven throughput gains.
-      </p>
-      <h2>What the checks mean</h2>
-      <p>
-        Facts are confirmed by you. Agent draft logs use heuristic word and
-        number checks that can miss unsupported claims. Browser draft loading
-        checks format, job identity and version, not citations or factual
-        accuracy. Acceptance records your approval of exact wording.
-      </p>
-      <p>
-        <Link href="/advanced">Advanced tools</Link> include experimental
-        preference fitting, planning and agent batch review. They do not predict
-        offers or assess qualifications.
+        ChatGPT and Codex use explicit prompt and file handoffs; Codex also has
+        a local CLI adapter. Obsidian, Notion, Claude, and Grok Bot use their
+        documented local or file workflows. Live provider access depends on
+        your own account and setup.
       </p>
       <div className="actions">
         <a href="https://github.com/SyberLabs/relay/blob/main/integrations/README.md">

@@ -39,6 +39,7 @@ ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter.
 ## Pilot status
 
 Relay is in an invited pilot. No hiring outcomes or time savings have been established.
+See the app’s Privacy page for current data handling.
 
 ## Stack
 

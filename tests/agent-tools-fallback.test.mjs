@@ -68,7 +68,7 @@ for (const mode of ['unavailable', 'registered', 'throw', 'reject']) {
       statuses.at(-1),
       mode === 'throw' || mode === 'reject' ? 'failed' : mode,
     );
-    assert.equal(Object.keys(window.relay).length, 15);
+    assert.equal(Object.keys(window.relay).length, 13);
     assert.equal(window.relay.relay_approve_application, undefined);
 
     const result = await window.relay.relay_read_workspace({});

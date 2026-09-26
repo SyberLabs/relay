@@ -1,4 +1,6 @@
-# Invited-pilot trust boundaries
+# Historical trust review: September 6, 2026
+
+> Archived implementation snapshot for commit `bae278130f2031aab1249aa88f7bf54b46741460`. It describes the product before the September 2026 pilot-scope reduction, including routes and checks removed later. Keep it as evidence of that review, not as a current feature guide. The current pilot workflow is documented in [README.md](../README.md) and [the pilot protocol](pilot/README.md).
 
 Owner: Seth Carlson. Implementation: #78. Baseline inspected: `bae278130f2031aab1249aa88f7bf54b46741460`, September 6, 2026. This work changes navigation and presentation, not claim algorithms, handoff contracts, status transitions or storage.
 

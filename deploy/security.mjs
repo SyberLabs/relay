@@ -132,7 +132,7 @@ export async function usageGuard(request, env, now = Date.now()) {
     ['global:month', month, 2_000_000, monthRetry],
   ];
   // Admit even classification work before reading a body. Refusals retain this
-  // minimum charge; successful mutations/planning reserve nine more below.
+  // minimum charge; successful mutations reserve nine more below.
   const admission = await reserveBudgets(env.DB, [
     [`${user}:minute`, minute, 1, 120, 60],
     ...workBudgets.map(([scope, period, limit, retry]) => [
@@ -147,12 +147,9 @@ export async function usageGuard(request, env, now = Date.now()) {
   const arm = await applicationsArm(request, path);
   if (arm instanceof Response) return arm;
   const mutation = write && !arm;
-  const remainingWork = !arm && (write || path === '/api/plan') ? 9 : 0;
+  const remainingWork = !arm && write ? 9 : 0;
   const denied = await reserveBudgets(env.DB, [
     ...(mutation ? [[`${user}:write-minute`, minute, 1, 20, 60]] : []),
-    ...(path === '/api/plan'
-      ? [[`${user}:plan-minute`, minute, 1, 6, 60]]
-      : []),
     ...(arm ? [[`${user}:arm-minute`, minute, 1, 6, 60]] : []),
     ...(remainingWork
       ? workBudgets.map(([scope, period, limit, retry]) => [

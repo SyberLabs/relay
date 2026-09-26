@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { openDraftNested, openDraftTools } from './open-draft-tools';
 
-test('pilot navigation keeps facts, exact review and history visible with advanced tools secondary', async ({
+test('pilot navigation keeps confirmed facts, exact review and history visible', async ({
   page,
 }) => {
   await page.goto('/');
@@ -18,15 +18,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   await expect(sidebar.getByRole('link', { name: 'Your facts' })).toBeVisible();
   await expect(sidebar.getByRole('link', { name: 'Tracker' })).toBeVisible();
   await expect(sidebar.getByRole('group', { name: 'Job list' })).toHaveCount(0);
-  for (const href of [
-    '/review',
-    '/preferences',
-    '/plan',
-    '/advanced/review',
-    '/advanced/preferences',
-    '/advanced/plan',
-  ])
-    await expect(sidebar.locator(`a[href="${href}"]`)).toHaveCount(0);
+  await expect(sidebar.getByRole('link', { name: 'Advanced' })).toHaveCount(0);
 
   const profileLoaded = page.waitForResponse(
     (response) =>
@@ -55,7 +47,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
     .getByRole('button', { name: 'Confirm fact', exact: true })
     .click();
   await expect(
-    page.getByText('Confirmed by you. The agent may now cite this fact.'),
+    page.getByText('Confirmed by you. This fact may now be included in an assistant handoff.'),
   ).toBeVisible();
   await sidebar.getByRole('link', { name: 'Runtime', exact: true }).click();
   await page
@@ -104,7 +96,7 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
   const draft = 'I built a fictional inventory service for Larch Example.';
   await editor.fill(draft);
   await expect(
-    page.getByText(/Saving here does not run the agent citation check/),
+    page.getByText(/Check each claim against your evidence/),
   ).toBeVisible();
   page.once('dialog', (dialog) => dialog.dismiss());
   await page.getByRole('link', { name: 'Tracker', exact: true }).click();
@@ -155,128 +147,4 @@ test('pilot navigation keeps facts, exact review and history visible with advanc
     .getByRole('link', { name: 'Tracker' })
     .click();
   await expect(page).toHaveURL(/\/track/);
-  await sidebar.getByRole('link', { name: 'Advanced', exact: true }).click();
-  await expect(page).toHaveURL(/\/advanced/);
-  await expect(
-    page.getByRole('heading', { name: 'Advanced', exact: true }),
-  ).toBeVisible();
-  for (const name of ['Batch review', 'Preferences', 'This week'])
-    await expect(page.getByRole('link', { name, exact: true })).toBeVisible();
-});
-
-test('advanced navigation preserves planning, preferences and logged batch review', async ({
-  page,
-}) => {
-  await page.goto('/');
-  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
-  const imported = await page.request.post('/api/workspace', {
-    data: {
-      action: 'import',
-      rows: [
-        {
-          url: 'https://example.com/research/advanced-pilot-a',
-          Name: 'Advanced Example — Backend Engineer',
-          Job: 'https://example.com/jobs/advanced-pilot-a',
-          Status: 'Held',
-          Notes: 'Fictional backend role.',
-        },
-        {
-          url: 'https://example.com/research/advanced-pilot-b',
-          Name: 'Advanced Example — Data Engineer',
-          Job: 'https://example.com/jobs/advanced-pilot-b',
-          Status: 'Held',
-          Notes: 'Fictional data role.',
-        },
-      ],
-    },
-  });
-  expect(imported.ok()).toBe(true);
-  const workspace = await (await page.request.get('/api/workspace')).json();
-  const job = workspace.jobs.find(
-    (row: { name: string }) =>
-      row.name === 'Advanced Example — Backend Engineer',
-  );
-  const logged = await page.request.post('/api/drafts', {
-    data: {
-      action: 'log',
-      job_id: job.id,
-      body: 'Thank you for considering my application.',
-      cited: [],
-    },
-  });
-  expect(logged.ok()).toBe(true);
-  await page.getByRole('link', { name: 'Tracker', exact: true }).click();
-  await page
-    .locator('aside.sidebar')
-    .getByRole('link', { name: 'Advanced', exact: true })
-    .click();
-  await expect(
-    page.getByText(/Experimental tools for planning and agent batches/),
-  ).toBeVisible();
-  await page.getByRole('link', { name: 'Batch review', exact: true }).click();
-  await expect(page).toHaveURL(/\/advanced\/review$/);
-  await expect(
-    page.getByRole('heading', { name: 'Batch review', exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText(/It can miss unsupported claims/)).toBeVisible();
-  await page.getByRole('button', { name: 'Open review session' }).click();
-  await expect(page.getByText('Review session open.')).toBeVisible();
-  await page.getByRole('button', { name: 'Mark reviewed as written' }).click();
-  await expect(
-    page.getByText(
-      'Marked reviewed as written. Accept the exact job draft in the workspace.',
-    ),
-  ).toBeVisible();
-  const after = await (await page.request.get('/api/workspace')).json();
-  expect(
-    after.jobs.find((row: { id: string }) => row.id === job.id).accepted_draft,
-  ).toBeNull();
-  await page
-    .getByRole('button', { name: 'Close review and apply 0 rules' })
-    .click();
-  await expect(
-    page.getByText('Session closed. 0 rules now apply to new drafts.'),
-  ).toBeVisible();
-  await page
-    .getByRole('main')
-    .getByRole('link', { name: 'Advanced', exact: true })
-    .click();
-  const preferencesLoaded = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/api/preferences') &&
-      response.request().method() === 'GET',
-  );
-  await page.getByRole('link', { name: 'Preferences', exact: true }).click();
-  await expect(page).toHaveURL(/\/advanced\/preferences$/);
-  const preferences = await (await preferencesLoaded).json();
-  await expect(
-    page.locator('.stats > div').nth(1).locator('strong'),
-  ).toHaveText(String(preferences.pool).padStart(2, '0'));
-  await expect(
-    page.getByRole('heading', { name: 'Preferences', exact: true }),
-  ).toBeVisible();
-  await page.getByRole('spinbutton', { name: 'Minutes per week' }).fill('90');
-  await page.getByRole('button', { name: 'Save budget' }).click();
-  await expect(page.getByText('Budget saved.')).toBeVisible();
-  expect(
-    (await (await page.request.get('/api/preferences')).json()).minutes,
-  ).toBe(90);
-  await page
-    .getByRole('main')
-    .getByRole('link', { name: 'Advanced', exact: true })
-    .click();
-  await page.getByRole('link', { name: 'This week', exact: true }).click();
-  await expect(page).toHaveURL(/\/advanced\/plan$/);
-  await expect(
-    page.getByText('Experimental plan score', { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText(/A reply is not an offer/)).toBeVisible();
-  await expect(page.getByText('of 90 minutes', { exact: true })).toBeVisible();
-  await expect(
-    page.getByText('Expected best offer', { exact: true }),
-  ).toHaveCount(0);
-  await page.locator('a.backlink').filter({ hasText: 'Runtime' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Runtime', exact: true }),
-  ).toBeVisible();
 });

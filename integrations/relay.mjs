@@ -5,7 +5,6 @@ import {
   pullNotion,
   draftClaude,
   validatePacket,
-  pullBoard,
 } from './connectors.mjs';
 import { validateRows } from '../lib/domain.ts';
 import { obsidianDraftNote } from '../lib/obsidian.ts';
@@ -21,12 +20,7 @@ const apiCommands = new Set([
   'brief',
   'context',
   'stage',
-  'log',
-  'draft',
-  'plan',
-  'status',
   'outcome',
-  'hunt',
 ]);
 async function read(path) {
   if (!path) throw Error('An input file is required.');
@@ -52,14 +46,6 @@ async function save(path, data, markdown = false) {
 try {
   if (apiCommands.has(command)) {
     process.exitCode = await runCli(process.argv.slice(2));
-  } else if (command === 'board-pull') {
-    // Usage: board-pull greenhouse northstar out.json
-    const [, provider, board, target] = process.argv.slice(2);
-    if (!provider || !board || !target)
-      throw Error('Usage: board-pull <greenhouse|lever> <board> output.json');
-    const rows = await pullBoard({ provider, board });
-    await save(target, rows);
-    console.log(`${rows.length} postings normalised from ${provider}.`);
   } else if (command === 'notion-pull') {
     // One page per call makes truncation explicit and avoids unbounded API work.
     const page = await pullNotion({
@@ -152,7 +138,7 @@ try {
     });
   } else {
     console.log(
-      'Relay integrations\n  login | brief | log | draft | plan | status | outcome   (local API; see integrations/README.md)\n  notion-pull output.json\n  obsidian-pull note.md [another.md ...] output.json\n  obsidian-draft packet.json output.md\n  claude-draft packet.json output.json\n  chatgpt-prompt packet.json output.md\n  codex-prompt packet.json output.md\n  codex-run packet.json output.json\n  chatgpt-draft packet.json draft.txt output.json\n  codex-draft packet.json draft.txt output.json\n  grok-research rows.json output.json\n  grok-draft packet.json draft.txt output.json\nCredentials are read from environment variables or Codex CLI sign-in. See integrations/README.md.',
+      'Relay integrations\n  login | brief | context | stage | outcome   (local API; see integrations/README.md)\n  notion-pull output.json\n  obsidian-pull note.md [another.md ...] output.json\n  obsidian-draft packet.json output.md\n  claude-draft packet.json output.json\n  chatgpt-prompt packet.json output.md\n  codex-prompt packet.json output.md\n  codex-run packet.json output.json\n  chatgpt-draft packet.json draft.txt output.json\n  codex-draft packet.json draft.txt output.json\n  grok-research rows.json output.json\n  grok-draft packet.json draft.txt output.json\nCredentials are read from environment variables or Codex CLI sign-in. See integrations/README.md.',
     );
     if (command && command !== '--help') process.exitCode = 1;
   }

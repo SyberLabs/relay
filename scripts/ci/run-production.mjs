@@ -473,17 +473,6 @@ try {
   await expectStatus(await call(decisionUser, decisionInput), 200, 'decision receipt replay');
   assert.deepEqual(await (await call(decisionUser)).json(), decided, 'Decision replay must not perform work twice');
   const limitedUser = await token('quota-fixture');
-  console.log('Checking concurrent planner throttling.');
-  const planReplies = await Promise.all(Array.from({ length: 15 }, () => fetch(`${base}/api/plan`, {
-    headers: { 'Cf-Access-Jwt-Assertion': limitedUser },
-    signal: AbortSignal.timeout(20_000),
-  })));
-  assert.ok(planReplies.every(response => [200, 429].includes(response.status)));
-  assert.ok(planReplies.some(response => response.status === 429), 'Concurrent planner calls must exhaust the D1 throttle');
-  for (const response of planReplies) {
-    if (response.status === 429) assert.ok(Number(response.headers.get('retry-after')) > 0);
-    await response.text();
-  }
   console.log('Checking oversized mutation refusal.');
   const oversized = await fetch(`${base}/api/workspace`, {
     method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': limitedUser },

@@ -1,7 +1,7 @@
 {
   "name": "RELAY",
-  "tagline": "Keep your application work moving.",
-  "summary": "Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.",
+  "tagline": "Keep each application’s facts, wording, and history together.",
+  "summary": "Relay is a private, human-reviewed workspace for carrying job context between assistants and keeping an application record current.",
   "repository": "https://github.com/SyberLabs/relay",
   "leadEngineer": "Seth Carlson",
   "leadProfile": "https://github.com/sdcarlson",
@@ -9,74 +9,56 @@
   "peerProfile": "https://github.com/sykosyber",
   "stage": "Invited pilot",
   "capabilities": [
-    "One history per job: matching posting URLs join the same record, and earlier research stays visible.",
-    "Add a job from a role title, HTTP(S) posting URL, and optional notes. Matching URLs join that existing record without resetting status or accepted drafts.",
-    "Exact draft acceptance: you approve specific wording; changing it requires review again.",
-    "A focused question review lets you delegate routine writing choices, remember that preference, or share a short answer. Your assistant receives the direction on its next context read; required facts and exact draft acceptance remain separate.",
-    "Interview notes and follow-ups that do not reset a submitted or live-loop application.",
-    "Import a tracker CSV through column mapping and a record preview. Imported statuses stay research; existing Relay status and accepted drafts are preserved.",
-    "A reusable candidate fact ledger: you confirm accuracy. Agent draft logs check selected claim patterns using word and number overlap with cited facts; unsupported claims can still pass.",
-    "Browser draft loading checks format, job identity and version. It does not check citations or factual accuracy; workspace saves do not run the agent citation check.",
-    "Advanced tools preserve experimental agent batch review, preference fitting and weekly planning. Planning uses estimated reply rates, not offer probabilities. Staging never accepts or sends a draft.",
-    "Pull public Greenhouse and Lever boards onto existing job identity. Discovery arrives Held.",
-    "Record outcomes with a receipt before a submission counts toward reply rates. Ended applications cannot be reopened by import.",
-    "An existing assistant with local command access can retrieve saved job context and stage its own exact draft for human review without user file transfer. Staging requires the generation-time version and explicit blocker; it does not verify claims or accept wording. Separate citation-checked draft logging and its trust rules remain unchanged. The local CLI cannot accept drafts, confirm facts, or submit applications.",
-    "Where browser WebMCP is supported, an existing assistant can retrieve one job's research, saved confirmed facts and action history, then stage a version-bound draft directly for human review without file transfer. When WebMCP is missing, the same owner-session tools are available as window.relay for JavaScript evaluation in the signed-in tab. Exact acceptance remains in the signed-in workspace. This is not a hosted MCP connection.",
-    "A human Inspect Accept on a complete armed payload authorizes the waiting operative to send once. Relay does not POST the employer form.",
-    "An unpacked Chrome MV3 first-party operative is the recommended send surface: it prepares and arms from a signed-in Relay tab, waits for Inspect Accept, begins once, clicks a fictional fixture Submit once, and records the observed receipt. It does not fetch Relay APIs from chrome-extension://, export cookies, or POST the employer form from Relay. Same-tab window.relay remains when the extension cannot load."
+    "Keep one owner-scoped record per job, with research and application history kept together.",
+    "Import selected tracker rows or job research as evidence; imports do not accept wording or overwrite current application state.",
+    "Maintain candidate facts that you confirm yourself. For a prompt or file handoff, include only facts relevant to that job.",
+    "Return assistant-written wording to the same job. Relay checks the job version and refuses stale saves.",
+    "Review and accept exact wording yourself. Editing accepted text requires fresh acceptance.",
+    "Update application state yourself. In the fictional fixture, the included Chrome operative can record Submitted when it reports a receipt. Relay does not independently verify what the employer received.",
+    "A separate application action requires human Inspect approval before an external browser receives a one-use permit. Relay itself does not POST the employer form."
   ],
   "integrations": [
     {
       "name": "ChatGPT",
-      "description": "Prepare a job packet and prompt, then bring a JSON draft back for review.",
+      "description": "Prepare a selected-job handoff, then return the assistant's draft for review.",
       "guide": "integrations/OPENAI.md"
     },
     {
       "name": "Codex",
-      "description": "The same packet, plus optional local drafting through the signed-in Codex CLI.",
+      "description": "Use the same handoff or the local CLI adapter with a signed-in Codex CLI.",
       "guide": "integrations/OPENAI.md"
     },
     {
       "name": "Obsidian",
-      "description": "Selected research notes, version-bound draft edits, and job-context exports from your vault.",
+      "description": "Exchange selected job research and version-bound draft files.",
       "guide": "integrations/OBSIDIAN.md"
     },
     {
       "name": "Notion",
-      "description": "Read-only research import through a local command you run with your own credentials.",
+      "description": "Import selected research through a local read-only command.",
       "guide": "integrations/README.md"
     },
     {
       "name": "Claude",
-      "description": "Draft preparation from facts you supply through the Claude API, using your own key. The local relay CLI can log drafts against saved, user-confirmed facts with heuristic citation checks.",
+      "description": "Prepare an external draft with your own API credentials.",
       "guide": "integrations/README.md"
     },
     {
       "name": "Grok Bot",
-      "description": "Validated research and draft file exchange inside the Bot's VM. In a signed-in Relay tab without WebMCP, prefer window.relay; do not export cookies.",
+      "description": "Exchange research and drafts through explicit file or local command handoffs.",
       "guide": "integrations/GROK_BOT.md"
     },
     {
-      "name": "Chrome operative",
-      "description": "Unpacked MV3 extension that fills a fictional fixture form after Inspect Accept. Not a store listing, Autopilot, or real ATS adapter.",
-      "guide": "extensions/operative/README.md"
-    },
-    {
       "name": "Tracker CSV",
-      "description": "Map columns, preview rows, and import a local tracker file as research.",
+      "description": "Map columns, preview selected rows, then import them as research.",
       "guide": "integrations/README.md"
     },
     {
-      "name": "Greenhouse",
-      "description": "Read-only public board pull onto existing job identity. No credentials and no application sending.",
-      "guide": "integrations/README.md"
-    },
-    {
-      "name": "Lever",
-      "description": "Read-only public board pull onto existing job identity. No credentials and no application sending.",
-      "guide": "integrations/README.md"
+      "name": "Chrome operative",
+      "description": "Optional unpacked extension for the fictional fixture; not a real ATS adapter.",
+      "guide": "extensions/operative/README.md"
     }
   ],
-  "boundary": "Every returned draft needs human review. User confirmation and heuristic checks do not establish factual truth, qualifications or improved hiring outcomes. Acceptance records approval of exact wording. Integrations use explicit file and command handoffs, browser tools where WebMCP is supported, window.relay in the signed-in tab, or the unpacked first-party Chrome operative for a fictional fixture send; Relay does not POST the employer form, host an MCP connection, or sync accounts in the background. Human Inspect Accept authorizes the waiting operative to submit once after begin execute:true.",
-  "openaiBoundary": "ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. This release does not include a hosted ChatGPT app or MCP connection."
+  "boundary": "Assistants can prepare drafts from context the person chooses to share. They cannot confirm facts, accept wording, or infer permission to act. Accepting wording records approval of that exact text; it grants no permission to submit. Relay does not independently verify draft claims or assess qualifications.",
+  "openaiBoundary": "ChatGPT uses a prompt and file handoff; Codex also supports a local CLI adapter. Relay does not provide a hosted ChatGPT app or hosted MCP connection."
 }

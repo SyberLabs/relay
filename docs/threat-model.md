@@ -22,7 +22,7 @@ The production Worker normalizes identity only after verification; all reads and
 - Release substitution: accept only successful CI runs from this repository's main push; verify the source commit and artifact manifest; promote the tested candidate through isolated staging and approved production.
 - Destructive migration or rollback: rehearse migrations, use expand/contract changes, preserve provider recovery capability, and verify schema compatibility before code rollback. Stop for operator review when recovery changes data.
 - Review prompt injection: code, comments and fixtures are review input, never instructions granting tools, credentials, approval or execution authority. Agent review must not bypass human review or release gates.
-- Relay-funded Agents API: kill-switched and off by default. OpenAI session memory is not canonical truth and cannot authorize send. Function tools cannot include verify/accept/begin. Live fetch is only `https://api.openai.com/v1/agents/`. Hosted sandbox and `environment_connection` are refused. US residency and no Zero Data Retention are product limits, not a ZDR control.
+- Application action: human Inspect approval binds to one exact operation. A one-use permit is consumed before an external browser can submit; uncertain execution stays locked and must not be retried. Relay does not POST the employer form or independently verify the employer's receipt.
 
 ## Known limits
 

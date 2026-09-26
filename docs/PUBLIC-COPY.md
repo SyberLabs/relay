@@ -25,7 +25,7 @@ This is eventual synchronization, not an instantaneous guarantee. GitHub schedul
 
 Automation distributes reviewed facts; it cannot prove that prose still matches new product behavior. The product-change checklist remains the owner's responsibility. Do not edit a generated section by hand; the next refresh will restore it from the canonical source.
 
-For pilot trust copy, distinguish user-confirmed candidate facts, heuristic agent citation checks, browser draft identity/version checks, and human acceptance of exact wording. Do not describe any of these as independent factual verification, qualification assessment, or evidence of improved hiring outcomes. Keep experimental planning and batch capabilities secondary. See [product trust boundaries](product-trust.md) for verified limitations and follow-up scope. Draft PR work regenerates only this repository; downstream publication follows a separately approved merge/release.
+For pilot copy, distinguish facts the person confirmed, selected job/version checks on returned drafts, and human acceptance of exact wording. Relay does not independently verify claims or assess qualifications, and no hiring or throughput gains have been established. In the fictional fixture, the operative can record Submitted when it reports a receipt; that record does not independently verify employer-side action. Draft work regenerates only this repository; downstream publication follows a separately approved merge/release.
 
 For a local preview of another target:
 

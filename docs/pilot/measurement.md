@@ -1,6 +1,6 @@
 # Measurement specification
 
-Protocol v1; source inspection at [`fe91bb3bd2faa087680eacae246d31d7b7eb27d1`](https://github.com/SyberLabs/relay/tree/fe91bb3bd2faa087680eacae246d31d7b7eb27d1), 2026-09-07. This is a read-only code inventory, not a live deployment or analytics audit. Recheck mappings against the participant's actual build; never assign this commit to Ravi by assumption. Manual records are sufficient for this pilot. Missing events below are specifications of evidence gaps, not implemented telemetry or prerequisites for running the study.
+Protocol v1; source inspection at [`fe91bb3bd2faa087680eacae246d31d7b7eb27d1`](https://github.com/SyberLabs/relay/tree/fe91bb3bd2faa087680eacae246d31d7b7eb27d1), 2026-09-07. This is a read-only code inventory, not a live deployment or analytics audit. Route and event references describe only that inspected commit; the separate draft-log route cited below has since been removed. Recheck mappings against the participant's actual build; never assign this commit to Ravi by assumption. Manual records are sufficient for this pilot. Missing events below are specifications of evidence gaps, not implemented telemetry or prerequisites for running the study.
 
 ## Units, cohort, and clock
 

@@ -1,5 +1,4 @@
-import type { Fact, Rule, DraftRow } from './profile.ts';
-import type { Posting } from './utility.ts';
+import type { Fact, Rule } from './profile.ts';
 export async function loadFacts(db: D1Database, user: string) {
   const r = await db
     .prepare('SELECT * FROM profile_facts WHERE owner=? ORDER BY created')
@@ -14,13 +13,6 @@ export async function loadRules(db: D1Database, user: string) {
     .all<Rule>();
   return r.results;
 }
-export async function loadDrafts(db: D1Database, user: string) {
-  const r = await db
-    .prepare('SELECT * FROM drafts WHERE owner=? ORDER BY created')
-    .bind(user)
-    .all<DraftRow>();
-  return r.results;
-}
 export async function profileVersion(db: D1Database, user: string) {
   const row = await db
     .prepare('SELECT profile_version FROM profile_state WHERE owner=?')
@@ -28,10 +20,8 @@ export async function profileVersion(db: D1Database, user: string) {
     .first<{ profile_version: number }>();
   return row?.profile_version ?? 1;
 }
-// Every profile change advances the version, and every draft records the
-// version it was written under. Without that stamp a bad draft cannot be
-// attributed to a bad agent rather than a stale profile, and the calibration
-// loop stops being falsifiable.
+// A profile version lets handoff clients detect that the available facts or
+// rules changed after the context was read.
 export function bumpProfile(db: D1Database, user: string, now: string) {
   return db
     .prepare(
@@ -55,37 +45,6 @@ export type JobRow = {
   posted: string | null;
   effort: number;
 };
-export function toPosting(job: JobRow): Posting {
-  return {
-    job_key: job.job_key,
-    name: job.name,
-    company: job.company || '',
-    level: job.level || '',
-    remote: job.remote || '',
-    comp_min: job.comp_min,
-    comp_max: job.comp_max,
-    size: job.size || '',
-    posted: job.posted,
-  };
-}
-export async function loadPreferences(db: D1Database, user: string) {
-  const row = await db
-    .prepare('SELECT * FROM preferences WHERE owner=?')
-    .bind(user)
-    .first<{ weights: string; pairs: number; minutes: number }>();
-  return {
-    weights: row?.weights || '',
-    pairs: row?.pairs ?? 0,
-    minutes: row?.minutes ?? 120,
-  };
-}
-export async function loadChoices(db: D1Database, user: string) {
-  const r = await db
-    .prepare('SELECT * FROM choices WHERE owner=? ORDER BY created')
-    .bind(user)
-    .all<{ winner: string; loser: string; delta: string }>();
-  return r.results;
-}
 export async function loadOutcomes(db: D1Database, user: string) {
   const r = await db
     .prepare('SELECT * FROM outcomes WHERE owner=? ORDER BY occurred')
@@ -105,24 +64,5 @@ export async function loadJobs(db: D1Database, user: string) {
     .prepare('SELECT * FROM jobs WHERE owner=? ORDER BY updated DESC,name')
     .bind(user)
     .all<JobRow>();
-  return r.results;
-}
-export async function loadRefusals(db: D1Database, user: string) {
-  const r = await db
-    .prepare('SELECT * FROM refusals WHERE owner=? ORDER BY created')
-    .bind(user)
-    .all<{
-      id: string;
-      job_id: string;
-      reason: string;
-      created: string;
-    }>();
-  return r.results;
-}
-export async function loadBatches(db: D1Database, user: string) {
-  const r = await db
-    .prepare('SELECT * FROM review_batches WHERE owner=? ORDER BY opened')
-    .bind(user)
-    .all<{ id: string; closed: string | null }>();
   return r.results;
 }

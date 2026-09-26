@@ -176,6 +176,7 @@ export const profileState = sqliteTable('profile_state', {
   profile_version: integer('profile_version').notNull().default(1),
   updated: text('updated').notNull(),
 });
+// Legacy batch-review data. Keep the existing schema and rows for compatibility.
 export const drafts = sqliteTable(
   'drafts',
   {
@@ -194,6 +195,7 @@ export const drafts = sqliteTable(
   },
   (t) => [index('drafts_owner_verdict').on(t.owner, t.verdict)],
 );
+// Legacy batch-review data. Current pilot routes do not create or read it.
 export const reviewBatches = sqliteTable(
   'review_batches',
   {
@@ -216,6 +218,7 @@ export const preferences = sqliteTable('preferences', {
   minutes: integer('minutes').notNull().default(120),
   updated: text('updated').notNull(),
 });
+// Retired preference-fitting records; keep the schema and stored rows intact.
 export const choices = sqliteTable(
   'choices',
   {
@@ -242,6 +245,7 @@ export const outcomes = sqliteTable(
   },
   (t) => [index('outcomes_owner_job').on(t.owner, t.job_id)],
 );
+// Legacy internal agent-runtime records. Keep them for migration compatibility.
 export const agentSessions = sqliteTable(
   'agent_sessions',
   {
@@ -293,15 +297,7 @@ export const agentToolCalls = sqliteTable(
     index('agent_tool_calls_owner_session').on(t.owner, t.session_id),
   ],
 );
-// A refusal record is not a draft. It never enters the review queue, is never
-// citable and never counts toward graduation.
-//
-// It holds no text from the refused draft. An earlier revision stored the
-// failing clause, which for a single-sentence draft is the whole body -- so
-// the columns are a one-way summary instead: which rule fired, how many
-// figures the clause carried, its length, and whether an employer possessive
-// governed it. That measures the gate's strictness without retaining a word of
-// what was written.
+// Legacy draft-gate audit records. Keep the schema and rows for compatibility.
 export const refusals = sqliteTable('refusals', {
   id: text('id').primaryKey(),
   owner: text('owner').notNull(),

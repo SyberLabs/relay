@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { ApplicationPolicy } from '../lib/application-automation';
 import type { Gate } from '../lib/fit';
 import { whyPicked } from '../lib/runtime';
 import type { RelayToolStatus } from './agent-tools';
@@ -23,27 +22,7 @@ export type RuntimeModal =
   | 'blocked'
   | null;
 
-function ToolsPanel({
-  toolStatus,
-  policy,
-  jobs,
-  busy,
-  onSaveLimits,
-  onClose,
-}: {
-  toolStatus: RelayToolStatus;
-  policy: ApplicationPolicy | null;
-  jobs: { id: string; name: string; status: string }[];
-  busy: boolean;
-  onSaveLimits: (input: {
-    maximum: number;
-    review: string;
-    enabled: boolean;
-  }) => boolean | void | Promise<boolean | void>;
-  onClose: () => void;
-}) {
-  const [maximum, setMaximum] = useState(policy?.maximum || 8);
-  const [enabled, setEnabled] = useState(Boolean(policy?.enabled));
+function ToolsPanel({ toolStatus }: { toolStatus: RelayToolStatus }) {
   return (
     <>
       <div className="sect">
@@ -86,55 +65,6 @@ function ToolsPanel({
           </div>
         </div>
       </div>
-      <div className="sect">
-        <h4>Application limits</h4>
-        <p className="hint">
-          Autopilot uses this policy. It never sends an employer form from
-          Relay. Review every application in Inspect before the agent obtains
-          its one-time permit.
-        </p>
-        <label className="field">
-          Applications per policy
-          <input
-            aria-label="Applications per day"
-            type="number"
-            min={1}
-            max={100}
-            value={maximum}
-            onChange={(e) => setMaximum(Number(e.target.value))}
-          />
-        </label>
-        <p>Approval setting: Review every application.</p>
-        {policy?.review === 'sensitive' && (
-          <p className="hint">
-            Your saved policy uses the earlier automatic setting. Save limits to
-            require Inspect approval for every application.
-          </p>
-        )}
-        <label className="check">
-          <input
-            checked={enabled}
-            onChange={(e) => setEnabled(e.target.checked)}
-            type="checkbox"
-          />
-          Enable application execution for {jobs.length} saved job
-          {jobs.length === 1 ? '' : 's'}
-        </label>
-        <button
-          className="btn btn-sm btn-clear"
-          disabled={busy}
-          onClick={() => {
-            void Promise.resolve(
-              onSaveLimits({ maximum, review: 'all', enabled }),
-            ).then((ok) => {
-              if (ok) onClose();
-            });
-          }}
-          type="button"
-        >
-          Save limits
-        </button>
-      </div>
     </>
   );
 }
@@ -158,10 +88,6 @@ export function RuntimeModals({
   saveProfile,
   onSaveProfile,
   toolStatus,
-  policy,
-  jobs,
-  onSaveLimits,
-  busy,
   acceptDisabled,
   sessionRef,
   onUnauthorized,
@@ -185,14 +111,6 @@ export function RuntimeModals({
   saveProfile: boolean;
   onSaveProfile: (value: boolean) => void;
   toolStatus: RelayToolStatus;
-  policy: ApplicationPolicy | null;
-  jobs: { id: string; name: string; status: string }[];
-  onSaveLimits: (input: {
-    maximum: number;
-    review: string;
-    enabled: boolean;
-  }) => boolean | void | Promise<boolean | void>;
-  busy: boolean;
   acceptDisabled?: boolean;
   sessionRef: { current: WorkspaceSession };
   onUnauthorized: () => void;
@@ -233,10 +151,6 @@ export function RuntimeModals({
         saveProfile,
         onSaveProfile,
         toolStatus,
-        policy,
-        jobs,
-        onSaveLimits,
-        busy,
         acceptDisabled,
         sessionRef,
         onUnauthorized,
@@ -265,10 +179,6 @@ function RuntimeModalDialog({
   saveProfile,
   onSaveProfile,
   toolStatus,
-  policy,
-  jobs,
-  onSaveLimits,
-  busy,
   acceptDisabled,
   sessionRef,
   onUnauthorized,
@@ -292,14 +202,6 @@ function RuntimeModalDialog({
   saveProfile: boolean;
   onSaveProfile: (value: boolean) => void;
   toolStatus: RelayToolStatus;
-  policy: ApplicationPolicy | null;
-  jobs: { id: string; name: string; status: string }[];
-  onSaveLimits: (input: {
-    maximum: number;
-    review: string;
-    enabled: boolean;
-  }) => boolean | void | Promise<boolean | void>;
-  busy: boolean;
   acceptDisabled?: boolean;
   sessionRef: { current: WorkspaceSession };
   onUnauthorized: () => void;
@@ -374,7 +276,7 @@ function RuntimeModalDialog({
     }
     setCandidates(outcome.body.candidates || []);
     setNote(
-      `${outcome.body.candidates?.length ?? 0} candidate facts found. Confirm them on Your facts before agents can cite them.`,
+      `${outcome.body.candidates?.length ?? 0} candidate facts found. Confirm them on Your facts before including them in an assistant handoff.`,
     );
   }
   async function propose() {
@@ -530,7 +432,7 @@ function RuntimeModalDialog({
                 <h4>Base ledger</h4>
                 <p className="hint">
                   {profile
-                    ? `${profile.usable ?? 0} confirmed, unexpired fact(s) available for citations.`
+                    ? `${profile.usable ?? 0} confirmed, unexpired fact(s) available to include in a handoff.`
                     : 'Loading…'}
                 </p>
               </div>
@@ -619,17 +521,7 @@ function RuntimeModalDialog({
               </div>
             </>
           )}
-          {which === 'tools' && (
-            <ToolsPanel
-              busy={busy}
-              jobs={jobs}
-              key={policy?.version ?? 0}
-              onClose={onClose}
-              onSaveLimits={onSaveLimits}
-              policy={policy}
-              toolStatus={toolStatus}
-            />
-          )}
+          {which === 'tools' && <ToolsPanel toolStatus={toolStatus} />}
           {which === 'inspect' && (
             <>
               <div className="sect">

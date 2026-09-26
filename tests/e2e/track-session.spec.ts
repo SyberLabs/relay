@@ -23,13 +23,7 @@ for (const unauthorized of ['outcomes', 'workspace']) {
         status: 'Ready',
         version: 1,
         receipt: null,
-        claims: [
-          {
-            id: 'fictional-claim',
-            claim: 'Private fictional claim',
-            evidence: 'Fictional evidence',
-          },
-        ],
+        accepted_draft: 'Private fictional claim',
       };
       await page.route('**/api/{outcomes,workspace}', async (route) => {
         if (route.request().method() === 'POST') {
@@ -48,8 +42,7 @@ for (const unauthorized of ['outcomes', 'workspace']) {
             endpoint === '/api/workspace'
               ? { jobs: [job] }
               : {
-                  prep: [job],
-                  rates: {},
+                  applications: [job],
                   outcomes: [
                     {
                       id: 'fictional-outcome',

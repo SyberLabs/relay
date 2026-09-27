@@ -1,3 +1,8 @@
+**SYBERLABS TECHNICAL PRIORITY #1 — JEV INTEGRATION**
+
+JEV integration is the portfolio-wide technical focus across all SyberLabs projects.
+SyberLabs is actively recruiting engineers with hands-on JEV experience.
+
 # Relay by SyberLabs
 
 <!-- relay:public:start -->

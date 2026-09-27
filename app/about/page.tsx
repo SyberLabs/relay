@@ -1,9 +1,11 @@
+import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+import { Lockup } from '../lockup';
 export default function About() {
   return (
     <main className="productpage">
       <Link className="brand" href="/">
-        <span className="mark">r</span>relay
+        <Lockup />
       </Link>
       <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
       <h1>
@@ -21,7 +23,7 @@ export default function About() {
           Open the workspace
         </Link>
         <a className="secondary" href="https://github.com/SyberLabs/relay">
-          View on GitHub ↗
+          View on GitHub <ArrowUpRight aria-hidden="true" size={16} />
         </a>
       </div>
       <section className="stats">
@@ -88,12 +90,12 @@ export default function About() {
         preference fitting, planning and agent batch review. They do not predict
         offers or assess qualifications.
       </p>
-      <div className="actions">
+      <div className="actions links">
         <a href="https://github.com/SyberLabs/relay/blob/main/integrations/README.md">
-          Integration guide ↗
+          Integration guide <ArrowUpRight aria-hidden="true" size={16} />
         </a>
         <a href="https://github.com/SyberLabs/relay/issues">
-          Report an issue ↗
+          Report an issue <ArrowUpRight aria-hidden="true" size={16} />
         </a>
       </div>
       <footer>

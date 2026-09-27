@@ -7,7 +7,7 @@
   background: var(--paper);
 }
 .applications-page {
-  --application-muted: #a8b7c8;
+  --application-muted: var(--sy-text-2);
   max-width: 960px;
   margin: 0 auto;
   color-scheme: dark;
@@ -47,7 +47,7 @@
   max-width: 100%;
   padding: 9px 13px;
   border: 1px solid var(--rule-hi);
-  border-radius: 7px;
+  border-radius: var(--sy-radius);
   background: var(--plate-hi);
   color: var(--ink);
   font-size: 13px;
@@ -57,13 +57,14 @@
   border-color: var(--application-muted);
 }
 .applications-page button.application-primary {
-  background: #e8b55f;
-  border-color: #edc47f;
-  color: #211c14;
-  font-weight: 600;
+  background: var(--sy-text);
+  border-color: var(--sy-text);
+  color: var(--sy-on-primary);
+  font-weight: 500;
 }
 .applications-page button.application-primary:hover:not(:disabled) {
-  background: #f1c879;
+  background: #ffffff;
+  border-color: #ffffff;
 }
 .applications-page svg {
   flex-shrink: 0;
@@ -71,7 +72,7 @@
 .application-permissions,
 .application-preparation {
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--sy-radius);
   background: var(--plate);
   margin: 24px 0;
 }
@@ -143,7 +144,7 @@
   min-width: 0;
   background: var(--plate);
   border: 1px solid var(--rule-hi);
-  border-radius: 11px;
+  border-radius: var(--sy-radius);
 }
 .application-card-body {
   display: flex;
@@ -157,10 +158,10 @@
   width: 44px;
   height: 44px;
   flex-shrink: 0;
-  border: 1px solid #385545;
-  border-radius: 9px;
-  background: #20392f;
-  color: #b8d5ba;
+  border: 1px solid var(--sy-line);
+  border-radius: var(--sy-radius);
+  background: transparent;
+  color: var(--sy-text-2);
 }
 .application-card-title {
   min-width: 0;
@@ -184,15 +185,15 @@
   text-transform: capitalize;
 }
 .application-state[data-state='submitted'] {
-  background: #203a30;
-  border-color: #355347;
-  color: #a9dbbc;
+  background: transparent;
+  border-color: var(--sy-success);
+  color: var(--sy-success);
 }
 .application-state[data-state='proposed'],
 .application-state[data-state='uncertain'] {
-  background: #372f23;
-  border-color: #665336;
-  color: #efc37b;
+  background: transparent;
+  border-color: var(--sy-warning);
+  color: var(--sy-warning);
 }
 .application-card-footer {
   display: flex;
@@ -218,15 +219,19 @@
   font-size: 12px;
 }
 .application-empty {
-  padding: 28px;
-  background: var(--plate);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  padding: var(--sy-space-6) 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
   color: var(--application-muted);
 }
 .application-empty h3 {
   color: var(--ink);
-  font-size: 16px;
+  font-size: 18px;
+  line-height: 28px;
+  margin: 0 0 var(--sy-space-1);
 }
 .application-empty p {
   margin-bottom: 0;
@@ -235,15 +240,15 @@
   display: block;
   margin: 20px 0;
   padding: 13px 17px;
-  border-left: 3px solid var(--accent);
-  border-radius: 4px;
-  background: var(--plate-hi);
+  border: 1px solid var(--line);
+  border-radius: var(--sy-radius);
+  background: transparent;
 }
 .application-record {
   margin-top: 24px;
   padding: 24px;
   border: 1px solid var(--rule-hi);
-  border-radius: 10px;
+  border-radius: var(--sy-radius);
   background: var(--plate);
   scroll-margin-top: 24px;
 }
@@ -260,7 +265,7 @@
   margin: 14px 0;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--sy-radius);
   background: var(--paper);
 }
 .application-record dd {
@@ -293,13 +298,13 @@
   margin-top: 7px;
   padding: 10px 12px;
   border: 1px solid var(--rule-hi);
-  border-radius: 6px;
+  border-radius: var(--sy-radius);
   background: var(--paper);
   color: var(--ink);
   font: inherit;
 }
 .applications-page input[type='checkbox'] {
-  accent-color: #e8b55f;
+  accent-color: var(--sy-brand);
 }
 .applications-page textarea {
   min-height: 110px;
@@ -318,7 +323,7 @@
   margin: 20px 0;
   padding: 16px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--sy-radius);
 }
 .applications-page fieldset label + label {
   margin-top: 14px;
@@ -360,5 +365,42 @@
   .applications-page button,
   .applications-page summary {
     min-height: 44px;
+  }
+}
+.applications-page .applications-back {
+  min-height: var(--sy-control);
+  margin-bottom: var(--sy-space-3);
+  color: var(--sy-text-2);
+  font-size: 14px;
+}
+.applications-page .applications-back:hover {
+  color: var(--sy-text);
+}
+.applications-page h1 {
+  font: 400 40px/44px var(--sy-font-serif);
+  letter-spacing: -0.01em;
+}
+.applications-page button {
+  min-height: var(--sy-control);
+  padding: 0 var(--sy-space-4);
+  border-radius: var(--sy-radius);
+  background: transparent;
+  border-color: var(--sy-line-strong);
+  font: 500 14px/20px var(--sy-font-sans);
+}
+.applications-page button:hover:not(:disabled) {
+  background: var(--sy-surface-2);
+}
+.applications-page button.application-primary {
+  font-size: 16px;
+  padding: 0 20px;
+}
+.applications-page button.application-primary:hover:not(:disabled) {
+  background: #ffffff;
+}
+@media (max-width: 650px) {
+  .applications-page h1 {
+    font-size: 32px;
+    line-height: 36px;
   }
 }

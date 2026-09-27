@@ -167,7 +167,7 @@ export function Connections({
       </output>
       <p>{handoffIntro(Boolean(current))}</p>
       <p>
-        <Link href="/about">About Relay handoffs ↗</Link>
+        <Link href="/about">About Relay handoffs</Link>
       </p>
       <h3>Obsidian notes</h3>
       <p>

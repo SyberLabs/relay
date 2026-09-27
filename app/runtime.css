@@ -26,7 +26,8 @@
   min-height: 64px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--rule);
-  background: var(--sy-bg);
+  background: color-mix(in srgb, var(--sy-surface) 74%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
   z-index: 40;
   flex: none;
   flex-wrap: nowrap;
@@ -190,7 +191,7 @@
   border-color: var(--sy-line-strong);
 }
 .toggle[aria-pressed='true'] .track {
-  background: var(--sy-brand);
+  background: var(--sy-accent-relay);
 }
 .toggle[aria-pressed='true'] .knob {
   transform: translateX(14px);
@@ -265,7 +266,7 @@
 }
 .btn {
   border: 1px solid var(--sy-line-strong);
-  border-radius: var(--sy-radius);
+  border-radius: var(--sy-radius-pill);
   min-height: var(--sy-control);
   padding: 0 16px;
   font: 500 15px/20px var(--sy-font-sans);
@@ -309,22 +310,25 @@
   width: auto;
 }
 .btn-primary {
-  background: var(--sy-text);
+  background: var(--sy-solid);
   color: var(--sy-on-primary);
-  border-color: var(--sy-text);
+  border-color: transparent;
+  box-shadow: var(--sy-glow);
   font-weight: 500;
   font-size: 16px;
   min-width: 168px;
   width: auto;
 }
 .btn-primary:hover:not(:disabled) {
-  background: #ffffff;
-  border-color: #ffffff;
+  background: var(--sy-solid);
+  border-color: transparent;
+  box-shadow: var(--sy-glow-hover);
 }
 .btn-primary:disabled {
-  background: var(--sy-text);
+  background: var(--sy-solid);
   color: var(--sy-on-primary);
-  border-color: var(--sy-text);
+  border-color: transparent;
+  box-shadow: none;
 }
 .review,
 .runtime .core {
@@ -607,7 +611,7 @@
 .modal input:focus,
 .modal textarea:focus,
 .block-form input[type='text']:focus {
-  border-color: var(--sy-brand);
+  border-color: var(--sy-ice);
 }
 .block-form input[type='text'] {
   flex: 1 1 12rem;
@@ -726,7 +730,7 @@
 .veil {
   position: fixed;
   inset: 0;
-  background: rgba(5, 6, 10, 0.72);
+  background: color-mix(in srgb, var(--sy-bg) 80%, transparent);
   display: flex;
   align-items: center;
   justify-content: center;

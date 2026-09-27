@@ -1,17 +1,21 @@
 import Link from 'next/link';
 import { Lockup } from '../lockup';
+import { AtlasAmbient } from '../syber-atlas';
 export default function Privacy() {
   return (
     <main className="productpage">
-      <Link className="brand" href="/">
-        <Lockup />
-      </Link>
-      <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
-      <h1>How Relay uses your data</h1>
-      <p className="lead">
-        This page describes current shipped behavior for the invited pilot. It
-        is not a warranty of hiring outcomes.
-      </p>
+      <div className="atlas-hero atlas-host">
+        <AtlasAmbient />
+        <Link className="brand" href="/">
+          <Lockup />
+        </Link>
+        <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
+        <h1>How Relay uses your data</h1>
+        <p className="lead">
+          This page describes current shipped behavior for the invited pilot. It
+          is not a warranty of hiring outcomes.
+        </p>
+      </div>
       <h2>Who operates Relay</h2>
       <p>
         SyberLabs maintainers operate Relay. Seth Carlson owns the production

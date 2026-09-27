@@ -5,24 +5,33 @@
 @import '@fontsource/jetbrains-mono/400.css';
 @import '@fontsource/jetbrains-mono/500.css';
 
-/* SyberLabs design system v1. Every colour, size and radius in Relay comes
-   from these tokens; the older names below are aliases kept so existing
+/* SyberLabs design system v2 (Atlas). Every colour, size and radius in Relay
+   comes from these tokens; the older names below are aliases kept so existing
    selectors keep working. Dark only. */
 :root {
-  --sy-bg: #05060a;
-  --sy-surface: #0b0d14;
-  --sy-surface-2: #121521;
-  --sy-line: #1f2433;
-  --sy-line-strong: #5e6980;
-  --sy-text: #f2f5fb;
-  --sy-text-2: #aeb8cc;
-  --sy-text-3: #7f8aa3;
-  --sy-on-primary: #05060a;
+  --sy-bg: #06051a;
+  --sy-surface: #0c0a2a;
+  --sy-surface-2: #141238;
+  --sy-line: rgba(170, 180, 255, 0.16);
+  --sy-line-strong: rgba(170, 180, 255, 0.32);
+  --sy-text: #eef0ff;
+  --sy-text-2: #b4bbe2;
+  --sy-text-3: #8990bb;
+  --sy-on-primary: #07061c;
   --sy-brand: #4890f0;
-  --sy-success: #4cc3a6;
-  --sy-warning: #f2b84b;
-  --sy-danger: #ff7a6b;
-  --sy-accent-relay: #6bd6cf;
+  --sy-ice: #90d8f0;
+  --sy-success: #6ff5a8;
+  --sy-warning: #ffc96b;
+  --sy-danger: #ff7a8a;
+  --sy-research: #c7a4ff;
+  --sy-accent-relay: #62e3d8;
+  --sy-solid: linear-gradient(100deg, #c9f0ff, #eef0ff 45%, #e3d4ff);
+  --sy-glow: 0 0 0 1px #fff3 inset, 0 10px 40px -12px #4890f0cc;
+  --sy-glow-hover: 0 0 0 1px #fff6 inset, 0 14px 48px -10px #9a6bffdd;
+  --sy-nebula:
+    radial-gradient(50% 60% at 50% 45%, #2a1a7a4d, #0000 70%),
+    radial-gradient(34% 40% at 58% 40%, #0048f033, #0000 70%),
+    radial-gradient(26% 30% at 42% 62%, #ff58d61f, #0000 70%), #06051a;
   --sy-font-sans: 'Instrument Sans', system-ui, sans-serif;
   --sy-font-serif: 'Instrument Serif', Georgia, serif;
   --sy-font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -35,17 +44,19 @@
   --sy-space-7: 48px;
   --sy-space-8: 64px;
   --sy-radius-sm: 4px;
-  --sy-radius: 8px;
+  --sy-radius: 10px;
+  --sy-radius-panel: 14px;
+  --sy-radius-pill: 999px;
   --sy-control: 44px;
   --sy-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --sy-fast: 120ms;
-  --sy-shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.55);
+  --sy-shadow-overlay: 0 30px 80px -20px #000;
 
   --ink: var(--sy-text);
   --muted: var(--sy-text-2);
   --paper: var(--sy-bg);
   --line: var(--sy-line);
-  --accent: var(--sy-brand);
+  --accent: var(--sy-accent-relay);
   --sidebar: var(--sy-bg);
   --decision-surface: var(--sy-surface);
   --decision-tint: var(--sy-surface-2);
@@ -55,7 +66,7 @@
   --rule-hi: var(--sy-line-strong);
   --dim: var(--sy-text-2);
   --dimmer: var(--sy-text-3);
-  --signal: var(--sy-brand);
+  --signal: var(--sy-ice);
   --clear: var(--sy-success);
   --stop: var(--sy-danger);
   --warn: var(--sy-warning);
@@ -191,6 +202,19 @@ body {
   color: var(--ink);
   font: 400 16px/1.5 var(--sy-font-sans);
   -webkit-font-smoothing: antialiased;
+  /* v2 page texture: a sparse starfield of 1px dots. */
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, #fff8 50%, #0000 51%),
+    radial-gradient(1px 1px at 72% 34%, #cfe4ff99 50%, #0000 51%),
+    radial-gradient(1px 1px at 38% 71%, #fff6 50%, #0000 51%),
+    radial-gradient(1px 1px at 88% 82%, #e8c9ff88 50%, #0000 51%),
+    radial-gradient(1px 1px at 55% 9%, #fff5 50%, #0000 51%);
+  background-size:
+    420px 420px,
+    530px 530px,
+    610px 610px,
+    470px 470px,
+    700px 700px;
 }
 ::selection {
   background: rgba(144, 216, 240, 0.2);
@@ -222,8 +246,8 @@ select:focus-visible,
 a:focus-visible,
 summary:focus-visible,
 [tabindex]:focus-visible {
-  outline: 2px solid var(--sy-brand);
-  outline-offset: 2px;
+  outline: 2px solid var(--sy-ice);
+  outline-offset: 3px;
 }
 .sr-only {
   position: absolute;
@@ -415,10 +439,12 @@ a.primary,
   font-size: 14px;
   font-weight: 500;
 }
+/* Primary ("solid"): v2 gradient pill with a blue glow. One per screen. */
 .primary {
-  border: 1px solid var(--sy-text);
-  background: var(--sy-text);
+  border: 1px solid transparent;
+  background: var(--sy-solid);
   color: var(--sy-on-primary);
+  box-shadow: var(--sy-glow);
 }
 .secondary {
   background: transparent;
@@ -426,11 +452,12 @@ a.primary,
   color: var(--ink);
 }
 .primary:hover {
-  background: #ffffff;
-  border-color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: var(--sy-glow-hover);
 }
 .secondary:hover {
-  background: var(--plate-hi);
+  border-color: var(--sy-ice);
+  box-shadow: 0 0 24px -6px var(--sy-brand);
 }
 .stats {
   display: grid;
@@ -783,8 +810,8 @@ a.primary,
   background: transparent;
   border: 1px solid var(--sy-line-strong);
   color: var(--ink);
-  border-radius: var(--sy-radius);
-  padding: 8px 12px;
+  border-radius: var(--sy-radius-pill);
+  padding: 8px 14px;
   font-size: 14px;
 }
 .import-tabs [role='tab'][aria-selected='true'] {
@@ -1516,10 +1543,12 @@ a.primary,
 .secondary {
   min-height: var(--sy-control);
   padding: 0 20px;
-  border-radius: var(--sy-radius);
+  border-radius: var(--sy-radius-pill);
   font: 500 16px/24px var(--sy-font-sans);
   text-decoration: none;
   transition:
+    transform var(--sy-fast) var(--sy-ease),
+    box-shadow var(--sy-fast) var(--sy-ease),
     background-color var(--sy-fast) var(--sy-ease),
     border-color var(--sy-fast) var(--sy-ease);
 }
@@ -1529,23 +1558,26 @@ a.secondary:hover {
 }
 .secondary {
   border-color: var(--sy-line-strong);
+  background: color-mix(in srgb, var(--sy-bg) 40%, transparent);
   color: var(--sy-text);
 }
 .primary:disabled,
 .secondary:disabled {
   opacity: 0.4;
 }
+.primary:disabled,
 .primary:disabled:hover {
-  background: var(--sy-text);
-  border-color: var(--sy-text);
+  transform: none;
+  box-shadow: none;
 }
 .secondary:disabled:hover {
-  background: transparent;
+  border-color: var(--sy-line-strong);
+  box-shadow: none;
 }
 .textbutton {
   min-height: var(--sy-control);
   padding: 0 var(--sy-space-2);
-  color: var(--sy-brand);
+  color: var(--sy-accent-relay);
   font-weight: 500;
 }
 .textbutton:hover {
@@ -1585,7 +1617,7 @@ textarea::placeholder {
 .tracker-fields select:focus,
 .actions input:focus,
 .draftrow textarea:focus {
-  border-color: var(--sy-brand);
+  border-color: var(--sy-ice);
 }
 .search {
   min-height: var(--sy-control);
@@ -1596,8 +1628,8 @@ textarea::placeholder {
   color: var(--sy-text-3);
 }
 .search:focus-within {
-  border-color: var(--sy-brand);
-  outline: 2px solid var(--sy-brand);
+  border-color: var(--sy-ice);
+  outline: 2px solid var(--sy-ice);
   outline-offset: 2px;
 }
 .search input {
@@ -1608,7 +1640,9 @@ textarea::placeholder {
   outline: none;
 }
 .badge {
-  border-radius: var(--sy-radius-sm);
+  border-radius: var(--sy-radius-pill);
+  padding-left: 9px;
+  padding-right: 9px;
   border-color: var(--sy-line-strong);
   background: transparent;
   color: var(--sy-text-2);
@@ -1749,7 +1783,7 @@ footer {
 .sheet-filters button {
   min-height: var(--sy-control);
   padding: 0 var(--sy-space-4);
-  border-radius: var(--sy-radius);
+  border-radius: var(--sy-radius-pill);
   border: 1px solid var(--sy-line-strong);
   background: transparent;
   color: var(--sy-text-2);
@@ -1852,4 +1886,85 @@ footer {
 .brand > .sy-lockup {
   color: var(--sy-text);
   font-weight: 600;
+}
+
+/* ---------- v2 Atlas additions ---------- */
+/* Lockup: the Relay sigil (seeded "relay", #62e3d8) follows the product name. */
+.sy-sigil {
+  width: 16px;
+  height: 16px;
+  margin-left: 8px;
+  flex: none;
+  background: url('./relay-sigil.png') center / contain no-repeat;
+}
+.sheet-filters button[aria-pressed='true'] {
+  color: var(--sy-text);
+  border-color: var(--sy-ice);
+  background: var(--sy-surface-2);
+}
+.field input[aria-invalid='true'],
+.field textarea[aria-invalid='true'] {
+  border-color: var(--sy-danger);
+}
+/* Ambient Plate I (still exposure) behind a heavy scrim: first-job, about and
+   privacy only. Without fast WebGL2 the canvas hides and the CSS nebula shows. */
+.atlas-host {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.atlas-ambient {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--sy-nebula);
+}
+.atlas-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.atlas-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    0deg,
+    rgba(6, 5, 26, 0.94),
+    rgba(6, 5, 26, 0.7) 60%,
+    rgba(6, 5, 26, 0.8)
+  );
+}
+.atlas-sigil {
+  display: block;
+  flex: none;
+}
+.atlas-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sy-space-4);
+}
+.atlas-hero {
+  border: 1px solid var(--sy-line);
+  border-radius: var(--sy-radius-panel);
+  padding: clamp(24px, 5vw, 48px);
+  margin: 0 0 var(--sy-space-7);
+}
+.productpage .atlas-hero > .brand {
+  margin-bottom: var(--sy-space-6);
+}
+.productpage .atlas-hero h1 {
+  font-size: clamp(44px, 5vw, 72px);
+  line-height: 1;
+  letter-spacing: -0.015em;
+}
+.productpage .atlas-hero .lead {
+  color: var(--sy-text);
+}
+section.import.atlas-host {
+  border: 1px solid var(--sy-line);
+  border-radius: var(--sy-radius-panel);
+  padding: var(--sy-space-5);
 }

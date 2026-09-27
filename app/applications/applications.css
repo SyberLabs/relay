@@ -47,7 +47,7 @@
   max-width: 100%;
   padding: 9px 13px;
   border: 1px solid var(--rule-hi);
-  border-radius: var(--sy-radius);
+  border-radius: var(--sy-radius-pill);
   background: var(--plate-hi);
   color: var(--ink);
   font-size: 13px;
@@ -57,14 +57,16 @@
   border-color: var(--application-muted);
 }
 .applications-page button.application-primary {
-  background: var(--sy-text);
-  border-color: var(--sy-text);
+  background: var(--sy-solid);
+  border-color: transparent;
   color: var(--sy-on-primary);
+  box-shadow: var(--sy-glow);
   font-weight: 500;
 }
 .applications-page button.application-primary:hover:not(:disabled) {
-  background: #ffffff;
-  border-color: #ffffff;
+  background: var(--sy-solid);
+  border-color: transparent;
+  box-shadow: var(--sy-glow-hover);
 }
 .applications-page svg {
   flex-shrink: 0;
@@ -304,7 +306,7 @@
   font: inherit;
 }
 .applications-page input[type='checkbox'] {
-  accent-color: var(--sy-brand);
+  accent-color: var(--sy-accent-relay);
 }
 .applications-page textarea {
   min-height: 110px;
@@ -383,7 +385,7 @@
 .applications-page button {
   min-height: var(--sy-control);
   padding: 0 var(--sy-space-4);
-  border-radius: var(--sy-radius);
+  border-radius: var(--sy-radius-pill);
   background: transparent;
   border-color: var(--sy-line-strong);
   font: 500 14px/20px var(--sy-font-sans);
@@ -396,7 +398,7 @@
   padding: 0 20px;
 }
 .applications-page button.application-primary:hover:not(:disabled) {
-  background: #ffffff;
+  background: var(--sy-solid);
 }
 @media (max-width: 650px) {
   .applications-page h1 {

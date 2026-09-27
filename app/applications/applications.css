@@ -69,18 +69,22 @@
 .applications-page svg {
   flex-shrink: 0;
 }
+/* Lines, not boxes: each disclosure is a full-width hairline row. */
 .application-permissions,
 .application-preparation {
-  border: 1px solid var(--line);
-  border-radius: var(--sy-radius);
-  background: var(--plate);
+  border: 0;
+  border-top: 1px solid var(--sy-line);
+  border-bottom: 1px solid var(--sy-line);
+  border-radius: 0;
+  background: transparent;
   margin: 24px 0;
 }
 .applications-page summary {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 15px 17px;
+  min-height: var(--sy-control);
+  padding: 12px 0;
   list-style: none;
   cursor: pointer;
   font-size: 14px;
@@ -90,8 +94,8 @@
 }
 .applications-page summary:focus-visible,
 .applications-page .application-record:focus-visible {
-  outline: 2px solid var(--signal);
-  outline-offset: 3px;
+  outline: 2px solid var(--sy-brand);
+  outline-offset: 2px;
 }
 .applications-page summary > svg {
   color: var(--application-muted);
@@ -104,6 +108,7 @@
   font-size: 12px;
 }
 .application-chevron {
+  transition: transform var(--sy-fast) var(--sy-ease);
   margin-left: auto;
 }
 .applications-page details[open] > summary .application-chevron {
@@ -282,7 +287,7 @@
   scroll-margin-top: 24px;
 }
 .application-form-body {
-  padding: 0 20px 20px;
+  padding: 0 0 24px;
 }
 .applications-page label {
   display: block;
@@ -353,7 +358,7 @@
     padding: 18px;
   }
   .application-form-body {
-    padding: 0 16px 16px;
+    padding: 0 0 16px;
   }
   .applications-page input,
   .applications-page select,
@@ -403,4 +408,18 @@
     font-size: 32px;
     line-height: 36px;
   }
+}
+/* The header opens the preparation form; Save exact proposal inside it is
+   the one filled action. */
+.applications-page button.application-secondary {
+  min-height: var(--sy-control);
+  padding: 0 20px;
+  background: transparent;
+  border-color: var(--sy-line-strong);
+  color: var(--sy-text);
+  font: 500 16px/24px var(--sy-font-sans);
+}
+.applications-page button.application-secondary:hover:not(:disabled) {
+  background: var(--sy-surface-2);
+  border-color: var(--sy-line-strong);
 }

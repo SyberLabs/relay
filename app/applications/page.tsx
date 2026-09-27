@@ -167,7 +167,7 @@ export default function Applications() {
             </p>
           </div>
           <button
-            className="application-primary"
+            className="application-secondary"
             type="button"
             disabled={!snapshot || busy || expired}
             aria-controls="application-preparation"

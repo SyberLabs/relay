@@ -71,10 +71,7 @@ test('the workspace workbench shows a full-width queue and review without sendin
   await expect(
     page.getByRole('heading', { name: 'Jobs', exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole('link', { name: 'Runtime', exact: true })
-    .last()
-    .click();
+  await page.getByRole('link', { name: 'Runtime', exact: true }).last().click();
   await expect(
     page.getByRole('heading', { name: 'Review queue', exact: true }),
   ).toBeVisible();
@@ -622,4 +619,69 @@ test('dirty editor asks before leaving to Your facts', async ({ page }) => {
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('link', { name: 'Tracker', exact: true }).click();
   await expect(page).toHaveURL(/\/track/);
+});
+
+test('phone header keeps one action visible and collapses the rest into More', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Sign in with ChatGPT' }).click();
+  const imported = await page.request.post('/api/workspace', {
+    data: {
+      action: 'import',
+      rows: [
+        {
+          url: 'https://example.com/research/runtime-more-menu',
+          Name: 'Runtime More — Menu Engineer',
+          Job: 'https://example.com/jobs/runtime-more-menu',
+          Status: 'Held',
+          Notes: 'Fictional phone header role.',
+        },
+      ],
+    },
+  });
+  expect(imported.ok()).toBe(true);
+  await page.reload();
+  await page
+    .getByRole('button', { name: /Runtime More — Menu Engineer/ })
+    .click();
+
+  const bar = page.locator('header.bar');
+  const more = bar.getByRole('button', { name: 'More', exact: true });
+  await expect(bar.getByRole('button', { name: 'Add job' })).toBeVisible();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(bar.getByRole('button', { name: 'Profile' })).toBeHidden();
+  const overflow = () =>
+    page.evaluate(() => {
+      const header = document.querySelector('header.bar')!;
+      return (
+        header.scrollWidth > header.clientWidth + 1 ||
+        document.documentElement.scrollWidth >
+          document.documentElement.clientWidth + 1
+      );
+    });
+  expect(await overflow()).toBe(false);
+
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  for (const name of ['Profile', 'Tools', 'Research', 'History', 'Autopilot'])
+    await expect(bar.getByRole('button', { name, exact: true })).toBeVisible();
+  await expect(
+    bar.getByRole('button', { name: 'Import research', exact: true }),
+  ).toBeFocused();
+  expect(await overflow()).toBe(false);
+  await page.keyboard.press('Escape');
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(more).toBeFocused();
+
+  // An action picked from the menu closes it; its dialog returns focus to More.
+  await more.click();
+  await bar.getByRole('button', { name: 'History', exact: true }).click();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  const dialog = page.getByRole('dialog', { name: 'History' });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(more).toBeFocused();
 });

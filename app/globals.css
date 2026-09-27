@@ -225,6 +225,39 @@ summary:focus-visible,
   outline: 2px solid var(--sy-brand);
   outline-offset: 2px;
 }
+/* Every disclosure shows one chevron that turns down when open. */
+summary {
+  list-style: none;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+summary::before {
+  content: '';
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  vertical-align: -3px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E")
+    center / 16px 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E")
+    center / 16px 16px no-repeat;
+  transition: transform var(--sy-fast) var(--sy-ease);
+}
+details[open] > summary::before {
+  transform: rotate(90deg);
+}
+summary:has(> .application-chevron)::before {
+  content: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  summary::before {
+    transition: none;
+  }
+}
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1792,6 +1825,93 @@ footer {
 }
 .stats > div:last-child {
   border-right: 0;
+}
+/* Product page sections are separated by hairlines and space, not boxes. */
+.productpage .import,
+.productpage .report {
+  border: 0;
+  border-top: 1px solid var(--sy-line);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--sy-space-6) 0;
+  margin: 0;
+}
+.productpage .stats + .import {
+  border-top: 0;
+}
+.productpage .import > .empty {
+  padding: 0;
+}
+/* A list of destinations: each row is one link (the heading) stretched over
+   the whole row, with a trailing arrow for navigation. */
+.linkrows {
+  list-style: none;
+  margin: var(--sy-space-6) 0 0;
+  padding: 0;
+}
+.linkrows li {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: var(--sy-space-5);
+  align-items: center;
+  padding: var(--sy-space-5) 0;
+  border-top: 1px solid var(--sy-line);
+  transition:
+    background-color var(--sy-fast) var(--sy-ease),
+    box-shadow var(--sy-fast) var(--sy-ease);
+}
+/* Hover fill bleeds past the text column without moving the hairlines. */
+.linkrows li:hover {
+  background: var(--sy-surface-2);
+  box-shadow:
+    calc(var(--sy-space-4) * -1) 0 0 var(--sy-surface-2),
+    var(--sy-space-4) 0 0 var(--sy-surface-2);
+}
+.productpage .linkrows h2 {
+  grid-column: 1;
+  margin: 0 0 var(--sy-space-1);
+  font: 600 18px/28px var(--sy-font-sans);
+}
+.linkrows h2 a {
+  color: var(--sy-text);
+  text-decoration: none;
+}
+.linkrows h2 a::after {
+  content: '';
+  position: absolute;
+  inset: 0 calc(var(--sy-space-4) * -1);
+  border-radius: var(--sy-radius);
+}
+.linkrows h2 a:focus-visible {
+  outline: 0;
+}
+.linkrows h2 a:focus-visible::after {
+  outline: 2px solid var(--sy-brand);
+  outline-offset: 2px;
+}
+.productpage .linkrows p {
+  grid-column: 1;
+  margin: 0;
+  color: var(--sy-text-2);
+}
+.linkrow-arrow {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  color: var(--sy-text-3);
+  transition:
+    transform var(--sy-fast) var(--sy-ease),
+    color var(--sy-fast) var(--sy-ease);
+}
+.linkrows li:hover .linkrow-arrow {
+  color: var(--sy-text);
+  transform: translateX(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .linkrows li,
+  .linkrow-arrow {
+    transition: none;
+  }
 }
 .productpage .actions.links a {
   display: inline-flex;

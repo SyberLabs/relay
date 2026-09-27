@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { ProductShell } from '../shell';
 
@@ -10,33 +10,38 @@ export default function Advanced() {
       </Link>
       <h1>Advanced</h1>
       <p className="lead">
-        Experimental tools for planning and agent batches across your job search.
-        Review and accept each job’s exact wording in Runtime.
+        Experimental tools for planning and agent batches across your job
+        search. Review and accept each job’s exact wording in Runtime.
       </p>
-      <section className="import">
-        <h2>
-          <Link href="/advanced/review">Batch review</Link>
-        </h2>
-        <p>
-          Review logged agent drafts and save style corrections. Staged drafts
-          still need your exact-text acceptance in Runtime.
-        </p>
-      </section>
-      <section className="import">
-        <h2>
-          <Link href="/advanced/preferences">Preferences</Link>
-        </h2>
-        <p>Compare postings to fit experimental preference weights.</p>
-      </section>
-      <section className="import">
-        <h2>
-          <Link href="/advanced/plan">This week</Link>
-        </h2>
-        <p>
-          Explore a plan using your time budget and estimated reply rates.
-          Scores do not predict offers.
-        </p>
-      </section>
+      <ul className="linkrows">
+        <li>
+          <h2>
+            <Link href="/advanced/review">Batch review</Link>
+          </h2>
+          <p>
+            Review logged agent drafts and save style corrections. Staged drafts
+            still need your exact-text acceptance in Runtime.
+          </p>
+          <ArrowRight aria-hidden="true" className="linkrow-arrow" size={20} />
+        </li>
+        <li>
+          <h2>
+            <Link href="/advanced/preferences">Preferences</Link>
+          </h2>
+          <p>Compare postings to fit experimental preference weights.</p>
+          <ArrowRight aria-hidden="true" className="linkrow-arrow" size={20} />
+        </li>
+        <li>
+          <h2>
+            <Link href="/advanced/plan">This week</Link>
+          </h2>
+          <p>
+            Explore a plan using your time budget and estimated reply rates.
+            Scores do not predict offers.
+          </p>
+          <ArrowRight aria-hidden="true" className="linkrow-arrow" size={20} />
+        </li>
+      </ul>
       <footer>Relay / SyberLabs</footer>
     </ProductShell>
   );

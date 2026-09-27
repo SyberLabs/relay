@@ -10,7 +10,7 @@ on:
       run_id:
         description: Successful main CI run that built that release (artifact must still exist)
         required: true
-        type: number
+        type: string
 
 permissions:
   contents: read

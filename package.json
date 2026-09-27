@@ -44,22 +44,22 @@
     "yaml": "2.9.1"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "1.54.8",
-    "@cloudflare/workers-types": "5.20260911.1",
+    "@cloudflare/vite-plugin": "1.60.0",
+    "@cloudflare/workers-types": "5.20260924.1",
     "@openai/sites-vite-plugin": "0.2.0",
     "@playwright/test": "1.63.0",
     "@types/node": "26.6.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
-    "@vitejs/plugin-rsc": "0.5.34",
-    "drizzle-kit": "0.31.10",
-    "oxfmt": "0.67.0",
-    "oxlint": "1.82.0",
-    "oxlint-tsgolint": "7.0.2001",
+    "@vitejs/plugin-rsc": "0.5.35",
+    "drizzle-kit": "0.31.11",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
+    "oxlint-tsgolint": "7.0.2003",
     "typescript": "5.9.3",
-    "vite": "8.3.0",
-    "wrangler": "4.131.1"
+    "vite": "8.3.1",
+    "wrangler": "4.139.0"
   },
   "type": "module",
   "bin": {

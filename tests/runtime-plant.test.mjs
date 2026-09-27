@@ -39,7 +39,7 @@ void test('the home workbench keeps existing acceptance and import contracts', (
   assert.match(shell, /aria-label="Import research"/);
   assert.match(shell, /PRIMARY_PAGE_LINKS/);
   assert.match(shell, /aria-label="Primary screens"/);
-  assert.match(shell, /\/ runtime/);
+  assert.match(shell, /<Lockup \/>/);
   assert.match(nav, /label: 'Runtime'/);
   assert.match(nav, /label: 'Tracker'/);
   assert.doesNotMatch(shell, /Track jobs/);

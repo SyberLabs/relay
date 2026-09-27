@@ -25,6 +25,7 @@ import {
   queueHref,
   type ShellPage,
 } from '../lib/nav';
+import { Lockup } from './lockup';
 
 const queueIcons = {
   Held: Inbox,
@@ -150,7 +151,7 @@ export function AppShell({
       </a>
       <aside className="sidebar">
         <Link className="brand" href="/" onClick={onNavigate}>
-          Relay <span>runtime</span>
+          <Lockup />
         </Link>
         <ShellNav current={current} onNavigate={onNavigate} />
         <div className="sidebottom">

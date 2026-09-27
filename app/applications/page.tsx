@@ -239,7 +239,6 @@ export default function Applications() {
               </p>
               {snapshot.operations.length === 0 && (
                 <div className="application-empty">
-                  <BriefcaseBusiness size={24} aria-hidden="true" />
                   <h3>No application proposals yet.</h3>
                   <p>
                     Prepare an application to start a record of exactly what

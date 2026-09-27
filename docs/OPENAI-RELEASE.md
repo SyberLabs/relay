@@ -1,6 +1,6 @@
 # ChatGPT and Codex integration verification - September 5, 2026
 
-Lead engineer: Seth Carlson.
+Built by Seth Carlson and Mateo Robles.
 
 - Added browser prompt exports for ChatGPT and Codex, local prompt/draft packaging commands, and `codex-run` using the signed-in Codex CLI.
 - A real local `codex-run` invocation completed with fictional job facts. The returned `relay.draft.v1` result passed Relay's file validation, preserved job identity and version, and retained `reviewRequired: true`. No application was sent. The private smoke-test packet/result are ignored and are not part of this release.

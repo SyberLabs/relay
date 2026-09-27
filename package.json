@@ -36,7 +36,7 @@
     "csv-parse": "7.0.2",
     "drizzle-orm": "0.45.2",
     "jose": "6.2.12",
-    "lucide-react": "1.45.0",
+    "lucide-react": "1.48.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-server-dom-webpack": "19.3.0",

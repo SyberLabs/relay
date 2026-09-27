@@ -23,7 +23,11 @@ const escapeHtml = (text) =>
 export function render(copy, target) {
   if (!Object.hasOwn(targets, target))
     throw Error('Unknown public-copy target.');
-  for (const value of [copy.repository, copy.leadProfile, copy.peerProfile]) {
+  for (const value of [
+    copy.repository,
+    copy.builderProfile,
+    copy.collaboratorProfile,
+  ]) {
     const url = new URL(value);
     if (
       url.protocol !== 'https:' ||
@@ -37,7 +41,7 @@ export function render(copy, target) {
   }
   const guide = `${copy.repository}/blob/main/integrations/OPENAI.md`;
   const integrations = copy.integrations.map((item) => item.name).join(', ');
-  const credit = `**Relay lead engineer: [${copy.leadEngineer}](${copy.leadProfile}).** **Product: [${copy.peerEngineer}](${copy.peerProfile}).**`;
+  const credit = `Built by [${copy.builder}](${copy.builderProfile}) and [${copy.collaborator}](${copy.collaboratorProfile}).`;
   if (target === 'project')
     return `**${copy.tagline}**
 
@@ -60,7 +64,7 @@ ${copy.openaiBoundary}
 
 [Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)`;
   if (target === 'organization')
-    return `A two-person lab. **[${copy.peerEngineer}](${copy.peerProfile})** · SyberLabs / RISE. **[${copy.leadEngineer}](${copy.leadProfile})** · Relay lead engineer; systems on RISE and OSAHR.
+    return `A two-person lab. **[${copy.collaborator}](${copy.collaboratorProfile})** · SyberLabs / RISE. **[${copy.builder}](${copy.builderProfile})** · Relay; systems on RISE and OSAHR.
 
 ## RELAY - our flagship project
 
@@ -83,7 +87,7 @@ ${copy.boundary}
 
 **[Explore RELAY](${copy.repository})** | [ChatGPT and Codex setup](${guide})`;
   if (target === 'profile')
-    return `- **[${copy.name}](${copy.repository}) - Lead engineer.** ${copy.summary} ${copy.stage}; drafts require human review and Relay does not POST the employer form. [Integration guides, including ChatGPT and Codex](${guide}).`;
+    return `- **[${copy.name}](${copy.repository}) - Personal project.** ${copy.summary} ${copy.stage}; drafts require human review and Relay does not POST the employer form. [Integration guides, including ChatGPT and Codex](${guide}).`;
   return `<p class="relay-release">${escapeHtml(copy.summary)} ${escapeHtml(copy.stage)}. ${escapeHtml(copy.boundary)} <a href="${escapeHtml(guide)}" target="_blank" rel="noopener">ChatGPT and Codex setup &#8599;</a></p>`;
 }
 

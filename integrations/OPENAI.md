@@ -1,6 +1,6 @@
 # ChatGPT and Codex with Relay
 
-Use your existing assistant to prepare wording, then return it to Relay's review record. **Seth Carlson is Relay's lead engineer.** These integrations do not accept drafts or send applications.
+Use your existing assistant to prepare wording, then return it to Relay's review record. These integrations do not accept drafts or send applications.
 
 ChatGPT/Codex computer use can also work directly in a signed-in Relay tab. See [saved progress and recovery](PROGRESS.md) for the shared browser controls and optional page tools, including progress-only updates that preserve accepted wording. Actual tool support must be checked in the chosen assistant/browser; the local CLI is not a production connection.
 

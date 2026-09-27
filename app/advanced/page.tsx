@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ProductShell } from '../shell';
 
@@ -5,7 +6,7 @@ export default function Advanced() {
   return (
     <ProductShell current="advanced">
       <Link className="backlink" href="/">
-        ← Runtime
+        <ArrowLeft size={15} /> Runtime
       </Link>
       <h1>Advanced</h1>
       <p className="lead">

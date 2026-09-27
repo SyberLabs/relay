@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Upload } from 'lucide-react';
 import { PRIMARY_PAGE_LINKS, pageIsCurrent } from '../lib/nav';
+import { Lockup } from './lockup';
 import './runtime.css';
 
 export function RuntimeShell({
@@ -61,7 +62,7 @@ export function RuntimeShell({
       <header className="bar">
         <div>
           <p className="wordmark" aria-hidden="true">
-            Relay <span>/ runtime</span>
+            <Lockup />
           </p>
           <h1 className="sr-only">Runtime</h1>
           <p>{lead}</p>

@@ -1,30 +1,34 @@
 import { ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 import { Lockup } from '../lockup';
+import { AtlasAmbient } from '../syber-atlas';
 export default function About() {
   return (
     <main className="productpage">
-      <Link className="brand" href="/">
-        <Lockup />
-      </Link>
-      <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
-      <h1>
-        Keep your application
-        <br />
-        work moving.
-      </h1>
-      <p className="lead">
-        Manage applications across your preferred AI tools. Keep candidate facts
-        available for reuse and preserve job research, reviewed drafts and
-        application history as you move between opportunities.
-      </p>
-      <div className="actions">
-        <Link href="/" className="primary">
-          Open the workspace
+      <div className="atlas-hero atlas-host">
+        <AtlasAmbient />
+        <Link className="brand" href="/">
+          <Lockup />
         </Link>
-        <a className="secondary" href="https://github.com/SyberLabs/relay">
-          View on GitHub <ArrowUpRight aria-hidden="true" size={16} />
-        </a>
+        <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
+        <h1>
+          Keep your application
+          <br />
+          work moving.
+        </h1>
+        <p className="lead">
+          Manage applications across your preferred AI tools. Keep candidate
+          facts available for reuse and preserve job research, reviewed drafts
+          and application history as you move between opportunities.
+        </p>
+        <div className="actions">
+          <Link href="/" className="primary">
+            Open the workspace
+          </Link>
+          <a className="secondary" href="https://github.com/SyberLabs/relay">
+            View on GitHub <ArrowUpRight aria-hidden="true" size={16} />
+          </a>
+        </div>
       </div>
       <section className="stats">
         <div>

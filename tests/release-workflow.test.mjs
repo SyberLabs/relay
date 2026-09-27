@@ -57,7 +57,7 @@ void test('automatic staging finishes without scheduling a production approval',
   assert.equal(deploy.concurrency, undefined);
   assert.equal(deploy.jobs.staging.with.environment, 'staging');
   assert.equal(deploy.jobs.staging.uses, './.github/workflows/release-environment.yml');
-  assert.equal(deploy.jobs.staging.with.run_id, '${{ github.event.workflow_run.id }}');
+  assert.equal(deploy.jobs.staging.with.run_id, "${{ format('{0}', github.event.workflow_run.id) }}");
   assert.equal(deploy.jobs.staging.with.release_sha, '${{ github.event.workflow_run.head_sha }}');
 });
 
@@ -65,7 +65,9 @@ void test('promotion is explicit, main-only, and keeps production approval and t
   const promote = workflow('promote');
   const rollback = workflow('rollback');
   assert.deepEqual(Object.keys(promote.on), ['workflow_dispatch']);
+  assert.equal(workflow('release-environment').on.workflow_call.inputs.run_id.type, 'string');
   for (const [flow, job] of [[promote, 'production'], [rollback, 'rollback']]) {
+    assert.equal(flow.on.workflow_dispatch.inputs.run_id.type, 'string');
     assert.equal(flow.concurrency, undefined);
     assert.equal(flow.jobs[job].if, "github.ref == 'refs/heads/main'");
     assert.equal(flow.jobs[job].uses, './.github/workflows/release-environment.yml');

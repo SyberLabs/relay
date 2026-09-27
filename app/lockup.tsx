@@ -1,4 +1,4 @@
-/** SyberLabs product lockup: mark + SYBERLABS / RELAY. */
+/** SyberLabs product lockup: mark + SYBERLABS / RELAY + the Relay sigil. */
 export function Lockup() {
   return (
     <span className="sy-lockup">
@@ -8,6 +8,7 @@ export function Lockup() {
         /
       </span>
       <span>Relay</span>
+      <span aria-hidden="true" className="sy-sigil" />
     </span>
   );
 }

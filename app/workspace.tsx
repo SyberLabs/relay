@@ -152,7 +152,12 @@ export default function Workspace() {
             </a>
           </section>
         ) : !loaded ? (
-          <p aria-live="polite">Opening your workspace…</p>
+          <div className="sy-loading" aria-busy="true">
+            <p aria-live="polite">Opening your workspace…</p>
+            <span aria-hidden="true" className="sy-skeleton mid" />
+            <span aria-hidden="true" className="sy-skeleton" />
+            <span aria-hidden="true" className="sy-skeleton short" />
+          </div>
         ) : (
           <WorkspaceJobPanel rt={rt} />
         )}

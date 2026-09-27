@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import { Lockup } from '../lockup';
 export default function Privacy() {
   return (
     <main className="productpage">
       <Link className="brand" href="/">
-        <span className="mark">r</span>relay
+        <Lockup />
       </Link>
       <p className="eyebrow">A SYBERLABS PRODUCT · INVITED PILOT</p>
       <h1>How Relay uses your data</h1>
@@ -49,11 +50,11 @@ export default function Privacy() {
       <p>
         Cloudflare provides Access, Workers, D1, Turnstile, connecting-IP rate
         limits, and optional request observability that must stay content-free.
-        Relay pages, including the workspace, load fonts from Google Fonts.
-        Assistants and vaults you use (ChatGPT, Codex, Claude, Grok Bot, Notion,
-        Obsidian) receive only what you export or run under your own accounts
-        and their policies. Public Greenhouse and Lever board pulls fetch job
-        listings, not your profile.
+        Relay pages, including the workspace, serve their fonts from Relay
+        itself and do not request Google Fonts. Assistants and vaults you use
+        (ChatGPT, Codex, Claude, Grok Bot, Notion, Obsidian) receive only what
+        you export or run under your own accounts and their policies. Public
+        Greenhouse and Lever board pulls fetch job listings, not your profile.
       </p>
       <p>
         Relay does not POST the employer form. Inspect Accept on a complete

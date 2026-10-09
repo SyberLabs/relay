@@ -1,6 +1,6 @@
 # Keeping Relay's public pages current
 
-**Relay lead engineer: Seth Carlson. Product: Mateo Robles.** Update [`public-copy.json`](public-copy.json) when shipped behavior, integration setup, ownership or release status changes. It is the single source for the managed RELAY sections in:
+Built by Seth Carlson and Mateo Robles. Update [`public-copy.json`](public-copy.json) when shipped behavior, integration setup, ownership or release status changes. It is the single source for the managed RELAY sections in:
 
 - `SyberLabs/relay` - project `README.md`
 - `SyberLabs/.github` - organization `profile/README.md`

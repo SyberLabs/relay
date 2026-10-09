@@ -1,0 +1,44 @@
+diff --git a/dist/index.js b/dist/index.js
+index d71ffe45b309b6fd5afe0131989b652db36b724e..7bd1b4386ebaaeda947f98f5d047cb4099c54f9e 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -4,7 +4,7 @@ const fs = require("node:fs");
+ const path = require("node:path");
+ const esModuleLexer = require("es-module-lexer");
+ const acorn = require("acorn");
+-const fastGlob = require("fast-glob");
++const { globSync } = require("tinyglobby");
+ const MagicString = require("magic-string");
+ const os = require("node:os");
+ const DEFAULT_EXTENSIONS = [
+@@ -511,7 +511,7 @@ async function globFiles({
+     const ext = `.{${extensions.map((e) => e.replace(/^\./, "")).join(",")}}`;
+     return [g + ext, `${g}/index${ext}`];
+   }).flat();
+-  files = fastGlob.sync(fileGlobs, { cwd: (
++  files = globSync(fileGlobs, { cwd: (
+     /* 🚧-① */
+     path.dirname(importer)
+   ) }).map((file) => relativeify(file));
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0478fabc64be5ab2e7a3012aa4ba58e41f852a38..dc9dab7090f0562766dcec495e02f5aec7219a5b 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -2,7 +2,7 @@ import fs from "node:fs";
+ import path from "node:path";
+ import { init, parse } from "es-module-lexer";
+ import { parse as parse$1 } from "acorn";
+-import fastGlob from "fast-glob";
++import { globSync } from "tinyglobby";
+ import MagicString from "magic-string";
+ import os from "node:os";
+ const DEFAULT_EXTENSIONS = [
+@@ -509,7 +509,7 @@ async function globFiles({
+     const ext = `.{${extensions.map((e) => e.replace(/^\./, "")).join(",")}}`;
+     return [g + ext, `${g}/index${ext}`];
+   }).flat();
+-  files = fastGlob.sync(fileGlobs, { cwd: (
++  files = globSync(fileGlobs, { cwd: (
+     /* 🚧-① */
+     path.dirname(importer)
+   ) }).map((file) => relativeify(file));

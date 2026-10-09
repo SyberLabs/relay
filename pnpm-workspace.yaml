@@ -6,6 +6,7 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - jose@6.2.12
 overrides:
-  undici@<7.29.0: 7.29.0
+  undici@<7.29.1: 7.29.1
   ws@<8.21.0: 8.21.0
-  sharp@<0.35.4: 0.35.4
+  sharp@<0.35.5: 0.35.5
+  source-map-js@<1.2.2: 1.2.2

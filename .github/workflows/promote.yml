@@ -11,7 +11,7 @@ on:
       run_id:
         description: Successful main CI run that built the staged artifact (not the Deploy run)
         required: true
-        type: number
+        type: string
 
 permissions:
   contents: read

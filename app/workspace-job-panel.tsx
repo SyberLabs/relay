@@ -468,22 +468,24 @@ export function WorkspaceJobPanel({ rt }: { rt: WorkspaceRuntime }) {
                         Select a job to continue its review. Adding or importing
                         is between jobs.
                       </p>
-                      <button
-                        className="btn btn-signal btn-sm"
-                        disabled={!queued.length && !lanes.waiting.length}
-                        onClick={loadNext}
-                        type="button"
-                      >
-                        Load next application
-                      </button>
-                      <button
-                        className="secondary"
-                        disabled={busy}
-                        onClick={() => run({ action: 'replay' })}
-                        type="button"
-                      >
-                        Check examples
-                      </button>
+                      <div className="actions">
+                        <button
+                          className="secondary"
+                          disabled={!queued.length && !lanes.waiting.length}
+                          onClick={loadNext}
+                          type="button"
+                        >
+                          Load next application
+                        </button>
+                        <button
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => run({ action: 'replay' })}
+                          type="button"
+                        >
+                          Check examples
+                        </button>
+                      </div>
                     </>
                   )}
                   {connections}

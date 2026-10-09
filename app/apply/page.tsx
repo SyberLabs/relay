@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRelayTools } from '../agent-tools';
 import { inspectSummaryMarkup, useInspectSnapshot } from '../inspect';
 import { inspectOperativeStatus } from '../../lib/inspect-view';
+import { Lockup } from '../lockup';
 
 const TOOL_STATUS_COPY = {
   checking: 'Checking browser assistant tools…',
@@ -49,7 +50,7 @@ export default function ApplyOverlay() {
     return (
       <main className="apply-overlay">
         <p className="brand">
-          <span className="mark">r</span>relay
+          <Lockup />
         </p>
         <h1>Apply overlay</h1>
         <p>Sign in to open this job’s Inspect summary.</p>
@@ -67,7 +68,7 @@ export default function ApplyOverlay() {
   return (
     <main className="apply-overlay">
       <p className="brand">
-        <span className="mark">r</span>relay
+        <Lockup />
       </p>
       <h1>Inspect</h1>
       <p>Accept lives on the human workspace, not here.</p>

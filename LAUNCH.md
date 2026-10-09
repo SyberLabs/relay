@@ -10,6 +10,6 @@ Available now: Runtime and Tracker, plus local command integrations. Account con
 
 Explore the code and setup guide: https://github.com/SyberLabs/relay
 
-Relay lead engineer: Seth Carlson. Product: Mateo Robles.
+Built by Seth Carlson and Mateo Robles.
 
 No customer counts, hiring outcomes, or throughput improvements have been claimed. This copy is suitable for the repository; no social post has been sent.

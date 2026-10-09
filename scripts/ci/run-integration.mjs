@@ -97,9 +97,9 @@ async function startServer() {
   const server = spawn(
     process.execPath,
     [
-      await bin('vinext'),
+      await bin('vite'),
       'dev',
-      '--hostname',
+      '--host',
       '127.0.0.1',
       '--port',
       String(port),

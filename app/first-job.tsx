@@ -9,6 +9,7 @@ import {
   type FirstJobErrors,
   type FirstJobRecord,
 } from '../lib/first-job';
+import { AtlasAmbient, RelaySigil } from './syber-atlas';
 
 const emptyErrors: FirstJobErrors = {};
 
@@ -50,8 +51,12 @@ export function FirstJob({
   }
 
   return (
-    <section className="import">
-      <h2>Add a job</h2>
+    <section className="import atlas-host">
+      <AtlasAmbient />
+      <div className="atlas-head">
+        <RelaySigil size={64} />
+        <h2>Add a job</h2>
+      </div>
       <p>
         Enter the role title and posting URL. Optional notes are saved as
         research. Company, compensation and fit are not required.

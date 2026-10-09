@@ -82,6 +82,18 @@ export function useWorkspaceRuntime() {
     [showAddJob, setShowAddJob] = useState(false),
     [handoffOpen, setHandoffOpen] = useState(false),
     [historyNext, setHistoryNext] = useState<Record<string, string | null>>({});
+  const [messageTime, setMessageTime] = useState('--:--:--');
+  const [fitTime, setFitTime] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMessageTime(message ? new Date().toTimeString().slice(0, 8) : '--:--:--');
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [message]);
+  useEffect(() => {
+    const timer = setInterval(() => setFitTime(new Date().toISOString()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const [modal, setModal] = useState<RuntimeModal>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyReturnRef = useRef<HTMLElement | null>(null);
@@ -140,7 +152,7 @@ export function useWorkspaceRuntime() {
           current,
           sources.filter((s) => s.job_key === current.job_key),
           facts,
-          new Date().toISOString(),
+          fitTime,
         )
       : null;
   const inspect = useInspect(
@@ -958,6 +970,7 @@ export function useWorkspaceRuntime() {
     loadJobHistory,
     loadNext,
     message,
+    messageTime,
     modal,
     named,
     onImportTabKey,

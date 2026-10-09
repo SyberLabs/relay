@@ -33,6 +33,7 @@ export default function Workspace() {
     lead,
     loaded,
     message,
+    messageTime,
     modal,
     openAddJob,
     policy,
@@ -74,7 +75,7 @@ export default function Workspace() {
               ? `${current.name}.`
               : 'Runtime ready. Select an application.'
       }
-      logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
+      logTime={messageTime}
       onAddJob={openAddJob}
       onAutopilot={() => void toggleAutopilot()}
       onHistory={() => {

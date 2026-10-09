@@ -1,7 +1,6 @@
-**SYBERLABS TECHNICAL PRIORITY #1 — JEV INTEGRATION**
+**SyberLabs portfolio direction**
 
-JEV integration is the portfolio-wide technical focus across all SyberLabs projects.
-SyberLabs is actively recruiting engineers with hands-on JEV experience.
+The [portfolio decision ledger](https://github.com/SyberLabs/MasterMind/blob/main/docs/org/DECISIONS.md) records the current sequence: RISE Composer, Flyspace, then SyberSDK. Relay's supervised application workflow remains its product scope; a local JEV experiment does not make JEV integration the portfolio's first priority.
 
 # Relay by SyberLabs
 

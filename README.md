@@ -1,3 +1,7 @@
+**SyberLabs portfolio direction**
+
+The current SyberLabs portfolio sequence is: RISE Composer, Flyspace, then SyberSDK. Relay's supervised application workflow remains its product scope; a local JEV experiment does not make JEV integration the portfolio's first priority.
+
 # Relay by SyberLabs
 
 <!-- relay:public:start -->

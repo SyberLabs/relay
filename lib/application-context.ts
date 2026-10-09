@@ -50,7 +50,7 @@ export async function readApplicationContext(
       .filter((row) => row.job_key === job.job_key)
       .map(({ owner: _owner, ...row }) => row),
     // Workspace GET already filters to user-confirmed, unexpired facts.
-    // These are available facts, not an automatic relevance selection.
+    // These remain candidates for assistant use, not automatic selections.
     facts: workspace.facts.map(({ owner: _owner, ...row }) => row),
     history: {
       events: history.events
@@ -64,8 +64,8 @@ export async function readApplicationContext(
       'The drafting preference and direction are user choices for preparation only. With routine=true or a delegated direction, proceed with grounded wording without asking about routine choices. A supplied answer may propose a profile fact. Only user-confirmed facts are reusable. Never interpret the answer as acceptance, submission authority or permission to bypass a hold.',
       'Before interrupting, try the saved facts, a simpler answer, or omitting an optional detail. A blocker must be one short question about a required answer, with why it is needed. Put research and explanations in progress notes. After drafting, save the draft with an empty blocker if resolved; otherwise retain the specific required question. Delegation itself does not resolve the original concern.',
       'Use this job id and version when staging. If it changed, preserve your draft and retrieve fresh context; never retry a mutation automatically.',
-      'Browser relay_stage_draft and local CLI stage save for review without checking citations, accepting or sending. CLI log is a separate citation-checked draft ledger, not exact acceptance; its automatic-staging rules are unchanged.',
-      'Human approval uses Accept exact draft in the signed-in workspace. A generated draft, save, batch review or generic chat yes is not approval.',
+      'Browser relay_stage_draft and local CLI stage save for review without verifying claims, accepting or sending. Use the job version from the context used to draft; a stale save is refused.',
+      'Only the human can accept exact wording in the signed-in workspace. A generated draft, save, or generic chat yes is not approval.',
       'History is one page. If next is non-null, request another context page with before=next; do not assume the entire history is present.',
     ],
   };

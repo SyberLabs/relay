@@ -158,7 +158,7 @@ T6 is finished as the last line of **this** program. That does not, by itself, s
 - [#112](https://github.com/SyberLabs/relay/issues/112) comment: question clicks → delete busywork → simplify → measure → automate last; Seth owns scope
 - [#128](https://github.com/SyberLabs/relay/pull/128) externally executed applications
 - [agent-applications.md](../../agent-applications.md), [abuse-controls.md](../../abuse-controls.md)
-- [inspect-accept-send design](2026-09-07-inspect-accept-send-design.md), [plant UI](2026-09-07-application-runtime-plant-design.md), [interaction stages](2026-09-07-interaction-stages-design.md)
+- [inspect-accept-send design](2026-09-07-inspect-accept-send-design.md), [historical plant UI](../../history/2026-09-07-application-runtime-plant-design.md), [interaction stages](2026-09-07-interaction-stages-design.md)
 - [#177](https://github.com/SyberLabs/relay/issues/177) / [PR #179](https://github.com/SyberLabs/relay/pull/179) (merged; fixture-only operative)
 - [#183](https://github.com/SyberLabs/relay/issues/183) / [PR #184](https://github.com/SyberLabs/relay/pull/184) (Agents API memory runtime; `live` off)
 - [#195](https://github.com/SyberLabs/relay/issues/195) / [#196](https://github.com/SyberLabs/relay/issues/196) / [#197](https://github.com/SyberLabs/relay/issues/197) (T4–T6 children)

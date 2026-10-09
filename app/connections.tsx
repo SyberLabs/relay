@@ -110,7 +110,7 @@ export function Connections({
       const started = editorTarget();
       onDraft(draftFromPastedJson(pasted, started), started);
       setNote(
-        'Draft format, job identity and version checked; claims were not citation-checked. Review the visible wording before saving. If your selection or draft changed, load it again.',
+        'Draft format, job identity and version checked; claims were not independently verified. Review the visible wording before saving. If your selection or draft changed, load it again.',
       );
     } catch (error) {
       setNote(
@@ -393,7 +393,7 @@ export function Connections({
                 } else {
                   onDraft(draftFromResult(value, started), started);
                   setNote(
-                    'Draft format, job identity and version checked; claims were not citation-checked. Review the visible wording before saving. If your selection or draft changed while reading, load the file again.',
+                    'Draft format, job identity and version checked; claims were not independently verified. Review the visible wording before saving. If your selection or draft changed while reading, load the file again.',
                   );
                 }
               } catch (error) {

@@ -1,15 +1,11 @@
-# Relay by SyberLabs
+# Relay
 
-Keep your application work moving.
+Relay keeps each job's research, selected confirmed facts, draft wording, accepted text, and manually recorded application history in one private record.
 
-Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.
+Prepare a job-specific handoff for an assistant, review the returned wording, and accept the exact text yourself. Version checks refuse stale draft saves. A submitted outcome requires a receipt.
 
-Import research from Notion or a tracker CSV, exchange packets with ChatGPT, Codex, Grok Bot, or Claude, and review the actual words before using them. Keep interview notes without resetting your application status.
+Relay does not independently verify draft claims or POST an employer form. A separate application action requires human Inspect approval before an external browser receives a one-use permit. The included Chrome operative is tested only with a fictional fixture.
 
-Available now: Runtime and Tracker, plus local command integrations. Account connections require setup. Autonomous hunting and Relay POSTing an employer form are not included in this release.
+Relay is in an invited pilot. No hiring outcomes or throughput improvements have been established.
 
-Explore the code and setup guide: https://github.com/SyberLabs/relay
-
-Built by Seth Carlson and Mateo Robles.
-
-No customer counts, hiring outcomes, or throughput improvements have been claimed. This copy is suitable for the repository; no social post has been sent.
+[Repository and setup](https://github.com/SyberLabs/relay) · [Integrations](integrations/README.md)

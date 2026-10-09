@@ -7,8 +7,8 @@ import { dirname } from 'node:path';
 // Exit codes are the contract an unattended agent relies on. The distinction
 // that matters is 3 against 4: a domain refusal means fix the input, a server
 // failure needs inspection before a deliberate retry. An agent that confuses
-// them will retry a refused draft until some phrasing slips past the citation gate, which turns a safety
-// check into an obstacle to route around.
+// them can turn a clear domain refusal into repeated writes. Never retry a
+// refused mutation unchanged.
 export const EXIT = {
   ok: 0,
   usage: 1,

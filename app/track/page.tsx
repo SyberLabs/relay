@@ -1,12 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  MessageSquareQuote,
-  Receipt,
-  ShieldAlert,
-} from 'lucide-react';
+import { ArrowLeft, Receipt } from 'lucide-react';
 import {
   beginPageWork,
   createPageSession,
@@ -25,25 +20,17 @@ type Outcome = {
   receipt: string | null;
   occurred: string;
 };
-type Prep = {
+type Application = {
   id: string;
   name: string;
   status: string;
   version: number;
   receipt: string | null;
-  claims: { id: string; claim: string; evidence: string }[];
-};
-type Rate = {
-  mean: number;
-  low: number;
-  high: number;
-  sent: number;
-  responses: number;
+  accepted_draft: string | null;
 };
 type Data = {
   outcomes: Outcome[];
-  prep: Prep[];
-  rates: Record<string, Rate>;
+  applications: Application[];
   error?: string;
 };
 const laterKinds = [
@@ -177,7 +164,8 @@ export default function Track() {
       </ProductShell>
     );
   const unreceipted =
-    data?.prep.filter((p) => p.status !== 'Ready' && !p.receipt).length ?? 0;
+    data?.applications.filter((p) => p.status !== 'Ready' && !p.receipt)
+      .length ?? 0;
   return (
     <ProductShell current="track">
       <Link className="backlink" href="/">
@@ -200,54 +188,29 @@ export default function Track() {
         onFilter={chooseSheetFilter}
       />
 
-      {data && Object.keys(data.rates).length > 0 && (
-        <section className="import">
-          <h2>Reply rates by role type</h2>
-          <p>
-            Descriptive only. Samples are small, the market moves, and a job
-            search cannot be run as an experiment — so these say what happened,
-            never what caused it.
-          </p>
-          {Object.entries(data.rates).map(([cluster, r]) => (
-            <article className="factrow" key={cluster}>
-              <b>{cluster}</b>
-              <span className="badge">
-                {(r.mean * 100).toFixed(0)}% · {(r.low * 100).toFixed(0)}–
-                {(r.high * 100).toFixed(0)}%
-              </span>
-              <small>
-                {r.responses} replies from {r.sent} receipted submissions
-                {r.sent < 10 ? ' · too few to read much into' : ''}
-              </small>
-            </article>
-          ))}
-        </section>
-      )}
-
       {unreceipted > 0 && (
         <section className="report warn">
           <b>
-            <ShieldAlert size={16} /> {unreceipted} application
+            {unreceipted} application
             {unreceipted > 1 ? 's' : ''} without a receipt
           </b>
           <p>
             These arrived through an import that asserted a submission without
-            proof. They stay visible, but they are excluded from the reply rates
-            above — counting a send that may never have happened would corrupt
-            every estimate built on it.
+            proof. They stay visible so you can add a receipt or correct the
+            record.
           </p>
         </section>
       )}
 
       <section className="import">
         <h2>Live applications</h2>
-        {!data?.prep.length && (
+        {!data?.applications.length && (
           <p className="empty">
             Nothing submitted yet. Accept an exact draft in Runtime, then
             record the submission with its receipt.
           </p>
         )}
-        {data?.prep.map((job) => (
+        {data?.applications.map((job) => (
           <article className="draftrow" key={job.id}>
             <div className="drafthead">
               <b>{job.name}</b>
@@ -260,24 +223,15 @@ export default function Track() {
                 <span className="badge warnbadge">no receipt</span>
               )}
             </div>
-            {job.claims.length > 0 ? (
-              <>
-                <p className="why">
-                  <MessageSquareQuote size={14} /> Be ready to defend, in these
-                  words:
-                </p>
-                {job.claims.map((c) => (
-                  <div className="claimrow" key={c.id}>
-                    <b>{c.claim}</b>
-                    <small>{c.evidence || 'no evidence recorded'}</small>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <p className="why">
-                No cited claims on the logged draft — nothing here commits you
-                to a specific figure.
-              </p>
+            {job.accepted_draft && (
+              <div className="claimrow">
+                <b>Exact wording accepted in Relay</b>
+                <p>{job.accepted_draft}</p>
+                <small>
+                  This records what you accepted here; it does not prove what
+                  the employer received.
+                </small>
+              </div>
             )}
             <div className="actions">
               {job.status === 'Ready' ? (
@@ -337,7 +291,7 @@ export default function Track() {
         ))}
       </section>
 
-      {data && data.outcomes.length > 0 && (
+        {data && data.outcomes.length > 0 && (
         <section className="import">
           <h2>History</h2>
           {data.outcomes

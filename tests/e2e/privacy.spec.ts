@@ -15,7 +15,7 @@ test('signed-out workspace and About open the data notice', async ({
   ).toBeVisible();
   await expect(page.getByText(/does not sell/i)).toBeVisible();
   await expect(
-    page.getByText('Relay does not POST the employer form.'),
+    page.getByText('Relay itself does not POST the employer form.'),
   ).toBeVisible();
 
   await page.goto('/about');

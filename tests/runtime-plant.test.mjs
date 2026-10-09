@@ -24,7 +24,6 @@ void test('the home workbench keeps existing acceptance and import contracts', (
   assert.match(workspace, /onUnauthorized=\{applyExpired\}/);
   assert.match(modals, /Open Your facts/);
   assert.match(modals, /onClick=\{onNavigate\}/);
-  assert.match(modals, /Review every application/);
   assert.match(modals, /readRuntimeModalProfile/);
   assert.match(modals, /settleRuntimeModalProfileRead/);
   assert.doesNotMatch(modals, /if \(cancelled\) return/);
@@ -138,23 +137,17 @@ void test('inspect copy stays truthful and never claims a disconnected wake', ()
   assert.match(modals, /setPanel\('style'\)/);
 });
 
-void test('expiry clears runtime policy and context tiles', () => {
+void test('expiry clears private runtime context', () => {
   const start = runtime.indexOf('const applyExpired = useCallback');
   const end = runtime.indexOf('const researchRows', start);
   const body = runtime.slice(start, end);
-  assert.match(body, /setPolicy\(null\)/);
-  assert.match(body, /setAutopilot\(false\)/);
   assert.match(body, /setStyleCount\(0\)/);
   assert.match(body, /setHistoryOpen\(false\)/);
   assert.match(body, /selectedRef\.current = ''/);
   assert.match(workspace, /processAuthorizedGet/);
   assert.match(
     workspace,
-    /if \(outcome\.switched\) \{\s*setModal\(null\);\s*setPolicy\(null\);\s*setAutopilot\(false\);\s*setStyleCount\(0\);\s*policyRef\.current = null/,
-  );
-  assert.match(
-    workspace,
-    /policyRef\.current = null;\s*setHistoryOpen\(false\)/,
+    /if \(outcome\.switched\) \{\s*setModal\(null\);\s*setStyleCount\(0\);\s*setHistoryOpen\(false\)/,
   );
   assert.match(workspace, /historyDisabled=\{!current\}/);
   assert.match(
@@ -221,19 +214,14 @@ void test('tools name Relay connectors instead of job-board OAuth', () => {
   assert.doesNotMatch(modals, /4 job boards connected/);
 });
 
-void test('autopilot writes policy and never begins or accepts a draft', () => {
-  const start = runtime.indexOf('async function saveLimits');
-  const end = runtime.indexOf('\n  return {', start);
-  assert.notEqual(start, -1);
-  assert.notEqual(end, -1);
-  const body = runtime.slice(start, end);
-  assert.match(body, /action: 'policy'/);
-  assert.match(body, /review: 'all'/);
-  assert.match(body, /saved\.length\s*\?\s*saved\s*:\s*eligible/);
-  assert.match(body, /processAuthorizedGet/);
-  assert.doesNotMatch(body, /['"]begin['"]/);
-  assert.doesNotMatch(body, /save\('Ready'\)/);
-  assert.doesNotMatch(body, /action:\s*['"]save['"]/);
-  assert.match(shell, /Autopilot/);
+void test('runtime cannot grant reusable application permission', () => {
+  assert.doesNotMatch(runtime, /saveLimits|toggleAutopilot|action: 'policy'/);
+  assert.doesNotMatch(shell, /Autopilot/);
+  const permissions = readFileSync(
+    'app/applications/permissions.tsx',
+    'utf8',
+  );
+  assert.match(permissions, /Enable application execution/);
+  assert.match(permissions, /Review every application in Inspect/);
   assert.match(shell, /aria-label="Import research"/);
 });

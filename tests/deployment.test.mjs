@@ -34,8 +34,6 @@ function assertGatewayBindings(config) {
   assert.deepEqual(config.ratelimits[0].simple, { limit: 300, period: 60 });
   assert.equal(config.vars.TURNSTILE_SITE_KEY, env.TURNSTILE_SITE_KEY);
   assert.equal(config.vars.RELAY_PAUSE, '');
-  assert.equal(config.vars.RELAY_AGENTS, '');
-  assert.equal(config.vars.RELAY_AGENTS_LIVE, '');
 }
 
 void test('production configuration cannot expose static assets before identity verification', () => {
@@ -127,20 +125,6 @@ void test('workers.dev subdomain labels accept 1 and 63 character DNS labels and
     () => releaseConfig({ ...workersEnv(), WORKERS_DEV_SUBDOMAIN: 'a b' }, {}),
     /WORKERS_DEV_SUBDOMAIN/,
   );
-});
-void test('Agents runtime defaults off, omits the API key, and refuses live without an explicit opt-in', () => {
-  const config = releaseConfig(env, {});
-  assert.equal(config.vars.RELAY_AGENTS, '');
-  assert.equal(config.vars.RELAY_AGENTS_LIVE, '');
-  assert.equal(Object.hasOwn(config.vars, 'OPENAI_API_KEY'), false);
-  assert.throws(() => releaseConfig({ ...env, RELAY_AGENTS: 'on' }, {}));
-  assert.throws(() => releaseConfig({ ...env, RELAY_AGENTS: 'live' }, {}));
-  const live = releaseConfig(
-    { ...env, RELAY_AGENTS: 'live', RELAY_AGENTS_LIVE: '1' },
-    {},
-  );
-  assert.equal(live.vars.RELAY_AGENTS, 'live');
-  assert.equal(Object.hasOwn(live.vars, 'OPENAI_API_KEY'), false);
 });
 void test('artifact verification binds release SHA and every byte, rejecting missing and extra files', () => {
   const files = Object.fromEntries(

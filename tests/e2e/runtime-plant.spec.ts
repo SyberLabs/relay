@@ -16,7 +16,7 @@ test('the workspace workbench shows a full-width queue and review without sendin
   await expect(
     page.getByRole('heading', { name: 'What the agent knows about you' }),
   ).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Autopilot' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Autopilot' })).toHaveCount(0);
   await expect(
     page.getByRole('link', { name: 'Tracker', exact: true }),
   ).toBeVisible();
@@ -122,14 +122,7 @@ test('the workspace workbench shows a full-width queue and review without sendin
     page.getByText('Notes and version-bound draft files from your vault.'),
   ).toBeVisible();
   await expect(page.getByText('Reads listings, submits forms')).toHaveCount(0);
-  await expect(
-    page.getByText('Approval setting: Review every application.', {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('option', { name: /Automatic for standard/ }),
-  ).toHaveCount(0);
+  await expect(page.getByText('Application limits')).toHaveCount(0);
   await page.getByRole('button', { name: 'Done' }).click();
 
   await page
@@ -144,22 +137,18 @@ test('the workspace workbench shows a full-width queue and review without sendin
   ).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
 
-  const before = await (await page.request.get('/api/applications')).json();
-  const auto = page.getByRole('button', { name: 'Autopilot' });
-  if ((await auto.getAttribute('aria-pressed')) === 'true') {
-    await auto.click();
-    await expect(auto).toHaveAttribute('aria-pressed', 'false');
-  }
-  await auto.click();
-  await expect(auto).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByText(/Autopilot on/)).toBeVisible();
-  const after = await (await page.request.get('/api/applications')).json();
-  expect(after.operations || []).toHaveLength((before.operations || []).length);
-  expect(after.policy?.enabled).toBeTruthy();
+  const applicationState = await (
+    await page.request.get('/api/applications')
+  ).json();
   const workspace = await (await page.request.get('/api/workspace')).json();
   const heldJob = workspace.jobs.find(
     (job: { name: string }) => job.name === 'Runtime Plant — Held Engineer',
   );
+  expect(
+    (applicationState.operations || []).filter(
+      (operation: { job_id: string }) => operation.job_id === heldJob?.id,
+    ),
+  ).toHaveLength(0);
   expect(heldJob).toMatchObject({
     status: 'Held',
     accepted_draft: null,

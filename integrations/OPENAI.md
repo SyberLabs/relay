@@ -12,7 +12,7 @@ ChatGPT/Codex computer use can also work directly in a signed-in Relay tab. See 
 4. Save the assistant's JSON response as `relay-result.json` (without Markdown fences), then choose **Load research or draft** in Relay.
 5. Review the wording and facts. Save it or explicitly accept it in Relay. If the job changed, prepare a fresh handoff.
 
-This is an explicit prompt/file integration, not a ChatGPT app installation, account connection, background sync or hosted MCP endpoint. It needs no API key in Relay. Your chosen assistant's account and data settings apply when you share the prompt. Loading checks draft format, job identity and version, not citations or factual accuracy. Workspace saves do not run the separate agent draft-log citation check. Check every claim before accepting exact text.
+This is an explicit prompt/file integration, not a ChatGPT app installation, account connection, background sync or hosted MCP endpoint. It needs no API key in Relay. Your chosen assistant's account and data settings apply when you share the prompt. Loading checks draft format, job identity and version, not factual accuracy. Check every claim before accepting exact text.
 
 For a Codex task with repository and packet access, ask it to use this guide and the exact selected packet path. The equivalent local commands are:
 
@@ -49,7 +49,3 @@ Load the resulting JSON in Relay. A mismatched job or stale version is rejected,
 `node --test tests/assistant.test.mjs` covers prompt selection, output validation, job/version binding, overwrite refusal and CLI failure cleanup. A real local Codex CLI round trip with fictional data also passed Relay's file validation on September 5, 2026. The ChatGPT browser handoff has not been exercised in a signed-in browser. See the [release verification record](../docs/OPENAI-RELEASE.md).
 
 OpenAI documents [non-interactive execution, structured output and saved CLI authentication](https://developers.openai.com/codex/noninteractive/). A future [hosted ChatGPT/Codex plugin](https://developers.openai.com/apps-sdk/build/mcp-server/) would additionally need a deployed endpoint and authenticated, authorized access to Relay; this release does not provide one.
-
-## Optional Relay-funded Agents API runtime
-
-Relay can create an OpenAI Agents API session bound to the signed-in owner and a job (`/api/agents`, #183). That path is **off** unless `RELAY_AGENTS=memory` (scripted, no upstream) or `RELAY_AGENTS=live` with `RELAY_AGENTS_LIVE=1` and a Worker secret `OPENAI_API_KEY`. Live uses `environment.type: none` (no hosted sandbox, no `stream: true`, no webhooks). After create or `agent.session.input.tool_result`, Relay GETs the session until it is parked or terminal. `environment_connection` is refused. OpenAI currently stores session state in the United States and does not support Zero Data Retention. The agent may only call `relay_read_job`, `relay_request_answer`, `relay_prepare_application`, and `relay_record_progress`. It cannot verify facts, accept drafts, authorize send, or `begin`. Human Accept and the browser operative remain the send path. This is not the ChatGPT file handoff above and is not claimed in public copy until live is actually enabled.

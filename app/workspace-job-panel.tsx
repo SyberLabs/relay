@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { ArrowUpRight, Check, ArrowRight } from 'lucide-react';
 import { inspectSendControl } from './inspect';
 import { BlockerReview } from './blocker-review';
-import { AgentSessionPanel } from './agent-session';
 import { WorkbenchQueue } from './workbench-queue';
 import { loadEditor, showsExactAcceptance } from '../lib/editor';
 import {
@@ -17,7 +16,6 @@ export function WorkspaceJobPanel({ rt }: { rt: WorkspaceRuntime }) {
   const {
     acceptedExact,
     action,
-    applyExpired,
     blocked,
     blocker,
     busy,
@@ -51,7 +49,6 @@ export function WorkspaceJobPanel({ rt }: { rt: WorkspaceRuntime }) {
     saveProgress,
     search,
     selected,
-    sessionRef,
     setEditor,
     setModal,
     setSearch,
@@ -141,14 +138,6 @@ export function WorkspaceJobPanel({ rt }: { rt: WorkspaceRuntime }) {
                       </div>
                     )}
                     {inspect.review}
-                    <AgentSessionPanel
-                      key={current.id}
-                      jobId={current.id}
-                      jobName={current.name}
-                      onInspect={() => setModal('inspect')}
-                      sessionRef={sessionRef}
-                      onExpired={applyExpired}
-                    />
                   </div>
                   <footer className="foot">
                     <div className="foot-copy">
@@ -264,8 +253,8 @@ export function WorkspaceJobPanel({ rt }: { rt: WorkspaceRuntime }) {
                         />
                       </label>
                       <p className="muted">
-                        Check each claim against your evidence. Saving here does
-                        not run the agent citation check.
+                        Check each claim against your evidence before you save
+                        or accept the wording.
                       </p>
                       {protectedState && (
                         <div className="actions sticky-actions">

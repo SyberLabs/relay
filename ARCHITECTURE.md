@@ -1,68 +1,33 @@
 # Relay architecture
 
-Relay is a supervised application runtime for job research and drafts. **Runtime** (`/`) is the selected-job loop. **Tracker** (`/track`) is the queue and outcome history. Applications, facts, and Advanced are secondary. It stores opportunity history and records approval of exact text. Discovery, note writing, external AI generation and employer Submit remain separate activities. SyberLabs maintains the application.
+Relay is a private, owner-scoped job record with explicit assistant handoffs and human-controlled application actions. Its core is one record per job: selected research, user-confirmed facts, draft wording, accepted text, state, and history.
 
-## Runtime and persistence
+## Record and ownership
 
-The React interface runs through Vinext. The server runs on Cloudflare Workers with D1 persistence. `app/chatgpt-auth.ts` resolves the identity supplied by the trusted Sites authentication gateway. `/api/workspace` scopes reads and mutations to that owner. The local development sign-in is simulated and must not be exposed publicly.
+The React application runs on Vinext and Cloudflare Workers, with D1 persistence. Production identity comes from the trusted Cloudflare Access gateway; local sign-in is a development mock and must not be exposed.
 
-`jobs` stores canonical posting identity, status, draft, accepted text, blockers and version. `observations` preserves imported source records and revisions. `events` records workspace review actions. Database declarations are in `db/schema.ts`; ordered SQL migrations are in `drizzle/`. Obsidian adds no tables or migrations.
+Every workspace read and write is scoped to the authenticated owner. Jobs hold the current application state, draft, accepted wording, receipt, and version. Observations preserve imported research; events preserve review and state changes; outcomes preserve user- and operative-reported results. Imports can add evidence, but cannot accept wording or reset existing state.
 
-The application has no server-side access to a local Obsidian vault and requires no new provider credentials for Markdown handoffs. The repository's `.openai/hosting.json` declares logical storage bindings only; publishing to GitHub does not create a hosted Relay service.
+## Draft handoff
 
-## Data flow
+The user prepares a packet for an external assistant and chooses which confirmed facts to include. Relay does not independently verify claims or automatically select facts as true for a draft. The assistant returns wording for the selected job. Relay checks job identity and the version used to create the draft; stale writes are refused. Saving a draft is not acceptance. The user reviews and accepts its exact wording, and any edit requires fresh acceptance.
 
-```mermaid
-flowchart LR
-  V[Selected Obsidian research notes] --> P[Local Markdown validation]
-  N[Notion or validated research JSON] --> R[Readable research preview]
-  P --> R
-  R --> M[Preview matches and explicit import]
-  M --> O[Owner-scoped jobs and observations]
-  O --> C[Download job context snapshot]
-  C --> VREF[Reference in Obsidian]
-  E[Relay editor and base version] --> D[Download draft note]
-  D --> VE[Edit body in Obsidian]
-  VE --> G[Check job identity and version]
-  G --> E
-  E --> A[Explicit save or exact-text acceptance]
-  A --> O
-```
+File and local-command integrations read or write only the selected files or packet. Signed-in browser tools expose the owner's permitted Relay records. There is no background account synchronization.
 
-## Responsibility and approval rules
+## Application actions and history
 
-Obsidian research notes own their editable source text. Relay owns the imported observations, application status and acceptance record. A downloaded context file is a dated reference copy, never a second live status authority.
+Users enter application state and outcomes manually. In the fictional fixture, the included operative can also record Submitted when it reports a receipt. Relay does not independently verify employer-side action; a receipt records only what the user or operative reported.
 
-`lib/domain.ts` validates imported rows and canonicalizes job URLs. Known Greenhouse aliases match; tracking parameters are removed from other posting identities. Different job-board URLs are not universally deduplicated. An Obsidian note uses `obsidian:<relay_id>` for source identity and its posting URL for job identity. Duplicate observation identity also includes owner, job, name, source status and note text; edited notes retain earlier observations.
+The separate application coordination flow can prepare and freeze one exact operation. A human must review it in Inspect and choose **Accept and send** before Relay issues a one-use permit to an external browser operative. Relay itself does not POST an employer form. The included Chrome operative is demonstrated only against a fictional fixture. A lost or uncertain result is inspected; it must never be retried as a new submission without evidence that the first action did not occur.
 
-All Obsidian research rows enter with source status Held regardless of status-like properties. Existing job status, draft and exact acceptance are preserved by the established import rules. New jobs start Held. Import advances the job version only when the upsert would change that row (merged status, blocker, accepted text, or posting fields). Exact-repeat research and new observations alone do not invalidate an outstanding draft packet. Rediscovery does not replace a stored effort estimate.
+Acceptance of draft wording alone is not permission to submit. Imports, assistant output, policy settings, and chat messages cannot grant that permission.
 
-The selected job derives heuristic hit/miss/unknown matches between required lines in source notes and user-confirmed, unexpired facts. These internal values display as Possible evidence / No matching evidence found / Not compared under **Posting comparison**. Inspect `whyPicked` quotes posting research notes. Word and number overlap does not establish meaning or qualifications, does not pick the job, and is not an Accept gate. The comparison is not stored and does not change status or acceptance.
+## Compatibility and history
 
-Runtime keeps the selected-job editor, Inspect, source history, and review history. Tracker keeps queue filters and recorded outcomes. `/advanced` links to `/advanced/review`, `/advanced/preferences`, and `/advanced/plan`. Bookmarks to `/review`, `/preferences`, and `/plan` redirect there. Those APIs and records are unchanged. Planning uses estimated reply rates in an expected-maximum calculation; the UI calls its output an experimental plan score, not an expected offer.
+The SQL migration history and existing database tables are preserved. Some tables and fields belonged to removed experimental surfaces, including preference fitting, batch review, and the internal agent runtime. The current pilot does not expose those features. Keeping their historical schema avoids deleting or rewriting stored records; future schema cleanup requires a separate compatibility plan.
 
-`lib/profile.ts` checks selected claim patterns and vocabulary overlap with cited facts, with numbers pooled across those facts. This is a heuristic, not semantic entailment. The stored `Verified` fact status records human confirmation, not independent verification. This draft-log gate is distinct from browser format/identity/version checks and from `/api/workspace` saves, which do not run it. See [product trust boundaries and follow-ups](docs/product-trust.md).
+## Local development
 
-Draft imports stage proposed text, without persisting or accepting it. `lib/editor.ts` binds an editor to its loaded job version and session and rejects late file results after selection, session, version or draft changes. Server writes use version checks; stale writes return a conflict. Changing accepted wording requires another explicit review. Submitted and Live loop records allow follow-up edits without resetting their status. Nothing in this flow submits applications or sends messages.
+Use Node 24 and pnpm. `pnpm dev` starts the local app on `http://localhost:3000/`; use fictional records because local sign-in is simulated. Never expose that server publicly.
 
-## Obsidian module boundaries
-
-`lib/obsidian.ts` parses bounded YAML properties using the declared `yaml` dependency and handles three file kinds:
-
-- `research` (or no kind for earlier notes) converts a selected Markdown body to a validated source row. It supplies templates for role research, interviews and follow-up planning. Batch conversion rejects duplicate source IDs and returns no partial batch.
-- `draft` carries the Relay job ID, canonical key, posting URL and editor version. Its body converts to `relay.draft.v1` with review required. Empty or oversized drafts and inconsistent identity are rejected.
-- `snapshot` exports visible job context and that job's observations for reference. It cannot be imported, preventing recursively duplicated research history. It excludes verified-facts input and review events and is not a full backup.
-
-`lib/integration-files.ts` shares the browser and command file-loading contract. It bounds file count and aggregate size before reading, supports Markdown research batches or a single draft/JSON result, and validates draft results against the selected editor target. Linked notes, embeds, directories and attachments are never traversed.
-
-`app/connections.tsx` owns file selection and downloads. It captures the editor target before asynchronous reads and hands validated research to the preview form or proposed text to the guarded editor callback. `app/workspace-import-dock.tsx` renders readable research and requires a preview of the current import data before enabling its import action. `app/workspace.tsx` composes Runtime; session callbacks live in `app/workspace-runtime.tsx`. The server validates and classifies again at import time. This UI preview gate is not an API authorization mechanism; authenticated callers can invoke the existing validated import endpoint directly.
-
-`integrations/relay.mjs` exposes `obsidian-pull` and `obsidian-draft` alongside existing Notion, Claude and Grok Bot commands. It reads only named input files, writes with exclusive creation, and makes no network calls for Obsidian. Normal YAML values are parsed, not executed. Note content is untrusted evidence and never changes application instructions or grants approval.
-
-## Failure handling and verification
-
-Invalid research files fail before staging the selection; imports remain subject to server validation and transactional database batches. Duplicate note IDs within one selection are errors. Snapshot imports fail with recovery guidance. Old draft notes require a fresh export and manual carry-forward of edits, not changing their version number. Research-file conversion does not claim that content is factually verified.
-
-The test suite covers domain validation, actual SQLite import statements and migrations, observation deduplication, editor concurrency, mocked external providers, Obsidian conversion and local command round trips. Local API tests exercise authenticated preview/import/read-back and draft/status safeguards with fictional records. Type checks, lint and the production build verify the integration compiles with the app. Installed Obsidian interaction, mobile behavior and Sync remain unverified.
-
-See [Obsidian workflows](integrations/OBSIDIAN.md) for setup, properties, limits and recovery, and [integration setup](integrations/README.md) for the other connectors. Automatic vault watching, two-way status synchronization, a custom Obsidian plugin and linked-note traversal are outside the implemented boundary.
+The API and orchestration checks create isolated local databases and apply the full migration history. See [hosting and recovery](docs/hosting.md) for the deployment boundary and [delivery checks](docs/delivery.md) for release validation.

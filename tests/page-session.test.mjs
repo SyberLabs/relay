@@ -5,8 +5,8 @@ import { stripTypeScriptTypes } from 'node:module';
 import * as helper from '../lib/page-session.ts';
 import { asSheetJobs } from '../lib/runtime.ts';
 
-// Coverage: helper 401-before-parse; each page refresh/mutation/extract via
-// compiled source callbacks; review sibling GET held after the other 401s;
+// Coverage: helper 401-before-parse; profile and tracker refresh/mutation via
+// compiled source callbacks;
 // track sibling GET/JSON held or rejected after the other 401s, with
 // preloaded private jobs/outcomes/receipts; delayed GET/POST/json cannot
 // restore or start a follow-up refresh; helper kind=ok then a later-turn 401
@@ -166,12 +166,8 @@ function expireAfterHelperOk(deps, session, afterCount = 1) {
   });
 }
 
-function mutationStop(label, source) {
+function mutationStop(label) {
   if (label === 'profile') return '  async function extract()';
-  if (label === 'review')
-    return source.includes('async function saveCorrection(')
-      ? '  async function saveCorrection('
-      : '  function addRule(';
   return '  if (signedOut)';
 }
 
@@ -190,20 +186,6 @@ const profileKeys = [
   'expiry',
   'rule',
   'scope',
-  'busy',
-  'message',
-  'signedOut',
-];
-const preferencesKeys = ['state', 'busy', 'message', 'minutes', 'signedOut'];
-const reviewKeys = [
-  'drafts',
-  'facts',
-  'batches',
-  'trust',
-  'trigger',
-  'edits',
-  'proposals',
-  'basket',
   'busy',
   'message',
   'signedOut',
@@ -238,66 +220,20 @@ function loadedProfile() {
   };
 }
 
-function loadedPreferences() {
-  return {
-    state: {
-      weights: { comp: 0.2, remote: 0.1, level: 0, size: 0, domain: 0 },
-      answered: 3,
-      minutes: 180,
-      pool: 4,
-      target: 12,
-      pair: {
-        a: { job_key: 'a', name: 'PRIVATE_PREF_JOB_A' },
-        b: { job_key: 'b', name: 'PRIVATE_PREF_JOB_B' },
-      },
-    },
-    busy: false,
-    message: 'old',
-    minutes: 180,
-    signedOut: false,
-  };
-}
-
-function loadedReview() {
-  return {
-    drafts: [
-      {
-        id: 'd1',
-        body: 'PRIVATE_REVIEW_DRAFT',
-        cluster: 'backend',
-        verdict: 'Logged',
-      },
-    ],
-    facts: [{ id: 'f1', claim: 'PRIVATE_REVIEW_FACT' }],
-    batches: [{ id: 'b1', reason: 'PRIVATE_BATCH', closed: null, size: 1 }],
-    trust: {
-      backend: { cluster: 'backend', state: 'Review', reviewed: 2, edit: 0.1 },
-    },
-    trigger: { reason: 'PRIVATE_REVIEW_REASON', ids: ['d1'] },
-    edits: { d1: 'PRIVATE_EDIT' },
-    proposals: { d1: ['PRIVATE_PROPOSAL'] },
-    basket: [{ rule: 'PRIVATE_STAGED_RULE', scope: 'global' }],
-    busy: false,
-    message: 'old',
-    signedOut: false,
-  };
-}
-
 function loadedTrack() {
   return {
     data: {
       outcomes: [{ id: 'o1', kind: 'submitted', receipt: 'PRIVATE_RECEIPT' }],
-      prep: [
+      applications: [
         {
           id: 'job-1',
           name: 'PRIVATE_TRACK_JOB',
           status: 'Ready',
-          claims: [{ id: 'c1', claim: 'PRIVATE_TRACK_CLAIM' }],
+          version: 1,
+          receipt: null,
+          accepted_draft: 'PRIVATE_TRACK_DRAFT',
         },
       ],
-      rates: {
-        backend: { mean: 0.2, low: 0.1, high: 0.3, sent: 4, responses: 1 },
-      },
     },
     busy: false,
     message: 'old',
@@ -313,14 +249,6 @@ const profileOk = {
   version: 7,
   usable: 1,
 };
-const preferencesOk = loadedPreferences().state;
-const reviewDraftsOk = {
-  drafts: loadedReview().drafts,
-  batches: loadedReview().batches,
-  trust: loadedReview().trust,
-  trigger: loadedReview().trigger,
-};
-const reviewProfileOk = { facts: loadedReview().facts };
 const trackOk = loadedTrack().data;
 const trackWorkspaceOk = { jobs: loadedTrack().jobs };
 const extractOk = {
@@ -334,11 +262,6 @@ function assertCleared(label, state, detail) {
     assert.deepEqual(state.rules, [], detail);
     assert.equal(state.resume, '', detail);
     assert.deepEqual(state.candidates, [], detail);
-  }
-  if (label === 'preferences') assert.equal(state.state, null, detail);
-  if (label === 'review') {
-    assert.deepEqual(state.drafts, [], detail);
-    assert.deepEqual(state.facts, [], detail);
   }
   if (label === 'track') {
     assert.equal(state.data, null, detail);
@@ -420,22 +343,6 @@ const pages = [
     okBody: profileOk,
   },
   {
-    label: 'preferences',
-    file: 'app/advanced/preferences/page.tsx',
-    keys: preferencesKeys,
-    seed: loadedPreferences,
-    mutation: 'post',
-    okBody: preferencesOk,
-  },
-  {
-    label: 'review',
-    file: 'app/advanced/review/page.tsx',
-    keys: reviewKeys,
-    seed: loadedReview,
-    mutation: 'run',
-    okBody: reviewDraftsOk,
-  },
-  {
     label: 'track',
     file: 'app/track/page.tsx',
     keys: trackKeys,
@@ -443,8 +350,7 @@ const pages = [
     mutation: 'record',
     okBody: trackOk,
   },
-];
-const unauthorizedBodies = [
+];const unauthorizedBodies = [
   { format: 'json', body: { error: 'Sign in first.' } },
   { format: 'plain', body: 'Unauthorized' },
 ];
@@ -468,7 +374,7 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
         sliceFrom(
           source,
           `async function ${mutation}(`,
-          mutationStop(label, source),
+          mutationStop(label),
         ),
         deps,
       );
@@ -493,20 +399,6 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
         assert.equal(state.scope, 'global');
         assert.equal(state.version, 1);
         assert.equal(state.usable, 0);
-      }
-      if (label === 'preferences') {
-        assert.equal(state.state, null);
-        assert.equal(state.minutes, 120);
-      }
-      if (label === 'review') {
-        assert.deepEqual(state.drafts, []);
-        assert.deepEqual(state.facts, []);
-        assert.deepEqual(state.batches, []);
-        assert.deepEqual(state.trust, {});
-        assert.equal(state.trigger, null);
-        assert.deepEqual(state.edits, {});
-        assert.deepEqual(state.proposals, {});
-        assert.deepEqual(state.basket, []);
       }
       if (label === 'track') {
         assert.equal(state.data, null);
@@ -546,7 +438,7 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
       sliceFrom(
         source,
         `async function ${mutation}(`,
-        mutationStop(label, source),
+        mutationStop(label),
       ),
       deps,
     );
@@ -570,8 +462,6 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
       'expired mutation must not start a follow-up refresh',
     );
     if (label === 'profile') assert.deepEqual(state.facts, []);
-    if (label === 'preferences') assert.equal(state.state, null);
-    if (label === 'review') assert.deepEqual(state.drafts, []);
     if (label === 'track') {
       assert.equal(state.data, null);
       assert.deepEqual(state.jobs, []);
@@ -594,7 +484,7 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
       sliceFrom(
         source,
         `async function ${mutation}(`,
-        mutationStop(label, source),
+        mutationStop(label),
       ),
       deps,
     );
@@ -609,12 +499,9 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
     for (let gap = 0; gap < 20; gap++) {
       const state = seed();
       const get = deferred();
-      const profileGet = deferred();
       const post = deferred();
       const { session, deps } = pageDeps(state, keys, async (url, init) => {
         if (init?.method === 'POST') return post.promise;
-        if (label === 'review' && String(url).includes('/api/profile'))
-          return profileGet.promise;
         return get.promise;
       });
       bindExpired(source, deps);
@@ -628,7 +515,6 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
         if (helper.expireIfUnauthorized(session, response)) deps.applyExpired();
       })();
       get.resolve(http(200, okBody));
-      if (label === 'review') profileGet.resolve(http(200, reviewProfileOk));
       for (let tick = 0; tick < gap; tick++) await Promise.resolve();
       post.resolve(http(401, 'Unauthorized'));
       await Promise.all([pendingRefresh, pendingExpiry]);
@@ -646,14 +532,12 @@ for (const { label, file, keys, seed, mutation, okBody } of pages) {
     const source = readFileSync(file, 'utf8');
     const state = seed();
     let gets = 0;
-    const { session, deps } = pageDeps(state, keys, async (url) => {
+    const { session, deps } = pageDeps(state, keys, async () => {
       gets += 1;
-      if (label === 'review' && String(url).includes('/api/profile'))
-        return http(200, reviewProfileOk);
       return http(200, okBody);
     });
     bindExpired(source, deps);
-    expireAfterHelperOk(deps, session, label === 'review' ? 2 : 1);
+    expireAfterHelperOk(deps, session);
     deps.refresh = bind(callbackBody(source, 'refresh'), deps);
     await deps.refresh();
     assert.ok(gets >= 1);
@@ -779,53 +663,6 @@ void test('profile extract does not apply candidates after helper returns ok', a
   await extract();
   assert.equal(session.expired, true);
   assertCleared('profile', state);
-});
-
-void test('review profile sibling 401 expires while drafts GET is held', async () => {
-  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const drafts = deferred();
-  const profile = deferred();
-  const { session, deps } = pageDeps(state, reviewKeys, async (url) => {
-    if (String(url).includes('/api/drafts')) return drafts.promise;
-    if (String(url).includes('/api/profile')) return profile.promise;
-    throw new Error('unexpected ' + url);
-  });
-  bindExpired(source, deps);
-  const refresh = bind(callbackBody(source, 'refresh'), deps);
-  const pending = refresh();
-  profile.resolve(http(401, { error: 'Sign in first.' }));
-  await flush();
-  assert.equal(state.signedOut, true, 'must not wait for Promise.all');
-  assert.deepEqual(state.facts, []);
-  assert.deepEqual(state.drafts, []);
-  drafts.resolve(http(200, reviewDraftsOk));
-  await pending;
-  assert.equal(session.expired, true);
-  assert.equal(state.signedOut, true);
-  assert.deepEqual(state.drafts, []);
-  assert.deepEqual(state.facts, []);
-});
-
-void test('review drafts sibling 401 expires while profile GET is held', async () => {
-  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const drafts = deferred();
-  const profile = deferred();
-  const { deps } = pageDeps(state, reviewKeys, async (url) => {
-    if (String(url).includes('/api/drafts')) return drafts.promise;
-    return profile.promise;
-  });
-  bindExpired(source, deps);
-  const refresh = bind(callbackBody(source, 'refresh'), deps);
-  const pending = refresh();
-  drafts.resolve(http(401, 'Unauthorized'));
-  await flush();
-  assert.equal(state.signedOut, true);
-  profile.resolve(http(200, reviewProfileOk));
-  await pending;
-  assert.deepEqual(state.facts, []);
-  assert.deepEqual(state.drafts, []);
 });
 
 for (const unauthorized of ['outcomes', 'workspace']) {
@@ -1000,61 +837,6 @@ for (const sibling401 of trackSibling401s) {
   });
 }
 
-void test('review Save correction does not stage proposals after expiry', async () => {
-  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const post = deferred();
-  let gets = 0;
-  const { session, deps } = pageDeps(state, reviewKeys, async (_url, init) => {
-    if (init?.method === 'POST') return post.promise;
-    gets += 1;
-    return http(401, 'Unauthorized');
-  });
-  bindExpired(source, deps);
-  deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-  deps.run = bindFunction(
-    sliceFrom(
-      source,
-      'async function run(',
-      '  async function saveCorrection(',
-    ),
-    deps,
-  );
-  const saveCorrection = bindFunction(
-    sliceFrom(source, 'async function saveCorrection(', '  function addRule('),
-    deps,
-  );
-  const pending = saveCorrection('d1');
-  post.resolve(
-    http(200, { ok: true, proposals: ['Keep PRIVATE_PROPOSAL forever.'] }),
-  );
-  await pending;
-  assert.equal(state.signedOut, true);
-  assert.deepEqual(state.proposals, {});
-  assert.equal(session.expired, true);
-  assert.ok(gets >= 1);
-  assert.equal(state.message, '');
-});
-
-void test('review addRule is refused after expiry', () => {
-  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  state.basket = [];
-  const { session, deps } = pageDeps(state, reviewKeys, async () => {
-    throw new Error('addRule must not fetch');
-  });
-  bindExpired(source, deps);
-  helper.expirePageSession(session);
-  deps.applyExpired();
-  const addRule = bindFunction(
-    sliceFrom(source, 'function addRule(', '  const open ='),
-    deps,
-  );
-  addRule('Do not leak private rules.');
-  assert.deepEqual(state.basket, []);
-  assert.equal(state.signedOut, true);
-});
-
 void test('GET JSON parse that expires mid-read cannot restore profile facts', async () => {
   const source = readFileSync('app/profile/page.tsx', 'utf8');
   const state = loadedProfile();
@@ -1069,28 +851,4 @@ void test('GET JSON parse that expires mid-read cannot restore profile facts', a
   await refresh();
   assert.equal(state.signedOut, true);
   assert.deepEqual(state.facts, []);
-});
-
-void test('successful mutation refresh 401 does not return private proposals', async () => {
-  const source = readFileSync('app/advanced/review/page.tsx', 'utf8');
-  const state = loadedReview();
-  const { session, deps } = pageDeps(state, reviewKeys, async (_url, init) => {
-    if (init?.method === 'POST')
-      return http(200, { ok: true, proposals: ['PRIVATE_PROPOSAL'] });
-    return http(401, 'Unauthorized');
-  });
-  bindExpired(source, deps);
-  deps.refresh = bind(callbackBody(source, 'refresh'), deps);
-  const run = bindFunction(
-    sliceFrom(
-      source,
-      'async function run(',
-      '  async function saveCorrection(',
-    ),
-    deps,
-  );
-  const result = await run({ action: 'correct', id: 'd1' }, 'saved');
-  assert.equal(result, undefined);
-  assert.equal(state.signedOut, true);
-  assert.equal(session.expired, true);
 });

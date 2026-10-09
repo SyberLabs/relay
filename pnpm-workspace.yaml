@@ -10,3 +10,10 @@ overrides:
   ws@<8.21.0: 8.21.0
   sharp@<0.35.5: 0.35.5
   source-map-js@<1.2.2: 1.2.2
+  vite-plugin-dynamic-import>fast-glob: "-"
+packageExtensions:
+  vite-plugin-dynamic-import@1.6.0:
+    dependencies:
+      tinyglobby: 0.2.17
+patchedDependencies:
+  vite-plugin-dynamic-import@1.6.0: patches/vite-plugin-dynamic-import@1.6.0.patch

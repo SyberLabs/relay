@@ -41,6 +41,7 @@ void test('a refresh cannot restore records after a synchronous expiry callback'
       'sources',
       'events',
       'facts',
+      'factsCheckedAt',
       'draftingPreference',
       'editor',
       'importText',

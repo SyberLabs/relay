@@ -71,6 +71,9 @@ export function useWorkspaceRuntime() {
     [editor, setEditor] = useState<Editor | null>(null),
     [search, setSearch] = useState(''),
     [busy, setBusy] = useState(false),
+    [factsCheckedAt, setFactsCheckedAt] = useState(() =>
+      new Date().toISOString(),
+    ),
     [message, setMessage] = useState(''),
     [signedOut, setSignedOut] = useState(false),
     [loaded, setLoaded] = useState(false),
@@ -140,7 +143,7 @@ export function useWorkspaceRuntime() {
           current,
           sources.filter((s) => s.job_key === current.job_key),
           facts,
-          new Date().toISOString(),
+          factsCheckedAt,
         )
       : null;
   const inspect = useInspect(
@@ -360,6 +363,8 @@ export function useWorkspaceRuntime() {
       setSources(outcome.sources as Source[]);
       setEvents(outcome.events as ReviewEvent[]);
       setFacts(outcome.facts as Fact[]);
+      // Judge fact expiry when facts load; reading the clock during render is impure.
+      setFactsCheckedAt(new Date().toISOString());
       setDraftingPreference(
         outcome.draftingPreference ?? defaultDraftingPreference,
       );

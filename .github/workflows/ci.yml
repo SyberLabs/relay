@@ -39,7 +39,7 @@ jobs:
       - name: Seal the release artifact
         run: node scripts/release/artifact.mjs create
       - name: Preserve immutable release candidate
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: relay-release-${{ github.sha }}
           path: |
@@ -78,7 +78,7 @@ jobs:
         run: node scripts/ci/run-production.mjs
       - name: Preserve failure evidence
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integration-${{ matrix.suite }}-${{ github.run_attempt }}
           path: |

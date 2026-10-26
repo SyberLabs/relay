@@ -50,6 +50,7 @@ function expireKeys(state, deps) {
     'sources',
     'events',
     'facts',
+    'factsCheckedAt',
     'draftingPreference',
     'editor',
     'importText',

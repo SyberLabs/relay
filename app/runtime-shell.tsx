@@ -44,7 +44,7 @@ export function RuntimeShell({
   importOpen: boolean;
   onImport: () => void;
   importDisabled?: boolean;
-  logTime: string;
+  logTime: ReactNode;
   logLine: string;
   onProfile: () => void;
   onTools: () => void;

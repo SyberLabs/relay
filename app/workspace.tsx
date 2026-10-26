@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { FirstJob } from './first-job';
 import { RuntimeShell } from './runtime-shell';
@@ -74,7 +75,7 @@ export default function Workspace() {
               ? `${current.name}.`
               : 'Runtime ready. Select an application.'
       }
-      logTime={message ? new Date().toTimeString().slice(0, 8) : '--:--:--'}
+      logTime={message ? <LogStamp key={message} /> : '--:--:--'}
       onAddJob={openAddJob}
       onAutopilot={() => void toggleAutopilot()}
       onHistory={() => {
@@ -221,4 +222,10 @@ export default function Workspace() {
       </main>
     </RuntimeShell>
   );
+}
+
+// Keyed by message: remounts and reads the clock once per posted line, not on every render.
+function LogStamp() {
+  const [at] = useState(() => new Date().toTimeString().slice(0, 8));
+  return at;
 }

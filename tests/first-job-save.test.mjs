@@ -69,6 +69,7 @@ function baseDeps(state, session, fetcher) {
     'sources',
     'events',
     'facts',
+    'factsCheckedAt',
     'draftingPreference',
     'editor',
     'importText',

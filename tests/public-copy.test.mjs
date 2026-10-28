@@ -14,15 +14,12 @@ const copy = JSON.parse(
 void test('every advertised integration has a checked-in setup guide', async () => {
   for (const item of copy.integrations)
     await access(new URL('../' + item.guide, import.meta.url));
-  assert.equal(copy.builder, 'Seth Carlson');
-  assert.equal(copy.builderProfile, 'https://github.com/sdcarlson');
-  assert.equal(copy.collaborator, 'Mateo Robles');
-  assert.equal(copy.collaboratorProfile, 'https://github.com/sykosyber');
+  assert.equal(copy.builder, 'SyberLabs');
+  assert.equal(copy.builderProfile, 'https://github.com/SyberLabs');
 });
 
-void test('project and organization copy credits both builders without job titles', () => {
-  const credit =
-    'Built by [Seth Carlson](https://github.com/sdcarlson) and [Mateo Robles](https://github.com/sykosyber).';
+void test('project and organization copy credits SyberLabs without job titles', () => {
+  const credit = 'Built by [SyberLabs](https://github.com/SyberLabs).';
   for (const target of ['project', 'organization']) {
     const content = render(copy, target);
     assert.ok(content.includes(credit));
@@ -38,12 +35,10 @@ void test('project and organization copy credits both builders without job title
   }
 });
 
-void test('organization copy names the two-person lab before RELAY', () => {
-  const content = render(copy, 'organization');
-  const lab =
-    'A two-person lab. **[Mateo Robles](https://github.com/sykosyber)** · SyberLabs / RISE. **[Seth Carlson](https://github.com/sdcarlson)** · Relay; systems on RISE and OSAHR.';
-  assert.ok(content.startsWith(lab + '\n\n## RELAY - our flagship project'));
-  assert.doesNotMatch(render(copy, 'project'), /two-person lab/);
+void test('organization copy opens with RELAY', () => {
+  assert.ok(
+    render(copy, 'organization').startsWith('## RELAY - our flagship project'),
+  );
 });
 
 void test('sync preserves all content outside its block and is idempotent', () => {
@@ -97,7 +92,7 @@ void test('shipped copy names Inspect Accept send without claiming Relay POSTs t
 });
 
 void test('public links reject executable schemes, other hosts and embedded credentials', () => {
-  for (const field of ['repository', 'builderProfile', 'collaboratorProfile']) {
+  for (const field of ['repository', 'builderProfile']) {
     for (const value of [
       'javascript:alert(1)',
       'data:text/html,test',

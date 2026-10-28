@@ -5,7 +5,7 @@
 
 Relay helps job seekers manage applications across their preferred AI tools. Keep candidate facts available for reuse, carry job context between assistants, and preserve reviewed drafts and application history. The goal is less repeated work across applications.
 
-Built by [Seth Carlson](https://github.com/sdcarlson) and [Mateo Robles](https://github.com/sykosyber).
+Built by [SyberLabs](https://github.com/SyberLabs).
 
 ## Available in this early release
 
@@ -61,7 +61,7 @@ Relay records acceptance on the selected job in Runtime. It does not POST the em
 
 ## Team
 
-Built by [Seth Carlson](https://github.com/sdcarlson) and [Mateo Robles](https://github.com/sykosyber) under [SyberLabs](https://github.com/SyberLabs).
+Built by [SyberLabs](https://github.com/SyberLabs).
 
 Every database read and write belongs to the authenticated user. Exact accepted text is versioned. Imports add evidence; they cannot grant approval. A stale editor or assistant packet cannot overwrite newer work.
 
@@ -90,10 +90,6 @@ Select a job, open **Prepare this job for an assistant**, choose the note purpos
 Choose **Prepare for ChatGPT** or **Prepare for Codex** in **Prepare this job for an assistant**, share the selected prompt, and return the JSON result for review. Codex can also prepare drafts through its signed-in CLI.
 
 [Complete setup and boundaries](integrations/OPENAI.md)
-
-### GrokCell research templates
-
-The [GrokCell project](https://github.com/sdcarlson/grokcell) publishes the First Principles, Product Ideation, Red Flag, and Garbage Collector templates. They do not connect to Relay or grant access to application records. The [Relay adapter](integrations/GROK_BOT.md) remains the guide for exchanging job research and drafts. See also [context management](context-management/README.md).
 
 ## Candidate facts and advanced batch review
 

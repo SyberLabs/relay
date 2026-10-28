@@ -23,11 +23,7 @@ const escapeHtml = (text) =>
 export function render(copy, target) {
   if (!Object.hasOwn(targets, target))
     throw Error('Unknown public-copy target.');
-  for (const value of [
-    copy.repository,
-    copy.builderProfile,
-    copy.collaboratorProfile,
-  ]) {
+  for (const value of [copy.repository, copy.builderProfile]) {
     const url = new URL(value);
     if (
       url.protocol !== 'https:' ||
@@ -41,7 +37,7 @@ export function render(copy, target) {
   }
   const guide = `${copy.repository}/blob/main/integrations/OPENAI.md`;
   const integrations = copy.integrations.map((item) => item.name).join(', ');
-  const credit = `Built by [${copy.builder}](${copy.builderProfile}) and [${copy.collaborator}](${copy.collaboratorProfile}).`;
+  const credit = `Built by [${copy.builder}](${copy.builderProfile}).`;
   if (target === 'project')
     return `**${copy.tagline}**
 
@@ -64,9 +60,7 @@ ${copy.openaiBoundary}
 
 [Integration setup](integrations/README.md) | [ChatGPT and Codex guide](integrations/OPENAI.md) | [Launch copy](LAUNCH.md)`;
   if (target === 'organization')
-    return `A two-person lab. **[${copy.collaborator}](${copy.collaboratorProfile})** · SyberLabs / RISE. **[${copy.builder}](${copy.builderProfile})** · Relay; systems on RISE and OSAHR.
-
-## RELAY - our flagship project
+    return `## RELAY - our flagship project
 
 **[${copy.name}](${copy.repository}) is SyberLabs' current product focus.**
 

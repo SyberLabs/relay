@@ -1853,3 +1853,71 @@ footer {
   color: var(--sy-text);
   font-weight: 600;
 }
+
+/* Midnight theme (SyberLabs, October 30, 2026) for Relay's outer pages only:
+   About and the data notice, marked <main class="productpage midnight">.
+   Tokens are redefined on that element, so app screens (Runtime, Tracker,
+   facts, Advanced, Applications) keep the :root values above. Aliases are
+   redeclared here because a var() alias resolves where it is declared. */
+.productpage.midnight {
+  --sy-bg: #02070a;
+  --sy-surface: #07121a;
+  --sy-surface-2: #0c1b25;
+  --sy-line: rgba(140, 200, 235, 0.14);
+  --sy-line-strong: rgba(140, 200, 235, 0.28);
+  --sy-text: #f1f6f9;
+  --sy-text-2: #c3cfd6;
+  --sy-text-3: #93a4ae;
+  --sy-on-primary: #02070a;
+  --sy-brand: #0297de;
+  --sy-accent-relay: #0297de;
+  --ink: var(--sy-text);
+  --muted: var(--sy-text-2);
+  --paper: var(--sy-bg);
+  --line: var(--sy-line);
+  --accent: var(--sy-brand);
+  --plate: var(--sy-surface);
+  --plate-hi: var(--sy-surface-2);
+  --rule: var(--sy-line);
+  --rule-hi: var(--sy-line-strong);
+  --dim: var(--sy-text-2);
+  --dimmer: var(--sy-text-3);
+  --signal: var(--sy-brand);
+  color: var(--sy-text);
+  color-scheme: dark;
+}
+body:has(.productpage.midnight) {
+  background: #02070a;
+}
+.productpage.midnight p:not(.eyebrow) {
+  color: var(--sy-text-2);
+}
+.productpage.midnight p a:hover,
+.productpage.midnight .links a:hover,
+.productpage.midnight footer a:hover {
+  color: #4cc0f5;
+}
+.productpage.midnight a.primary {
+  background: #fc734d;
+  border-color: transparent;
+  color: #02070a;
+  font-weight: 600;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 12px 34px -14px rgba(252, 115, 77, 0.8);
+}
+.productpage.midnight a.primary:hover {
+  background: #fd9273;
+  border-color: transparent;
+}
+.productpage.midnight .secondary:hover {
+  border-color: #0297de;
+}
+.productpage.midnight :focus-visible {
+  outline: 2px solid #0297de;
+  outline-offset: 3px;
+}
+.productpage.midnight ::selection {
+  background: rgba(2, 151, 222, 0.32);
+  color: #fff;
+}

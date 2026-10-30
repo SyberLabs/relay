@@ -1,9 +1,11 @@
 import { ArrowUpRight } from 'lucide-react';
+import type { Viewport } from 'next';
 import Link from 'next/link';
 import { Lockup } from '../lockup';
+export const viewport: Viewport = { themeColor: '#02070a' };
 export default function About() {
   return (
-    <main className="productpage">
+    <main className="productpage midnight">
       <Link className="brand" href="/">
         <Lockup />
       </Link>
